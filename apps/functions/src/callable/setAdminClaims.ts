@@ -90,9 +90,9 @@ export const setAdminClaims = onCall(
           } else if (role === 'admin') {
             newClaims.isAdmin = true
           } else if (role === 'legal') {
-            newClaims.isLegal = true
+            newClaims.isLegalTeam = true
           } else if (role === 'compliance') {
-            newClaims.isCompliance = true
+            newClaims.isComplianceTeam = true
           }
         }
       } else {
@@ -102,9 +102,9 @@ export const setAdminClaims = onCall(
           } else if (role === 'admin') {
             delete newClaims.isAdmin
           } else if (role === 'legal') {
-            delete newClaims.isLegal
+            delete newClaims.isLegalTeam
           } else if (role === 'compliance') {
-            delete newClaims.isCompliance
+            delete newClaims.isComplianceTeam
           }
         }
       }

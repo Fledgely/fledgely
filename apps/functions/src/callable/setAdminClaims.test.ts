@@ -171,7 +171,7 @@ describe('setAdminClaims Cloud Function', () => {
         expect.objectContaining({
           isSafetyTeam: true,
           isAdmin: true,
-          isLegal: true,
+          isLegalTeam: true,
         })
       )
     })

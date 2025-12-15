@@ -30,3 +30,8 @@ export { activateNotificationStealth } from './callable/activateNotificationStea
 
 // Scheduled Functions - Stealth Queue Cleanup (Story 0.5.7)
 export { cleanupExpiredStealthQueues } from './scheduled/cleanupExpiredStealthQueues'
+
+// Callable Functions - Audit Trail Sealing (Story 0.5.8)
+export { getSealedAuditEntries } from './callable/getSealedAuditEntries'
+export { sealEscapeAuditEntries } from './callable/sealEscapeAuditEntries'
+export { unsealAuditEntries } from './callable/unsealAuditEntries'
