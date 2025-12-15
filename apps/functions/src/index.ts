@@ -35,3 +35,14 @@ export { cleanupExpiredStealthQueues } from './scheduled/cleanupExpiredStealthQu
 export { getSealedAuditEntries } from './callable/getSealedAuditEntries'
 export { sealEscapeAuditEntries } from './callable/sealEscapeAuditEntries'
 export { unsealAuditEntries } from './callable/unsealAuditEntries'
+
+// Callable Functions - Domestic Abuse Resource Referral (Story 0.5.9)
+export { triggerResourceReferral } from './callable/triggerResourceReferral'
+export { getResourceReferralContent } from './callable/getResourceReferralContent'
+export { requestResourceEmail } from './callable/requestResourceEmail'
+
+// Triggers - Email Queue Processing (Story 0.5.9)
+export { processEmailQueueOnCreate, processEmailQueueOnUpdate } from './triggers/processEmailQueue'
+
+// Scheduled Functions - Resource Staleness Check (Story 0.5.9)
+export { checkResourceStaleness } from './scheduled/checkResourceStaleness'

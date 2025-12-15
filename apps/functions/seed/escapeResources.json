@@ -1,0 +1,50 @@
+[
+  {
+    "name": "National Domestic Violence Hotline",
+    "type": "hotline",
+    "value": "1-800-799-7233",
+    "description": "24/7 confidential support for domestic violence victims. Advocates available in 200+ languages.",
+    "displayOrder": 1,
+    "isActive": true
+  },
+  {
+    "name": "Crisis Text Line",
+    "type": "text-line",
+    "value": "Text HOME to 741741",
+    "description": "Free 24/7 crisis text support. Trained counselors available immediately.",
+    "displayOrder": 2,
+    "isActive": true
+  },
+  {
+    "name": "RAINN National Sexual Assault Hotline",
+    "type": "hotline",
+    "value": "1-800-656-4673",
+    "description": "24/7 support for sexual assault survivors. Free and confidential.",
+    "displayOrder": 3,
+    "isActive": true
+  },
+  {
+    "name": "The Hotline - Safety Planning",
+    "type": "website",
+    "value": "https://www.thehotline.org/plan-for-safety/",
+    "description": "Step-by-step safety planning guides for leaving an abusive situation.",
+    "displayOrder": 4,
+    "isActive": true
+  },
+  {
+    "name": "LawHelp.org",
+    "type": "legal-aid",
+    "value": "https://www.lawhelp.org/",
+    "description": "Find free legal aid in your area. Search by state and issue type.",
+    "displayOrder": 5,
+    "isActive": true
+  },
+  {
+    "name": "Love Is Respect",
+    "type": "website",
+    "value": "https://www.loveisrespect.org/",
+    "description": "Resources specifically for young people experiencing dating abuse.",
+    "displayOrder": 6,
+    "isActive": true
+  }
+]

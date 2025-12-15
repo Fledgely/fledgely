@@ -1,7 +1,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore'
+import { getAuth } from 'firebase-admin/auth'
 import { createHash } from 'crypto'
 import { z } from 'zod'
+import {
+  queueResourceReferralEmail,
+  hasReferralBeenSent,
+} from '../utils/emailService'
 
 /**
  * Input schema for severing parent access
@@ -18,6 +23,8 @@ const severParentAccessInputSchema = z.object({
     .string()
     .min(20, 'Reason must be at least 20 characters for compliance documentation')
     .max(5000),
+  /** Optional: Trigger resource referral email after severing (AC #7 - Story 0.5.9) */
+  triggerResourceReferral: z.boolean().optional(),
 })
 
 /**
@@ -79,7 +86,7 @@ export const severParentAccess = onCall(
       )
     }
 
-    const { requestId, targetUserId, familyId, reason } = parseResult.data
+    const { requestId, targetUserId, familyId, reason, triggerResourceReferral } = parseResult.data
 
     try {
       // Step 1: Verify safety request exists and is properly verified
@@ -183,7 +190,60 @@ export const severParentAccess = onCall(
 
       // CRITICAL: Do NOT trigger any notifications
       // CRITICAL: Do NOT log to family audit trail
-      // CRITICAL: Do NOT send emails
+      // CRITICAL: Do NOT send unsolicited emails
+
+      // Step 5: Optionally trigger resource referral (AC #7 - Story 0.5.9)
+      // This sends domestic abuse resources to the victim asynchronously
+      let resourceReferralQueued = false
+      let resourceReferralQueueId: string | undefined
+
+      if (triggerResourceReferral) {
+        // Check if all escape actions for this safety request are complete
+        // For now, severing is typically the final action
+        const escapeComplete = await checkEscapeCompletion(db, requestId)
+
+        if (escapeComplete) {
+          // Check idempotency - has referral already been sent?
+          const alreadySent = await hasReferralBeenSent(requestId)
+
+          if (!alreadySent) {
+            // Determine recipient email
+            const { recipientEmail, usedSafeContact } = await getRecipientEmailForReferral(
+              safetyRequestData,
+              getAuth()
+            )
+
+            if (recipientEmail) {
+              // Queue email asynchronously - do NOT await delivery
+              // Email failure must NOT block escape completion
+              try {
+                resourceReferralQueueId = await queueResourceReferralEmail(
+                  requestId,
+                  recipientEmail,
+                  usedSafeContact
+                )
+                resourceReferralQueued = true
+
+                // Update safety request with referral status
+                await safetyRequestRef.update({
+                  resourceReferralTriggered: true,
+                  resourceReferralTriggeredAt: Timestamp.now(),
+                  resourceReferralTriggeredBy: callerUid,
+                  resourceReferralQueueId,
+                  resourceReferralStatus: 'pending',
+                })
+              } catch (referralError) {
+                // Log error details but do NOT fail the severing operation
+                console.warn('Resource referral queueing failed, but severing succeeded', {
+                  errorType: referralError instanceof Error ? referralError.name : 'unknown',
+                  errorMessage: referralError instanceof Error ? referralError.message : 'Unknown error',
+                  // Do NOT log: requestId, recipient - privacy critical
+                })
+              }
+            }
+          }
+        }
+      }
 
       return {
         success: true,
@@ -191,6 +251,8 @@ export const severParentAccess = onCall(
         targetUserId,
         familyId,
         severedAt: severingTimestamp.toDate().toISOString(),
+        resourceReferralQueued,
+        resourceReferralQueueId,
         // Do NOT include reason in response for security
       }
     } catch (error) {
@@ -228,3 +290,83 @@ export const severParentAccess = onCall(
     }
   }
 )
+
+/**
+ * Check if all escape actions for a safety request are complete
+ * This determines if it's safe to send the resource referral email
+ *
+ * AC #7: Only ONE resource email per safety request, sent after ALL requested actions complete
+ */
+async function checkEscapeCompletion(
+  db: FirebaseFirestore.Firestore,
+  safetyRequestId: string
+): Promise<boolean> {
+  try {
+    const safetyRequestRef = db.collection('safetyRequests').doc(safetyRequestId)
+    const doc = await safetyRequestRef.get()
+
+    if (!doc.exists) {
+      return false
+    }
+
+    const data = doc.data()!
+
+    // Check if there are pending escape actions
+    const requestedActions = data.requestedActions || {}
+    const completedActions = data.completedActions || {}
+
+    // If specific actions were requested, check they're all complete
+    if (Object.keys(requestedActions).length > 0) {
+      const allActionsComplete = Object.keys(requestedActions).every(
+        action => completedActions[action] === true
+      )
+      return allActionsComplete
+    }
+
+    // If no specific actions tracked, consider complete after any severing
+    // (backwards compatibility with older safety requests)
+    return data.status === 'resolved' || data.status === 'in-progress'
+  } catch {
+    // On error, default to allowing referral to not block victim resources
+    return true
+  }
+}
+
+/**
+ * Get recipient email for resource referral
+ * Uses safe contact email if provided, falls back to account email
+ *
+ * AC #3: Use safe contact address when available
+ */
+async function getRecipientEmailForReferral(
+  safetyRequestData: FirebaseFirestore.DocumentData,
+  auth: ReturnType<typeof getAuth>
+): Promise<{ recipientEmail: string | null; usedSafeContact: boolean }> {
+  // Prefer safe contact email
+  if (safetyRequestData.safeContactEmail) {
+    return {
+      recipientEmail: safetyRequestData.safeContactEmail,
+      usedSafeContact: true,
+    }
+  }
+
+  // Fall back to victim's account email
+  const victimUserId = safetyRequestData.victimUserId || safetyRequestData.submittedBy
+  if (!victimUserId) {
+    return { recipientEmail: null, usedSafeContact: false }
+  }
+
+  try {
+    const userRecord = await auth.getUser(victimUserId)
+    if (userRecord.email) {
+      return {
+        recipientEmail: userRecord.email,
+        usedSafeContact: false,
+      }
+    }
+  } catch {
+    // User not found or no email
+  }
+
+  return { recipientEmail: null, usedSafeContact: false }
+}

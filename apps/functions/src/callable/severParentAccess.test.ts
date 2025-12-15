@@ -23,6 +23,8 @@ const mockMembershipData = {
 // Track which collections were accessed
 const collectionAccessLog: string[] = []
 
+const mockSafetyRequestUpdate = vi.fn().mockResolvedValue(undefined)
+
 vi.mock('firebase-admin/firestore', () => {
   const mockSafetyRequestGet = vi.fn().mockResolvedValue({
     exists: true,
@@ -46,6 +48,7 @@ vi.mock('firebase-admin/firestore', () => {
       return {
         doc: vi.fn().mockReturnValue({
           get: mockSafetyRequestGet,
+          update: mockSafetyRequestUpdate,
         }),
       }
     }
@@ -59,6 +62,9 @@ vi.mock('firebase-admin/firestore', () => {
     }
     if (name === 'adminAuditLog') {
       return { add: mockAuditAdd }
+    }
+    if (name === 'emailQueue') {
+      return { add: vi.fn().mockResolvedValue({ id: 'email-queue-id' }) }
     }
     return {
       doc: vi.fn().mockReturnValue({
@@ -103,7 +109,26 @@ vi.mock('firebase-admin/app', () => ({
   initializeApp: vi.fn(),
 }))
 
+// Mock email service functions
+vi.mock('../utils/emailService', () => ({
+  queueResourceReferralEmail: vi.fn().mockResolvedValue('queue-id-123'),
+  hasReferralBeenSent: vi.fn().mockResolvedValue(false),
+}))
+
+// Mock firebase-admin/auth
+const mockGetUser = vi.fn().mockResolvedValue({
+  uid: 'victim-user-123',
+  email: 'victim@example.com',
+})
+
+vi.mock('firebase-admin/auth', () => ({
+  getAuth: vi.fn(() => ({
+    getUser: mockGetUser,
+  })),
+}))
+
 import { getFirestore } from 'firebase-admin/firestore'
+import { queueResourceReferralEmail, hasReferralBeenSent } from '../utils/emailService'
 
 type CallableFunction = (request: {
   data: Record<string, unknown>
@@ -770,6 +795,290 @@ describe('severParentAccess Cloud Function', () => {
           error: expect.any(String),
         })
       )
+    })
+  })
+
+  describe('triggerResourceReferral integration (AC #7)', () => {
+    beforeEach(() => {
+      vi.mocked(hasReferralBeenSent).mockResolvedValue(false)
+      vi.mocked(queueResourceReferralEmail).mockResolvedValue('queue-id-123')
+      mockGetUser.mockResolvedValue({
+        uid: 'victim-user-123',
+        email: 'victim@example.com',
+      })
+    })
+
+    it('should not queue email when triggerResourceReferral is false', async () => {
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: false,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.success).toBe(true)
+      expect(result.resourceReferralQueued).toBe(false)
+      expect(queueResourceReferralEmail).not.toHaveBeenCalled()
+    })
+
+    it('should not queue email when triggerResourceReferral is not provided', async () => {
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          // triggerResourceReferral not provided
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.success).toBe(true)
+      expect(result.resourceReferralQueued).toBe(false)
+      expect(queueResourceReferralEmail).not.toHaveBeenCalled()
+    })
+
+    it('should queue email when triggerResourceReferral is true', async () => {
+      // Update mock to include victimUserId
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.success).toBe(true)
+      expect(result.resourceReferralQueued).toBe(true)
+      expect(result.resourceReferralQueueId).toBe('queue-id-123')
+      expect(queueResourceReferralEmail).toHaveBeenCalledWith(
+        'request-123',
+        'victim@example.com',
+        false // usedSafeContact = false when using account email
+      )
+    })
+
+    it('should use safe contact email when available', async () => {
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          safeContactEmail: 'safe-contact@private.com',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.resourceReferralQueued).toBe(true)
+      expect(queueResourceReferralEmail).toHaveBeenCalledWith(
+        'request-123',
+        'safe-contact@private.com',
+        true // usedSafeContact = true
+      )
+    })
+
+    it('should skip if referral has already been sent (idempotency)', async () => {
+      vi.mocked(hasReferralBeenSent).mockResolvedValueOnce(true)
+
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.success).toBe(true)
+      expect(result.resourceReferralQueued).toBe(false)
+      expect(queueResourceReferralEmail).not.toHaveBeenCalled()
+    })
+
+    it('should still succeed if email queueing fails', async () => {
+      vi.mocked(queueResourceReferralEmail).mockRejectedValueOnce(new Error('Queue failed'))
+
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      // Should NOT throw - severing must succeed even if email fails
+      const result = (await (severParentAccess as CallableFunction)(request)) as Record<string, unknown>
+
+      expect(result.success).toBe(true)
+      expect(result.severed).toBe(true)
+      expect(result.resourceReferralQueued).toBe(false)
+    })
+
+    it('should update safetyRequest with referral status', async () => {
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      await (severParentAccess as CallableFunction)(request)
+
+      // Verify safety request was updated with referral status
+      expect(mockSafetyRequestUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resourceReferralTriggered: true,
+          resourceReferralTriggeredBy: 'safety-user',
+          resourceReferralQueueId: 'queue-id-123',
+          resourceReferralStatus: 'pending',
+        })
+      )
+    })
+
+    it('should access emailQueue collection when triggerResourceReferral is true', async () => {
+      vi.mocked(mockDb.collection('safetyRequests').doc('').get).mockResolvedValueOnce({
+        exists: true,
+        id: 'request-123',
+        data: () => ({
+          ...mockSafetyRequestData,
+          status: 'resolved',
+          submittedBy: 'victim-user-123',
+        }),
+      } as never)
+
+      const { severParentAccess } = await import('./severParentAccess')
+
+      const request = {
+        data: {
+          requestId: 'request-123',
+          targetUserId: 'target-parent-123',
+          familyId: 'family-456',
+          reason: 'Verified abuse victim extraction',
+          triggerResourceReferral: true,
+        },
+        auth: {
+          uid: 'safety-user',
+          token: { isSafetyTeam: true },
+        },
+      }
+
+      await (severParentAccess as CallableFunction)(request)
+
+      // emailQueue is accessed indirectly through queueResourceReferralEmail
+      // but we verify the function was called
+      expect(queueResourceReferralEmail).toHaveBeenCalled()
     })
   })
 })
