@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { SeverParentDialog } from '@/components/admin/SeverParentDialog'
 import { UnenrollDeviceDialog } from '@/components/admin/UnenrollDeviceDialog'
 import { LocationDisableDialog } from '@/components/admin/LocationDisableDialog'
+import { StealthModeDialog } from '@/components/admin/StealthModeDialog'
 
 /**
  * Safety Request Detail Page
@@ -51,6 +52,9 @@ export default function SafetyRequestDetailPage() {
 
   // Location disable dialog state
   const [locationDisableDialogOpen, setLocationDisableDialogOpen] = useState(false)
+
+  // Stealth mode dialog state
+  const [stealthModeDialogOpen, setStealthModeDialogOpen] = useState(false)
 
   const fetchRequest = useCallback(async () => {
     setLoading(true)
@@ -645,6 +649,47 @@ export default function SafetyRequestDetailPage() {
               Disable Location Features
             </Button>
           </div>
+
+          {/* Notification Stealth - CRITICAL SAFETY FEATURE */}
+          <div className="bg-white rounded-lg border border-amber-200 p-6">
+            <h2 className="font-semibold mb-4 text-amber-700">
+              Notification Stealth Mode
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Use this to suppress escape-revealing notifications for 72 hours.
+              Notifications will be held and then permanently deleted, giving
+              the victim time to reach physical safety.
+            </p>
+
+            {/* Verification status check */}
+            {!request.verificationChecklist.accountOwnershipVerified &&
+            !request.verificationChecklist.idMatched ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  Identity verification required before activating stealth mode.
+                  Complete either &quot;Account Ownership Verified&quot; or
+                  &quot;ID Matched&quot; in the checklist above.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  Identity verified. Stealth mode available.
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setStealthModeDialogOpen(true)}
+              className="w-full bg-amber-600 hover:bg-amber-700"
+              disabled={
+                !request.verificationChecklist.accountOwnershipVerified &&
+                !request.verificationChecklist.idMatched
+              }
+            >
+              Activate Notification Stealth
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -670,6 +715,15 @@ export default function SafetyRequestDetailPage() {
       <LocationDisableDialog
         open={locationDisableDialogOpen}
         onOpenChange={setLocationDisableDialogOpen}
+        requestId={request.id}
+        verificationChecklist={request.verificationChecklist}
+        onSuccess={fetchRequest}
+      />
+
+      {/* Stealth Mode Dialog */}
+      <StealthModeDialog
+        open={stealthModeDialogOpen}
+        onOpenChange={setStealthModeDialogOpen}
         requestId={request.id}
         verificationChecklist={request.verificationChecklist}
         onSuccess={fetchRequest}

@@ -506,3 +506,83 @@ export async function disableLocationFeatures(
   })
   return result.data
 }
+
+/**
+ * Notification stealth input
+ */
+export interface ActivateNotificationStealthInput {
+  requestId: string
+  familyId: string
+  targetUserIds: string[]
+  reason: string
+  durationHours?: number
+  notificationTypes?: string[]
+}
+
+/**
+ * Notification stealth response
+ */
+export interface ActivateNotificationStealthResponse {
+  success: boolean
+  activated: boolean
+  alreadyActive?: boolean
+  queueId: string
+  familyId: string
+  targetUserIds: string[]
+  activatedAt?: string
+  expiresAt: string
+  durationHours?: number
+  notificationTypesCount?: number
+}
+
+/**
+ * Cloud Function callable for activating notification stealth
+ *
+ * CRITICAL: This is a life-safety operation.
+ * - Only callable by safety-team users
+ * - Requires verified safety request
+ * - Creates sealed audit log entry
+ * - Does NOT notify any family members
+ * - Suppresses escape-revealing notifications for 72 hours
+ */
+const activateNotificationStealthFn = httpsCallable<
+  ActivateNotificationStealthInput,
+  ActivateNotificationStealthResponse
+>(functions, 'activateNotificationStealth')
+
+/**
+ * Activate notification stealth mode for specified users
+ *
+ * CRITICAL: This is a life-safety operation used to protect abuse victims.
+ * Affected users (typically the abuser) will:
+ * - NOT receive notifications that reveal escape actions
+ * - NOT see pending notification counts for suppressed notifications
+ * - NOT be alerted about device unenrollment, location disable, etc.
+ *
+ * After 72 hours, all held notifications are permanently deleted.
+ *
+ * @param requestId - Safety request ID that authorized this activation
+ * @param familyId - Family ID containing target users
+ * @param targetUserIds - User IDs to suppress notifications for (the abuser)
+ * @param reason - Documented reason for compliance audit
+ * @param durationHours - Stealth duration (default 72, max 168 hours)
+ * @param notificationTypes - Specific types to suppress (default: all escape-related)
+ */
+export async function activateNotificationStealth(
+  requestId: string,
+  familyId: string,
+  targetUserIds: string[],
+  reason: string,
+  durationHours: number = 72,
+  notificationTypes?: string[]
+): Promise<ActivateNotificationStealthResponse> {
+  const result = await activateNotificationStealthFn({
+    requestId,
+    familyId,
+    targetUserIds,
+    reason,
+    durationHours,
+    notificationTypes,
+  })
+  return result.data
+}

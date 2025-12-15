@@ -24,3 +24,9 @@ export { unenrollDevice, unenrollDevices } from './callable/unenrollDevice'
 
 // Callable Functions - Location Feature Disable (Story 0.5.6)
 export { disableLocationFeatures } from './callable/disableLocationFeatures'
+
+// Callable Functions - Notification Stealth (Story 0.5.7)
+export { activateNotificationStealth } from './callable/activateNotificationStealth'
+
+// Scheduled Functions - Stealth Queue Cleanup (Story 0.5.7)
+export { cleanupExpiredStealthQueues } from './scheduled/cleanupExpiredStealthQueues'
