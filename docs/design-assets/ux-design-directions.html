@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fledgely Design Directions</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* Warm Amber Foundation */
+            --primary: oklch(0.65 0.15 45);
+            --primary-hover: oklch(0.60 0.16 45);
+            --success: oklch(0.70 0.14 145);
+            --warning: oklch(0.75 0.12 70);
+            --destructive: oklch(0.65 0.12 30);
+            --crisis-calm: oklch(0.70 0.08 200);
+            --celebration: oklch(0.75 0.15 85);
+            --child-accent: oklch(0.60 0.18 280);
+            --parent-accent: oklch(0.55 0.12 45);
+            --bg-surface: oklch(0.97 0.01 45);
+            --bg-card: oklch(1.0 0 0);
+            --bg-muted: oklch(0.94 0.01 45);
+            --border: oklch(0.90 0.02 45);
+            --text-primary: oklch(0.25 0.02 45);
+            --text-secondary: oklch(0.50 0.02 45);
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .nav h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.6);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .nav-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Main Content */
+        .main {
+            padding-top: 80px;
+        }
+
+        .direction {
+            display: none;
+            min-height: calc(100vh - 80px);
+            padding: 2rem;
+        }
+
+        .direction.active {
+            display: block;
+        }
+
+        .direction-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .direction-header h2 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .direction-header p {
+            color: rgba(255,255,255,0.7);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .direction-tags {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .tag {
+            padding: 0.25rem 0.75rem;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        /* Mockup Container */
+        .mockup-container {
+            background: var(--bg-surface);
+            border-radius: 16px;
+            overflow: hidden;
+            max-width: 1200px;
+            margin: 0 auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        /* Device Frame Styles */
+        .device-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .device-tab {
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .device-tab.active {
+            background: var(--primary);
+        }
+
+        /* ============================================ */
+        /* DIRECTION 1: Card-Centric Dashboard */
+        /* ============================================ */
+        .d1-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            min-height: 600px;
+        }
+
+        .d1-sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem;
+        }
+
+        .d1-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .d1-logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .d1-logo-text {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-primary);
+        }
+
+        .d1-nav-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .d1-nav-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .d1-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .d1-nav-item:hover {
+            background: var(--bg-muted);
+            color: var(--text-primary);
+        }
+
+        .d1-nav-item.active {
+            background: color-mix(in oklch, var(--primary) 15%, transparent);
+            color: var(--primary);
+        }
+
+        .d1-main {
+            padding: 2rem;
+            background: var(--bg-surface);
+        }
+
+        .d1-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .d1-greeting h1 {
+            font-size: 1.75rem;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .d1-greeting p {
+            color: var(--text-secondary);
+        }
+
+        .d1-family-switcher {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .d1-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--child-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .d1-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .d1-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .d1-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .d1-card-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .d1-card-icon.trust { background: color-mix(in oklch, var(--success) 15%, transparent); }
+        .d1-card-icon.time { background: color-mix(in oklch, var(--primary) 15%, transparent); }
+        .d1-card-icon.flags { background: color-mix(in oklch, var(--crisis-calm) 15%, transparent); }
+
+        .d1-card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .d1-card-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .d1-trust-bar {
+            height: 8px;
+            background: var(--bg-muted);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .d1-trust-fill {
+            height: 100%;
+            width: 75%;
+            background: var(--success);
+            border-radius: 4px;
+        }
+
+        .d1-compact-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .d1-compact-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .d1-compact-title {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .d1-compact-badge {
+            padding: 0.25rem 0.75rem;
+            background: var(--success);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* ============================================ */
+        /* DIRECTION 2: Focused Single-View */
+        /* ============================================ */
+        .d2-container {
+            min-height: 600px;
+            background: var(--bg-surface);
+        }
+
+        .d2-topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .d2-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .d2-logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .d2-logo-text {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .d2-nav {
+            display: flex;
+            gap: 0.25rem;
+            background: var(--bg-muted);
+            padding: 0.25rem;
+            border-radius: 10px;
+        }
+
+        .d2-nav-item {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
+
+        .d2-nav-item.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .d2-main {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .d2-hero-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--parent-accent) 100%);
+            border-radius: 20px;
+            padding: 2rem;
+            color: white;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .d2-hero-card::after {
+            content: '';
+            position: absolute;
+            right: -50px;
+            top: -50px;
+            width: 200px;
+            height: 200px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+        }
+
+        .d2-hero-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+
+        .d2-hero-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .d2-hero-subtitle {
+            opacity: 0.9;
+        }
+
+        .d2-hero-stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1.5rem;
+        }
+
+        .d2-hero-stat {
+            text-align: center;
+        }
+
+        .d2-hero-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .d2-hero-stat-label {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+
+        .d2-section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .d2-quick-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .d2-action {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .d2-action:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .d2-action-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .d2-action-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .d2-activity {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .d2-activity-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .d2-activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .d2-activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-muted);
+        }
+
+        .d2-activity-content {
+            flex: 1;
+        }
+
+        .d2-activity-title {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .d2-activity-time {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* ============================================ */
+        /* DIRECTION 3: Child-Centric Playful */
+        /* ============================================ */
+        .d3-container {
+            min-height: 600px;
+            background: linear-gradient(180deg, var(--bg-surface) 0%, color-mix(in oklch, var(--child-accent) 5%, white) 100%);
+        }
+
+        .d3-header {
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .d3-greeting {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .d3-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: var(--child-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            box-shadow: 0 4px 12px color-mix(in oklch, var(--child-accent) 40%, transparent);
+        }
+
+        .d3-greeting-text h1 {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .d3-greeting-text p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .d3-streak {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-card);
+            border-radius: 50px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .d3-streak-flames {
+            font-size: 1.25rem;
+        }
+
+        .d3-streak-count {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .d3-streak-label {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .d3-main {
+            padding: 0 2rem 2rem;
+        }
+
+        .d3-time-card {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .d3-time-ring {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 1.5rem;
+            position: relative;
+        }
+
+        .d3-time-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .d3-time-ring-bg {
+            fill: none;
+            stroke: var(--bg-muted);
+            stroke-width: 12;
+        }
+
+        .d3-time-ring-fill {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 502;
+            stroke-dashoffset: 125;
+        }
+
+        .d3-time-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .d3-time-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .d3-time-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .d3-categories {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+            margin-top: 1.5rem;
+        }
+
+        .d3-category {
+            text-align: center;
+            padding: 0.75rem;
+            background: var(--bg-muted);
+            border-radius: 12px;
+        }
+
+        .d3-category-icon {
+            font-size: 1.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .d3-category-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        .d3-category-time {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+        }
+
+        .d3-quick-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .d3-quick-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .d3-quick-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .d3-quick-icon.trust { background: color-mix(in oklch, var(--success) 15%, white); }
+        .d3-quick-icon.photos { background: color-mix(in oklch, var(--primary) 15%, white); }
+
+        .d3-quick-content h3 {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .d3-quick-content p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* ============================================ */
+        /* DIRECTION 4: Minimal Data-Dense */
+        /* ============================================ */
+        .d4-container {
+            min-height: 600px;
+            background: var(--bg-card);
+            display: grid;
+            grid-template-columns: 64px 1fr;
+        }
+
+        .d4-rail {
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            padding: 1rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .d4-rail-logo {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .d4-rail-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .d4-rail-item:hover {
+            background: var(--bg-muted);
+        }
+
+        .d4-rail-item.active {
+            background: color-mix(in oklch, var(--primary) 15%, transparent);
+            color: var(--primary);
+        }
+
+        .d4-main {
+            padding: 1.5rem;
+        }
+
+        .d4-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .d4-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .d4-filters {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .d4-filter {
+            padding: 0.4rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .d4-filter.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .d4-stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .d4-stat {
+            padding: 1rem;
+            background: var(--bg-surface);
+            border-radius: 8px;
+        }
+
+        .d4-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .d4-stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .d4-stat-change {
+            font-size: 0.7rem;
+            color: var(--success);
+        }
+
+        .d4-table {
+            background: var(--bg-surface);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .d4-table-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 100px;
+            padding: 0.75rem 1rem;
+            background: var(--bg-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .d4-table-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 100px;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            align-items: center;
+        }
+
+        .d4-table-row:hover {
+            background: var(--bg-muted);
+        }
+
+        .d4-member {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .d4-member-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: var(--child-accent);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+        }
+
+        .d4-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .d4-status-dot.online { background: var(--success); }
+        .d4-status-dot.offline { background: var(--text-secondary); }
+
+        /* ============================================ */
+        /* DIRECTION 5: Split Parent/Child View */
+        /* ============================================ */
+        .d5-container {
+            min-height: 600px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .d5-parent {
+            background: var(--bg-surface);
+            padding: 1.5rem;
+            border-right: 2px solid var(--border);
+        }
+
+        .d5-child {
+            background: color-mix(in oklch, var(--child-accent) 5%, white);
+            padding: 1.5rem;
+        }
+
+        .d5-view-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .d5-parent .d5-view-label {
+            color: var(--parent-accent);
+        }
+
+        .d5-child .d5-view-label {
+            color: var(--child-accent);
+            background: white;
+        }
+
+        .d5-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .d5-child .d5-section {
+            background: white;
+        }
+
+        .d5-section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .d5-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .d5-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .d5-list-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .d5-list-value {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+        }
+
+        .d5-child-big-number {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .d5-big-value {
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--child-accent);
+        }
+
+        .d5-big-label {
+            color: var(--text-secondary);
+        }
+
+        .d5-progress-bar {
+            height: 12px;
+            background: var(--bg-muted);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+
+        .d5-progress-fill {
+            height: 100%;
+            background: var(--child-accent);
+            border-radius: 6px;
+            width: 75%;
+        }
+
+        /* ============================================ */
+        /* DIRECTION 6: Mobile-First Bottom Nav */
+        /* ============================================ */
+        .d6-container {
+            min-height: 600px;
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            max-width: 400px;
+            margin: 0 auto;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 0 0 8px #1a1a2e;
+        }
+
+        .d6-status-bar {
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .d6-header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .d6-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .d6-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--child-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .d6-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .d6-status {
+            font-size: 0.8rem;
+            color: var(--success);
+        }
+
+        .d6-notification {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .d6-notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--destructive);
+            border-radius: 50%;
+        }
+
+        .d6-main {
+            flex: 1;
+            padding: 0 1.5rem;
+            overflow-y: auto;
+        }
+
+        .d6-time-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--celebration) 100%);
+            border-radius: 20px;
+            padding: 1.5rem;
+            color: white;
+            margin-bottom: 1.5rem;
+        }
+
+        .d6-time-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .d6-time-title {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .d6-time-badge {
+            padding: 0.25rem 0.75rem;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        .d6-time-display {
+            display: flex;
+            align-items: baseline;
+            gap: 0.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .d6-time-value {
+            font-size: 3rem;
+            font-weight: 700;
+        }
+
+        .d6-time-unit {
+            font-size: 1.25rem;
+            opacity: 0.8;
+        }
+
+        .d6-time-sub {
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        .d6-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .d6-section-title {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .d6-section-link {
+            font-size: 0.8rem;
+            color: var(--primary);
+        }
+
+        .d6-card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .d6-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .d6-card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .d6-card-icon.trust { background: color-mix(in oklch, var(--success) 15%, white); }
+        .d6-card-icon.compact { background: color-mix(in oklch, var(--primary) 15%, white); }
+        .d6-card-icon.photos { background: color-mix(in oklch, var(--child-accent) 15%, white); }
+
+        .d6-card-content {
+            flex: 1;
+        }
+
+        .d6-card-title {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .d6-card-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .d6-card-chevron {
+            color: var(--text-secondary);
+        }
+
+        .d6-bottom-nav {
+            display: flex;
+            justify-content: space-around;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+        }
+
+        .d6-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+        }
+
+        .d6-nav-item.active {
+            color: var(--primary);
+        }
+
+        .d6-nav-icon {
+            font-size: 1.25rem;
+        }
+
+        /* Comparison View */
+        .comparison {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        .comparison-item {
+            background: var(--bg-surface);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .comparison-label {
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.05);
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Ratings Section */
+        .ratings-section {
+            margin-top: 2rem;
+            padding: 2rem;
+            background: rgba(255,255,255,0.02);
+            border-radius: 12px;
+        }
+
+        .ratings-title {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.25rem;
+        }
+
+        .ratings-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .rating-card {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .rating-label {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 0.5rem;
+        }
+
+        .rating-stars {
+            color: var(--celebration);
+            font-size: 1.25rem;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <h1>Fledgely Design Directions</h1>
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="showDirection(1)">Direction 1</button>
+            <button class="nav-tab" onclick="showDirection(2)">Direction 2</button>
+            <button class="nav-tab" onclick="showDirection(3)">Direction 3</button>
+            <button class="nav-tab" onclick="showDirection(4)">Direction 4</button>
+            <button class="nav-tab" onclick="showDirection(5)">Direction 5</button>
+            <button class="nav-tab" onclick="showDirection(6)">Direction 6</button>
+            <button class="nav-tab" onclick="showDirection(0)">Compare</button>
+        </div>
+    </nav>
+
+    <main class="main">
+        <!-- Direction 1: Card-Centric Dashboard -->
+        <section class="direction active" id="direction-1">
+            <div class="direction-header">
+                <h2>Direction 1: Card-Centric Dashboard</h2>
+                <p>Traditional sidebar navigation with card-based content. Information-rich layout optimized for parents who want quick overview of family status.</p>
+                <div class="direction-tags">
+                    <span class="tag">Desktop-First</span>
+                    <span class="tag">Data-Rich</span>
+                    <span class="tag">Parent-Optimized</span>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="d1-container">
+                    <aside class="d1-sidebar">
+                        <div class="d1-logo">
+                            <div class="d1-logo-icon">🪺</div>
+                            <span class="d1-logo-text">Fledgely</span>
+                        </div>
+
+                        <div class="d1-nav-section">
+                            <div class="d1-nav-label">Overview</div>
+                            <div class="d1-nav-item active">
+                                <span>📊</span> Dashboard
+                            </div>
+                            <div class="d1-nav-item">
+                                <span>👨‍👩‍👧‍👦</span> Family Members
+                            </div>
+                            <div class="d1-nav-item">
+                                <span>📜</span> Fledge Compact
+                            </div>
+                        </div>
+
+                        <div class="d1-nav-section">
+                            <div class="d1-nav-label">Activity</div>
+                            <div class="d1-nav-item">
+                                <span>📸</span> Screenshots
+                            </div>
+                            <div class="d1-nav-item">
+                                <span>⏱️</span> Screen Time
+                            </div>
+                            <div class="d1-nav-item">
+                                <span>🚩</span> Flags
+                            </div>
+                        </div>
+
+                        <div class="d1-nav-section">
+                            <div class="d1-nav-label">Settings</div>
+                            <div class="d1-nav-item">
+                                <span>⚙️</span> Preferences
+                            </div>
+                        </div>
+                    </aside>
+
+                    <main class="d1-main">
+                        <div class="d1-header">
+                            <div class="d1-greeting">
+                                <h1>Good morning, Sarah</h1>
+                                <p>Here's what's happening with your family today</p>
+                            </div>
+                            <div class="d1-family-switcher">
+                                <div class="d1-avatar">E</div>
+                                <span style="color: var(--text-primary); font-weight: 500;">Emma</span>
+                                <span style="color: var(--text-secondary);">▼</span>
+                            </div>
+                        </div>
+
+                        <div class="d1-cards">
+                            <div class="d1-card">
+                                <div class="d1-card-header">
+                                    <div class="d1-card-icon trust">🌱</div>
+                                </div>
+                                <div class="d1-card-value">75%</div>
+                                <div class="d1-card-label">Trust Score</div>
+                                <div class="d1-trust-bar">
+                                    <div class="d1-trust-fill"></div>
+                                </div>
+                            </div>
+
+                            <div class="d1-card">
+                                <div class="d1-card-header">
+                                    <div class="d1-card-icon time">⏰</div>
+                                </div>
+                                <div class="d1-card-value">2h 15m</div>
+                                <div class="d1-card-label">Screen Time Today</div>
+                                <div style="color: var(--text-secondary); font-size: 0.8rem; margin-top: 0.5rem;">45 min remaining</div>
+                            </div>
+
+                            <div class="d1-card">
+                                <div class="d1-card-header">
+                                    <div class="d1-card-icon flags">💬</div>
+                                </div>
+                                <div class="d1-card-value">2</div>
+                                <div class="d1-card-label">Flags to Review</div>
+                                <div style="color: var(--crisis-calm); font-size: 0.8rem; margin-top: 0.5rem;">Within grace period</div>
+                            </div>
+                        </div>
+
+                        <div class="d1-compact-section">
+                            <div class="d1-compact-header">
+                                <span class="d1-compact-title">Garcia Family Compact</span>
+                                <span class="d1-compact-badge">Active</span>
+                            </div>
+                            <div style="color: var(--text-secondary); font-size: 0.875rem;">
+                                Signed Dec 8, 2025 · Next review in 23 days · 🔥 7 day streak
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direction 2: Focused Single-View -->
+        <section class="direction" id="direction-2">
+            <div class="direction-header">
+                <h2>Direction 2: Focused Single-View</h2>
+                <p>Clean, focused interface with hero card highlighting the most important information. Tab-based navigation keeps everything one click away.</p>
+                <div class="direction-tags">
+                    <span class="tag">Minimal</span>
+                    <span class="tag">Hero-Focused</span>
+                    <span class="tag">Quick Actions</span>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="d2-container">
+                    <header class="d2-topbar">
+                        <div class="d2-logo">
+                            <div class="d2-logo-icon">🪺</div>
+                            <span class="d2-logo-text">Fledgely</span>
+                        </div>
+
+                        <nav class="d2-nav">
+                            <div class="d2-nav-item active">Dashboard</div>
+                            <div class="d2-nav-item">Activity</div>
+                            <div class="d2-nav-item">Compact</div>
+                            <div class="d2-nav-item">Settings</div>
+                        </nav>
+
+                        <div class="d1-avatar" style="background: var(--parent-accent);">S</div>
+                    </header>
+
+                    <main class="d2-main">
+                        <div class="d2-hero-card">
+                            <div class="d2-hero-label">Currently viewing</div>
+                            <div class="d2-hero-title">Emma's Dashboard</div>
+                            <div class="d2-hero-subtitle">Everything looks good today ✨</div>
+
+                            <div class="d2-hero-stats">
+                                <div class="d2-hero-stat">
+                                    <div class="d2-hero-stat-value">75%</div>
+                                    <div class="d2-hero-stat-label">Trust Score</div>
+                                </div>
+                                <div class="d2-hero-stat">
+                                    <div class="d2-hero-stat-value">45m</div>
+                                    <div class="d2-hero-stat-label">Time Left</div>
+                                </div>
+                                <div class="d2-hero-stat">
+                                    <div class="d2-hero-stat-value">🔥 7</div>
+                                    <div class="d2-hero-stat-label">Day Streak</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d2-section-title">Quick Actions</div>
+                        <div class="d2-quick-actions">
+                            <div class="d2-action">
+                                <div class="d2-action-icon">📸</div>
+                                <div class="d2-action-label">View Screenshots</div>
+                            </div>
+                            <div class="d2-action">
+                                <div class="d2-action-icon">⏱️</div>
+                                <div class="d2-action-label">Adjust Time</div>
+                            </div>
+                            <div class="d2-action">
+                                <div class="d2-action-icon">🚩</div>
+                                <div class="d2-action-label">Review Flags</div>
+                            </div>
+                            <div class="d2-action">
+                                <div class="d2-action-icon">📜</div>
+                                <div class="d2-action-label">View Compact</div>
+                            </div>
+                        </div>
+
+                        <div class="d2-section-title">Recent Activity</div>
+                        <div class="d2-activity">
+                            <div class="d2-activity-item">
+                                <div class="d2-activity-icon">🎮</div>
+                                <div class="d2-activity-content">
+                                    <div class="d2-activity-title">Minecraft - 45 minutes</div>
+                                    <div class="d2-activity-time">2:30 PM - 3:15 PM</div>
+                                </div>
+                            </div>
+                            <div class="d2-activity-item">
+                                <div class="d2-activity-icon">📚</div>
+                                <div class="d2-activity-content">
+                                    <div class="d2-activity-title">Khan Academy - 30 minutes</div>
+                                    <div class="d2-activity-time">1:45 PM - 2:15 PM</div>
+                                </div>
+                            </div>
+                            <div class="d2-activity-item">
+                                <div class="d2-activity-icon">🎥</div>
+                                <div class="d2-activity-content">
+                                    <div class="d2-activity-title">YouTube - 20 minutes</div>
+                                    <div class="d2-activity-time">1:20 PM - 1:40 PM</div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direction 3: Child-Centric Playful -->
+        <section class="direction" id="direction-3">
+            <div class="direction-header">
+                <h2>Direction 3: Child-Centric Playful</h2>
+                <p>Optimized for the child's experience with large, friendly UI elements. Centered time ring creates focus on what matters most to kids.</p>
+                <div class="direction-tags">
+                    <span class="tag">Child-First</span>
+                    <span class="tag">Playful</span>
+                    <span class="tag">Ages 6-12</span>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="d3-container">
+                    <header class="d3-header">
+                        <div class="d3-greeting">
+                            <div class="d3-avatar">🦋</div>
+                            <div class="d3-greeting-text">
+                                <h1>Hi, Emma!</h1>
+                                <p>Tuesday, December 9</p>
+                            </div>
+                        </div>
+
+                        <div class="d3-streak">
+                            <span class="d3-streak-flames">🔥🔥🔥</span>
+                            <span class="d3-streak-count">7</span>
+                            <span class="d3-streak-label">day streak!</span>
+                        </div>
+                    </header>
+
+                    <main class="d3-main">
+                        <div class="d3-time-card">
+                            <div class="d3-time-ring">
+                                <svg width="180" height="180" viewBox="0 0 180 180">
+                                    <circle class="d3-time-ring-bg" cx="90" cy="90" r="80"/>
+                                    <circle class="d3-time-ring-fill" cx="90" cy="90" r="80"/>
+                                </svg>
+                                <div class="d3-time-center">
+                                    <div class="d3-time-value">45</div>
+                                    <div class="d3-time-label">minutes left</div>
+                                </div>
+                            </div>
+
+                            <div class="d3-categories">
+                                <div class="d3-category">
+                                    <div class="d3-category-icon">📚</div>
+                                    <div class="d3-category-label">Homework</div>
+                                    <div class="d3-category-time">30m</div>
+                                </div>
+                                <div class="d3-category">
+                                    <div class="d3-category-icon">🎮</div>
+                                    <div class="d3-category-label">Games</div>
+                                    <div class="d3-category-time">45m</div>
+                                </div>
+                                <div class="d3-category">
+                                    <div class="d3-category-icon">🎬</div>
+                                    <div class="d3-category-label">Videos</div>
+                                    <div class="d3-category-time">20m</div>
+                                </div>
+                                <div class="d3-category">
+                                    <div class="d3-category-icon">💬</div>
+                                    <div class="d3-category-label">Social</div>
+                                    <div class="d3-category-time">20m</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d3-quick-grid">
+                            <div class="d3-quick-card">
+                                <div class="d3-quick-icon trust">🌱</div>
+                                <div class="d3-quick-content">
+                                    <h3>Trust Score</h3>
+                                    <p>75% - Growing!</p>
+                                </div>
+                            </div>
+                            <div class="d3-quick-card">
+                                <div class="d3-quick-icon photos">📸</div>
+                                <div class="d3-quick-content">
+                                    <h3>My Day</h3>
+                                    <p>47 memories</p>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direction 4: Minimal Data-Dense -->
+        <section class="direction" id="direction-4">
+            <div class="direction-header">
+                <h2>Direction 4: Minimal Data-Dense</h2>
+                <p>Compact, information-dense layout for power users. Icon rail navigation maximizes content space. Table-based data view.</p>
+                <div class="direction-tags">
+                    <span class="tag">Power User</span>
+                    <span class="tag">Data-Dense</span>
+                    <span class="tag">Compact</span>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="d4-container">
+                    <aside class="d4-rail">
+                        <div class="d4-rail-logo">🪺</div>
+                        <div class="d4-rail-item active">📊</div>
+                        <div class="d4-rail-item">👥</div>
+                        <div class="d4-rail-item">📸</div>
+                        <div class="d4-rail-item">📜</div>
+                        <div class="d4-rail-item">⚙️</div>
+                    </aside>
+
+                    <main class="d4-main">
+                        <div class="d4-header">
+                            <div class="d4-title">Family Overview</div>
+                            <div class="d4-filters">
+                                <button class="d4-filter active">Today</button>
+                                <button class="d4-filter">Week</button>
+                                <button class="d4-filter">Month</button>
+                            </div>
+                        </div>
+
+                        <div class="d4-stats-row">
+                            <div class="d4-stat">
+                                <div class="d4-stat-label">Total Screen Time</div>
+                                <div class="d4-stat-value">4h 32m</div>
+                                <div class="d4-stat-change">↓ 12% vs avg</div>
+                            </div>
+                            <div class="d4-stat">
+                                <div class="d4-stat-label">Avg Trust Score</div>
+                                <div class="d4-stat-value">72%</div>
+                                <div class="d4-stat-change">↑ 3% this week</div>
+                            </div>
+                            <div class="d4-stat">
+                                <div class="d4-stat-label">Screenshots</div>
+                                <div class="d4-stat-value">156</div>
+                                <div class="d4-stat-change">Normal rate</div>
+                            </div>
+                            <div class="d4-stat">
+                                <div class="d4-stat-label">Open Flags</div>
+                                <div class="d4-stat-value">3</div>
+                                <div class="d4-stat-change" style="color: var(--warning);">2 in grace</div>
+                            </div>
+                        </div>
+
+                        <div class="d4-table">
+                            <div class="d4-table-header">
+                                <div>Member</div>
+                                <div>Status</div>
+                                <div>Screen Time</div>
+                                <div>Trust</div>
+                                <div>Flags</div>
+                            </div>
+                            <div class="d4-table-row">
+                                <div class="d4-member">
+                                    <div class="d4-member-avatar">E</div>
+                                    Emma
+                                </div>
+                                <div><span class="d4-status-dot online"></span>Online</div>
+                                <div>2h 15m</div>
+                                <div>75%</div>
+                                <div>2</div>
+                            </div>
+                            <div class="d4-table-row">
+                                <div class="d4-member">
+                                    <div class="d4-member-avatar" style="background: var(--success);">J</div>
+                                    Jake
+                                </div>
+                                <div><span class="d4-status-dot offline"></span>Offline</div>
+                                <div>1h 45m</div>
+                                <div>82%</div>
+                                <div>0</div>
+                            </div>
+                            <div class="d4-table-row">
+                                <div class="d4-member">
+                                    <div class="d4-member-avatar" style="background: var(--primary);">M</div>
+                                    Mia
+                                </div>
+                                <div><span class="d4-status-dot online"></span>Online</div>
+                                <div>32m</div>
+                                <div>68%</div>
+                                <div>1</div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direction 5: Split Parent/Child View -->
+        <section class="direction" id="direction-5">
+            <div class="direction-header">
+                <h2>Direction 5: Split Parent/Child View</h2>
+                <p>Side-by-side comparison showing what parents and children see. Perfect for demonstrating transparency and building trust during onboarding.</p>
+                <div class="direction-tags">
+                    <span class="tag">Transparency</span>
+                    <span class="tag">Family View</span>
+                    <span class="tag">Onboarding</span>
+                </div>
+            </div>
+
+            <div class="mockup-container">
+                <div class="d5-container">
+                    <div class="d5-parent">
+                        <div class="d5-view-label">
+                            <span>👤</span> Parent View
+                        </div>
+
+                        <div class="d5-section">
+                            <div class="d5-section-title">Emma's Activity Today</div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">Total Screen Time</span>
+                                <span class="d5-list-value">2h 15m</span>
+                            </div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">Screenshots Captured</span>
+                                <span class="d5-list-value">47</span>
+                            </div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">Flags to Review</span>
+                                <span class="d5-list-value" style="color: var(--warning);">2 pending</span>
+                            </div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">Trust Score</span>
+                                <span class="d5-list-value">75%</span>
+                            </div>
+                        </div>
+
+                        <div class="d5-section">
+                            <div class="d5-section-title">Quick Actions</div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">📸 View Screenshots</span>
+                                <span class="d5-list-value">→</span>
+                            </div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">⏱️ Adjust Time Allowance</span>
+                                <span class="d5-list-value">→</span>
+                            </div>
+                            <div class="d5-list-item">
+                                <span class="d5-list-label">📜 Edit Compact</span>
+                                <span class="d5-list-value">→</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d5-child">
+                        <div class="d5-view-label">
+                            <span>🦋</span> Emma's View
+                        </div>
+
+                        <div class="d5-section">
+                            <div class="d5-child-big-number">
+                                <div class="d5-big-value">45</div>
+                                <div class="d5-big-label">minutes left today</div>
+                            </div>
+                        </div>
+
+                        <div class="d5-section">
+                            <div class="d5-section-title">My Trust Score</div>
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <span style="font-size: 2rem;">🌱</span>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; color: var(--text-primary);">75% - Growing!</div>
+                                    <div class="d5-progress-bar">
+                                        <div class="d5-progress-fill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                                🔥 7 day streak! Keep it up for +15 min bonus!
+                            </div>
+                        </div>
+
+                        <div class="d5-section">
+                            <div class="d5-section-title">My Day (47 photos)</div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <div style="flex: 1; height: 60px; background: var(--bg-muted); border-radius: 8px;"></div>
+                                <div style="flex: 1; height: 60px; background: var(--bg-muted); border-radius: 8px;"></div>
+                                <div style="flex: 1; height: 60px; background: var(--bg-muted); border-radius: 8px;"></div>
+                                <div style="flex: 1; height: 60px; background: var(--bg-muted); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 0.8rem;">+44</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Direction 6: Mobile-First Bottom Nav -->
+        <section class="direction" id="direction-6">
+            <div class="direction-header">
+                <h2>Direction 6: Mobile-First Bottom Nav</h2>
+                <p>Native mobile app experience with bottom navigation. Optimized for one-handed use on phones - the primary daily interaction device.</p>
+                <div class="direction-tags">
+                    <span class="tag">Mobile-First</span>
+                    <span class="tag">Native Feel</span>
+                    <span class="tag">Daily Use</span>
+                </div>
+            </div>
+
+            <div class="mockup-container" style="background: #1a1a2e; padding: 2rem;">
+                <div class="d6-container">
+                    <div class="d6-status-bar">
+                        <span>9:41</span>
+                        <span>📶 🔋</span>
+                    </div>
+
+                    <header class="d6-header">
+                        <div class="d6-profile">
+                            <div class="d6-avatar">🦋</div>
+                            <div>
+                                <div class="d6-name">Emma</div>
+                                <div class="d6-status">● Online now</div>
+                            </div>
+                        </div>
+
+                        <div class="d6-notification">
+                            🔔
+                            <div class="d6-notification-dot"></div>
+                        </div>
+                    </header>
+
+                    <main class="d6-main">
+                        <div class="d6-time-card">
+                            <div class="d6-time-header">
+                                <span class="d6-time-title">Time Remaining</span>
+                                <span class="d6-time-badge">🔥 7 days</span>
+                            </div>
+                            <div class="d6-time-display">
+                                <span class="d6-time-value">45</span>
+                                <span class="d6-time-unit">min</span>
+                            </div>
+                            <div class="d6-time-sub">of 3 hours daily allowance</div>
+                        </div>
+
+                        <div class="d6-section-header">
+                            <span class="d6-section-title">Quick Access</span>
+                            <span class="d6-section-link">See all →</span>
+                        </div>
+
+                        <div class="d6-card-list">
+                            <div class="d6-card">
+                                <div class="d6-card-icon trust">🌱</div>
+                                <div class="d6-card-content">
+                                    <div class="d6-card-title">Trust Score</div>
+                                    <div class="d6-card-subtitle">75% - 5% to next reward!</div>
+                                </div>
+                                <span class="d6-card-chevron">›</span>
+                            </div>
+
+                            <div class="d6-card">
+                                <div class="d6-card-icon compact">📜</div>
+                                <div class="d6-card-content">
+                                    <div class="d6-card-title">Family Compact</div>
+                                    <div class="d6-card-subtitle">Review due in 23 days</div>
+                                </div>
+                                <span class="d6-card-chevron">›</span>
+                            </div>
+
+                            <div class="d6-card">
+                                <div class="d6-card-icon photos">📸</div>
+                                <div class="d6-card-content">
+                                    <div class="d6-card-title">My Day</div>
+                                    <div class="d6-card-subtitle">47 screenshots today</div>
+                                </div>
+                                <span class="d6-card-chevron">›</span>
+                            </div>
+                        </div>
+                    </main>
+
+                    <nav class="d6-bottom-nav">
+                        <div class="d6-nav-item active">
+                            <span class="d6-nav-icon">🏠</span>
+                            <span>Home</span>
+                        </div>
+                        <div class="d6-nav-item">
+                            <span class="d6-nav-icon">📸</span>
+                            <span>My Day</span>
+                        </div>
+                        <div class="d6-nav-item">
+                            <span class="d6-nav-icon">📜</span>
+                            <span>Compact</span>
+                        </div>
+                        <div class="d6-nav-item">
+                            <span class="d6-nav-icon">⚙️</span>
+                            <span>Settings</span>
+                        </div>
+                    </nav>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comparison View -->
+        <section class="direction" id="direction-0">
+            <div class="direction-header">
+                <h2>Compare All Directions</h2>
+                <p>Side-by-side comparison of all six design directions. Rate each category to help identify the best approach.</p>
+            </div>
+
+            <div class="comparison">
+                <div class="comparison-item">
+                    <div class="comparison-label">1. Card-Centric Dashboard</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Traditional sidebar + cards. Best for: Desktop parents who want comprehensive overview.
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <div class="comparison-label">2. Focused Single-View</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Hero card + quick actions. Best for: Busy parents who want key info fast.
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <div class="comparison-label">3. Child-Centric Playful</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Time ring + categories. Best for: Children ages 6-12 as primary users.
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <div class="comparison-label">4. Minimal Data-Dense</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Icon rail + tables. Best for: Power users managing multiple children.
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <div class="comparison-label">5. Split Parent/Child</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Side-by-side transparency view. Best for: Family discussions and onboarding.
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <div class="comparison-label">6. Mobile-First Bottom Nav</div>
+                    <div style="padding: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.7);">
+                        Native mobile experience. Best for: Daily mobile phone interactions.
+                    </div>
+                </div>
+            </div>
+
+            <div class="ratings-section">
+                <h3 class="ratings-title">Rate Each Direction</h3>
+                <div class="ratings-grid">
+                    <div class="rating-card">
+                        <div class="rating-label">Layout Intuitiveness</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                    <div class="rating-card">
+                        <div class="rating-label">Interaction Style</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                    <div class="rating-card">
+                        <div class="rating-label">Visual Weight</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                    <div class="rating-card">
+                        <div class="rating-label">Navigation Approach</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                    <div class="rating-card">
+                        <div class="rating-label">Component Usage</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                    <div class="rating-card">
+                        <div class="rating-label">Brand Alignment</div>
+                        <div class="rating-stars">☆☆☆☆☆</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function showDirection(num) {
+            // Hide all directions
+            document.querySelectorAll('.direction').forEach(d => d.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+
+            // Show selected
+            document.getElementById(`direction-${num}`).classList.add('active');
+            document.querySelectorAll('.nav-tab')[num === 0 ? 6 : num - 1].classList.add('active');
+        }
+    </script>
+</body>
+</html>

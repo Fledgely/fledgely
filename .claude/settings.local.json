@@ -1,0 +1,11 @@
+{
+  "enabledMcpjsonServers": [
+    "agentvibes",
+    "figma"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__mcp-find"
+    ]
+  }
+}

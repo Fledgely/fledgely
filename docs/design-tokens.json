@@ -1,0 +1,151 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "Fledgely Design Tokens",
+  "description": "Design tokens for Fledgely - consent-based parental control app",
+
+  "color": {
+    "primary": {
+      "default": { "value": "#D4843E", "description": "Main actions, branding - warm amber" },
+      "hover": { "value": "#C47535", "description": "Hover state" },
+      "pressed": { "value": "#B4662C", "description": "Pressed state" }
+    },
+    "semantic": {
+      "success": { "value": "#4EAD6B", "description": "Trust milestones, achievements" },
+      "warning": { "value": "#E8A849", "description": "Gentle alerts, time reminders" },
+      "destructive": { "value": "#D16B4A", "description": "Delete, serious actions (not angry)" },
+      "crisis": { "value": "#5BA3A8", "description": "Crisis UI - soothing teal" },
+      "celebration": { "value": "#E6B84D", "description": "Milestones, ceremonies" }
+    },
+    "role": {
+      "child": { "value": "#7B5FC7", "description": "Child dashboard accent" },
+      "parent": { "value": "#B87530", "description": "Parent dashboard accent" }
+    },
+    "trust": {
+      "high": { "value": "#4EAD6B", "description": "Trust 75%+" },
+      "medium": { "value": "#E8A849", "description": "Trust 40-74%" },
+      "building": { "value": "#6BA3C7", "description": "Early trust phase" }
+    },
+    "surface": {
+      "default": { "value": "#FAF8F5", "description": "Warm off-white background" },
+      "card": { "value": "#FFFFFF", "description": "Card backgrounds" },
+      "muted": { "value": "#F3F1ED", "description": "Subtle warm gray" }
+    },
+    "border": {
+      "default": { "value": "#E8E5E0", "description": "Soft warm border" }
+    },
+    "text": {
+      "primary": { "value": "#2D2A26", "description": "Near-black with warmth" },
+      "secondary": { "value": "#7A7672", "description": "Muted secondary" }
+    },
+    "accent": {
+      "amber": { "value": "#D4843E", "description": "Warm, cozy (default)" },
+      "teal": { "value": "#4A9E9E", "description": "Calm, cool" },
+      "purple": { "value": "#7B5FC7", "description": "Creative, fun" },
+      "coral": { "value": "#E07A5F", "description": "Energetic, playful" },
+      "green": { "value": "#5AA86B", "description": "Natural, growing" },
+      "blue": { "value": "#5580B8", "description": "Trustworthy, calm" },
+      "pink": { "value": "#E895A8", "description": "Friendly, soft" },
+      "orange": { "value": "#E5944A", "description": "Energetic, bold" }
+    },
+    "dark": {
+      "surface": { "value": "#1F1D1A" },
+      "card": { "value": "#2A2724" },
+      "muted": { "value": "#171614" },
+      "textPrimary": { "value": "#EBE9E6" },
+      "textSecondary": { "value": "#A09D99" },
+      "border": { "value": "#3D3A36" },
+      "primary": { "value": "#E09550" }
+    },
+    "neutral": {
+      "primary": { "value": "#6B7280", "description": "Stealth mode primary" },
+      "accent": { "value": "#5F6773", "description": "Stealth mode accent" },
+      "celebration": { "value": "#7B8491", "description": "Stealth mode celebration" }
+    }
+  },
+
+  "typography": {
+    "fontFamily": {
+      "system": { "value": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" },
+      "display": { "value": "'Nunito', system-ui, sans-serif" }
+    },
+    "fontSize": {
+      "xs": { "value": "0.75rem", "description": "12px - timestamps, meta" },
+      "sm": { "value": "0.875rem", "description": "14px - secondary labels" },
+      "base": { "value": "1rem", "description": "16px - body text" },
+      "lg": { "value": "1.125rem", "description": "18px - important body" },
+      "xl": { "value": "1.25rem", "description": "20px - H3" },
+      "2xl": { "value": "1.5rem", "description": "24px - H2" },
+      "3xl": { "value": "1.875rem", "description": "30px - H1" },
+      "4xl": { "value": "2.25rem", "description": "36px - Hero, ceremonies" }
+    },
+    "fontWeight": {
+      "regular": { "value": "400" },
+      "medium": { "value": "500" },
+      "semibold": { "value": "600" },
+      "bold": { "value": "700" }
+    },
+    "lineHeight": {
+      "tight": { "value": "1.25", "description": "Headings" },
+      "normal": { "value": "1.5", "description": "Body text" },
+      "relaxed": { "value": "1.625", "description": "Long-form content" }
+    }
+  },
+
+  "spacing": {
+    "1": { "value": "0.25rem", "description": "4px - tight spacing" },
+    "2": { "value": "0.5rem", "description": "8px - element padding" },
+    "3": { "value": "0.75rem", "description": "12px - component padding" },
+    "4": { "value": "1rem", "description": "16px - section spacing" },
+    "6": { "value": "1.5rem", "description": "24px - card padding" },
+    "8": { "value": "2rem", "description": "32px - section gaps" },
+    "12": { "value": "3rem", "description": "48px - major sections" },
+    "16": { "value": "4rem", "description": "64px - page sections" }
+  },
+
+  "borderRadius": {
+    "sm": { "value": "4px", "description": "Small elements" },
+    "md": { "value": "8px", "description": "Buttons, inputs" },
+    "lg": { "value": "12px", "description": "Cards" },
+    "xl": { "value": "16px", "description": "Modals, large cards" },
+    "full": { "value": "9999px", "description": "Pills, avatars" }
+  },
+
+  "breakpoint": {
+    "micro": { "value": "280px", "description": "Samsung Fold (folded)" },
+    "mobile": { "value": "375px", "description": "iPhone standard" },
+    "mobileLarge": { "value": "428px", "description": "iPhone Pro Max" },
+    "tabletMini": { "value": "744px", "description": "iPad Mini" },
+    "tablet": { "value": "834px", "description": "iPad" },
+    "desktop": { "value": "1280px", "description": "Laptop" },
+    "desktopLarge": { "value": "1440px", "description": "Large monitor" }
+  },
+
+  "animation": {
+    "duration": {
+      "instant": { "value": "100ms", "description": "Micro-feedback" },
+      "fast": { "value": "200ms", "description": "Button states, hovers" },
+      "normal": { "value": "300ms", "description": "Standard transitions" },
+      "slow": { "value": "500ms", "description": "Complex state changes" },
+      "ceremony": { "value": "800ms", "description": "Milestone celebrations" }
+    },
+    "easing": {
+      "out": { "value": "cubic-bezier(0, 0, 0.2, 1)", "description": "Elements appearing" },
+      "in": { "value": "cubic-bezier(0.4, 0, 1, 1)", "description": "Elements leaving" },
+      "inOut": { "value": "cubic-bezier(0.4, 0, 0.2, 1)", "description": "State changes" },
+      "bounce": { "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "description": "Celebrations" }
+    }
+  },
+
+  "shadow": {
+    "sm": { "value": "0 1px 2px 0 rgba(45, 42, 38, 0.05)" },
+    "md": { "value": "0 4px 6px -1px rgba(45, 42, 38, 0.1), 0 2px 4px -1px rgba(45, 42, 38, 0.06)" },
+    "lg": { "value": "0 10px 15px -3px rgba(45, 42, 38, 0.1), 0 4px 6px -2px rgba(45, 42, 38, 0.05)" },
+    "xl": { "value": "0 20px 25px -5px rgba(45, 42, 38, 0.1), 0 10px 10px -5px rgba(45, 42, 38, 0.04)" }
+  },
+
+  "touchTarget": {
+    "minimum": { "value": "44px", "description": "WCAG minimum" },
+    "recommended": { "value": "48px", "description": "Comfortable touch" },
+    "tv": { "value": "60px", "description": "Fire TV / 10-foot UI" }
+  }
+}

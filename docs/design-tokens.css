@@ -1,0 +1,259 @@
+/**
+ * Fledgely Design Tokens
+ * Generated from UX Specification
+ *
+ * Philosophy:
+ * - Warm amber = trust, not surveillance
+ * - No clinical blues = we're not a hospital
+ * - Crisis = maximum calm = soothing teal, not alarming red
+ */
+
+:root {
+  /* ========================================
+   * COLOR TOKENS
+   * Using OKLCH for perceptual uniformity
+   * with hex fallbacks
+   * ======================================== */
+
+  /* Primary - Warm Amber (the hug color) */
+  --color-primary: oklch(0.65 0.15 45);
+  --color-primary-hover: oklch(0.60 0.16 45);
+  --color-primary-pressed: oklch(0.55 0.17 45);
+
+  /* Semantic Colors */
+  --color-success: oklch(0.70 0.14 145);        /* Growth green - trust milestones */
+  --color-warning: oklch(0.75 0.12 70);          /* Soft amber - gentle alerts */
+  --color-destructive: oklch(0.65 0.12 30);      /* Gentle coral - NOT angry red */
+  --color-crisis: oklch(0.70 0.08 200);          /* Soothing teal - crisis UI */
+  --color-celebration: oklch(0.75 0.15 85);      /* Joyful gold - achievements */
+
+  /* Role-Specific Accents */
+  --color-child-accent: oklch(0.60 0.18 280);    /* Vibrant purple */
+  --color-parent-accent: oklch(0.55 0.12 45);    /* Deeper amber */
+
+  /* Trust Levels */
+  --color-trust-high: oklch(0.70 0.14 145);      /* 75%+ */
+  --color-trust-medium: oklch(0.75 0.12 70);     /* 40-74% */
+  --color-trust-building: oklch(0.60 0.10 220);  /* Early phase */
+
+  /* Surfaces */
+  --color-surface: oklch(0.97 0.01 45);          /* Warm off-white */
+  --color-surface-card: oklch(1.0 0 0);          /* Pure white */
+  --color-surface-muted: oklch(0.94 0.01 45);    /* Subtle warm gray */
+
+  /* Borders & Text */
+  --color-border: oklch(0.90 0.02 45);
+  --color-text-primary: oklch(0.25 0.02 45);
+  --color-text-secondary: oklch(0.50 0.02 45);
+
+  /* Child Accent Picker Options */
+  --color-accent-amber: oklch(0.65 0.15 45);
+  --color-accent-teal: oklch(0.60 0.12 185);
+  --color-accent-purple: oklch(0.60 0.18 280);
+  --color-accent-coral: oklch(0.68 0.14 25);
+  --color-accent-green: oklch(0.62 0.14 145);
+  --color-accent-blue: oklch(0.58 0.12 250);
+  --color-accent-pink: oklch(0.70 0.14 350);
+  --color-accent-orange: oklch(0.68 0.16 55);
+
+  /* ========================================
+   * HEX FALLBACKS (for older browsers)
+   * ======================================== */
+  --color-primary-hex: #D4843E;
+  --color-success-hex: #4EAD6B;
+  --color-warning-hex: #E8A849;
+  --color-destructive-hex: #D16B4A;
+  --color-crisis-hex: #5BA3A8;
+  --color-celebration-hex: #E6B84D;
+  --color-child-accent-hex: #7B5FC7;
+  --color-parent-accent-hex: #B87530;
+
+  /* ========================================
+   * TYPOGRAPHY TOKENS
+   * ======================================== */
+
+  /* Font Families */
+  --font-system: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Nunito', system-ui, sans-serif;
+
+  /* Font Sizes */
+  --text-xs: 0.75rem;      /* 12px */
+  --text-sm: 0.875rem;     /* 14px */
+  --text-base: 1rem;       /* 16px */
+  --text-lg: 1.125rem;     /* 18px */
+  --text-xl: 1.25rem;      /* 20px */
+  --text-2xl: 1.5rem;      /* 24px */
+  --text-3xl: 1.875rem;    /* 30px */
+  --text-4xl: 2.25rem;     /* 36px */
+
+  /* Font Weights */
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Line Heights */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* ========================================
+   * SPACING TOKENS (4px base)
+   * ======================================== */
+  --space-1: 0.25rem;      /* 4px */
+  --space-2: 0.5rem;       /* 8px */
+  --space-3: 0.75rem;      /* 12px */
+  --space-4: 1rem;         /* 16px */
+  --space-6: 1.5rem;       /* 24px */
+  --space-8: 2rem;         /* 32px */
+  --space-12: 3rem;        /* 48px */
+  --space-16: 4rem;        /* 64px */
+
+  /* ========================================
+   * BORDER RADIUS
+   * ======================================== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* ========================================
+   * SHADOWS (warm-tinted)
+   * ======================================== */
+  --shadow-sm: 0 1px 2px 0 rgba(45, 42, 38, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(45, 42, 38, 0.1), 0 2px 4px -1px rgba(45, 42, 38, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(45, 42, 38, 0.1), 0 4px 6px -2px rgba(45, 42, 38, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(45, 42, 38, 0.1), 0 10px 10px -5px rgba(45, 42, 38, 0.04);
+
+  /* ========================================
+   * ANIMATION TOKENS
+   * ======================================== */
+
+  /* Durations */
+  --duration-instant: 100ms;
+  --duration-fast: 200ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --duration-ceremony: 800ms;
+
+  /* Easings */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ========================================
+   * TOUCH TARGETS
+   * ======================================== */
+  --touch-min: 44px;
+  --touch-recommended: 48px;
+  --touch-tv: 60px;
+
+  /* ========================================
+   * Z-INDEX SCALE
+   * ======================================== */
+  --z-dropdown: 50;
+  --z-sticky: 100;
+  --z-modal: 200;
+  --z-popover: 300;
+  --z-toast: 400;
+  --z-tooltip: 500;
+}
+
+/* ========================================
+ * DARK MODE
+ * ======================================== */
+[data-theme="dark"] {
+  --color-surface: oklch(0.15 0.01 45);
+  --color-surface-card: oklch(0.20 0.02 45);
+  --color-surface-muted: oklch(0.12 0.01 45);
+  --color-text-primary: oklch(0.92 0.01 45);
+  --color-text-secondary: oklch(0.65 0.01 45);
+  --color-border: oklch(0.28 0.02 45);
+  --color-primary: oklch(0.70 0.16 45);
+
+  /* Dark shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* ========================================
+ * STEALTH/NEUTRAL MODE
+ * For teens concerned about peer perception
+ * ======================================== */
+[data-theme="neutral"] {
+  --color-primary: oklch(0.55 0.04 250);
+  --color-child-accent: oklch(0.50 0.03 250);
+  --color-celebration: oklch(0.60 0.04 250);
+}
+
+/* ========================================
+ * ACCESSIBILITY: HIGH CONTRAST
+ * ======================================== */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: oklch(0.50 0.02 45);
+    --color-text-secondary: oklch(0.35 0.02 45);
+  }
+}
+
+/* ========================================
+ * ACCESSIBILITY: REDUCED MOTION
+ * ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-ceremony: 0ms;
+  }
+}
+
+/* ========================================
+ * DYSLEXIA MODE
+ * ======================================== */
+[data-accessibility="dyslexia"] {
+  --color-surface: oklch(0.96 0.02 85);  /* Cream background */
+  --font-system: 'OpenDyslexic', system-ui, sans-serif;
+  --leading-normal: 1.75;
+  letter-spacing: 0.05em;
+  word-spacing: 0.1em;
+}
+
+/* ========================================
+ * COMFORT MODE (Seniors/Low Vision)
+ * ======================================== */
+[data-accessibility="comfort"] {
+  --text-base: 1.125rem;   /* 18px base */
+  --text-sm: 1rem;         /* 16px small */
+  --space-2: 0.75rem;
+  --space-4: 1.5rem;
+  --touch-min: 56px;
+}
+
+/* ========================================
+ * FALLBACK FOR OKLCH
+ * ======================================== */
+@supports not (color: oklch(0 0 0)) {
+  :root {
+    --color-primary: #D4843E;
+    --color-primary-hover: #C47535;
+    --color-primary-pressed: #B4662C;
+    --color-success: #4EAD6B;
+    --color-warning: #E8A849;
+    --color-destructive: #D16B4A;
+    --color-crisis: #5BA3A8;
+    --color-celebration: #E6B84D;
+    --color-child-accent: #7B5FC7;
+    --color-parent-accent: #B87530;
+    --color-surface: #FAF8F5;
+    --color-surface-card: #FFFFFF;
+    --color-surface-muted: #F3F1ED;
+    --color-border: #E8E5E0;
+    --color-text-primary: #2D2A26;
+    --color-text-secondary: #7A7672;
+  }
+}

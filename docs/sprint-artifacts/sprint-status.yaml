@@ -1,0 +1,693 @@
+# generated: 2025-12-15
+# project: fledgely
+# project_key: fledgely
+# tracking_system: file-system
+# story_location: docs/sprint-artifacts/stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder
+#   - ready-for-dev: Draft approved and story context created
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically drafts next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2025-12-15
+project: fledgely
+project_key: fledgely
+tracking_system: file-system
+story_location: docs/sprint-artifacts/stories
+
+development_status:
+  # ============================================
+  # Phase 1: Core Foundation (Epics 0.5-8.5)
+  # ============================================
+
+  # Epic 0.5: Safe Account Escape (Survivor Advocate)
+  epic-0-5: backlog
+  0-5-1-secure-safety-contact-channel: backlog
+  0-5-2-safety-request-documentation-upload: backlog
+  0-5-3-support-agent-escape-dashboard: backlog
+  0-5-4-parent-access-severing: backlog
+  0-5-5-remote-device-unenrollment: backlog
+  0-5-6-location-feature-emergency-disable: backlog
+  0-5-7-72-hour-notification-stealth: backlog
+  0-5-8-audit-trail-sealing: backlog
+  0-5-9-domestic-abuse-resource-referral: backlog
+  epic-0-5-retrospective: optional
+
+  # Epic 1: Parent Account Creation & Authentication
+  epic-1: backlog
+  1-1-google-sign-in-button-flow: backlog
+  1-2-user-profile-creation-on-first-sign-in: backlog
+  1-3-session-persistence-expiry: backlog
+  1-4-logout-functionality: backlog
+  1-5-authentication-error-handling: backlog
+  1-6-accessible-authentication-flow: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Family Creation & Child Profiles
+  epic-2: backlog
+  2-1-family-creation: backlog
+  2-2-add-child-to-family: backlog
+  2-3-custody-arrangement-declaration: backlog
+  2-4-child-profile-viewing-by-child: backlog
+  2-5-edit-child-profile: backlog
+  2-6-remove-child-from-family: backlog
+  2-7-family-dissolution-initiation: backlog
+  2-8-unilateral-self-removal-survivor-escape: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Co-Parent Invitation & Family Sharing
+  epic-3: backlog
+  3-1-co-parent-invitation-generation: backlog
+  3-2-invitation-delivery: backlog
+  3-3-co-parent-invitation-acceptance: backlog
+  3-4-equal-access-verification: backlog
+  3-5-invitation-management: backlog
+  3-6-legal-parent-petition-for-access: backlog
+  epic-3-retrospective: optional
+
+  # Epic 3A: Shared Custody Safeguards
+  epic-3a: backlog
+  3a-1-data-symmetry-enforcement: backlog
+  3a-2-safety-settings-two-parent-approval: backlog
+  3a-3-agreement-changes-two-parent-approval: backlog
+  3a-4-safety-rule-48-hour-cooling-period: backlog
+  3a-5-screenshot-viewing-rate-alert: backlog
+  3a-6-co-parent-removal-prevention: backlog
+  epic-3a-retrospective: optional
+
+  # Epic 4: Agreement Templates & Quick Start
+  epic-4: backlog
+  4-1-template-library-structure: backlog
+  4-2-age-appropriate-template-content: backlog
+  4-3-template-preview-selection: backlog
+  4-4-quick-start-wizard: backlog
+  4-5-template-customization-preview: backlog
+  4-6-template-accessibility: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Basic Agreement Co-Creation
+  epic-5: backlog
+  5-1-co-creation-session-initiation: backlog
+  5-2-visual-agreement-builder: backlog
+  5-3-child-contribution-capture: backlog
+  5-4-negotiation-discussion-support: backlog
+  5-5-agreement-preview-summary: backlog
+  5-6-agreement-only-mode-selection: backlog
+  5-7-draft-saving-version-history: backlog
+  5-8-child-agreement-viewing: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Agreement Signing & Activation
+  epic-6: backlog
+  6-1-child-digital-signature-ceremony: backlog
+  6-2-parent-digital-signature: backlog
+  6-3-agreement-activation: backlog
+  6-4-signing-ceremony-celebration: backlog
+  6-5-device-consent-gate: backlog
+  6-6-consent-withdrawal-handling: backlog
+  6-7-signature-accessibility: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Crisis Allowlist Foundation
+  epic-7: backlog
+  7-1-crisis-allowlist-data-structure: backlog
+  7-2-crisis-visit-zero-data-path: backlog
+  7-3-child-allowlist-visibility: backlog
+  7-4-emergency-allowlist-push: backlog
+  7-5-fuzzy-domain-matching: backlog
+  7-6-crisis-search-redirection: backlog
+  7-7-allowlist-distribution-sync: backlog
+  7-8-privacy-gaps-injection: backlog
+  7-9-cross-platform-allowlist-testing: backlog
+  epic-7-retrospective: optional
+
+  # Epic 7.5: Child Safety Signal (Survivor Advocate)
+  epic-7-5: backlog
+  7-5-1-hidden-safety-signal-access: backlog
+  7-5-2-external-signal-routing: backlog
+  7-5-3-signal-confirmation-resources: backlog
+  7-5-4-safe-adult-designation: backlog
+  7-5-5-mandatory-reporter-pathway: backlog
+  7-5-6-signal-encryption-isolation: backlog
+  7-5-7-48-hour-family-notification-blackout: backlog
+  epic-7-5-retrospective: optional
+
+  # Epic 8: Data Isolation & Security Foundation
+  epic-8: backlog
+  8-1-family-data-isolation-rules: backlog
+  8-2-sibling-data-isolation: backlog
+  8-3-child-permission-boundaries: backlog
+  8-4-negative-capability-no-third-party-sharing: backlog
+  8-5-negative-capability-no-advertising-use: backlog
+  8-6-negative-capability-no-identifiable-ai-training: backlog
+  8-7-vpn-detection-transparency: backlog
+  8-8-encrypted-traffic-display: backlog
+  8-9-jurisdiction-based-defaults: backlog
+  8-10-adult-pattern-detection: backlog
+  8-11-no-law-enforcement-integration: backlog
+  epic-8-retrospective: optional
+
+  # Epic 8.5: Demo Mode - Early Win Preview (War Room)
+  epic-8-5: backlog
+  8-5-1-demo-child-profile-creation: backlog
+  8-5-2-sample-screenshot-gallery: backlog
+  8-5-3-sample-time-tracking-display: backlog
+  8-5-4-sample-flag-alert-examples: backlog
+  8-5-5-demo-to-real-transition: backlog
+  8-5-6-demo-for-child-explanation: backlog
+  epic-8-5-retrospective: optional
+
+  # ============================================
+  # Phase 2: Chromebook & Android MVP (Epics 9-19D)
+  # ============================================
+
+  # Epic 9: Chromebook Extension Foundation
+  epic-9: backlog
+  9-1-extension-package-manifest: backlog
+  9-2-extension-installation-flow: backlog
+  9-3-extension-authentication: backlog
+  9-4-family-connection-child-selection: backlog
+  9-5-monitoring-indicator-display: backlog
+  9-6-extension-background-service: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Chromebook Screenshot Capture
+  epic-10: backlog
+  10-1-screenshot-capture-mechanism: backlog
+  10-2-configurable-capture-intervals: backlog
+  10-3-local-screenshot-queue: backlog
+  10-4-screenshot-upload-to-api: backlog
+  10-5-capture-pause-during-inactivity: backlog
+  10-6-capture-event-logging: backlog
+  epic-10-retrospective: optional
+
+  # Epic 11: Chromebook Crisis Protection
+  epic-11: backlog
+  11-1-pre-capture-allowlist-check: backlog
+  11-2-cached-allowlist-with-fail-safe: backlog
+  11-3-protected-site-visual-indicator: backlog
+  11-4-fuzzy-url-matching: backlog
+  11-5-decoy-mode-for-crisis-browsing: backlog
+  11-6-crisis-protection-testing: backlog
+  epic-11-retrospective: optional
+
+  # Epic 12: Chromebook Device Enrollment
+  epic-12: backlog
+  12-1-enrollment-qr-code-generation: backlog
+  12-2-extension-qr-code-scanning: backlog
+  12-3-device-to-device-enrollment-approval: backlog
+  12-4-device-registration-in-firestore: backlog
+  12-5-child-assignment-to-device: backlog
+  12-6-enrollment-state-persistence: backlog
+  epic-12-retrospective: optional
+
+  # Epic 13: Offline OTP Device Unlock
+  epic-13: backlog
+  13-1-totp-secret-generation-at-enrollment: backlog
+  13-2-parent-emergency-code-display: backlog
+  13-3-device-offline-code-entry: backlog
+  13-4-brute-force-protection: backlog
+  13-5-emergency-unlock-audit-trail: backlog
+  13-6-totp-secret-recovery: backlog
+  epic-13-retrospective: optional
+
+  # Epic 14: Android Agent Foundation
+  epic-14: backlog
+  14-1-android-app-installation-permissions: backlog
+  14-2-android-device-enrollment-via-qr: backlog
+  14-3-android-device-registration: backlog
+  14-4-persistent-monitoring-indicator: backlog
+  14-5-child-app-interface: backlog
+  14-6-background-service-architecture: backlog
+  14-7-android-offline-queue: backlog
+  epic-14-retrospective: optional
+
+  # Epic 15: Android Screenshot Capture
+  epic-15: backlog
+  15-1-mediaprojection-permission-flow: backlog
+  15-2-screenshot-capture-implementation: backlog
+  15-3-battery-optimized-capture-scheduling: backlog
+  15-4-capture-queue-and-upload: backlog
+  15-5-app-specific-capture-rules: backlog
+  15-6-capture-transparency-for-child: backlog
+  epic-15-retrospective: optional
+
+  # Epic 16: Android Crisis Protection
+  epic-16: backlog
+  16-1-android-allowlist-check-before-capture: backlog
+  16-2-android-cached-allowlist: backlog
+  16-3-crisis-app-detection: backlog
+  16-4-android-protected-indicator: backlog
+  16-5-android-decoy-mode: backlog
+  16-6-cross-platform-crisis-test-suite: backlog
+  epic-16-retrospective: optional
+
+  # Epic 17: Android Device Enrollment
+  epic-17: backlog
+  17-1-android-specific-enrollment-error-handling: backlog
+  17-2-child-account-linking-on-android: backlog
+  17-3-multiple-android-devices-per-child: backlog
+  17-4-android-enrollment-completion-notification: backlog
+  epic-17-retrospective: optional
+
+  # Epic 18: Screenshot Cloud Storage & Retention
+  epic-18: backlog
+  18-1-firebase-storage-upload-endpoint: backlog
+  18-2-screenshot-metadata-in-firestore: backlog
+  18-3-configurable-retention-policy: backlog
+  18-4-automatic-screenshot-deletion: backlog
+  18-5-forensic-watermarking-on-view: backlog
+  18-6-view-rate-limiting: backlog
+  18-7-screenshot-access-audit-log: backlog
+  18-8-storage-quota-monitoring: backlog
+  epic-18-retrospective: optional
+
+  # Epic 19: Device Status & Monitoring Health
+  epic-19: backlog
+  19-1-device-list-view: backlog
+  19-2-device-status-indicators: backlog
+  19-3-last-sync-timestamp-display: backlog
+  19-4-monitoring-health-details: backlog
+  19-5-monitoring-disabled-alert: backlog
+  19-6-device-removal-flow: backlog
+  19-7-child-device-visibility: backlog
+  19-8-dashboard-view-logging-fr27a: backlog
+  epic-19-retrospective: optional
+
+  # Epic 19A: Quick Status View (Focus Group)
+  epic-19a: backlog
+  19a-1-family-status-summary-card: backlog
+  19a-2-per-child-status-row: backlog
+  19a-3-caregiver-quick-view: backlog
+  19a-4-status-push-notifications: backlog
+  19a-5-status-widget-mobile: backlog
+  epic-19a-retrospective: optional
+
+  # Epic 19B: Child Dashboard - My Screenshots
+  epic-19b: backlog
+  19b-1-child-screenshot-gallery: backlog
+  19b-2-screenshot-timeline-view: backlog
+  19b-3-screenshot-detail-view: backlog
+  19b-4-activity-summary-for-child: backlog
+  19b-5-what-parents-see-explainer: backlog
+  19b-6-screenshot-viewing-equality: backlog
+  epic-19b-retrospective: optional
+
+  # Epic 19C: Child Dashboard - My Agreement
+  epic-19c: backlog
+  19c-1-child-agreement-view: backlog
+  19c-2-age-appropriate-language-translation: backlog
+  19c-3-agreement-terms-checklist: backlog
+  19c-4-am-i-following-the-agreement-view: backlog
+  19c-5-request-agreement-change: backlog
+  epic-19c-retrospective: optional
+
+  # Epic 19D: Basic Caregiver Status View
+  epic-19d: backlog
+  19d-1-caregiver-invitation-onboarding: backlog
+  19d-2-caregiver-status-only-view: backlog
+  19d-3-caregiver-access-audit-logging: backlog
+  19d-4-caregiver-access-window-enforcement: backlog
+  19d-5-caregiver-quick-revocation: backlog
+  epic-19d-retrospective: optional
+
+  # ============================================
+  # Phase 3: AI & Advanced Features (Epics 20-38)
+  # ============================================
+
+  # Epic 20: AI Classification - Basic Categories
+  epic-20: backlog
+  20-1-classification-service-architecture: backlog
+  20-2-basic-category-taxonomy: backlog
+  20-3-confidence-score-assignment: backlog
+  20-4-multi-label-classification: backlog
+  20-5-classification-metadata-storage: backlog
+  20-6-classification-accuracy-monitoring: backlog
+  20-7-app-url-context-enhancement: backlog
+  epic-20-retrospective: optional
+
+  # Epic 21: AI Classification - Concerning Content Detection
+  epic-21: backlog
+  21-1-concerning-content-categories: backlog
+  21-2-distress-detection-suppression-fr21a: backlog
+  21-3-false-positive-throttling: backlog
+  21-4-concern-confidence-thresholds: backlog
+  21-5-flag-creation-and-storage: backlog
+  21-6-ai-reasoning-explanation: backlog
+  21-7-flag-accuracy-feedback-loop: backlog
+  epic-21-retrospective: optional
+
+  # Epic 22: Parent Dashboard - Flag Review
+  epic-22: backlog
+  22-1-flag-review-queue: backlog
+  22-2-flag-detail-view: backlog
+  22-3-flag-actions: backlog
+  22-4-flag-discussion-notes: backlog
+  22-5-flag-history-and-patterns: backlog
+  22-6-co-parent-flag-visibility: backlog
+  epic-22-retrospective: optional
+
+  # Epic 23: Child Annotation Before Parent Alert
+  epic-23: backlog
+  23-1-flag-notification-to-child: backlog
+  23-2-child-annotation-interface: backlog
+  23-3-annotation-timer-and-escalation: backlog
+  23-4-annotation-display-to-parent: backlog
+  23-5-skip-annotation-option: backlog
+  23-6-annotation-privacy-from-other-children: backlog
+  epic-23-retrospective: optional
+
+  # Epic 24: AI Feedback Loop
+  epic-24: backlog
+  24-1-parent-classification-correction: backlog
+  24-2-family-specific-model-tuning: backlog
+  24-3-explicit-approval-of-categories: backlog
+  24-4-learning-progress-dashboard: backlog
+  24-5-global-model-improvement-pipeline: backlog
+  epic-24-retrospective: optional
+
+  # Epic 27: Bidirectional Transparency - Audit Log
+  epic-27: backlog
+  27-1-audit-event-capture: backlog
+  27-2-parent-audit-log-view: backlog
+  27-3-child-audit-log-view: backlog
+  27-4-asymmetric-viewing-pattern-detection: backlog
+  27-5-audit-log-search-and-export: backlog
+  27-6-real-time-access-notifications: backlog
+  epic-27-retrospective: optional
+
+  # Epic 27.5: Family Health Check-Ins (Family Therapist)
+  epic-27-5: backlog
+  27-5-1-monthly-health-check-in-prompts: backlog
+  27-5-2-check-in-response-interface: backlog
+  27-5-3-flag-triggered-friction-markers: backlog
+  27-5-4-friction-indicators-dashboard: backlog
+  27-5-5-repair-resources-surfacing: backlog
+  27-5-6-resolution-markers: backlog
+  27-5-7-child-safe-check-in-language: backlog
+  epic-27-5-retrospective: optional
+
+  # Epic 28: AI-Generated Screenshot Descriptions
+  epic-28: backlog
+  28-1-ai-description-generation: backlog
+  28-2-description-quality-standards: backlog
+  28-3-screen-reader-integration: backlog
+  28-4-description-display-in-dashboard: backlog
+  28-5-description-generation-failures: backlog
+  28-6-accessibility-settings: backlog
+  epic-28-retrospective: optional
+
+  # Epic 29: Time Tracking Foundation
+  epic-29: backlog
+  29-1-screen-time-data-model: backlog
+  29-2-chromebook-screen-time-capture: backlog
+  29-3-android-screen-time-capture: backlog
+  29-4-parent-screen-time-dashboard: backlog
+  29-5-child-screen-time-view: backlog
+  29-6-screen-time-accuracy-validation: backlog
+  epic-29-retrospective: optional
+
+  # Epic 30: Time Limits Configuration
+  epic-30: backlog
+  30-1-time-limit-data-model: backlog
+  30-2-daily-total-limit-configuration: backlog
+  30-3-per-category-limit-configuration: backlog
+  30-4-custom-category-creation: backlog
+  30-5-per-device-limit-configuration: backlog
+  30-6-limit-preview-and-validation: backlog
+  epic-30-retrospective: optional
+
+  # Epic 31: Time Limit Enforcement & Warnings
+  epic-31: backlog
+  31-1-countdown-warning-system: backlog
+  31-2-neurodivergent-transition-accommodations: backlog
+  31-3-education-content-exemption: backlog
+  31-4-chromebook-time-limit-enforcement: backlog
+  31-5-android-time-limit-enforcement: backlog
+  31-6-time-extension-requests: backlog
+  31-7-time-limit-override-for-emergencies: backlog
+  epic-31-retrospective: optional
+
+  # Epic 32: Family Offline Time
+  epic-32: backlog
+  32-1-family-offline-schedule-configuration: backlog
+  32-2-parent-device-enrollment-for-offline-time: backlog
+  32-3-family-offline-time-enforcement: backlog
+  32-4-parent-compliance-tracking: backlog
+  32-5-offline-time-exceptions: backlog
+  32-6-offline-time-celebration: backlog
+  epic-32-retrospective: optional
+
+  # Epic 33: Focus Mode & Work Mode
+  epic-33: backlog
+  33-1-child-initiated-focus-mode: backlog
+  33-2-focus-mode-app-configuration: backlog
+  33-3-work-mode-for-employed-teens: backlog
+  33-4-calendar-integration-for-modes: backlog
+  33-5-focus-mode-analytics: backlog
+  33-6-work-mode-verification: backlog
+  epic-33-retrospective: optional
+
+  # Epic 34: Agreement Changes & Proposals
+  epic-34: backlog
+  34-1-parent-initiated-agreement-change: backlog
+  34-2-child-initiated-agreement-change: backlog
+  34-3-change-review-and-negotiation: backlog
+  34-4-dual-signature-change-activation: backlog
+  34-5-change-decline-handling: backlog
+  34-6-agreement-change-history: backlog
+  epic-34-retrospective: optional
+
+  # Epic 35: Agreement Renewal & Expiry
+  epic-35: backlog
+  35-1-agreement-expiry-configuration: backlog
+  35-2-renewal-reminder-system: backlog
+  35-3-agreement-renewal-flow: backlog
+  35-4-expired-agreement-grace-period: backlog
+  35-5-post-grace-period-handling: backlog
+  35-6-annual-review-prompts: backlog
+  epic-35-retrospective: optional
+
+  # Epic 34.5: Child Voice Escalation (Child Rights Advocate)
+  epic-34-5: backlog
+  34-5-1-rejection-pattern-tracking: backlog
+  34-5-2-mediation-resource-prompt: backlog
+  34-5-3-agreement-review-request: backlog
+  34-5-4-family-meeting-template: backlog
+  34-5-5-communication-health-indicator: backlog
+  34-5-6-age-appropriate-negotiation-resources: backlog
+  epic-34-5-retrospective: optional
+
+  # Epic 36: Trust Score Foundation
+  epic-36: backlog
+  36-1-trust-score-data-model: backlog
+  36-2-trust-score-calculation: backlog
+  36-3-trust-score-display-to-child: backlog
+  36-4-trust-score-display-to-parent: backlog
+  36-5-bypass-attempt-logging: backlog
+  36-6-trust-score-privacy: backlog
+  epic-36-retrospective: optional
+
+  # Epic 37: Developmental Rights Recognition
+  epic-37: backlog
+  37-1-trust-milestone-definitions: backlog
+  37-2-reduced-screenshot-frequency: backlog
+  37-3-notification-only-mode: backlog
+  37-4-automatic-monitoring-reduction-fr37a: backlog
+  37-5-developmental-framing-in-ui: backlog
+  37-6-regression-handling: backlog
+  epic-37-retrospective: optional
+
+  # Epic 38: Graduation Path & Age 18 Deletion
+  epic-38: backlog
+  38-1-graduation-eligibility-tracking: backlog
+  38-2-graduation-conversation-trigger: backlog
+  38-3-formal-graduation-process: backlog
+  38-4-annual-proportionality-check: backlog
+  38-5-age-18-automatic-deletion: backlog
+  38-6-pre-18-data-export-option: backlog
+  38-7-post-graduation-support: backlog
+  epic-38-retrospective: optional
+
+  # ============================================
+  # Phase 4: Caregivers & Advanced Custody (Epics 39-40)
+  # ============================================
+
+  # Epic 39: Caregiver Full Features
+  epic-39: backlog
+  39-1-caregiver-account-creation: backlog
+  39-2-caregiver-permission-configuration: backlog
+  39-3-temporary-caregiver-access: backlog
+  39-4-caregiver-pin-for-time-extension: backlog
+  39-5-caregiver-flag-viewing: backlog
+  39-6-caregiver-action-logging: backlog
+  39-7-caregiver-removal: backlog
+  epic-39-retrospective: optional
+
+  # Epic 40: Advanced Shared Custody & Location Features
+  epic-40: backlog
+  40-1-location-based-rule-opt-in: backlog
+  40-2-location-specific-rule-configuration: backlog
+  40-3-fleeing-mode-safe-escape: backlog
+  40-4-location-transition-handling: backlog
+  40-5-location-privacy-controls: backlog
+  40-6-location-feature-abuse-prevention: backlog
+  epic-40-retrospective: optional
+
+  # ============================================
+  # Phase 5: Platform Expansion (Epics 41-46)
+  # ============================================
+
+  # Epic 41: Notifications & Alerts
+  epic-41: backlog
+  41-1-notification-preferences-configuration: backlog
+  41-2-flag-notifications: backlog
+  41-3-time-limit-notifications: backlog
+  41-4-device-sync-status-notifications: backlog
+  41-5-new-login-notifications: backlog
+  41-6-notification-delivery-channels: backlog
+  41-7-child-notification-preferences: backlog
+  41-8-fleeing-mode-notification-suppression: backlog
+  epic-41-retrospective: optional
+
+  # Epic 42: Fire TV Agent
+  epic-42: backlog
+  42-1-fire-tv-app-installation-setup: backlog
+  42-2-fire-tv-viewing-activity-capture: backlog
+  42-3-fire-tv-dpad-navigable-ui: backlog
+  42-4-fire-tv-bedtime-enforcement: backlog
+  42-5-fire-tv-time-limit-integration: backlog
+  42-6-fire-tv-offline-handling: backlog
+  epic-42-retrospective: optional
+
+  # Epic 43: iOS Integration
+  epic-43: backlog
+  43-1-ios-app-installation-family-link: backlog
+  43-2-screen-time-api-permission-setup: backlog
+  43-3-ios-usage-data-sync: backlog
+  43-4-ios-time-limit-display: backlog
+  43-5-ios-native-screen-time-coordination: backlog
+  43-6-ios-app-limitation-transparency: backlog
+  epic-43-retrospective: optional
+
+  # Epic 44: Windows & macOS Agents
+  epic-44: backlog
+  44-1-windows-agent-installation: backlog
+  44-2-macos-agent-installation: backlog
+  44-3-desktop-screenshot-capture: backlog
+  44-4-system-tray-integration: backlog
+  44-5-desktop-permission-management: backlog
+  44-6-desktop-app-usage-tracking: backlog
+  44-7-desktop-time-limit-display: backlog
+  44-8-desktop-agent-auto-update: backlog
+  epic-44-retrospective: optional
+
+  # Epic 45: Nintendo Switch, Xbox & Home Assistant Integration
+  epic-45: backlog
+  45-1-nintendo-switch-parental-controls-integration: backlog
+  45-2-xbox-family-settings-integration: backlog
+  45-3-gaming-console-unified-view: backlog
+  45-4-gaming-time-limit-coordination: backlog
+  45-5-home-assistant-integration-setup: backlog
+  45-6-home-assistant-device-presence: backlog
+  45-7-home-assistant-automation-triggers: backlog
+  45-8-console-ha-integration-limitations: backlog
+  epic-45-retrospective: optional
+
+  # Epic 46: Offline Operation Foundation
+  epic-46: backlog
+  46-1-chromebook-extension-offline-queue: backlog
+  46-2-android-app-offline-queue: backlog
+  46-3-automatic-sync-on-reconnect: backlog
+  46-4-offline-timestamp-display: backlog
+  46-5-offline-mode-indication-on-device: backlog
+  46-6-offline-crisis-url-handling: backlog
+  46-7-offline-sync-progress: backlog
+  epic-46-retrospective: optional
+
+  # ============================================
+  # Phase 6: Operations & Self-Hosting (Epics 48-52)
+  # ============================================
+
+  # Epic 48: Self-Hosted Terraform Deployment
+  epic-48: backlog
+  48-1-terraform-module-repository: backlog
+  48-2-one-click-gcp-deployment: backlog
+  48-3-custom-domain-configuration: backlog
+  48-4-configuration-variables: backlog
+  48-5-deployment-verification: backlog
+  48-6-self-hosted-update-process: backlog
+  48-7-self-hosted-security-baseline: backlog
+  48-8-self-hosted-cost-monitoring: backlog
+  epic-48-retrospective: optional
+
+  # Epic 49: Self-Hosted Backups & Restore
+  epic-49: backlog
+  49-1-automated-firestore-backup: backlog
+  49-2-screenshot-storage-backup: backlog
+  49-3-manual-backup-trigger: backlog
+  49-4-restore-from-backup: backlog
+  49-5-point-in-time-recovery: backlog
+  49-6-backup-verification-testing: backlog
+  epic-49-retrospective: optional
+
+  # Epic 50: SaaS Subscription Management
+  epic-50: backlog
+  50-1-subscription-plan-selection: backlog
+  50-2-trial-period: backlog
+  50-3-stripe-payment-integration: backlog
+  50-4-billing-management-portal: backlog
+  50-5-subscription-cancellation: backlog
+  50-6-terms-of-service-family-only: backlog
+  50-7-organizational-use-prevention: backlog
+  50-8-payment-failure-handling: backlog
+  epic-50-retrospective: optional
+
+  # Epic 51: Data Export, GDPR & Account Lifecycle
+  epic-51: backlog
+  51-1-data-export-request: backlog
+  51-2-data-deletion-request: backlog
+  51-3-child-data-deletion-at-18-inv-005: backlog
+  51-4-account-deletion-flow: backlog
+  51-5-abuse-reporting: backlog
+  51-6-breach-notification: backlog
+  51-7-privacy-dashboard: backlog
+  51-8-right-to-rectification: backlog
+  epic-51-retrospective: optional
+
+  # Epic 52: Reverse Mode & Trusted Adults (Age 16 Transition)
+  epic-52: backlog
+  52-1-age-16-transition-notification: backlog
+  52-2-reverse-mode-activation: backlog
+  52-3-selective-sharing-in-reverse-mode: backlog
+  52-4-trusted-adult-designation: backlog
+  52-5-trusted-adult-access: backlog
+  52-6-trusted-adult-removal: backlog
+  52-7-parents-view-in-reverse-mode: backlog
+  52-8-reverse-mode-safety-net: backlog
+  epic-52-retrospective: optional
