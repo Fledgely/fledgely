@@ -5,9 +5,10 @@ import {
   getChildrenForFamily,
   isUserGuardianForChild,
   hasFullPermissionsForChild,
+  updateChild,
   ChildServiceError,
 } from './childService'
-import type { CreateChildInput } from '@fledgely/contracts'
+import type { CreateChildInput, UpdateChildInput } from '@fledgely/contracts'
 
 // Mock Firebase
 vi.mock('firebase/firestore', () => ({
@@ -411,6 +412,196 @@ describe('childService', () => {
       const result = await hasFullPermissionsForChild(mockChildId, 'stranger-user')
 
       expect(result).toBe(false)
+    })
+  })
+
+  describe('updateChild', () => {
+    const mockUpdateInput: UpdateChildInput = {
+      firstName: 'Emily',
+    }
+
+    it('updates child profile successfully', async () => {
+      const mockChildRef = { id: mockChildId }
+
+      ;(doc as Mock).mockReturnValue(mockChildRef)
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => mockChildData,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      const result = await updateChild(mockChildId, mockUpdateInput, mockUserId)
+
+      expect(result).toBeDefined()
+      expect(result.firstName).toBe('Emily')
+      expect(result.updatedBy).toBe(mockUserId)
+    })
+
+    it('throws error when child not found', async () => {
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => false,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      await expect(updateChild(mockChildId, mockUpdateInput, mockUserId)).rejects.toThrow(
+        'We could not find this child profile'
+      )
+    })
+
+    it('throws error when user is not a guardian', async () => {
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => mockChildData,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      await expect(updateChild(mockChildId, mockUpdateInput, 'stranger-user')).rejects.toThrow(
+        'Only parents can add children'
+      )
+    })
+
+    it('throws error when user has readonly permissions', async () => {
+      const childWithReadonlyGuardian = {
+        ...mockChildData,
+        guardians: [
+          {
+            uid: mockUserId,
+            permissions: 'readonly',
+            grantedAt: { toDate: () => new Date() },
+          },
+        ],
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => childWithReadonlyGuardian,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      await expect(updateChild(mockChildId, mockUpdateInput, mockUserId)).rejects.toThrow(
+        'You do not have permission to edit this profile'
+      )
+    })
+
+    it('returns unchanged child when no changes provided', async () => {
+      const childWithAllFields = {
+        ...mockChildData,
+        updatedAt: null,
+        updatedBy: null,
+        custodyDeclaration: null,
+        custodyHistory: [],
+        requiresSharedCustodySafeguards: false,
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => childWithAllFields,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      // Pass same firstName as existing child
+      const result = await updateChild(mockChildId, { firstName: 'Emma' }, mockUserId)
+
+      expect(result).toBeDefined()
+      expect(result.firstName).toBe('Emma')
+    })
+
+    it('updates multiple fields at once', async () => {
+      const multiFieldUpdate: UpdateChildInput = {
+        firstName: 'Emily',
+        lastName: 'Johnson',
+        nickname: 'Emmy',
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => mockChildData,
+          }),
+          update: vi.fn(),
+          set: vi.fn(),
+        }
+        await callback(transaction)
+      })
+
+      const result = await updateChild(mockChildId, multiFieldUpdate, mockUserId)
+
+      expect(result.firstName).toBe('Emily')
+      expect(result.lastName).toBe('Johnson')
+      expect(result.nickname).toBe('Emmy')
+    })
+
+    it('creates audit log entry on update', async () => {
+      const mockSetFn = vi.fn()
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(runTransaction as Mock).mockImplementation(async (_db, callback) => {
+        const transaction = {
+          get: vi.fn().mockResolvedValue({
+            exists: () => true,
+            data: () => mockChildData,
+          }),
+          update: vi.fn(),
+          set: mockSetFn,
+        }
+        await callback(transaction)
+      })
+
+      await updateChild(mockChildId, mockUpdateInput, mockUserId)
+
+      // Verify audit log was created (set was called)
+      expect(mockSetFn).toHaveBeenCalled()
+    })
+
+    it('validates input before updating', async () => {
+      const invalidInput = {
+        firstName: '', // Empty name is invalid
+      } as UpdateChildInput
+
+      await expect(updateChild(mockChildId, invalidInput, mockUserId)).rejects.toThrow()
     })
   })
 

@@ -124,6 +124,31 @@ export {
   type UpdateCustodyDeclarationInput,
 } from './custody.schema'
 
+// Audit Schemas (Story 2.5)
+export {
+  // Schemas
+  auditActionTypeSchema,
+  auditEntityTypeSchema,
+  profileFieldChangeSchema,
+  familyAuditEntrySchema,
+  familyAuditEntryFirestoreSchema,
+  createAuditEntryInputSchema,
+  // Helper functions
+  convertFirestoreToAuditEntry,
+  safeParseAuditEntry,
+  getAuditActionLabel,
+  buildChangesArray,
+  // Constants
+  AUDIT_ACTION_LABELS,
+  // Types
+  type AuditActionType,
+  type AuditEntityType,
+  type ProfileFieldChange,
+  type FamilyAuditEntry,
+  type FamilyAuditEntryFirestore,
+  type CreateAuditEntryInput,
+} from './audit.schema'
+
 // Safety Document Schemas (Story 0.5.2)
 export {
   // Constants

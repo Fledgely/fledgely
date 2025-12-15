@@ -231,10 +231,41 @@ service cloud.firestore {
 
       // Families cannot be deleted (for audit purposes)
       allow delete: if false;
+
+      // ============================================
+      // FAMILY AUDIT LOG SUBCOLLECTION (Story 2.5)
+      // ============================================
+      // Stores audit entries for family actions (child updates, guardian changes, etc.)
+      //
+      // Security invariants:
+      // 1. Only guardians can read audit logs
+      // 2. Only guardians can create audit entries (via transaction)
+      // 3. Audit entries are immutable - no updates or deletes
+      // 4. performedBy must match authenticated user
+      // ============================================
+      match /auditLog/{logId} {
+        // Only guardians can read audit logs
+        allow read: if isGuardian();
+
+        // Only guardians can create audit entries
+        // Validates: performedBy matches authenticated user
+        allow create: if isGuardian() &&
+          request.resource.data.performedBy == request.auth.uid &&
+          request.resource.data.id == logId &&
+          request.resource.data.action is string &&
+          request.resource.data.entityId is string &&
+          request.resource.data.entityType is string;
+
+        // Audit entries are immutable - no updates
+        allow update: if false;
+
+        // Audit entries cannot be deleted
+        allow delete: if false;
+      }
     }
 
     // ============================================
-    // CHILDREN COLLECTION (Story 2.2, Story 2.3)
+    // CHILDREN COLLECTION (Story 2.2, Story 2.3, Story 2.5)
     // ============================================
     // Stores child profile documents
     //

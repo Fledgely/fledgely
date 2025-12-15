@@ -106,6 +106,13 @@ export const childProfileSchema = z.object({
   /** User uid who created the child profile */
   createdBy: z.string().min(1, 'Creator ID is required'),
 
+  // Update tracking fields (Story 2.5)
+  /** When the profile was last updated */
+  updatedAt: z.date().optional().nullable(),
+
+  /** User uid who last updated the profile */
+  updatedBy: z.string().optional().nullable(),
+
   // Custody fields (Story 2.3)
   /** Custody declaration - required before monitoring can begin */
   custodyDeclaration: custodyDeclarationSchema.optional().nullable(),
@@ -137,6 +144,14 @@ export const childProfileFirestoreSchema = z.object({
     (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
   ),
   createdBy: z.string().min(1),
+  // Update tracking fields (Story 2.5)
+  updatedAt: z
+    .custom<{ toDate: () => Date }>(
+      (val) => val === null || val === undefined || (val && typeof (val as { toDate?: () => Date }).toDate === 'function')
+    )
+    .optional()
+    .nullable(),
+  updatedBy: z.string().optional().nullable(),
   // Custody fields (Story 2.3)
   custodyDeclaration: custodyDeclarationFirestoreSchema.optional().nullable(),
   custodyHistory: z.array(custodyHistoryEntryFirestoreSchema).default([]),
@@ -260,10 +275,13 @@ export const updateChildInputSchema = z.object({
 
   photoUrl: z
     .string()
-    .url('Please enter a valid URL for the photo')
     .optional()
     .nullable()
-    .transform((val) => (val === '' ? null : val)),
+    .transform((val) => (val === '' ? null : val))
+    .refine(
+      (val) => val === null || val === undefined || /^https?:\/\/.+/.test(val),
+      'Please enter a valid URL for the photo'
+    ),
 })
 
 export type UpdateChildInput = z.infer<typeof updateChildInputSchema>
@@ -313,6 +331,9 @@ export function convertFirestoreToChildProfile(data: ChildProfileFirestore): Chi
     })),
     createdAt: data.createdAt.toDate(),
     createdBy: data.createdBy,
+    // Update tracking fields (Story 2.5)
+    updatedAt: data.updatedAt?.toDate() ?? null,
+    updatedBy: data.updatedBy ?? null,
     // Custody fields (Story 2.3)
     custodyDeclaration,
     custodyHistory,

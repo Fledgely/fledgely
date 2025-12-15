@@ -16,8 +16,11 @@ import { db } from '@/lib/firebase'
 import {
   childProfileSchema,
   createChildInputSchema,
+  updateChildInputSchema,
+  buildChangesArray,
   type ChildProfile,
   type CreateChildInput,
+  type UpdateChildInput,
 } from '@fledgely/contracts'
 
 /**
@@ -38,6 +41,9 @@ const CHILDREN_COLLECTION = 'children'
 /** Collection name for family documents */
 const FAMILIES_COLLECTION = 'families'
 
+/** Subcollection name for audit logs */
+const AUDIT_LOG_SUBCOLLECTION = 'auditLog'
+
 /**
  * Error messages at 6th-grade reading level (NFR65)
  */
@@ -47,6 +53,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'not-a-guardian': 'Only parents can add children to this family.',
   'invalid-input': 'Please check the information you entered.',
   'child-not-found': 'We could not find this child profile.',
+  'no-changes': 'No changes were made to the profile.',
+  'update-permission-denied': 'You do not have permission to edit this profile.',
   unavailable: 'Connection problem. Please check your internet and try again.',
   'network-request-failed': 'Could not connect. Please check your internet.',
   default: 'Something went wrong. Please try again.',
@@ -318,5 +326,223 @@ export async function hasFullPermissionsForChild(
   } catch (error) {
     console.error('[childService.hasFullPermissionsForChild]', error)
     return false
+  }
+}
+
+/**
+ * Update a child's profile
+ * Uses Firestore transaction to atomically update child and create audit log entry
+ *
+ * Story 2.5: Edit Child Profile
+ *
+ * @param childId - ID of the child to update
+ * @param input - Updated profile fields
+ * @param userId - Firebase Auth uid of the user making the update
+ * @returns Updated child profile
+ * @throws ChildServiceError if user lacks permission or update fails
+ */
+export async function updateChild(
+  childId: string,
+  input: UpdateChildInput,
+  userId: string
+): Promise<ChildProfile> {
+  try {
+    // Validate input
+    const validatedInput = updateChildInputSchema.parse(input)
+
+    // References
+    const childRef = doc(db, CHILDREN_COLLECTION, childId)
+
+    // Capture timestamp before transaction for optimistic return
+    const now = new Date()
+
+    // Track the updated child data for return
+    let updatedChildData: ChildProfile
+
+    await runTransaction(db, async (transaction) => {
+      // Get child document
+      const childDoc = await transaction.get(childRef)
+
+      if (!childDoc.exists()) {
+        throw new ChildServiceError('child-not-found', 'Child not found')
+      }
+
+      const childData = childDoc.data()
+      const guardians = childData.guardians as Array<{
+        uid: string
+        permissions: string
+        grantedAt: Timestamp
+      }>
+
+      // Verify user is guardian with full permissions
+      const userGuardian = guardians.find((g) => g.uid === userId)
+
+      if (!userGuardian) {
+        throw new ChildServiceError('not-a-guardian', 'User is not a guardian for this child')
+      }
+
+      if (userGuardian.permissions !== 'full') {
+        throw new ChildServiceError(
+          'update-permission-denied',
+          'User does not have permission to edit this profile'
+        )
+      }
+
+      // Build changes array for audit
+      const fieldsToTrack: (keyof UpdateChildInput)[] = [
+        'firstName',
+        'lastName',
+        'nickname',
+        'birthdate',
+        'photoUrl',
+      ]
+
+      // Convert Firestore Timestamp to Date for comparison
+      const previousData = {
+        firstName: childData.firstName,
+        lastName: childData.lastName,
+        nickname: childData.nickname,
+        birthdate: (childData.birthdate as Timestamp)?.toDate(),
+        photoUrl: childData.photoUrl,
+      }
+
+      const changes = buildChangesArray(previousData, validatedInput, fieldsToTrack)
+
+      // Only update if there are actual changes
+      if (changes.length === 0) {
+        // No changes, just return current data
+        updatedChildData = childProfileSchema.parse({
+          id: childId,
+          familyId: childData.familyId,
+          firstName: childData.firstName,
+          lastName: childData.lastName || null,
+          nickname: childData.nickname || null,
+          birthdate: (childData.birthdate as Timestamp)?.toDate(),
+          photoUrl: childData.photoUrl || null,
+          guardians: guardians.map((g) => ({
+            uid: g.uid,
+            permissions: g.permissions,
+            grantedAt: g.grantedAt.toDate(),
+          })),
+          createdAt: (childData.createdAt as Timestamp)?.toDate(),
+          createdBy: childData.createdBy,
+          updatedAt: childData.updatedAt ? (childData.updatedAt as Timestamp).toDate() : null,
+          updatedBy: childData.updatedBy || null,
+          custodyDeclaration: childData.custodyDeclaration
+            ? {
+                type: childData.custodyDeclaration.type,
+                notes: childData.custodyDeclaration.notes,
+                declaredBy: childData.custodyDeclaration.declaredBy,
+                declaredAt: childData.custodyDeclaration.declaredAt.toDate(),
+              }
+            : null,
+          custodyHistory: (childData.custodyHistory || []).map(
+            (entry: { previousDeclaration: { type: string; notes: string | null; declaredBy: string; declaredAt: Timestamp }; changedAt: Timestamp; changedBy: string }) => ({
+              previousDeclaration: {
+                type: entry.previousDeclaration.type,
+                notes: entry.previousDeclaration.notes,
+                declaredBy: entry.previousDeclaration.declaredBy,
+                declaredAt: entry.previousDeclaration.declaredAt.toDate(),
+              },
+              changedAt: entry.changedAt.toDate(),
+              changedBy: entry.changedBy,
+            })
+          ),
+          requiresSharedCustodySafeguards: childData.requiresSharedCustodySafeguards || false,
+        })
+        return
+      }
+
+      // Build update object with only defined fields
+      const updateData: Record<string, unknown> = {
+        updatedAt: serverTimestamp(),
+        updatedBy: userId,
+      }
+
+      if (validatedInput.firstName !== undefined) {
+        updateData.firstName = validatedInput.firstName
+      }
+      if (validatedInput.lastName !== undefined) {
+        updateData.lastName = validatedInput.lastName
+      }
+      if (validatedInput.nickname !== undefined) {
+        updateData.nickname = validatedInput.nickname
+      }
+      if (validatedInput.birthdate !== undefined) {
+        updateData.birthdate = validatedInput.birthdate
+      }
+      if (validatedInput.photoUrl !== undefined) {
+        updateData.photoUrl = validatedInput.photoUrl
+      }
+
+      // Update child document
+      transaction.update(childRef, updateData)
+
+      // Create audit log entry
+      const familyId = childData.familyId as string
+      const auditRef = doc(collection(db, FAMILIES_COLLECTION, familyId, AUDIT_LOG_SUBCOLLECTION))
+
+      transaction.set(auditRef, {
+        id: auditRef.id,
+        action: 'child_profile_updated',
+        entityId: childId,
+        entityType: 'child',
+        changes,
+        performedBy: userId,
+        performedAt: serverTimestamp(),
+      })
+
+      // Build optimistic return data
+      updatedChildData = childProfileSchema.parse({
+        id: childId,
+        familyId: childData.familyId,
+        firstName: validatedInput.firstName ?? childData.firstName,
+        lastName: validatedInput.lastName ?? childData.lastName ?? null,
+        nickname: validatedInput.nickname ?? childData.nickname ?? null,
+        birthdate: validatedInput.birthdate ?? (childData.birthdate as Timestamp)?.toDate(),
+        photoUrl: validatedInput.photoUrl ?? childData.photoUrl ?? null,
+        guardians: guardians.map((g) => ({
+          uid: g.uid,
+          permissions: g.permissions,
+          grantedAt: g.grantedAt.toDate(),
+        })),
+        createdAt: (childData.createdAt as Timestamp)?.toDate(),
+        createdBy: childData.createdBy,
+        updatedAt: now,
+        updatedBy: userId,
+        custodyDeclaration: childData.custodyDeclaration
+          ? {
+              type: childData.custodyDeclaration.type,
+              notes: childData.custodyDeclaration.notes,
+              declaredBy: childData.custodyDeclaration.declaredBy,
+              declaredAt: childData.custodyDeclaration.declaredAt.toDate(),
+            }
+          : null,
+        custodyHistory: (childData.custodyHistory || []).map(
+          (entry: { previousDeclaration: { type: string; notes: string | null; declaredBy: string; declaredAt: Timestamp }; changedAt: Timestamp; changedBy: string }) => ({
+            previousDeclaration: {
+              type: entry.previousDeclaration.type,
+              notes: entry.previousDeclaration.notes,
+              declaredBy: entry.previousDeclaration.declaredBy,
+              declaredAt: entry.previousDeclaration.declaredAt.toDate(),
+            },
+            changedAt: entry.changedAt.toDate(),
+            changedBy: entry.changedBy,
+          })
+        ),
+        requiresSharedCustodySafeguards: childData.requiresSharedCustodySafeguards || false,
+      })
+    })
+
+    return updatedChildData!
+  } catch (error) {
+    if (error instanceof ChildServiceError) {
+      const message = getErrorMessage(error)
+      console.error('[childService.updateChild]', error)
+      throw new Error(message)
+    }
+    const message = getErrorMessage(error)
+    console.error('[childService.updateChild]', error)
+    throw new Error(message)
   }
 }
