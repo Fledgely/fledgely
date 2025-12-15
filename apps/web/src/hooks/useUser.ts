@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuthContext } from '@/components/providers/AuthProvider'
-import { getOrCreateUser } from '@/services/userService'
+import { getOrCreateUser, isSessionExpired } from '@/services/userService'
 import type { User } from '@fledgely/contracts'
 
 /**
@@ -37,7 +38,8 @@ export interface UseUserReturn {
  * ```
  */
 export function useUser(): UseUserReturn {
-  const { user: authUser, loading: authLoading } = useAuthContext()
+  const router = useRouter()
+  const { user: authUser, loading: authLoading, signOut } = useAuthContext()
 
   const [userProfile, setUserProfile] = useState<User | null>(null)
   const [isNewUser, setIsNewUser] = useState(false)
@@ -47,7 +49,19 @@ export function useUser(): UseUserReturn {
   // Track mounted state to prevent memory leaks
   const mountedRef = useRef(true)
 
-  // Track if we've already processed the current auth user to prevent double processing
+  /**
+   * Track if we've already processed the current auth user to prevent double processing.
+   *
+   * This ref prevents race conditions where:
+   * 1. User signs in → fetchOrCreateUser starts
+   * 2. Auth state changes (e.g., token refresh) → useEffect re-runs
+   * 3. fetchOrCreateUser would run twice for the same user
+   *
+   * The ref is cleared when:
+   * - User signs out (no auth user)
+   * - Session expires (explicit clear)
+   * - Error occurs during fetch (allow retry)
+   */
   const processedUidRef = useRef<string | null>(null)
 
   /**
@@ -92,27 +106,56 @@ export function useUser(): UseUserReturn {
     }
 
     const fetchOrCreateUser = async () => {
+      // Store uid at START of fetch to prevent race conditions
+      // if auth state changes during async operations
+      const currentUid = authUser.uid
+
       if (mountedRef.current) {
         setLoading(true)
         setError(null)
       }
 
       try {
-        const { user, isNewUser: newUser } = await getOrCreateUser(authUser)
+        const { user, isNewUser: newUser, originalLastLoginAt } = await getOrCreateUser(authUser)
 
-        if (mountedRef.current) {
+        // Check if session has expired (30 days of inactivity)
+        // Use ORIGINAL lastLoginAt (before update) to properly detect expired sessions
+        if (!newUser && originalLastLoginAt && isSessionExpired(originalLastLoginAt)) {
+          try {
+            // Session expired - sign out and redirect to login with message
+            await signOut()
+          } catch (signOutError) {
+            // Log error but continue with redirect - user experience is paramount
+            console.error('[useUser] Failed to sign out expired session:', signOutError)
+          } finally {
+            if (mountedRef.current) {
+              setUserProfile(null)
+              setIsNewUser(false)
+              setLoading(false)
+              processedUidRef.current = null
+            }
+            // Always redirect, even if sign-out failed
+            router.push('/login?expired=true')
+          }
+          return
+        }
+
+        // Verify uid hasn't changed during async operations
+        if (mountedRef.current && authUser.uid === currentUid) {
           setUserProfile(user)
           setIsNewUser(newUser)
-          processedUidRef.current = authUser.uid
+          processedUidRef.current = currentUid
         }
       } catch (err) {
-        if (mountedRef.current) {
+        // Only set error if still processing the same user
+        if (mountedRef.current && authUser.uid === currentUid) {
           setError(err instanceof Error ? err : new Error('Failed to load user profile'))
           setUserProfile(null)
           setIsNewUser(false)
+          // DON'T mark as processed on error - allow retry
         }
       } finally {
-        if (mountedRef.current) {
+        if (mountedRef.current && authUser.uid === currentUid) {
           setLoading(false)
         }
       }
@@ -121,7 +164,7 @@ export function useUser(): UseUserReturn {
     fetchOrCreateUser()
     // Note: Only depend on auth state changes, not userProfile
     // processedUidRef prevents duplicate fetches for the same user
-  }, [authUser, authLoading])
+  }, [authUser, authLoading, signOut, router])
 
   return {
     userProfile,

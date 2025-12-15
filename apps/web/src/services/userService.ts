@@ -30,6 +30,9 @@ import type { User as FirebaseUser } from 'firebase/auth'
 /** Collection name for user documents */
 const USERS_COLLECTION = 'users'
 
+/** 30 days in milliseconds for session expiry check */
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000 // 2592000000
+
 /**
  * Error messages at 6th-grade reading level (NFR65)
  */
@@ -177,16 +180,34 @@ export async function updateLastLogin(uid: string): Promise<void> {
 }
 
 /**
+ * Check if session has expired due to inactivity
+ * Session expires after 30 days of inactivity
+ *
+ * @param lastLoginAt - Date of last login
+ * @returns true if session is expired (lastLoginAt > 30 days ago)
+ */
+export function isSessionExpired(lastLoginAt: Date): boolean {
+  const now = Date.now()
+  const lastLogin = lastLoginAt.getTime()
+  return now - lastLogin > THIRTY_DAYS_MS
+}
+
+/**
  * Get or create user profile
  * Uses Firestore transaction to prevent race conditions
  * Idempotent operation - safe to call multiple times
  *
+ * Returns originalLastLoginAt for existing users so caller can check
+ * session expiry BEFORE the timestamp is updated. This prevents the
+ * race condition where expired sessions would never be detected.
+ *
  * @param authUser - Firebase Auth user object
- * @returns User profile and isNewUser flag
+ * @returns User profile, isNewUser flag, and originalLastLoginAt for expiry checking
  */
 export async function getOrCreateUser(authUser: FirebaseUser): Promise<{
   user: User
   isNewUser: boolean
+  originalLastLoginAt?: Date
 }> {
   try {
     // Validate input first (before transaction)
@@ -204,13 +225,19 @@ export async function getOrCreateUser(authUser: FirebaseUser): Promise<{
       const snapshot = await transaction.get(userRef)
 
       if (snapshot.exists()) {
+        const existingData = snapshot.data()
+        // CRITICAL: Capture original lastLoginAt BEFORE updating
+        // This allows caller to check session expiry against the actual last login time
+        const originalLastLoginAt = (existingData.lastLoginAt as Timestamp)?.toDate()
+
         // User exists - update last login timestamp
         transaction.update(userRef, {
           lastLoginAt: serverTimestamp(),
         })
         return {
           isNewUser: false,
-          data: snapshot.data(),
+          data: existingData,
+          originalLastLoginAt,
         }
       }
 
@@ -225,6 +252,7 @@ export async function getOrCreateUser(authUser: FirebaseUser): Promise<{
       return {
         isNewUser: true,
         data: null, // Will fetch after transaction to get server timestamps
+        originalLastLoginAt: undefined, // No original for new users
       }
     })
 
@@ -238,12 +266,14 @@ export async function getOrCreateUser(authUser: FirebaseUser): Promise<{
       return {
         user: convertFirestoreUser(snapshot.data()),
         isNewUser: true,
+        // No originalLastLoginAt for new users
       }
     }
 
     return {
       user: convertFirestoreUser(result.data as Record<string, unknown>),
       isNewUser: false,
+      originalLastLoginAt: result.originalLastLoginAt,
     }
   } catch (error) {
     const message = getErrorMessage(error)

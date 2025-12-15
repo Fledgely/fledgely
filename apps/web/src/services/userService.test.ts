@@ -30,6 +30,7 @@ import {
   userExists,
   updateLastLogin,
   getOrCreateUser,
+  isSessionExpired,
 } from './userService'
 
 describe('userService', () => {
@@ -229,6 +230,7 @@ describe('userService', () => {
 
       expect(result.isNewUser).toBe(true)
       expect(result.user.uid).toBe('test-uid-123')
+      expect(result.originalLastLoginAt).toBeUndefined() // No original for new users
       expect(runTransaction).toHaveBeenCalled()
     })
 
@@ -247,6 +249,7 @@ describe('userService', () => {
 
       expect(result.isNewUser).toBe(false)
       expect(result.user.uid).toBe('test-uid-123')
+      expect(result.originalLastLoginAt).toEqual(new Date('2025-01-01T00:00:00Z')) // Original timestamp
       expect(runTransaction).toHaveBeenCalled()
     })
 
@@ -271,6 +274,49 @@ describe('userService', () => {
       ;(getDoc as Mock).mockResolvedValue({ exists: () => false })
 
       await expect(getOrCreateUser(mockFirebaseUser as FirebaseUser)).rejects.toThrow()
+    })
+  })
+
+  describe('isSessionExpired', () => {
+    it('returns false for lastLoginAt within 30 days', () => {
+      // 10 days ago - should not be expired
+      const recentLogin = new Date(Date.now() - 1000 * 60 * 60 * 24 * 10)
+      expect(isSessionExpired(recentLogin)).toBe(false)
+    })
+
+    it('returns false for lastLoginAt just now', () => {
+      const justNow = new Date()
+      expect(isSessionExpired(justNow)).toBe(false)
+    })
+
+    it('returns false for lastLoginAt 29 days ago', () => {
+      // 29 days ago - should not be expired
+      const almostExpired = new Date(Date.now() - 1000 * 60 * 60 * 24 * 29)
+      expect(isSessionExpired(almostExpired)).toBe(false)
+    })
+
+    it('returns true for lastLoginAt older than 30 days', () => {
+      // 31 days ago - should be expired
+      const oldLogin = new Date(Date.now() - 1000 * 60 * 60 * 24 * 31)
+      expect(isSessionExpired(oldLogin)).toBe(true)
+    })
+
+    it('returns true for exactly 30 days plus 1ms (boundary)', () => {
+      // Exactly 30 days + 1ms ago - should be expired
+      const exactlyThirtyDaysPlusOne = new Date(Date.now() - (1000 * 60 * 60 * 24 * 30 + 1))
+      expect(isSessionExpired(exactlyThirtyDaysPlusOne)).toBe(true)
+    })
+
+    it('returns false for exactly 30 days (boundary)', () => {
+      // Exactly 30 days ago - should NOT be expired (we use > not >=)
+      const exactlyThirtyDays = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30)
+      expect(isSessionExpired(exactlyThirtyDays)).toBe(false)
+    })
+
+    it('returns true for very old lastLoginAt', () => {
+      // 1 year ago - should be expired
+      const veryOld = new Date(Date.now() - 1000 * 60 * 60 * 24 * 365)
+      expect(isSessionExpired(veryOld)).toBe(true)
     })
   })
 })

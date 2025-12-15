@@ -85,6 +85,17 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Expired session message (friendly, not an error) */}
+          {searchParams.get('expired') === 'true' && (
+            <div
+              className="rounded-lg bg-blue-50 p-4 text-center text-blue-700"
+              role="status"
+              aria-live="polite"
+            >
+              Welcome back! Please sign in again to continue.
+            </div>
+          )}
+
           {/* Sign-in card */}
           <div className="rounded-lg border bg-card p-6">
             <div className="flex flex-col items-center space-y-4">
