@@ -62,8 +62,8 @@ development_status:
   epic-1: in-progress
   1-1-google-sign-in-button-flow: done
   1-2-user-profile-creation-on-first-sign-in: review
-  1-3-session-persistence-expiry: backlog
-  1-4-logout-functionality: backlog
+  1-3-session-persistence-expiry: review
+  1-4-logout-functionality: done
   1-5-authentication-error-handling: backlog
   1-6-accessible-authentication-flow: backlog
   epic-1-retrospective: optional
