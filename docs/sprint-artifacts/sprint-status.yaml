@@ -50,7 +50,7 @@ development_status:
   0-5-1-secure-safety-contact-channel: done
   0-5-2-safety-request-documentation-upload: done
   0-5-3-support-agent-escape-dashboard: done
-  0-5-4-parent-access-severing: in-progress
+  0-5-4-parent-access-severing: done
   0-5-5-remote-device-unenrollment: backlog
   0-5-6-location-feature-emergency-disable: backlog
   0-5-7-72-hour-notification-stealth: backlog

@@ -1,6 +1,6 @@
 # Story 0.5.4: Parent Access Severing
 
-**Status:** ready-for-dev
+**Status:** done
 
 ---
 
