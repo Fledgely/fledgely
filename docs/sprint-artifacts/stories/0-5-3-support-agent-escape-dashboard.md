@@ -1,6 +1,6 @@
 # Story 0.5.3: Support Agent Escape Dashboard
 
-**Status:** in-progress
+**Status:** done
 
 ---
 
