@@ -15,6 +15,7 @@ import {
 import { useAdminAuth } from '@/lib/admin-auth'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { SeverParentDialog } from '@/components/admin/SeverParentDialog'
 
 /**
  * Safety Request Detail Page
@@ -39,6 +40,9 @@ export default function SafetyRequestDetailPage() {
   // Note form state
   const [noteContent, setNoteContent] = useState('')
   const [escalationReason, setEscalationReason] = useState('')
+
+  // Sever parent dialog state
+  const [severDialogOpen, setSeverDialogOpen] = useState(false)
 
   const fetchRequest = useCallback(async () => {
     setLoading(true)
@@ -508,8 +512,58 @@ export default function SafetyRequestDetailPage() {
               </Button>
             )}
           </div>
+
+          {/* Parent Access Severing - CRITICAL SAFETY FEATURE */}
+          <div className="bg-white rounded-lg border border-red-200 p-6">
+            <h2 className="font-semibold mb-4 text-red-700">
+              Parent Access Severing
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Use this to sever a parent&apos;s access to protect abuse victims.
+              This action is irreversible and will be logged for compliance.
+            </p>
+
+            {/* Verification status check */}
+            {!request.verificationChecklist.accountOwnershipVerified &&
+            !request.verificationChecklist.idMatched ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  Identity verification required before severing. Complete
+                  either &quot;Account Ownership Verified&quot; or &quot;ID
+                  Matched&quot; in the checklist above.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  Identity verified. Severing action available.
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setSeverDialogOpen(true)}
+              variant="destructive"
+              className="w-full"
+              disabled={
+                !request.verificationChecklist.accountOwnershipVerified &&
+                !request.verificationChecklist.idMatched
+              }
+            >
+              Sever Parent Access
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Sever Parent Dialog */}
+      <SeverParentDialog
+        open={severDialogOpen}
+        onOpenChange={setSeverDialogOpen}
+        requestId={request.id}
+        verificationChecklist={request.verificationChecklist}
+        onSuccess={fetchRequest}
+      />
     </div>
   )
 }

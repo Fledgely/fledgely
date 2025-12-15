@@ -237,3 +237,67 @@ export async function updateEscalation(
     escalation: { isEscalated, reason },
   })
 }
+
+/**
+ * Sever parent access input
+ */
+export interface SeverParentAccessInput {
+  requestId: string
+  targetUserId: string
+  familyId: string
+  reason: string
+}
+
+/**
+ * Sever parent access response
+ */
+export interface SeverParentAccessResponse {
+  success: boolean
+  severed: boolean
+  targetUserId: string
+  familyId: string
+  severedAt: string
+}
+
+/**
+ * Cloud Function callable for severing parent access
+ *
+ * CRITICAL: This is a life-safety operation.
+ * - Only callable by safety-team users
+ * - Requires verified safety request
+ * - Creates sealed audit log entry
+ * - Does NOT notify severed parent or family members
+ */
+const severParentAccessFn = httpsCallable<
+  SeverParentAccessInput,
+  SeverParentAccessResponse
+>(functions, 'severParentAccess')
+
+/**
+ * Sever a parent's access to their family
+ *
+ * CRITICAL: This is a life-safety operation used to protect abuse victims.
+ * The severed parent will:
+ * - Still be able to log in (authentication preserved)
+ * - See "No families found" (NOT "You've been removed")
+ * - NOT receive any notification about the severing
+ *
+ * @param requestId - Safety request ID that authorized this severing
+ * @param targetUserId - User ID of the parent to sever
+ * @param familyId - Family ID to sever the parent from
+ * @param reason - Documented reason for compliance audit
+ */
+export async function severParentAccess(
+  requestId: string,
+  targetUserId: string,
+  familyId: string,
+  reason: string
+): Promise<SeverParentAccessResponse> {
+  const result = await severParentAccessFn({
+    requestId,
+    targetUserId,
+    familyId,
+    reason,
+  })
+  return result.data
+}

@@ -15,3 +15,6 @@ export { setAdminClaims } from './callable/setAdminClaims'
 export { listSafetyRequests } from './callable/listSafetyRequests'
 export { getSafetyRequest } from './callable/getSafetyRequest'
 export { updateSafetyRequest } from './callable/updateSafetyRequest'
+
+// Callable Functions - Parent Access Severing (Story 0.5.4)
+export { severParentAccess } from './callable/severParentAccess'
