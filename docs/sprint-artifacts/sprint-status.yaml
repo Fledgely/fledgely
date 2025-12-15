@@ -46,10 +46,10 @@ development_status:
   # ============================================
 
   # Epic 0.5: Safe Account Escape (Survivor Advocate)
-  epic-0-5: backlog
-  0-5-1-secure-safety-contact-channel: backlog
-  0-5-2-safety-request-documentation-upload: backlog
-  0-5-3-support-agent-escape-dashboard: backlog
+  epic-0-5: in-progress
+  0-5-1-secure-safety-contact-channel: done
+  0-5-2-safety-request-documentation-upload: done
+  0-5-3-support-agent-escape-dashboard: in-progress
   0-5-4-parent-access-severing: backlog
   0-5-5-remote-device-unenrollment: backlog
   0-5-6-location-feature-emergency-disable: backlog

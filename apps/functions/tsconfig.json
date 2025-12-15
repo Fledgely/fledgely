@@ -4,17 +4,15 @@
     "module": "commonjs",
     "lib": ["ES2022"],
     "outDir": "./lib",
-    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
     "moduleResolution": "node",
-    "paths": {
-      "@fledgely/contracts": ["../../packages/contracts/src"]
-    }
+    "resolveJsonModule": true,
+    "isolatedModules": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "lib"]
+  "exclude": ["node_modules", "lib", "**/*.test.ts"]
 }
