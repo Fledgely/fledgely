@@ -301,3 +301,136 @@ export async function severParentAccess(
   })
   return result.data
 }
+
+/**
+ * Device unenrollment input (single device)
+ */
+export interface UnenrollDeviceInput {
+  requestId: string
+  deviceId: string
+  familyId: string
+  childId: string
+  reason: string
+}
+
+/**
+ * Device unenrollment response (single device)
+ */
+export interface UnenrollDeviceResponse {
+  success: boolean
+  unenrolled: boolean
+  deviceId: string
+  familyId: string
+  childId: string
+  unenrolledAt: string
+}
+
+/**
+ * Bulk device unenrollment input
+ */
+export interface UnenrollDevicesInput {
+  requestId: string
+  devices: Array<{
+    deviceId: string
+    familyId: string
+    childId: string
+  }>
+  reason: string
+}
+
+/**
+ * Bulk device unenrollment response
+ */
+export interface UnenrollDevicesResponse {
+  success: boolean
+  totalRequested: number
+  totalUnenrolled: number
+  results: Array<{
+    deviceId: string
+    success: boolean
+    error?: string
+  }>
+  unenrolledAt: string
+}
+
+/**
+ * Cloud Function callable for unenrolling a single device
+ *
+ * CRITICAL: This is a life-safety operation.
+ * - Only callable by safety-team users
+ * - Requires verified safety request
+ * - Creates sealed audit log entry
+ * - Does NOT notify any family members
+ */
+const unenrollDeviceFn = httpsCallable<
+  UnenrollDeviceInput,
+  UnenrollDeviceResponse
+>(functions, 'unenrollDevice')
+
+/**
+ * Cloud Function callable for bulk device unenrollment
+ */
+const unenrollDevicesFn = httpsCallable<
+  UnenrollDevicesInput,
+  UnenrollDevicesResponse
+>(functions, 'unenrollDevices')
+
+/**
+ * Unenroll a device from monitoring
+ *
+ * CRITICAL: This is a life-safety operation used to protect abuse victims.
+ * The device will:
+ * - Stop capturing and uploading immediately
+ * - Delete local cached screenshots
+ * - Show "Device no longer monitored" to child
+ * - NOT trigger any notification
+ *
+ * @param requestId - Safety request ID that authorized this unenrollment
+ * @param deviceId - Device ID to unenroll
+ * @param familyId - Family ID the device belongs to
+ * @param childId - Child ID the device is assigned to
+ * @param reason - Documented reason for compliance audit
+ */
+export async function unenrollDevice(
+  requestId: string,
+  deviceId: string,
+  familyId: string,
+  childId: string,
+  reason: string
+): Promise<UnenrollDeviceResponse> {
+  const result = await unenrollDeviceFn({
+    requestId,
+    deviceId,
+    familyId,
+    childId,
+    reason,
+  })
+  return result.data
+}
+
+/**
+ * Unenroll multiple devices from monitoring
+ *
+ * CRITICAL: This is a life-safety operation used for bulk device escape.
+ * All devices will be unenrolled atomically where possible.
+ *
+ * @param requestId - Safety request ID that authorized this unenrollment
+ * @param devices - Array of devices to unenroll
+ * @param reason - Documented reason for compliance audit
+ */
+export async function unenrollDevices(
+  requestId: string,
+  devices: Array<{
+    deviceId: string
+    familyId: string
+    childId: string
+  }>,
+  reason: string
+): Promise<UnenrollDevicesResponse> {
+  const result = await unenrollDevicesFn({
+    requestId,
+    devices,
+    reason,
+  })
+  return result.data
+}

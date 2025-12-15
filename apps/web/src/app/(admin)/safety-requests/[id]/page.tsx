@@ -16,6 +16,7 @@ import { useAdminAuth } from '@/lib/admin-auth'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { SeverParentDialog } from '@/components/admin/SeverParentDialog'
+import { UnenrollDeviceDialog } from '@/components/admin/UnenrollDeviceDialog'
 
 /**
  * Safety Request Detail Page
@@ -43,6 +44,9 @@ export default function SafetyRequestDetailPage() {
 
   // Sever parent dialog state
   const [severDialogOpen, setSeverDialogOpen] = useState(false)
+
+  // Unenroll device dialog state
+  const [unenrollDialogOpen, setUnenrollDialogOpen] = useState(false)
 
   const fetchRequest = useCallback(async () => {
     setLoading(true)
@@ -553,6 +557,48 @@ export default function SafetyRequestDetailPage() {
               Sever Parent Access
             </Button>
           </div>
+
+          {/* Device Unenrollment - CRITICAL SAFETY FEATURE */}
+          <div className="bg-white rounded-lg border border-red-200 p-6">
+            <h2 className="font-semibold mb-4 text-red-700">
+              Device Unenrollment
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Use this to remotely unenroll device(s) from monitoring to protect
+              abuse victims. The device will stop capturing immediately and delete
+              local cached data.
+            </p>
+
+            {/* Verification status check */}
+            {!request.verificationChecklist.accountOwnershipVerified &&
+            !request.verificationChecklist.idMatched ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  Identity verification required before unenrolling devices.
+                  Complete either &quot;Account Ownership Verified&quot; or
+                  &quot;ID Matched&quot; in the checklist above.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  Identity verified. Device unenrollment available.
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setUnenrollDialogOpen(true)}
+              variant="destructive"
+              className="w-full"
+              disabled={
+                !request.verificationChecklist.accountOwnershipVerified &&
+                !request.verificationChecklist.idMatched
+              }
+            >
+              Unenroll Device(s)
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -560,6 +606,15 @@ export default function SafetyRequestDetailPage() {
       <SeverParentDialog
         open={severDialogOpen}
         onOpenChange={setSeverDialogOpen}
+        requestId={request.id}
+        verificationChecklist={request.verificationChecklist}
+        onSuccess={fetchRequest}
+      />
+
+      {/* Unenroll Device Dialog */}
+      <UnenrollDeviceDialog
+        open={unenrollDialogOpen}
+        onOpenChange={setUnenrollDialogOpen}
         requestId={request.id}
         verificationChecklist={request.verificationChecklist}
         onSuccess={fetchRequest}

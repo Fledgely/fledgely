@@ -18,3 +18,6 @@ export { updateSafetyRequest } from './callable/updateSafetyRequest'
 
 // Callable Functions - Parent Access Severing (Story 0.5.4)
 export { severParentAccess } from './callable/severParentAccess'
+
+// Callable Functions - Device Unenrollment (Story 0.5.5)
+export { unenrollDevice, unenrollDevices } from './callable/unenrollDevice'
