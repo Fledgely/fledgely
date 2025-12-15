@@ -1,0 +1,92 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================
+    // SAFETY DOCUMENTS STORAGE
+    // ============================================
+    // CRITICAL: This is a life-safety feature for victims escaping abuse.
+    // These rules ensure safety documents are NEVER visible to family members.
+    //
+    // Security invariants:
+    // 1. Anyone can upload (supports anonymous submissions from non-authenticated users)
+    // 2. Only safety-team members with custom claims can read
+    // 3. Original submitter or safety-team can delete
+    // 4. NEVER accessible via family-scoped queries or paths
+    // 5. File size limited to 25MB
+    // 6. Only allowed document types (PDF, images, Word docs)
+    // ============================================
+
+    match /safetyDocuments/{requestId}/{fileId} {
+      // Maximum file size: 25MB (matching MAX_FILE_SIZE_BYTES constant)
+      // This accommodates typical legal documents while preventing abuse
+      function maxFileSize() {
+        return 25 * 1024 * 1024;
+      }
+
+      // Allowed content types for safety documents
+      // Matches ALLOWED_DOCUMENT_TYPES constant in safety-document.schema.ts
+      function isAllowedContentType() {
+        return request.resource.contentType.matches('application/pdf')
+            || request.resource.contentType.matches('image/jpeg')
+            || request.resource.contentType.matches('image/png')
+            || request.resource.contentType.matches('image/gif')
+            || request.resource.contentType.matches('image/webp')
+            || request.resource.contentType.matches('image/heic')
+            || request.resource.contentType.matches('application/msword')
+            || request.resource.contentType.matches('application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document');
+      }
+
+      // Check if user is a safety team member via custom claims
+      function isSafetyTeam() {
+        return request.auth != null && request.auth.token.isSafetyTeam == true;
+      }
+
+      // Check if user is the original submitter
+      // Uses custom metadata set during upload
+      function isOriginalSubmitter() {
+        return request.auth != null
+            && resource.metadata.submittedBy != null
+            && resource.metadata.submittedBy == request.auth.uid;
+      }
+
+      // UPLOAD: Anyone can upload (even anonymous users)
+      // This is intentional - victims may not be logged in or may be
+      // using someone else's device for safety reasons
+      //
+      // Constraints:
+      // - File must be under 25MB
+      // - File must be an allowed content type (no executables, scripts, etc.)
+      allow create: if request.resource.size < maxFileSize()
+                    && isAllowedContentType();
+
+      // READ: Only safety team members can read/download documents
+      // This prevents family members from ever accessing uploaded documents
+      // through any path or query mechanism
+      allow read: if isSafetyTeam();
+
+      // UPDATE: Not allowed - documents should not be modified after upload
+      // If a new version is needed, upload a new document
+      allow update: if false;
+
+      // DELETE: Original submitter can delete OR safety team can delete
+      // This allows victims to remove their own documents if needed
+      // while also allowing support staff to manage documents
+      allow delete: if isOriginalSubmitter() || isSafetyTeam();
+    }
+
+    // ============================================
+    // DENY ALL OTHER PATHS BY DEFAULT
+    // ============================================
+    // This ensures that any unspecified paths are blocked
+    // following the principle of least privilege
+
+    // Placeholder for future storage paths (screenshots, etc.)
+    // Each new feature should add explicit rules here
+
+    // Example future paths:
+    // match /children/{childId}/screenshots/{date}/{screenshotId} { ... }
+    // match /agreements/{agreementId}/attachments/{attachmentId} { ... }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "@fledgely/functions",
+  "version": "0.0.1",
+  "description": "Firebase Cloud Functions for Fledgely",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "@fledgely/contracts": "file:../../packages/contracts",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "firebase-functions-test": "^3.3.0",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0"
+  },
+  "private": true
+}
