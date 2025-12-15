@@ -1,6 +1,6 @@
 # Story 1.3: Session Persistence & Expiry
 
-**Status:** in-review
+**Status:** done
 
 ---
 

@@ -1,6 +1,6 @@
 # Story 1.2: User Profile Creation on First Sign-In
 
-**Status:** ready-for-dev
+**Status:** done
 
 ---
 
