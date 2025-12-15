@@ -1,92 +1,78 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
+import { useFamily } from '@/hooks/useFamily'
 import { SafetyResourcesLink } from '@/components/safety'
 
 /**
- * Onboarding Page - Entry point for new users
+ * Onboarding Page - Router for new users
  *
- * This is a placeholder page for Epic 2 (Family Creation).
- * New users are redirected here after their first sign-in.
+ * This page determines the correct onboarding step based on user state:
+ * - No family → redirect to /onboarding/create-family
+ * - Has family, no children → redirect to /onboarding/add-child (Epic 2.2)
+ * - Has family + children → redirect to /dashboard
  *
  * Features:
- * - Welcomes new user by name
- * - Explains next steps (family creation)
+ * - Automatic routing based on onboarding progress
+ * - Loading state while checking user/family status
  * - Maintains consistent safety resources access
  */
 export default function OnboardingPage() {
-  const { userProfile, loading } = useUser()
+  const router = useRouter()
+  const { userProfile, loading: userLoading } = useUser()
+  const { family, hasFamily, loading: familyLoading } = useFamily()
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col">
-        <main className="flex flex-1 flex-col items-center justify-center p-4">
-          <div className="w-full max-w-md space-y-6">
-            {/* Loading skeleton */}
-            <div className="space-y-4 text-center">
-              <div className="mx-auto h-8 w-48 animate-pulse rounded bg-muted" />
-              <div className="mx-auto h-4 w-64 animate-pulse rounded bg-muted" />
-            </div>
-          </div>
-        </main>
-      </div>
-    )
-  }
+  const loading = userLoading || familyLoading
 
-  // Get first name for personalized welcome
-  const firstName = userProfile?.displayName?.split(' ')[0] || 'there'
+  // Route to appropriate onboarding step
+  useEffect(() => {
+    if (loading) {
+      return
+    }
 
+    if (!hasFamily) {
+      // No family - redirect to create family
+      router.replace('/onboarding/create-family')
+      return
+    }
+
+    if (family && family.children.length === 0) {
+      // Has family but no children - redirect to add child
+      // For now, redirect to dashboard since add-child page is Story 2.2
+      router.replace('/dashboard')
+      return
+    }
+
+    // Has family and children - redirect to dashboard
+    router.replace('/dashboard')
+  }, [loading, hasFamily, family, router])
+
+  // Always show loading while checking status
+  // This prevents flash of content before redirect
   return (
     <div className="flex min-h-screen flex-col">
       <main className="flex flex-1 flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-6">
-          {/* Welcome header */}
-          <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Welcome, {firstName}!
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Your account is ready. Let&apos;s set up your family.
+          {/* Loading skeleton */}
+          <div className="space-y-4 text-center">
+            <div className="mx-auto h-8 w-48 animate-pulse rounded bg-muted" />
+            <div className="mx-auto h-4 w-64 animate-pulse rounded bg-muted" />
+            <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">
+              Setting up your experience...
             </p>
           </div>
 
-          {/* Onboarding card */}
-          <div className="rounded-lg border bg-card p-6">
-            <div className="space-y-4">
-              {/* Progress indicator */}
-              <div className="flex items-center justify-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary" />
-                <div className="h-2 w-2 rounded-full bg-muted" />
-                <div className="h-2 w-2 rounded-full bg-muted" />
-              </div>
-
-              {/* Step description */}
-              <div className="text-center">
-                <h2 className="text-lg font-medium">Create Your Family</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Start by creating your family profile. This is where you&apos;ll
-                  add your children and set up agreements together.
-                </p>
-              </div>
-
-              {/* Placeholder for Epic 2 */}
-              <div className="rounded-md bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-                <p className="font-medium">Coming Soon</p>
-                <p className="mt-1">
-                  Family creation will be available in Epic 2.
-                </p>
-              </div>
-
-              {/* User info display (for debugging/verification) */}
-              {userProfile && (
-                <div className="mt-4 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
-                  <p><strong>Your profile:</strong></p>
-                  <p>Email: {userProfile.email}</p>
-                  <p>Account created: {userProfile.createdAt.toLocaleDateString()}</p>
-                </div>
-              )}
+          {/* User info for debugging (only in development) */}
+          {process.env.NODE_ENV === 'development' && userProfile && (
+            <div className="mt-4 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p><strong>Debug Info:</strong></p>
+              <p>User: {userProfile.email}</p>
+              <p>Family ID: {userProfile.familyId || 'None'}</p>
+              <p>Has Family: {hasFamily ? 'Yes' : 'No'}</p>
             </div>
-          </div>
+          )}
         </div>
       </main>
 

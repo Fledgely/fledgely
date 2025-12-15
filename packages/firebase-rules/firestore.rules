@@ -61,7 +61,7 @@ service cloud.firestore {
     }
 
     // ============================================
-    // USERS COLLECTION (Story 1.2)
+    // USERS COLLECTION (Story 1.2, updated Story 2.1)
     // ============================================
     // Stores user profile data created on first sign-in
     //
@@ -70,6 +70,9 @@ service cloud.firestore {
     // 2. uid must match the authenticated user's uid
     // 3. Required fields: uid, email, createdAt, lastLoginAt
     // 4. createdAt cannot be modified after creation
+    // 5. familyId and role can only be set during family creation via transaction
+    // 6. familyId cannot be changed once set (prevents family hopping)
+    // 7. role can only be changed by guardians with full permissions
     // ============================================
 
     match /users/{userId} {
@@ -78,23 +81,155 @@ service cloud.firestore {
 
       // Users can create their own profile document
       // Validates: uid matches, required fields present, types are correct
+      // familyId and role must NOT be set during user creation (only via family creation)
       allow create: if request.auth != null &&
         request.auth.uid == userId &&
         request.resource.data.uid == userId &&
         request.resource.data.keys().hasAll(['uid', 'email', 'createdAt', 'lastLoginAt']) &&
         request.resource.data.uid is string &&
         request.resource.data.email is string &&
-        request.resource.data.email.matches('^[^@]+@[^@]+\\.[^@]+$');
+        request.resource.data.email.matches('^[^@]+@[^@]+\\.[^@]+$') &&
+        !('familyId' in request.resource.data) &&
+        !('role' in request.resource.data);
 
       // Users can update their own profile
       // Validates: uid cannot change, createdAt cannot change
+      // familyId can only be set ONCE (when null -> value), never changed after
+      // role can only be set when familyId is being set for the first time
       allow update: if request.auth != null &&
         request.auth.uid == userId &&
         request.resource.data.uid == resource.data.uid &&
-        request.resource.data.createdAt == resource.data.createdAt;
+        request.resource.data.createdAt == resource.data.createdAt &&
+        // familyId validation: can only be set once, never removed or changed
+        (
+          // Case 1: familyId unchanged (not in update or same value)
+          (!('familyId' in request.resource.data) && !('familyId' in resource.data)) ||
+          (request.resource.data.familyId == resource.data.familyId) ||
+          // Case 2: familyId being set for first time (null/missing -> value)
+          (!('familyId' in resource.data) && 'familyId' in request.resource.data &&
+           request.resource.data.familyId is string && request.resource.data.familyId.size() > 0)
+        ) &&
+        // role validation: can only be set when familyId is being set
+        // and must be 'guardian' when creating a family
+        (
+          // Case 1: role unchanged
+          (!('role' in request.resource.data) && !('role' in resource.data)) ||
+          (request.resource.data.role == resource.data.role) ||
+          // Case 2: role being set for first time (only valid with familyId, must be 'guardian')
+          (!('role' in resource.data) && 'role' in request.resource.data &&
+           !('familyId' in resource.data) && 'familyId' in request.resource.data &&
+           request.resource.data.role == 'guardian')
+        );
 
       // Users cannot delete their own profile
       // Deletion should go through proper account deletion flow
+      allow delete: if false;
+    }
+
+    // ============================================
+    // FAMILIES COLLECTION (Story 2.1)
+    // ============================================
+    // Stores family documents with guardian and child references
+    //
+    // Security invariants:
+    // 1. Only authenticated users can create families
+    // 2. Creator must set themselves as primary guardian
+    // 3. Only guardians with 'full' permissions can read/update family
+    // 4. Families cannot be deleted (for audit purposes)
+    // 5. Guardian array must have valid structure (prevents injection)
+    // 6. Maximum 10 guardians per family (prevents abuse)
+    // ============================================
+
+    match /families/{familyId} {
+      // Helper function to check if user is a guardian in this family
+      // Uses explicit index checking to prevent array manipulation attacks
+      function isGuardian() {
+        let guardians = resource.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid) ||
+            (guardians.size() >= 2 && guardians[1].uid == uid) ||
+            (guardians.size() >= 3 && guardians[2].uid == uid) ||
+            (guardians.size() >= 4 && guardians[3].uid == uid) ||
+            (guardians.size() >= 5 && guardians[4].uid == uid) ||
+            (guardians.size() >= 6 && guardians[5].uid == uid) ||
+            (guardians.size() >= 7 && guardians[6].uid == uid) ||
+            (guardians.size() >= 8 && guardians[7].uid == uid) ||
+            (guardians.size() >= 9 && guardians[8].uid == uid) ||
+            (guardians.size() >= 10 && guardians[9].uid == uid)
+          );
+      }
+
+      // Helper function to check if user has full permissions
+      // Uses explicit index checking for security
+      function hasFullPermissions() {
+        let guardians = resource.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Helper function to validate guardian structure
+      function isValidGuardian(guardian) {
+        return guardian.keys().hasAll(['uid', 'role', 'permissions', 'joinedAt']) &&
+          guardian.uid is string &&
+          guardian.uid.size() > 0 &&
+          guardian.role in ['primary', 'co-parent'] &&
+          guardian.permissions in ['full', 'readonly'];
+      }
+
+      // Users can create a family if:
+      // - They are authenticated
+      // - They set themselves as the creator
+      // - They set themselves as the ONLY guardian with 'primary' role
+      // - Guardian has valid structure
+      // - Children array starts empty
+      // NOTE: Exactly 1 guardian on creation prevents bypassing invitation flow
+      allow create: if request.auth != null &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.guardians is list &&
+        request.resource.data.guardians.size() == 1 &&  // Exactly 1 guardian on creation
+        request.resource.data.guardians[0].uid == request.auth.uid &&
+        request.resource.data.guardians[0].role == 'primary' &&
+        request.resource.data.guardians[0].permissions == 'full' &&
+        isValidGuardian(request.resource.data.guardians[0]) &&
+        request.resource.data.children is list &&
+        request.resource.data.children.size() == 0;  // Must start with no children
+
+      // Only guardians can read their family
+      allow read: if isGuardian();
+
+      // Only guardians with full permissions can update
+      // Additional validation: cannot remove all guardians, cannot exceed 10
+      allow update: if hasFullPermissions() &&
+        request.resource.data.guardians is list &&
+        request.resource.data.guardians.size() >= 1 &&
+        request.resource.data.guardians.size() <= 10 &&
+        request.resource.data.children is list &&
+        // Prevent changing createdBy (immutable)
+        request.resource.data.createdBy == resource.data.createdBy &&
+        // Prevent changing createdAt (immutable)
+        request.resource.data.createdAt == resource.data.createdAt;
+
+      // Families cannot be deleted (for audit purposes)
       allow delete: if false;
     }
 

@@ -76,6 +76,8 @@ function convertFirestoreUser(data: Record<string, unknown>): User {
     photoURL: data.photoURL ?? null,
     createdAt: (data.createdAt as Timestamp)?.toDate(),
     lastLoginAt: (data.lastLoginAt as Timestamp)?.toDate(),
+    familyId: data.familyId,
+    role: data.role,
   })
 }
 

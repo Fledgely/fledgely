@@ -4,6 +4,7 @@ export {
   userSchema,
   createUserInputSchema,
   userFirestoreSchema,
+  userRoleSchema,
   // Helper functions
   convertFirestoreToUser,
   validateCreateUserInput,
@@ -12,7 +13,36 @@ export {
   type User,
   type CreateUserInput,
   type UserFirestore,
+  type UserRole,
 } from './user.schema'
+
+// Family Schemas (Story 2.1)
+export {
+  // Schemas
+  familySchema,
+  familyFirestoreSchema,
+  familyGuardianSchema,
+  familyGuardianFirestoreSchema,
+  guardianRoleSchema,
+  guardianPermissionSchema,
+  createFamilyInputSchema,
+  // Helper functions
+  convertFirestoreToFamily,
+  validateCreateFamilyInput,
+  safeParseFamily,
+  isGuardianInFamily,
+  getGuardianRole,
+  getGuardianPermissions,
+  hasFullPermissions,
+  // Types
+  type Family,
+  type FamilyFirestore,
+  type FamilyGuardian,
+  type FamilyGuardianFirestore,
+  type GuardianRole,
+  type GuardianPermission,
+  type CreateFamilyInput,
+} from './family.schema'
 
 // Safety Request Schemas
 export {

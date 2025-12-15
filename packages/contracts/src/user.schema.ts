@@ -43,6 +43,16 @@ const safeEmailSchema = z
   )
 
 /**
+ * User role within the application
+ * - guardian: Parent/caregiver who manages children and family
+ * - child: Child account (future use)
+ * - caregiver: Non-parent caregiver with limited access (future use)
+ */
+export const userRoleSchema = z.enum(['guardian', 'child', 'caregiver'])
+
+export type UserRole = z.infer<typeof userRoleSchema>
+
+/**
  * Complete user profile as stored in Firestore
  */
 export const userSchema = z.object({
@@ -63,6 +73,12 @@ export const userSchema = z.object({
 
   /** Timestamp of the user's last login */
   lastLoginAt: z.date(),
+
+  /** Reference to user's family (added when family is created - Story 2.1) */
+  familyId: z.string().optional(),
+
+  /** User's role in the application (set when joining/creating family) */
+  role: userRoleSchema.optional(),
 })
 
 export type User = z.infer<typeof userSchema>
@@ -98,6 +114,8 @@ export const userFirestoreSchema = z.object({
   photoURL: safePhotoURLSchema,
   createdAt: z.custom<{ toDate: () => Date }>((val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'),
   lastLoginAt: z.custom<{ toDate: () => Date }>((val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'),
+  familyId: z.string().optional(),
+  role: userRoleSchema.optional(),
 })
 
 export type UserFirestore = z.infer<typeof userFirestoreSchema>
@@ -114,6 +132,8 @@ export function convertFirestoreToUser(data: UserFirestore): User {
     photoURL: data.photoURL,
     createdAt: data.createdAt.toDate(),
     lastLoginAt: data.lastLoginAt.toDate(),
+    familyId: data.familyId,
+    role: data.role,
   })
 }
 
