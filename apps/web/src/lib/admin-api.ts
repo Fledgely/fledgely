@@ -434,3 +434,75 @@ export async function unenrollDevices(
   })
   return result.data
 }
+
+/**
+ * Location feature disable input
+ */
+export interface DisableLocationFeaturesInput {
+  requestId: string
+  familyId: string
+  targetUserIds: string[]
+  reason: string
+}
+
+/**
+ * Location feature disable response
+ */
+export interface DisableLocationFeaturesResponse {
+  success: boolean
+  disabled: boolean
+  familyId: string
+  affectedUserIds: string[]
+  disabledAt: string
+  deletedNotificationCount: number
+  deviceCommandCount: number
+  redactedHistoryCount: number
+}
+
+/**
+ * Cloud Function callable for disabling location features
+ *
+ * CRITICAL: This is a life-safety operation.
+ * - Only callable by safety-team users
+ * - Requires verified safety request
+ * - Creates sealed audit log entry
+ * - Does NOT notify any family members
+ * - Deletes pending location notifications
+ * - Redacts historical location data
+ */
+const disableLocationFeaturesFn = httpsCallable<
+  DisableLocationFeaturesInput,
+  DisableLocationFeaturesResponse
+>(functions, 'disableLocationFeatures')
+
+/**
+ * Disable all location-revealing features for specified users
+ *
+ * CRITICAL: This is a life-safety operation used to protect abuse victims.
+ * Affected users will:
+ * - Have all location-based rules disabled (FR139)
+ * - Have location-based work mode disabled (FR145)
+ * - Have new location alerts disabled (FR160)
+ * - Have pending location notifications deleted
+ * - Have historical location data redacted
+ * - NOT receive any notification about the disable
+ *
+ * @param requestId - Safety request ID that authorized this disable
+ * @param familyId - Family ID containing target users
+ * @param targetUserIds - User IDs to disable location features for
+ * @param reason - Documented reason for compliance audit
+ */
+export async function disableLocationFeatures(
+  requestId: string,
+  familyId: string,
+  targetUserIds: string[],
+  reason: string
+): Promise<DisableLocationFeaturesResponse> {
+  const result = await disableLocationFeaturesFn({
+    requestId,
+    familyId,
+    targetUserIds,
+    reason,
+  })
+  return result.data
+}

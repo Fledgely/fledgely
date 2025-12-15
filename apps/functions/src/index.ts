@@ -21,3 +21,6 @@ export { severParentAccess } from './callable/severParentAccess'
 
 // Callable Functions - Device Unenrollment (Story 0.5.5)
 export { unenrollDevice, unenrollDevices } from './callable/unenrollDevice'
+
+// Callable Functions - Location Feature Disable (Story 0.5.6)
+export { disableLocationFeatures } from './callable/disableLocationFeatures'

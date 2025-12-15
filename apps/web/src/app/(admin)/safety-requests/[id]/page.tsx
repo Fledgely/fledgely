@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { SeverParentDialog } from '@/components/admin/SeverParentDialog'
 import { UnenrollDeviceDialog } from '@/components/admin/UnenrollDeviceDialog'
+import { LocationDisableDialog } from '@/components/admin/LocationDisableDialog'
 
 /**
  * Safety Request Detail Page
@@ -47,6 +48,9 @@ export default function SafetyRequestDetailPage() {
 
   // Unenroll device dialog state
   const [unenrollDialogOpen, setUnenrollDialogOpen] = useState(false)
+
+  // Location disable dialog state
+  const [locationDisableDialogOpen, setLocationDisableDialogOpen] = useState(false)
 
   const fetchRequest = useCallback(async () => {
     setLoading(true)
@@ -599,6 +603,48 @@ export default function SafetyRequestDetailPage() {
               Unenroll Device(s)
             </Button>
           </div>
+
+          {/* Location Feature Disable - CRITICAL SAFETY FEATURE */}
+          <div className="bg-white rounded-lg border border-red-200 p-6">
+            <h2 className="font-semibold mb-4 text-red-700">
+              Location Feature Disable
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Use this to disable all location-revealing features to protect
+              abuse victims from being tracked. This includes location-based
+              rules, work mode, alerts, and will redact historical location data.
+            </p>
+
+            {/* Verification status check */}
+            {!request.verificationChecklist.accountOwnershipVerified &&
+            !request.verificationChecklist.idMatched ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+                <p className="text-sm text-yellow-800">
+                  Identity verification required before disabling location features.
+                  Complete either &quot;Account Ownership Verified&quot; or
+                  &quot;ID Matched&quot; in the checklist above.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded p-3 mb-4">
+                <p className="text-sm text-green-800">
+                  Identity verified. Location disable available.
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={() => setLocationDisableDialogOpen(true)}
+              variant="destructive"
+              className="w-full"
+              disabled={
+                !request.verificationChecklist.accountOwnershipVerified &&
+                !request.verificationChecklist.idMatched
+              }
+            >
+              Disable Location Features
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -615,6 +661,15 @@ export default function SafetyRequestDetailPage() {
       <UnenrollDeviceDialog
         open={unenrollDialogOpen}
         onOpenChange={setUnenrollDialogOpen}
+        requestId={request.id}
+        verificationChecklist={request.verificationChecklist}
+        onSuccess={fetchRequest}
+      />
+
+      {/* Location Disable Dialog */}
+      <LocationDisableDialog
+        open={locationDisableDialogOpen}
+        onOpenChange={setLocationDisableDialogOpen}
         requestId={request.id}
         verificationChecklist={request.verificationChecklist}
         onSuccess={fetchRequest}

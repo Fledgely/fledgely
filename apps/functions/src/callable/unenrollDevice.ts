@@ -59,6 +59,7 @@ export const DeviceCommandType = {
   UNENROLL: 'unenroll',
   SYNC_CONFIG: 'sync-config',
   CLEAR_CACHE: 'clear-cache',
+  DISABLE_LOCATION: 'disable-location',
 } as const
 
 /**
@@ -75,7 +76,7 @@ export const DeviceCommandSource = {
  */
 export const deviceCommandSchema = z.object({
   deviceId: z.string().min(1),
-  command: z.enum(['unenroll', 'sync-config', 'clear-cache']),
+  command: z.enum(['unenroll', 'sync-config', 'clear-cache', 'disable-location']),
   issuedAt: z.any(), // Timestamp
   executedAt: z.any().optional(), // Timestamp
   expiresAt: z.any(), // Timestamp - TTL: issuedAt + 7 days
