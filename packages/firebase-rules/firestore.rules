@@ -234,6 +234,131 @@ service cloud.firestore {
     }
 
     // ============================================
+    // CHILDREN COLLECTION (Story 2.2)
+    // ============================================
+    // Stores child profile documents
+    //
+    // Security invariants:
+    // 1. Only guardians can create children in their family
+    // 2. Only guardians with 'full' permissions can read/update children
+    // 3. Children cannot be deleted (audit requirement)
+    // 4. familyId must match the creator's family
+    // 5. Maximum 10 guardians per child (same as family limit)
+    // ============================================
+
+    match /children/{childId} {
+      // Helper function to check if user is a guardian for this child
+      // Uses explicit index checking to prevent array manipulation attacks
+      function isChildGuardian() {
+        let guardians = resource.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid) ||
+            (guardians.size() >= 2 && guardians[1].uid == uid) ||
+            (guardians.size() >= 3 && guardians[2].uid == uid) ||
+            (guardians.size() >= 4 && guardians[3].uid == uid) ||
+            (guardians.size() >= 5 && guardians[4].uid == uid) ||
+            (guardians.size() >= 6 && guardians[5].uid == uid) ||
+            (guardians.size() >= 7 && guardians[6].uid == uid) ||
+            (guardians.size() >= 8 && guardians[7].uid == uid) ||
+            (guardians.size() >= 9 && guardians[8].uid == uid) ||
+            (guardians.size() >= 10 && guardians[9].uid == uid)
+          );
+      }
+
+      // Helper function to check if user has full permissions on child
+      // Uses explicit index checking for security
+      function hasFullChildPermissions() {
+        let guardians = resource.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Helper function to check if user is a guardian in the target family
+      // CRITICAL: This prevents cross-family child injection attacks
+      // Uses explicit index checking for security (same pattern as isGuardian in families)
+      function isGuardianInTargetFamily(familyId) {
+        let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+        let guardians = familyDoc.data.guardians;
+        let uid = request.auth.uid;
+        return familyDoc != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid) ||
+            (guardians.size() >= 2 && guardians[1].uid == uid) ||
+            (guardians.size() >= 3 && guardians[2].uid == uid) ||
+            (guardians.size() >= 4 && guardians[3].uid == uid) ||
+            (guardians.size() >= 5 && guardians[4].uid == uid) ||
+            (guardians.size() >= 6 && guardians[5].uid == uid) ||
+            (guardians.size() >= 7 && guardians[6].uid == uid) ||
+            (guardians.size() >= 8 && guardians[7].uid == uid) ||
+            (guardians.size() >= 9 && guardians[8].uid == uid) ||
+            (guardians.size() >= 10 && guardians[9].uid == uid)
+          );
+      }
+
+      // Users can create children if:
+      // - They are authenticated
+      // - They set themselves as the creator
+      // - They are the only guardian on creation (exactly 1)
+      // - They have 'full' permissions on the child
+      // - familyId references an existing family
+      // - CRITICAL: Creator must be a guardian in that family (prevents cross-family injection)
+      // - Required fields are present
+      allow create: if request.auth != null &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.guardians is list &&
+        request.resource.data.guardians.size() == 1 &&
+        request.resource.data.guardians[0].uid == request.auth.uid &&
+        request.resource.data.guardians[0].permissions == 'full' &&
+        request.resource.data.familyId is string &&
+        request.resource.data.familyId.size() > 0 &&
+        request.resource.data.firstName is string &&
+        request.resource.data.firstName.size() >= 1 &&
+        request.resource.data.firstName.size() <= 50 &&
+        // Verify the family exists AND user is a guardian in that family
+        exists(/databases/$(database)/documents/families/$(request.resource.data.familyId)) &&
+        isGuardianInTargetFamily(request.resource.data.familyId);
+
+      // Only guardians can read children
+      allow read: if isChildGuardian();
+
+      // Only guardians with full permissions can update
+      // Cannot change: createdBy, createdAt, familyId (immutable)
+      allow update: if hasFullChildPermissions() &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.guardians is list &&
+        request.resource.data.guardians.size() >= 1 &&
+        request.resource.data.guardians.size() <= 10;
+
+      // Children cannot be deleted (audit requirement)
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN AUDIT LOG COLLECTION
     // ============================================
     // Separate audit log for admin/support actions

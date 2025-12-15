@@ -59,6 +59,37 @@ export {
   type SafetyRequestResponse,
 } from './safety-request.schema'
 
+// Child Profile Schemas (Story 2.2)
+export {
+  // Schemas
+  childProfileSchema,
+  childProfileFirestoreSchema,
+  childGuardianSchema,
+  childGuardianFirestoreSchema,
+  childGuardianPermissionSchema,
+  createChildInputSchema,
+  updateChildInputSchema,
+  // Helper functions
+  convertFirestoreToChildProfile,
+  validateCreateChildInput,
+  safeParseChildProfile,
+  calculateAge,
+  isGuardianForChild,
+  getChildGuardianPermissions,
+  hasFullChildPermissions,
+  getChildDisplayName,
+  getChildFullName,
+  getAgeCategory,
+  // Types
+  type ChildProfile,
+  type ChildProfileFirestore,
+  type ChildGuardian,
+  type ChildGuardianFirestore,
+  type ChildGuardianPermission,
+  type CreateChildInput,
+  type UpdateChildInput,
+} from './child.schema'
+
 // Safety Document Schemas (Story 0.5.2)
 export {
   // Constants

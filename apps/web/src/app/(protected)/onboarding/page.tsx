@@ -40,8 +40,7 @@ export default function OnboardingPage() {
 
     if (family && family.children.length === 0) {
       // Has family but no children - redirect to add child
-      // For now, redirect to dashboard since add-child page is Story 2.2
-      router.replace('/dashboard')
+      router.replace('/onboarding/add-child')
       return
     }
 
