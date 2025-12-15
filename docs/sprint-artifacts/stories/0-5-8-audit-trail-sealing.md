@@ -1,6 +1,6 @@
 # Story 0.5.8: Audit Trail Sealing
 
-**Status:** ready-for-dev
+**Status:** done
 
 ---
 

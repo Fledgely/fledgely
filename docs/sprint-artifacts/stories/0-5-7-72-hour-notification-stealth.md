@@ -1,6 +1,6 @@
 # Story 0.5.7: 72-Hour Notification Stealth
 
-**Status:** ready-for-dev
+**Status:** done
 
 ---
 
