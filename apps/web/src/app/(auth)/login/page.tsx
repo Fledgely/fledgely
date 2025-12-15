@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { SafetyResourcesLink } from '@/components/safety'
 import { GoogleSignInButton } from '@/components/auth'
 import { useAuthContext } from '@/components/providers/AuthProvider'
+import { useUser } from '@/hooks/useUser'
 import { getSafeRedirectUrl } from '@/lib/security'
 
 /**
@@ -13,13 +14,23 @@ import { getSafeRedirectUrl } from '@/lib/security'
  * Features:
  * - Google Sign-In button with full accessibility (WCAG 2.1 AA)
  * - Automatic redirect for authenticated users
+ * - New users redirected to onboarding (Story 1.2)
+ * - Existing users redirected to dashboard
  * - Loading skeleton during auth state check
  * - Subtle "Safety Resources" link for abuse victims
  */
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, loading, error, signInWithGoogle, clearError } = useAuthContext()
+  const { user, loading: authLoading, error: authError, signInWithGoogle, clearError: clearAuthError } = useAuthContext()
+  const { isNewUser, loading: userLoading, error: userError, clearError: clearUserError } = useUser()
+
+  // Combine loading states
+  const loading = authLoading || userLoading
+
+  // Combine errors - auth errors take priority
+  const error = authError || userError
+  const clearError = authError ? clearAuthError : clearUserError
 
   // Get safe redirect URL, memoized to prevent recalculation
   const redirectTo = useMemo(
@@ -27,12 +38,18 @@ export default function LoginPage() {
     [searchParams]
   )
 
-  // Redirect authenticated users to dashboard or intended destination
+  // Redirect authenticated users based on new user status
   useEffect(() => {
     if (user && !loading) {
-      router.push(redirectTo)
+      if (isNewUser) {
+        // New users go to onboarding to create their family
+        router.push('/onboarding')
+      } else {
+        // Existing users go to dashboard or requested destination
+        router.push(redirectTo)
+      }
     }
-  }, [user, loading, router, redirectTo])
+  }, [user, loading, isNewUser, router, redirectTo])
 
   // Show loading skeleton while checking auth state
   if (loading) {

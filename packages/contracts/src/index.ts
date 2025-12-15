@@ -1,3 +1,19 @@
+// User Schemas (Story 1.2)
+export {
+  // Schemas
+  userSchema,
+  createUserInputSchema,
+  userFirestoreSchema,
+  // Helper functions
+  convertFirestoreToUser,
+  validateCreateUserInput,
+  safeParseUser,
+  // Types
+  type User,
+  type CreateUserInput,
+  type UserFirestore,
+} from './user.schema'
+
 // Safety Request Schemas
 export {
   safetyRequestSourceSchema,

@@ -61,6 +61,44 @@ service cloud.firestore {
     }
 
     // ============================================
+    // USERS COLLECTION (Story 1.2)
+    // ============================================
+    // Stores user profile data created on first sign-in
+    //
+    // Security invariants:
+    // 1. Users can only read/write their own profile document
+    // 2. uid must match the authenticated user's uid
+    // 3. Required fields: uid, email, createdAt, lastLoginAt
+    // 4. createdAt cannot be modified after creation
+    // ============================================
+
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Users can create their own profile document
+      // Validates: uid matches, required fields present, types are correct
+      allow create: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.uid == userId &&
+        request.resource.data.keys().hasAll(['uid', 'email', 'createdAt', 'lastLoginAt']) &&
+        request.resource.data.uid is string &&
+        request.resource.data.email is string &&
+        request.resource.data.email.matches('^[^@]+@[^@]+\\.[^@]+$');
+
+      // Users can update their own profile
+      // Validates: uid cannot change, createdAt cannot change
+      allow update: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.createdAt == resource.data.createdAt;
+
+      // Users cannot delete their own profile
+      // Deletion should go through proper account deletion flow
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN AUDIT LOG COLLECTION
     // ============================================
     // Separate audit log for admin/support actions

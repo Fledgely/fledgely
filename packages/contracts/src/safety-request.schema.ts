@@ -18,9 +18,10 @@ import {
 /**
  * Submission source identifier
  * - login-page: From the login screen footer link
+ * - onboarding-page: From the onboarding flow footer link
  * - settings: From the buried settings page option
  */
-export const safetyRequestSourceSchema = z.enum(['login-page', 'settings'])
+export const safetyRequestSourceSchema = z.enum(['login-page', 'onboarding-page', 'settings'])
 
 export type SafetyRequestSource = z.infer<typeof safetyRequestSourceSchema>
 

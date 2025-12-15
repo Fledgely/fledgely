@@ -4,7 +4,7 @@ import { getSafeRedirectUrl } from '@/lib/security'
 /**
  * Routes that require authentication
  */
-const protectedRoutes = ['/dashboard', '/settings', '/family', '/children']
+const protectedRoutes = ['/dashboard', '/settings', '/family', '/children', '/onboarding']
 
 /**
  * Routes that are always public
