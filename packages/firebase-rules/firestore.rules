@@ -234,7 +234,7 @@ service cloud.firestore {
     }
 
     // ============================================
-    // CHILDREN COLLECTION (Story 2.2)
+    // CHILDREN COLLECTION (Story 2.2, Story 2.3)
     // ============================================
     // Stores child profile documents
     //
@@ -244,6 +244,16 @@ service cloud.firestore {
     // 3. Children cannot be deleted (audit requirement)
     // 4. familyId must match the creator's family
     // 5. Maximum 10 guardians per child (same as family limit)
+    // 6. Custody declaration can only be set/updated by guardians with full permissions
+    // 7. Custody history can only grow, never shrink (audit trail)
+    // 8. custodyDeclaration.type must be 'sole', 'shared', or 'complex'
+    //
+    // MONITORING GATE (Story 2.3, AC7 - Epic 9/12 enforcement):
+    // - Device monitoring CANNOT be started until custody is declared
+    // - Client-side check: canStartMonitoring(child) helper in contracts
+    // - Server-side enforcement: devices collection rules will verify
+    //   custodyDeclaration exists before allowing device enrollment
+    // - This ensures custody arrangements are documented before monitoring begins
     // ============================================
 
     match /children/{childId} {
@@ -346,17 +356,68 @@ service cloud.firestore {
 
       // Only guardians with full permissions can update
       // Cannot change: createdBy, createdAt, familyId (immutable)
+      // Custody validation: history can only grow, type must be valid
       allow update: if hasFullChildPermissions() &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.familyId == resource.data.familyId &&
         request.resource.data.guardians is list &&
         request.resource.data.guardians.size() >= 1 &&
-        request.resource.data.guardians.size() <= 10;
+        request.resource.data.guardians.size() <= 10 &&
+        // Custody history validation: can only grow, never shrink (audit trail)
+        (
+          // Case 1: No custody history in either old or new data
+          (!('custodyHistory' in resource.data) && !('custodyHistory' in request.resource.data)) ||
+          // Case 2: Adding custody history for first time
+          (!('custodyHistory' in resource.data) && 'custodyHistory' in request.resource.data &&
+           request.resource.data.custodyHistory is list) ||
+          // Case 3: Custody history exists and can only grow
+          ('custodyHistory' in resource.data && 'custodyHistory' in request.resource.data &&
+           request.resource.data.custodyHistory is list &&
+           request.resource.data.custodyHistory.size() >= resource.data.custodyHistory.size())
+        ) &&
+        // Custody declaration type validation: must be 'sole', 'shared', or 'complex'
+        (
+          // Case 1: No custody declaration
+          !('custodyDeclaration' in request.resource.data) ||
+          // Case 2: Custody declaration is null (cleared)
+          request.resource.data.custodyDeclaration == null ||
+          // Case 3: Custody declaration has valid type
+          ('custodyDeclaration' in request.resource.data &&
+           request.resource.data.custodyDeclaration != null &&
+           request.resource.data.custodyDeclaration.type in ['sole', 'shared', 'complex'])
+        );
 
       // Children cannot be deleted (audit requirement)
       allow delete: if false;
     }
+
+    // ============================================
+    // DEVICES COLLECTION (Epic 9/12 - Future Implementation)
+    // ============================================
+    // PLACEHOLDER: Device enrollment and monitoring data
+    //
+    // CRITICAL SECURITY REQUIREMENT (Story 2.3, AC7):
+    // Device enrollment MUST verify that the child has a custody declaration
+    // before allowing monitoring to begin. This ensures:
+    // 1. Custody arrangements are documented before any monitoring
+    // 2. Shared custody families have appropriate safeguards in place
+    // 3. Legal/compliance requirements are met for child monitoring
+    //
+    // Future rules must check:
+    // - User is guardian with 'full' permissions on the child
+    // - Child document has custodyDeclaration != null
+    // - If custodyDeclaration.type == 'shared', Epic 3A safeguards are applied
+    //
+    // Example rule pattern (to be implemented in Epic 9/12):
+    // allow create: if hasFullChildPermissions(childId) &&
+    //   get(/databases/$(database)/documents/children/$(childId)).data.custodyDeclaration != null;
+    // ============================================
+
+    // match /devices/{deviceId} {
+    //   // TODO: Implement in Epic 9/12
+    //   allow read, write: if false;
+    // }
 
     // ============================================
     // ADMIN AUDIT LOG COLLECTION

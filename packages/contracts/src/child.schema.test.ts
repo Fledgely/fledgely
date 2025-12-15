@@ -15,6 +15,8 @@ import {
   getChildDisplayName,
   getChildFullName,
   getAgeCategory,
+  hasCustodyDeclaration,
+  canStartMonitoring,
   type ChildProfile,
   type ChildProfileFirestore,
 } from './child.schema'
@@ -688,5 +690,502 @@ describe('adversarial input validation', () => {
       // Invalid date should fail
       expect(() => createChildInputSchema.parse(input)).toThrow()
     })
+  })
+})
+
+// Story 2.3: Custody Declaration Tests
+describe('childProfileSchema with custody fields', () => {
+  const baseChild = {
+    id: 'child-id-123',
+    familyId: 'family-id-456',
+    firstName: 'Emma',
+    birthdate: new Date('2015-06-15'),
+    guardians: [
+      {
+        uid: 'guardian-uid-123',
+        permissions: 'full' as const,
+        grantedAt: new Date(),
+      },
+    ],
+    createdAt: new Date(),
+    createdBy: 'guardian-uid-123',
+  }
+
+  it('accepts child without custody declaration (undefined)', () => {
+    expect(() => childProfileSchema.parse(baseChild)).not.toThrow()
+  })
+
+  it('accepts child with null custody declaration', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: null,
+    }
+    expect(() => childProfileSchema.parse(child)).not.toThrow()
+  })
+
+  it('accepts child with sole custody declaration', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'sole',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).not.toThrow()
+  })
+
+  it('accepts child with shared custody declaration', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        notes: 'Joint custody with co-parent',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+      requiresSharedCustodySafeguards: true,
+    }
+    const result = childProfileSchema.parse(child)
+    expect(result.custodyDeclaration?.type).toBe('shared')
+    expect(result.requiresSharedCustodySafeguards).toBe(true)
+  })
+
+  it('accepts child with complex custody declaration', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'complex',
+        notes: 'Blended family with step-parents',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).not.toThrow()
+  })
+
+  it('accepts child with custody history', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+      custodyHistory: [
+        {
+          previousDeclaration: {
+            type: 'sole',
+            declaredBy: 'guardian-uid-123',
+            declaredAt: new Date('2024-01-01'),
+          },
+          changedAt: new Date('2024-06-01'),
+          changedBy: 'guardian-uid-123',
+        },
+      ],
+    }
+    const result = childProfileSchema.parse(child)
+    expect(result.custodyHistory.length).toBe(1)
+    expect(result.custodyHistory[0].previousDeclaration.type).toBe('sole')
+  })
+
+  it('defaults custodyHistory to empty array', () => {
+    const result = childProfileSchema.parse(baseChild)
+    expect(result.custodyHistory).toEqual([])
+  })
+
+  it('defaults requiresSharedCustodySafeguards to false', () => {
+    const result = childProfileSchema.parse(baseChild)
+    expect(result.requiresSharedCustodySafeguards).toBe(false)
+  })
+
+  it('rejects invalid custody type', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'invalid-type',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+})
+
+describe('convertFirestoreToChildProfile with custody fields', () => {
+  it('converts custody declaration timestamps', () => {
+    const now = new Date()
+    const birthdate = new Date('2015-06-15')
+    const declaredAt = new Date('2024-06-01')
+
+    const firestoreData: ChildProfileFirestore = {
+      id: 'child-id-123',
+      familyId: 'family-id-456',
+      firstName: 'Emma',
+      lastName: null,
+      nickname: null,
+      birthdate: { toDate: () => birthdate },
+      photoUrl: null,
+      guardians: [
+        {
+          uid: 'guardian-uid-123',
+          permissions: 'full',
+          grantedAt: { toDate: () => now },
+        },
+      ],
+      createdAt: { toDate: () => now },
+      createdBy: 'guardian-uid-123',
+      custodyDeclaration: {
+        type: 'shared',
+        notes: 'Joint custody',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: { toDate: () => declaredAt },
+      },
+      custodyHistory: [],
+      requiresSharedCustodySafeguards: true,
+    }
+
+    const result = convertFirestoreToChildProfile(firestoreData)
+
+    expect(result.custodyDeclaration).not.toBeNull()
+    expect(result.custodyDeclaration?.type).toBe('shared')
+    expect(result.custodyDeclaration?.declaredAt).toBeInstanceOf(Date)
+    expect(result.custodyDeclaration?.declaredAt.getTime()).toBe(declaredAt.getTime())
+    expect(result.requiresSharedCustodySafeguards).toBe(true)
+  })
+
+  it('converts custody history with timestamps', () => {
+    const now = new Date()
+    const birthdate = new Date('2015-06-15')
+    const oldDeclaredAt = new Date('2024-01-01')
+    const changedAt = new Date('2024-06-01')
+    const newDeclaredAt = new Date('2024-06-01')
+
+    const firestoreData: ChildProfileFirestore = {
+      id: 'child-id-123',
+      familyId: 'family-id-456',
+      firstName: 'Emma',
+      lastName: null,
+      nickname: null,
+      birthdate: { toDate: () => birthdate },
+      photoUrl: null,
+      guardians: [
+        {
+          uid: 'guardian-uid-123',
+          permissions: 'full',
+          grantedAt: { toDate: () => now },
+        },
+      ],
+      createdAt: { toDate: () => now },
+      createdBy: 'guardian-uid-123',
+      custodyDeclaration: {
+        type: 'shared',
+        notes: null,
+        declaredBy: 'guardian-uid-123',
+        declaredAt: { toDate: () => newDeclaredAt },
+      },
+      custodyHistory: [
+        {
+          previousDeclaration: {
+            type: 'sole',
+            notes: null,
+            declaredBy: 'guardian-uid-123',
+            declaredAt: { toDate: () => oldDeclaredAt },
+          },
+          changedAt: { toDate: () => changedAt },
+          changedBy: 'guardian-uid-123',
+        },
+      ],
+      requiresSharedCustodySafeguards: true,
+    }
+
+    const result = convertFirestoreToChildProfile(firestoreData)
+
+    expect(result.custodyHistory.length).toBe(1)
+    expect(result.custodyHistory[0].previousDeclaration.type).toBe('sole')
+    expect(result.custodyHistory[0].previousDeclaration.declaredAt).toBeInstanceOf(Date)
+    expect(result.custodyHistory[0].changedAt).toBeInstanceOf(Date)
+  })
+
+  it('handles null custody declaration', () => {
+    const now = new Date()
+    const birthdate = new Date('2015-06-15')
+
+    const firestoreData: ChildProfileFirestore = {
+      id: 'child-id-123',
+      familyId: 'family-id-456',
+      firstName: 'Emma',
+      lastName: null,
+      nickname: null,
+      birthdate: { toDate: () => birthdate },
+      photoUrl: null,
+      guardians: [
+        {
+          uid: 'guardian-uid-123',
+          permissions: 'full',
+          grantedAt: { toDate: () => now },
+        },
+      ],
+      createdAt: { toDate: () => now },
+      createdBy: 'guardian-uid-123',
+      custodyDeclaration: null,
+      custodyHistory: [],
+      requiresSharedCustodySafeguards: false,
+    }
+
+    const result = convertFirestoreToChildProfile(firestoreData)
+    expect(result.custodyDeclaration).toBeNull()
+  })
+})
+
+describe('hasCustodyDeclaration', () => {
+  const baseChild: ChildProfile = {
+    id: 'child-id-123',
+    familyId: 'family-id-456',
+    firstName: 'Emma',
+    birthdate: new Date('2015-06-15'),
+    guardians: [
+      {
+        uid: 'guardian-uid-123',
+        permissions: 'full',
+        grantedAt: new Date(),
+      },
+    ],
+    createdAt: new Date(),
+    createdBy: 'guardian-uid-123',
+    custodyHistory: [],
+    requiresSharedCustodySafeguards: false,
+  }
+
+  it('returns true when custody is declared (sole)', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'sole',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(hasCustodyDeclaration(child)).toBe(true)
+  })
+
+  it('returns true when custody is declared (shared)', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(hasCustodyDeclaration(child)).toBe(true)
+  })
+
+  it('returns true when custody is declared (complex)', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'complex',
+        notes: 'Blended family',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(hasCustodyDeclaration(child)).toBe(true)
+  })
+
+  it('returns false when custody declaration is null', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: null,
+    }
+    expect(hasCustodyDeclaration(child)).toBe(false)
+  })
+
+  it('returns false when custody declaration is undefined', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: undefined,
+    }
+    expect(hasCustodyDeclaration(child)).toBe(false)
+  })
+})
+
+describe('canStartMonitoring', () => {
+  const baseChild: ChildProfile = {
+    id: 'child-id-123',
+    familyId: 'family-id-456',
+    firstName: 'Emma',
+    birthdate: new Date('2015-06-15'),
+    guardians: [
+      {
+        uid: 'guardian-uid-123',
+        permissions: 'full',
+        grantedAt: new Date(),
+      },
+    ],
+    createdAt: new Date(),
+    createdBy: 'guardian-uid-123',
+    custodyHistory: [],
+    requiresSharedCustodySafeguards: false,
+  }
+
+  it('returns true when custody is declared', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'sole',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(canStartMonitoring(child)).toBe(true)
+  })
+
+  it('returns false when custody declaration is null', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: null,
+    }
+    expect(canStartMonitoring(child)).toBe(false)
+  })
+
+  it('returns false when custody declaration is undefined', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: undefined,
+    }
+    expect(canStartMonitoring(child)).toBe(false)
+  })
+
+  it('returns true for shared custody (monitoring allowed after declaration)', () => {
+    const child: ChildProfile = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+      requiresSharedCustodySafeguards: true,
+    }
+    // Monitoring can start once custody is declared, even with shared custody
+    // The requiresSharedCustodySafeguards flag enables additional safeguards (Epic 3A)
+    expect(canStartMonitoring(child)).toBe(true)
+  })
+})
+
+describe('custody adversarial tests', () => {
+  const baseChild = {
+    id: 'child-id-123',
+    familyId: 'family-id-456',
+    firstName: 'Emma',
+    birthdate: new Date('2015-06-15'),
+    guardians: [
+      {
+        uid: 'guardian-uid-123',
+        permissions: 'full' as const,
+        grantedAt: new Date(),
+      },
+    ],
+    createdAt: new Date(),
+    createdBy: 'guardian-uid-123',
+  }
+
+  it('rejects custody declaration with XSS in notes', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'complex',
+        notes: '<script>alert("xss")</script>',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+
+  it('rejects custody declaration with empty declaredBy', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'sole',
+        declaredBy: '',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+
+  it('rejects custody history with XSS in notes', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+      custodyHistory: [
+        {
+          previousDeclaration: {
+            type: 'sole',
+            notes: '<img onerror="alert(1)">',
+            declaredBy: 'guardian-uid-123',
+            declaredAt: new Date('2024-01-01'),
+          },
+          changedAt: new Date('2024-06-01'),
+          changedBy: 'guardian-uid-123',
+        },
+      ],
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+
+  it('rejects custody history with empty changedBy', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'shared',
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+      custodyHistory: [
+        {
+          previousDeclaration: {
+            type: 'sole',
+            declaredBy: 'guardian-uid-123',
+            declaredAt: new Date('2024-01-01'),
+          },
+          changedAt: new Date('2024-06-01'),
+          changedBy: '',
+        },
+      ],
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+
+  it('accepts custody notes at max length (500 chars)', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'complex',
+        notes: 'A'.repeat(500),
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).not.toThrow()
+  })
+
+  it('rejects custody notes over max length', () => {
+    const child = {
+      ...baseChild,
+      custodyDeclaration: {
+        type: 'complex',
+        notes: 'A'.repeat(501),
+        declaredBy: 'guardian-uid-123',
+        declaredAt: new Date(),
+      },
+    }
+    expect(() => childProfileSchema.parse(child)).toThrow()
   })
 })

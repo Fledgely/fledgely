@@ -8,6 +8,9 @@ dist/
 build/
 .next/
 out/
+.vite/
+*.tsbuildinfo
+lib/
 
 # Testing
 coverage/

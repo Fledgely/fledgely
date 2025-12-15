@@ -30,14 +30,20 @@ vi.mock('@/hooks/useChild', () => ({
   useChild: vi.fn(),
 }))
 
+vi.mock('@/hooks/useCustody', () => ({
+  useCustody: vi.fn(),
+}))
+
 // Import mocked hooks
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
+import { useCustody } from '@/hooks/useCustody'
 
 const mockUseUser = vi.mocked(useUser)
 const mockUseFamily = vi.mocked(useFamily)
 const mockUseChild = vi.mocked(useChild)
+const mockUseCustody = vi.mocked(useCustody)
 
 describe('AddChildPage', () => {
   const mockUserProfile = {
@@ -112,6 +118,19 @@ describe('AddChildPage', () => {
       addChild: mockAddChild,
       clearError: vi.fn(),
       refreshChildren: vi.fn(),
+    })
+
+    mockUseCustody.mockReturnValue({
+      custody: null,
+      loading: false,
+      error: null,
+      hasCustody: false,
+      declareCustody: vi.fn(),
+      updateCustody: vi.fn(),
+      declareOrUpdateCustody: vi.fn(),
+      clearError: vi.fn(),
+      fetchCustody: vi.fn(),
+      setCustodyFromChild: vi.fn(),
     })
   })
 
@@ -188,10 +207,11 @@ describe('AddChildPage', () => {
       expect(screen.getByText(/add your first child/i)).toBeInTheDocument()
     })
 
-    it('shows progress indicator at step 2 of 3', () => {
+    it('shows progress indicator at step 1 of 3 initially', () => {
       render(<AddChildPage />)
 
-      expect(screen.getByRole('group', { name: /step 2 of 3/i })).toBeInTheDocument()
+      // Page starts at step 1 (child-info), step 2 is custody, step 3 is complete
+      expect(screen.getByRole('group', { name: /step 1 of 3/i })).toBeInTheDocument()
     })
 
     it('shows add child form', () => {
@@ -259,6 +279,29 @@ describe('AddChildPage', () => {
   })
 
   describe('adding a child', () => {
+    const mockDeclareOrUpdateCustody = vi.fn()
+
+    beforeEach(() => {
+      mockDeclareOrUpdateCustody.mockResolvedValue({
+        type: 'sole',
+        notes: null,
+        declaredBy: 'test-user-123',
+        declaredAt: new Date(),
+      })
+      mockUseCustody.mockReturnValue({
+        custody: null,
+        loading: false,
+        error: null,
+        hasCustody: false,
+        declareCustody: vi.fn(),
+        updateCustody: vi.fn(),
+        declareOrUpdateCustody: mockDeclareOrUpdateCustody,
+        clearError: vi.fn(),
+        fetchCustody: vi.fn(),
+        setCustodyFromChild: vi.fn(),
+      })
+    })
+
     it('calls addChild with form data when submitted', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
@@ -282,7 +325,7 @@ describe('AddChildPage', () => {
       expect(callArg.firstName).toBe('Emma')
     })
 
-    it('shows success message after adding child', async () => {
+    it('shows custody step after adding child', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
@@ -297,17 +340,52 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
+      // Should show custody step
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+    })
+
+    it('shows success message after completing custody', async () => {
+      const user = userEvent.setup()
+      mockAddChild.mockResolvedValue(mockChild)
+
+      render(<AddChildPage />)
+
+      // Step 1: Add child
+      const firstNameInput = screen.getByLabelText(/first name/i)
+      await user.type(firstNameInput, 'Emma')
+
+      const birthdateInput = screen.getByLabelText(/date of birth/i)
+      await user.type(birthdateInput, '2015-06-15')
+
+      const submitButton = screen.getByRole('button', { name: /add child/i })
+      await user.click(submitButton)
+
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueButton)
+
+      // Step 3: Success
       await waitFor(() => {
         expect(screen.getByText(/emma has been added/i)).toBeInTheDocument()
       })
     })
 
-    it('shows add another option after success', async () => {
+    it('shows add another option after completing custody', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
       render(<AddChildPage />)
 
+      // Step 1: Add child
       const firstNameInput = screen.getByLabelText(/first name/i)
       await user.type(firstNameInput, 'Emma')
 
@@ -317,17 +395,30 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueButton)
+
+      // Step 3: Success - should show add another option
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /add another/i })).toBeInTheDocument()
       })
     })
 
-    it('shows continue to dashboard option after success', async () => {
+    it('shows continue to dashboard option after completing custody', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
       render(<AddChildPage />)
 
+      // Step 1: Add child
       const firstNameInput = screen.getByLabelText(/first name/i)
       await user.type(firstNameInput, 'Emma')
 
@@ -337,6 +428,18 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueButton)
+
+      // Step 3: Success - should show continue to dashboard option
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /continue to dashboard/i })).toBeInTheDocument()
       })
@@ -344,13 +447,36 @@ describe('AddChildPage', () => {
   })
 
   describe('navigation', () => {
-    it('can add another child after success', async () => {
+    const mockDeclareOrUpdateCustody = vi.fn()
+
+    beforeEach(() => {
+      mockDeclareOrUpdateCustody.mockResolvedValue({
+        type: 'sole',
+        notes: null,
+        declaredBy: 'test-user-123',
+        declaredAt: new Date(),
+      })
+      mockUseCustody.mockReturnValue({
+        custody: null,
+        loading: false,
+        error: null,
+        hasCustody: false,
+        declareCustody: vi.fn(),
+        updateCustody: vi.fn(),
+        declareOrUpdateCustody: mockDeclareOrUpdateCustody,
+        clearError: vi.fn(),
+        fetchCustody: vi.fn(),
+        setCustodyFromChild: vi.fn(),
+      })
+    })
+
+    it('can add another child after completing custody', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
       render(<AddChildPage />)
 
-      // Add first child
+      // Step 1: Add first child
       const firstNameInput = screen.getByLabelText(/first name/i)
       await user.type(firstNameInput, 'Emma')
 
@@ -360,7 +486,18 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
-      // Click add another
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueButton)
+
+      // Step 3: Click add another
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /add another/i })).toBeInTheDocument()
       })
@@ -368,16 +505,18 @@ describe('AddChildPage', () => {
       await user.click(screen.getByRole('button', { name: /add another/i }))
 
       // Should show form again
-      expect(screen.getByLabelText(/first name/i)).toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByLabelText(/first name/i)).toBeInTheDocument()
+      })
     })
 
-    it('navigates to dashboard when clicking continue', async () => {
+    it('navigates to dashboard when clicking continue after custody', async () => {
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
       render(<AddChildPage />)
 
-      // Add child
+      // Step 1: Add child
       const firstNameInput = screen.getByLabelText(/first name/i)
       await user.type(firstNameInput, 'Emma')
 
@@ -387,7 +526,18 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
-      // Click continue
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueFormButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueFormButton)
+
+      // Step 3: Click continue to dashboard
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /continue to dashboard/i })).toBeInTheDocument()
       })
@@ -423,7 +573,8 @@ describe('AddChildPage', () => {
     it('has accessible progress indicator', () => {
       render(<AddChildPage />)
 
-      const progressGroup = screen.getByRole('group', { name: /step 2 of 3/i })
+      // Page starts at step 1 (child-info)
+      const progressGroup = screen.getByRole('group', { name: /step 1 of 3/i })
       expect(progressGroup).toBeInTheDocument()
     })
 
@@ -440,12 +591,32 @@ describe('AddChildPage', () => {
       expect(screen.getByRole('status')).toHaveTextContent(/loading/i)
     })
 
-    it('announces success state to screen readers', async () => {
+    it('announces success state to screen readers after completing custody', async () => {
+      const mockDeclareOrUpdateCustody = vi.fn().mockResolvedValue({
+        type: 'sole',
+        notes: null,
+        declaredBy: 'test-user-123',
+        declaredAt: new Date(),
+      })
+      mockUseCustody.mockReturnValue({
+        custody: null,
+        loading: false,
+        error: null,
+        hasCustody: false,
+        declareCustody: vi.fn(),
+        updateCustody: vi.fn(),
+        declareOrUpdateCustody: mockDeclareOrUpdateCustody,
+        clearError: vi.fn(),
+        fetchCustody: vi.fn(),
+        setCustodyFromChild: vi.fn(),
+      })
+
       const user = userEvent.setup()
       mockAddChild.mockResolvedValue(mockChild)
 
       render(<AddChildPage />)
 
+      // Step 1: Add child
       const firstNameInput = screen.getByLabelText(/first name/i)
       await user.type(firstNameInput, 'Emma')
 
@@ -455,6 +626,18 @@ describe('AddChildPage', () => {
       const submitButton = screen.getByRole('button', { name: /add child/i })
       await user.click(submitButton)
 
+      // Step 2: Custody declaration
+      await waitFor(() => {
+        expect(screen.getByText(/custody for emma/i)).toBeInTheDocument()
+      })
+
+      const soleRadio = screen.getByRole('radio', { name: /sole custody/i })
+      await user.click(soleRadio)
+
+      const continueButton = screen.getByRole('button', { name: /continue/i })
+      await user.click(continueButton)
+
+      // Step 3: Success announcement
       await waitFor(() => {
         expect(screen.getByRole('status')).toHaveTextContent(/emma has been added/i)
       })

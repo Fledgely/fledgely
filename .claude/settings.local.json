@@ -1,11 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__MCP_DOCKER__mcp-find",
+      "Bash(git commit:*)",
+      "Bash(gh repo create:*)"
+    ]
+  },
   "enabledMcpjsonServers": [
     "agentvibes",
     "figma"
-  ],
-  "permissions": {
-    "allow": [
-      "mcp__MCP_DOCKER__mcp-find"
-    ]
-  }
+  ]
 }

@@ -1,4 +1,12 @@
 import { z } from 'zod'
+import {
+  custodyDeclarationSchema,
+  custodyDeclarationFirestoreSchema,
+  custodyHistoryEntrySchema,
+  custodyHistoryEntryFirestoreSchema,
+  type CustodyDeclaration,
+  type CustodyHistoryEntry,
+} from './custody.schema'
 
 /**
  * Child Profile Schema - Defines the child structure stored in Firestore children/{childId}
@@ -7,6 +15,7 @@ import { z } from 'zod'
  * Per project guidelines: Types are always derived from Zod schemas.
  *
  * Story 2.2: Add Child to Family
+ * Story 2.3: Custody Arrangement Declaration
  */
 
 /**
@@ -96,6 +105,16 @@ export const childProfileSchema = z.object({
 
   /** User uid who created the child profile */
   createdBy: z.string().min(1, 'Creator ID is required'),
+
+  // Custody fields (Story 2.3)
+  /** Custody declaration - required before monitoring can begin */
+  custodyDeclaration: custodyDeclarationSchema.optional().nullable(),
+
+  /** History of custody declaration changes */
+  custodyHistory: z.array(custodyHistoryEntrySchema).default([]),
+
+  /** Whether this child requires shared custody safeguards (Epic 3A) */
+  requiresSharedCustodySafeguards: z.boolean().default(false),
 })
 
 export type ChildProfile = z.infer<typeof childProfileSchema>
@@ -118,6 +137,10 @@ export const childProfileFirestoreSchema = z.object({
     (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
   ),
   createdBy: z.string().min(1),
+  // Custody fields (Story 2.3)
+  custodyDeclaration: custodyDeclarationFirestoreSchema.optional().nullable(),
+  custodyHistory: z.array(custodyHistoryEntryFirestoreSchema).default([]),
+  requiresSharedCustodySafeguards: z.boolean().default(false),
 })
 
 export type ChildProfileFirestore = z.infer<typeof childProfileFirestoreSchema>
@@ -250,6 +273,31 @@ export type UpdateChildInput = z.infer<typeof updateChildInputSchema>
  * Handles Timestamp to Date conversion for all timestamp fields
  */
 export function convertFirestoreToChildProfile(data: ChildProfileFirestore): ChildProfile {
+  // Convert custody declaration if present
+  let custodyDeclaration: CustodyDeclaration | null | undefined = undefined
+  if (data.custodyDeclaration) {
+    custodyDeclaration = {
+      type: data.custodyDeclaration.type,
+      notes: data.custodyDeclaration.notes,
+      declaredBy: data.custodyDeclaration.declaredBy,
+      declaredAt: data.custodyDeclaration.declaredAt.toDate(),
+    }
+  } else if (data.custodyDeclaration === null) {
+    custodyDeclaration = null
+  }
+
+  // Convert custody history if present
+  const custodyHistory: CustodyHistoryEntry[] = (data.custodyHistory || []).map((entry) => ({
+    previousDeclaration: {
+      type: entry.previousDeclaration.type,
+      notes: entry.previousDeclaration.notes,
+      declaredBy: entry.previousDeclaration.declaredBy,
+      declaredAt: entry.previousDeclaration.declaredAt.toDate(),
+    },
+    changedAt: entry.changedAt.toDate(),
+    changedBy: entry.changedBy,
+  }))
+
   return childProfileSchema.parse({
     id: data.id,
     familyId: data.familyId,
@@ -265,6 +313,10 @@ export function convertFirestoreToChildProfile(data: ChildProfileFirestore): Chi
     })),
     createdAt: data.createdAt.toDate(),
     createdBy: data.createdBy,
+    // Custody fields (Story 2.3)
+    custodyDeclaration,
+    custodyHistory,
+    requiresSharedCustodySafeguards: data.requiresSharedCustodySafeguards ?? false,
   })
 }
 
@@ -357,4 +409,20 @@ export function getAgeCategory(
   if (age < 11) return 'tween' // Ages 8-10
   if (age < 15) return 'teen' // Ages 11-14
   return 'older-teen' // Ages 15-17
+}
+
+/**
+ * Check if a child has a custody declaration
+ * Returns true if custody has been declared (any type)
+ */
+export function hasCustodyDeclaration(child: ChildProfile): boolean {
+  return child.custodyDeclaration !== null && child.custodyDeclaration !== undefined
+}
+
+/**
+ * Check if monitoring can be started for a child
+ * Story 2.3: Custody must be declared before monitoring can begin
+ */
+export function canStartMonitoring(child: ChildProfile): boolean {
+  return hasCustodyDeclaration(child)
 }

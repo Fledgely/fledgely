@@ -5,22 +5,23 @@ import { useRouter } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
+import { useCustody } from '@/hooks/useCustody'
 import { AddChildForm } from '@/components/child/AddChildForm'
+import { CustodyDeclarationForm } from '@/components/custody/CustodyDeclarationForm'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
-import type { CreateChildInput } from '@fledgely/contracts'
+import type { CreateChildInput, CreateCustodyDeclarationInput, ChildProfile } from '@fledgely/contracts'
 
 /**
  * Add Child Page - Second step of onboarding
  *
- * Allows parents to add children to their family:
- * - Creates a child profile in Firestore
- * - Sets the parent as guardian with full permissions
- * - Allows adding multiple children before continuing
+ * A multi-step flow for adding children to a family:
+ * 1. Child Info - Create child profile
+ * 2. Custody Declaration - Declare custody arrangement (required)
+ * 3. Complete - Show success and options
  *
- * After adding at least one child, user can:
- * - Add another child
- * - Continue to create device agreement
+ * Story 2.2: Add Child to Family
+ * Story 2.3: Custody Arrangement Declaration
  *
  * Accessibility Features (WCAG 2.1 AA):
  * - 44x44px minimum touch targets (NFR49)
@@ -29,21 +30,25 @@ import type { CreateChildInput } from '@fledgely/contracts'
  * - Keyboard accessible (NFR43)
  * - Screen reader announcements via aria-live
  */
+
+type Step = 'child-info' | 'custody' | 'complete'
+
 export default function AddChildPage() {
   const router = useRouter()
   const { userProfile, loading: userLoading } = useUser()
   const { hasFamily, loading: familyLoading } = useFamily()
-  const { children, hasChildren, addChild, loading: childLoading } = useChild()
+  const { children, hasChildren, addChild, loading: childLoading, refreshChildren } = useChild()
+  const { declareOrUpdateCustody, loading: custodyLoading } = useCustody()
 
+  const [step, setStep] = useState<Step>('child-info')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
-  const [lastAddedName, setLastAddedName] = useState<string | null>(null)
+  const [currentChild, setCurrentChild] = useState<ChildProfile | null>(null)
 
   // Get first name for personalized message
   const firstName = userProfile?.displayName?.split(' ')[0] || 'there'
 
   /**
-   * Handle adding a child
+   * Handle adding a child (step 1)
    */
   const handleAddChild = useCallback(
     async (data: CreateChildInput) => {
@@ -51,8 +56,8 @@ export default function AddChildPage() {
 
       try {
         const child = await addChild(data)
-        setLastAddedName(child.firstName)
-        setShowSuccess(true)
+        setCurrentChild(child)
+        setStep('custody')
       } finally {
         setIsSubmitting(false)
       }
@@ -61,22 +66,53 @@ export default function AddChildPage() {
   )
 
   /**
-   * Handle adding another child
+   * Handle declaring custody (step 2)
    */
-  const handleAddAnother = useCallback(() => {
-    setShowSuccess(false)
-    setLastAddedName(null)
+  const handleDeclareCustody = useCallback(
+    async (data: CreateCustodyDeclarationInput) => {
+      if (!currentChild) return
+
+      setIsSubmitting(true)
+
+      try {
+        await declareOrUpdateCustody(currentChild.id, data)
+        // Refresh children to get updated custody data
+        await refreshChildren()
+        setStep('complete')
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [currentChild, declareOrUpdateCustody, refreshChildren]
+  )
+
+  /**
+   * Handle going back to child info step
+   */
+  const handleBackToChildInfo = useCallback(() => {
+    setStep('child-info')
+    setCurrentChild(null)
   }, [])
 
   /**
-   * Handle continuing to next step
+   * Handle adding another child
+   */
+  const handleAddAnother = useCallback(() => {
+    setStep('child-info')
+    setCurrentChild(null)
+  }, [])
+
+  /**
+   * Handle continuing to next step (dashboard)
    */
   const handleContinue = useCallback(() => {
     router.push('/dashboard')
   }, [router])
 
   // Loading state
-  if (userLoading || familyLoading || childLoading) {
+  const isLoading = userLoading || familyLoading || childLoading
+
+  if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col">
         <main
@@ -111,6 +147,16 @@ export default function AddChildPage() {
     return null
   }
 
+  // Step indicator configuration
+  const stepConfig = {
+    'child-info': { stepNumber: 1, label: 'Child Info' },
+    custody: { stepNumber: 2, label: 'Custody' },
+    complete: { stepNumber: 3, label: 'Complete' },
+  }
+
+  const currentStepNumber = stepConfig[step].stepNumber
+  const totalSteps = 3
+
   return (
     <div className="flex min-h-screen flex-col">
       <main className="flex flex-1 flex-col items-center justify-center p-4">
@@ -118,14 +164,22 @@ export default function AddChildPage() {
           {/* Welcome header */}
           <div className="space-y-2 text-center">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {hasChildren
+              {step === 'complete' && hasChildren
                 ? `Your Children (${children.length})`
-                : `Hi ${firstName}!`}
+                : step === 'custody'
+                  ? 'Custody Arrangement'
+                  : hasChildren
+                    ? `Your Children (${children.length})`
+                    : `Hi ${firstName}!`}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {hasChildren
+              {step === 'complete'
                 ? 'Add another child or continue to the dashboard.'
-                : "Let's add your first child to get started."}
+                : step === 'custody'
+                  ? "Tell us about your custody situation for this child."
+                  : hasChildren
+                    ? 'Add another child or continue to the dashboard.'
+                    : "Let's add your first child to get started."}
             </p>
           </div>
 
@@ -134,61 +188,47 @@ export default function AddChildPage() {
             <div className="space-y-4">
               {/* Progress indicator */}
               <div
-                className="flex items-center justify-center gap-2"
+                className="flex flex-col items-center gap-2"
                 role="group"
-                aria-label="Onboarding progress: Step 2 of 3"
+                aria-label={`Onboarding progress: Step ${currentStepNumber} of ${totalSteps}`}
               >
-                <div
-                  className="h-2 w-2 rounded-full bg-primary"
-                  aria-label="Completed step"
-                />
-                <div
-                  className="h-2 w-2 rounded-full bg-primary"
-                  aria-label="Current step"
-                />
-                <div className="h-2 w-2 rounded-full bg-muted" />
+                {/* Step dots */}
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3].map((num) => (
+                    <div
+                      key={num}
+                      className={`h-2 w-2 rounded-full transition-colors ${
+                        num <= currentStepNumber ? 'bg-primary' : 'bg-muted'
+                      }`}
+                      aria-label={
+                        num < currentStepNumber
+                          ? `Step ${num} completed`
+                          : num === currentStepNumber
+                            ? `Step ${num} current`
+                            : `Step ${num}`
+                      }
+                    />
+                  ))}
+                </div>
+
+                {/* Step labels */}
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span className={currentStepNumber >= 1 ? 'text-primary' : ''}>
+                    Child Info
+                  </span>
+                  <span className="mx-1">→</span>
+                  <span className={currentStepNumber >= 2 ? 'text-primary' : ''}>
+                    Custody
+                  </span>
+                  <span className="mx-1">→</span>
+                  <span className={currentStepNumber >= 3 ? 'text-primary' : ''}>
+                    Complete
+                  </span>
+                </div>
               </div>
 
-              {showSuccess ? (
-                // Success state - show options to add another or continue
-                <div className="space-y-4">
-                  {/* Success message */}
-                  <div
-                    className="rounded-md bg-green-50 p-4 text-center dark:bg-green-950"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                      {lastAddedName} has been added to your family!
-                    </p>
-                  </div>
-
-                  {/* Children count */}
-                  <p className="text-center text-sm text-muted-foreground">
-                    You have {children.length}{' '}
-                    {children.length === 1 ? 'child' : 'children'} in your
-                    family.
-                  </p>
-
-                  {/* Action buttons */}
-                  <div className="flex flex-col gap-3">
-                    <Button
-                      onClick={handleAddAnother}
-                      variant="outline"
-                      className="min-h-[44px] w-full"
-                    >
-                      Add Another Child
-                    </Button>
-                    <Button
-                      onClick={handleContinue}
-                      className="min-h-[44px] w-full"
-                    >
-                      Continue to Dashboard
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                // Form state - show add child form
+              {/* Step 1: Child Info */}
+              {step === 'child-info' && (
                 <div className="space-y-4">
                   {/* Step description */}
                   <div className="text-center">
@@ -196,8 +236,8 @@ export default function AddChildPage() {
                       {hasChildren ? 'Add Another Child' : 'Add Your Child'}
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Enter your child&apos;s information below. You can add
-                      more children later.
+                      Enter your child&apos;s information below. You can add more
+                      children later.
                     </p>
                   </div>
 
@@ -221,11 +261,72 @@ export default function AddChildPage() {
                   )}
                 </div>
               )}
+
+              {/* Step 2: Custody Declaration */}
+              {step === 'custody' && currentChild && (
+                <div className="space-y-4">
+                  {/* Step description */}
+                  <div className="text-center">
+                    <h2 className="text-lg font-medium">
+                      Custody for {currentChild.firstName}
+                    </h2>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      This helps us provide the right features for your family.
+                    </p>
+                  </div>
+
+                  {/* Custody declaration form */}
+                  <CustodyDeclarationForm
+                    onSubmit={handleDeclareCustody}
+                    onCancel={handleBackToChildInfo}
+                    isSubmitting={isSubmitting || custodyLoading}
+                  />
+                </div>
+              )}
+
+              {/* Step 3: Complete */}
+              {step === 'complete' && (
+                <div className="space-y-4">
+                  {/* Success message */}
+                  <div
+                    className="rounded-md bg-green-50 p-4 text-center dark:bg-green-950"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                      {currentChild?.firstName} has been added to your family!
+                    </p>
+                  </div>
+
+                  {/* Children count */}
+                  <p className="text-center text-sm text-muted-foreground">
+                    You have {children.length}{' '}
+                    {children.length === 1 ? 'child' : 'children'} in your family.
+                  </p>
+
+                  {/* Action buttons */}
+                  <div className="flex flex-col gap-3">
+                    <Button
+                      onClick={handleAddAnother}
+                      variant="outline"
+                      className="min-h-[44px] w-full"
+                    >
+                      Add Another Child
+                    </Button>
+                    <Button
+                      onClick={handleContinue}
+                      className="min-h-[44px] w-full"
+                    >
+                      Continue to Dashboard
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Existing children list (if any) */}
-          {hasChildren && !showSuccess && (
+          {hasChildren && step === 'child-info' && (
             <div className="rounded-lg border bg-card p-4">
               <h3 className="mb-3 text-sm font-medium">Your Children</h3>
               <ul className="space-y-2">
@@ -237,10 +338,17 @@ export default function AddChildPage() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                       {child.firstName.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-sm">
-                      {child.firstName}
-                      {child.lastName ? ` ${child.lastName}` : ''}
-                    </span>
+                    <div className="flex-1">
+                      <span className="text-sm">
+                        {child.firstName}
+                        {child.lastName ? ` ${child.lastName}` : ''}
+                      </span>
+                      {child.custodyDeclaration && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({child.custodyDeclaration.type} custody)
+                        </span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

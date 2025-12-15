@@ -80,6 +80,8 @@ export {
   getChildDisplayName,
   getChildFullName,
   getAgeCategory,
+  hasCustodyDeclaration,
+  canStartMonitoring,
   // Types
   type ChildProfile,
   type ChildProfileFirestore,
@@ -89,6 +91,38 @@ export {
   type CreateChildInput,
   type UpdateChildInput,
 } from './child.schema'
+
+// Custody Declaration Schemas (Story 2.3)
+export {
+  // Schemas
+  custodyTypeSchema,
+  custodyDeclarationSchema,
+  custodyDeclarationFirestoreSchema,
+  custodyHistoryEntrySchema,
+  custodyHistoryEntryFirestoreSchema,
+  createCustodyDeclarationInputSchema,
+  updateCustodyDeclarationInputSchema,
+  // Constants
+  CUSTODY_TYPE_LABELS,
+  CUSTODY_ERROR_MESSAGES,
+  // Helper functions
+  convertFirestoreToCustodyDeclaration,
+  convertFirestoreToCustodyHistoryEntry,
+  validateCreateCustodyDeclarationInput,
+  safeParseCustodyDeclaration,
+  requiresSharedCustodySafeguards,
+  getCustodyErrorMessage,
+  getCustodyTypeLabel,
+  hasXssDangerousChars,
+  // Types
+  type CustodyType,
+  type CustodyDeclaration,
+  type CustodyDeclarationFirestore,
+  type CustodyHistoryEntry,
+  type CustodyHistoryEntryFirestore,
+  type CreateCustodyDeclarationInput,
+  type UpdateCustodyDeclarationInput,
+} from './custody.schema'
 
 // Safety Document Schemas (Story 0.5.2)
 export {
