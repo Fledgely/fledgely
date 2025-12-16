@@ -1132,5 +1132,128 @@ service cloud.firestore {
       // Direct client writes are not allowed
       allow write: if false;
     }
+
+    // ============================================
+    // SAFETY SIGNALS COLLECTION (Story 7.5.1)
+    // ============================================
+    // CRITICAL LIFE-SAFETY FEATURE: Child safety signal storage
+    //
+    // Safety signals allow children to discreetly signal distress
+    // to external resources without any family member knowing.
+    //
+    // CRITICAL INVARIANT (INV-002): Safety signals NEVER visible to family.
+    // - Signals stored in separate collection (NOT under /families)
+    // - Uses separate encryption, NOT family encryption keys
+    // - No Firestore Security Rule allows family member read access
+    // - Signals do not appear in any family audit trail
+    //
+    // Security invariants:
+    // 1. NO family member can EVER read - absolute prohibition
+    // 2. Child can create their own signal (authenticated)
+    // 3. Only safety-team can read/update (for external routing)
+    // 4. NEVER delete - compliance and legal requirement
+    // 5. NEVER linked to family audit trail
+    // ============================================
+
+    match /safety-signals/{signalId} {
+      // ABSOLUTE PROHIBITION: No family member can read safety signals
+      // This is the most restrictive read rule - only safety-team or admin
+      // Family members (guardians, parents) are NEVER allowed read access
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']);
+
+      // Children can create safety signals via authenticated devices
+      //
+      // CURRENT LIMITATION (To address in Story 7.5.6):
+      // Children don't have their own Firebase Auth accounts - they use
+      // parent-authenticated devices with child profiles. We cannot verify
+      // that the childId matches a specific authenticated user. We CAN verify:
+      // 1. Request is authenticated (device has valid session)
+      // 2. childId is a non-empty string
+      // 3. childId exists in the children collection
+      //
+      // TODO(Story 7.5.6): Add device enrollment verification
+      // - Verify the authenticated device is enrolled for this childId
+      // - Add device attestation (WebAuthn/SafetyNet/DeviceCheck)
+      //
+      // ACCEPTABLE RISK FOR MVP: An authenticated family member could
+      // theoretically spoof a signal as another child in their family.
+      // However, this doesn't violate INV-002 (signals still invisible to family).
+      // The risk is sending false signals, not exposing real signals.
+      allow create: if request.auth != null &&
+        request.resource.data.id == signalId &&
+        request.resource.data.childId is string &&
+        request.resource.data.childId.size() > 0 &&
+        // Verify childId is a valid child profile that exists
+        exists(/databases/$(database)/documents/children/$(request.resource.data.childId)) &&
+        request.resource.data.triggeredAt != null &&
+        request.resource.data.deviceType in ['web', 'chrome', 'android', 'ios'] &&
+        request.resource.data.gestureType in ['tap', 'keyboard'] &&
+        request.resource.data.status == 'queued' &&
+        request.resource.data.deliveryAttempts == 0;
+
+      // Only safety-team can update signals (for status transitions)
+      // Updates include: status changes, sent/acknowledged timestamps, error info
+      // childId, triggeredAt, deviceType, gestureType are immutable
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']) &&
+        // Immutable fields
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.childId == resource.data.childId &&
+        request.resource.data.triggeredAt == resource.data.triggeredAt &&
+        request.resource.data.deviceType == resource.data.deviceType &&
+        request.resource.data.gestureType == resource.data.gestureType &&
+        // Status must be valid
+        request.resource.data.status in ['queued', 'sending', 'sent', 'received', 'acknowledged', 'failed'];
+
+      // NEVER allow deletion - compliance and legal requirement
+      // Safety signals must be retained for legal/compliance purposes
+      // and to prevent abuser interference with signal trail
+      allow delete: if false;
+    }
+
+    // ============================================
+    // SAFETY SIGNAL QUEUE COLLECTION (Story 7.5.1)
+    // ============================================
+    // Client-side queue for offline safety signals
+    //
+    // This collection stores queued signals from devices that were
+    // offline when the signal was triggered. Signals are processed
+    // and moved to safety-signals collection when online.
+    //
+    // Security invariants:
+    // 1. NO family member can read - same as safety-signals
+    // 2. Authenticated users can create queue entries for themselves
+    // 3. Only Cloud Functions can process and delete queue entries
+    // 4. Queue entries are temporary - moved to safety-signals on processing
+    // ============================================
+
+    match /safety-signal-queue/{queueId} {
+      // No direct reads from clients
+      // Queue processing happens via Cloud Function
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']);
+
+      // Authenticated users can create queue entries for offline signals
+      // Same authentication limitations as safety-signals (see comments above)
+      allow create: if request.auth != null &&
+        request.resource.data.queueId == queueId &&
+        request.resource.data.childId is string &&
+        request.resource.data.childId.size() > 0 &&
+        // Verify childId is a valid child profile
+        exists(/databases/$(database)/documents/children/$(request.resource.data.childId)) &&
+        request.resource.data.triggeredAt is string &&
+        request.resource.data.deviceType in ['web', 'chrome', 'android', 'ios'] &&
+        request.resource.data.gestureType in ['tap', 'keyboard'];
+
+      // No client updates - queue processing via Cloud Function
+      allow update: if false;
+
+      // No client deletes - queue cleanup via Cloud Function
+      allow delete: if false;
+    }
   }
 }

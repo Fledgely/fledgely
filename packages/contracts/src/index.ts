@@ -1179,3 +1179,52 @@ export {
   type PrivacyGapEvent,
   type ChildPrivacyGapsConfig,
 } from './privacyGaps.schema'
+
+// Safety Signal Schemas (Story 7.5.1)
+export {
+  // Constants
+  SAFETY_SIGNAL_CONSTANTS,
+  GESTURE_TYPE_LABELS,
+  SIGNAL_STATUS_LABELS,
+  SIGNAL_DEVICE_TYPE_LABELS,
+  DEFAULT_GESTURE_CONFIG,
+  // Schemas
+  gestureTypeSchema,
+  signalDeviceTypeSchema,
+  signalStatusSchema,
+  gestureDetectionStateSchema,
+  safetySignalSchema,
+  safetySignalFirestoreSchema,
+  queuedSafetySignalSchema,
+  triggerSafetySignalInputSchema,
+  triggerSafetySignalResponseSchema,
+  gestureConfigSchema,
+  // Helper functions
+  getGestureTypeLabel,
+  getSignalStatusLabel,
+  getSignalDeviceTypeLabel,
+  convertFirestoreToSafetySignal,
+  safeParseSafetySignal,
+  safeParseQueuedSafetySignal,
+  safeParseTriggerSafetySignalInput,
+  validateTriggerSafetySignalInput,
+  isGestureComplete,
+  isGestureTimedOut,
+  calculateRetryDelay,
+  canRetrySignal,
+  createInitialGestureState,
+  resetGestureState,
+  incrementGestureState,
+  generateQueueId,
+  // Types
+  type GestureType,
+  type SignalDeviceType,
+  type SignalStatus,
+  type GestureDetectionState,
+  type SafetySignal,
+  type SafetySignalFirestore,
+  type QueuedSafetySignal,
+  type TriggerSafetySignalInput,
+  type TriggerSafetySignalResponse,
+  type GestureConfig,
+} from './safetySignal.schema'
