@@ -120,7 +120,7 @@ development_status:
   5-6-agreement-only-mode-selection: done
   5-7-draft-saving-version-history: done
   5-8-child-agreement-viewing: blocked # Requires child account system (not yet implemented)
-  epic-5-retrospective: optional
+  epic-5-retrospective: completed
 
   # Epic 6: Agreement Signing & Activation
   epic-6: backlog
