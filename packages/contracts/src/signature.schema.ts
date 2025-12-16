@@ -71,12 +71,17 @@ export type SignerRole = z.infer<typeof signerRoleSchema>
 
 /**
  * Signing status for an agreement
+ *
+ * Supports both sole custody (parent → child) and shared custody flows
+ * (parent1 → parent2 → child).
  */
 export const signingStatusSchema = z.enum([
   'pending', // No signatures yet
-  'parent_signed', // Parent has signed, waiting for child
+  'parent_signed', // Single parent has signed (sole custody), waiting for child
+  'one_parent_signed', // First parent signed in shared custody, waiting for co-parent
+  'both_parents_signed', // Both parents signed in shared custody, waiting for child
   'child_signed', // Child has signed (shouldn't happen before parent)
-  'complete', // Both parties have signed
+  'complete', // All required parties have signed
 ])
 
 export type SigningStatus = z.infer<typeof signingStatusSchema>
@@ -114,6 +119,8 @@ export const signerRoleLabels = SIGNER_ROLE_LABELS
 export const SIGNING_STATUS_LABELS: Record<SigningStatus, string> = {
   pending: 'Waiting for Signatures',
   parent_signed: 'Parent Signed',
+  one_parent_signed: 'One Parent Signed',
+  both_parents_signed: 'Both Parents Signed',
   child_signed: 'Child Signed',
   complete: 'All Signed',
 }
@@ -127,6 +134,8 @@ export const signingStatusLabels = SIGNING_STATUS_LABELS
 export const SIGNING_STATUS_DESCRIPTIONS: Record<SigningStatus, string> = {
   pending: 'No one has signed yet. Your parent will sign first.',
   parent_signed: 'Your parent signed! Now it is your turn.',
+  one_parent_signed: 'One of your parents signed! Waiting for the other parent.',
+  both_parents_signed: 'Both your parents signed! Now it is your turn.',
   child_signed: 'You signed! Waiting for your parent.',
   complete: 'Everyone signed! The agreement is ready.',
 }
@@ -327,30 +336,46 @@ export function isSignatureValid(type: SignatureType, value: string): boolean {
 /**
  * Check if child can sign based on current signing status
  *
- * Child can only sign after parent has signed (prevents coercion).
+ * Child can only sign after parent(s) have signed (prevents coercion).
+ * In shared custody, BOTH parents must sign before child.
  */
 export function canChildSign(status: SigningStatus): boolean {
-  return status === 'parent_signed'
+  return status === 'parent_signed' || status === 'both_parents_signed'
 }
 
 /**
  * Check if parent can sign based on current signing status
  *
  * Parent can sign when status is pending (they sign first).
+ * In shared custody, first parent can sign when pending.
  */
 export function canParentSign(status: SigningStatus): boolean {
   return status === 'pending'
 }
 
 /**
+ * Check if co-parent can sign based on current signing status
+ *
+ * Co-parent can sign after first parent in shared custody situations.
+ */
+export function canCoParentSign(status: SigningStatus): boolean {
+  return status === 'one_parent_signed'
+}
+
+/**
  * Get the next signing status after a signature is added
  *
  * Enforces parent-first signing order. If child tries to sign
- * before parent, status remains unchanged (pending).
+ * before parent(s), status remains unchanged.
+ *
+ * @param currentStatus - Current signing status
+ * @param signerRole - Who is signing
+ * @param isSharedCustody - Whether this is a shared custody agreement
  */
 export function getNextSigningStatus(
   currentStatus: SigningStatus,
-  signerRole: SignerRole
+  signerRole: SignerRole,
+  isSharedCustody = false
 ): SigningStatus {
   // If already complete, stay complete
   if (currentStatus === 'complete') {
@@ -359,17 +384,36 @@ export function getNextSigningStatus(
 
   // Parent signing from pending
   if (currentStatus === 'pending' && signerRole === 'parent') {
-    return 'parent_signed'
+    // In shared custody, first parent goes to one_parent_signed
+    // In sole custody, goes directly to parent_signed
+    return isSharedCustody ? 'one_parent_signed' : 'parent_signed'
   }
 
-  // Child signing after parent - completes the agreement
-  if (currentStatus === 'parent_signed' && signerRole === 'child') {
+  // Co-parent signing in shared custody
+  if (currentStatus === 'one_parent_signed' && signerRole === 'co-parent') {
+    return 'both_parents_signed'
+  }
+
+  // Second parent (co-parent role) signing from pending in shared custody
+  // Handle case where co-parent is treated as parent role
+  if (currentStatus === 'one_parent_signed' && signerRole === 'parent') {
+    return 'both_parents_signed'
+  }
+
+  // Child signing after parent(s) - completes the agreement
+  if (
+    (currentStatus === 'parent_signed' || currentStatus === 'both_parents_signed') &&
+    signerRole === 'child'
+  ) {
     return 'complete'
   }
 
-  // Enforce parent-first: child cannot sign if pending (parent hasn't signed)
-  if (currentStatus === 'pending' && signerRole === 'child') {
-    return 'pending' // Block - parent must sign first
+  // Enforce parent-first: child cannot sign if pending or waiting for parents
+  if (
+    (currentStatus === 'pending' || currentStatus === 'one_parent_signed') &&
+    signerRole === 'child'
+  ) {
+    return currentStatus // Block - parent(s) must sign first
   }
 
   // Edge case: if somehow child signed first, parent signing completes
@@ -377,13 +421,19 @@ export function getNextSigningStatus(
     return 'complete'
   }
 
-  // co-parent doesn't change status in current implementation
   return currentStatus
 }
 
 /**
- * Check if signing is complete (both parties have signed)
+ * Check if signing is complete (all required parties have signed)
  */
 export function isSigningComplete(status: SigningStatus): boolean {
   return status === 'complete'
+}
+
+/**
+ * Check if waiting for co-parent signature in shared custody
+ */
+export function isWaitingForCoParent(status: SigningStatus): boolean {
+  return status === 'one_parent_signed'
 }

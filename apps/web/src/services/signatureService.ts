@@ -16,6 +16,7 @@ import {
   type SigningStatus,
   canChildSign,
   canParentSign,
+  canCoParentSign,
   getNextSigningStatus,
 } from '@fledgely/contracts'
 
@@ -66,6 +67,7 @@ export interface SigningStatusResult {
   /** Signatures object */
   signatures: {
     parent: AgreementSignature | null
+    coParent: AgreementSignature | null
     child: AgreementSignature | null
   }
 }
@@ -75,8 +77,17 @@ export interface SigningStatusResult {
  */
 type SignatureAuditAction =
   | 'parent_signed'
+  | 'co_parent_signed'
   | 'child_signed'
   | 'agreement_activated'
+
+/**
+ * Extended parameters for recording a signature with custody context
+ */
+export interface RecordSignatureParamsWithCustody extends RecordSignatureParams {
+  /** Whether this is a shared custody agreement */
+  isSharedCustody?: boolean
+}
 
 /**
  * Custom error for signature service operations
@@ -232,12 +243,72 @@ export async function recordChildSignature(
  * Parent typically signs first in the signing order to demonstrate
  * commitment before child signs (prevents coercion).
  *
+ * For shared custody agreements, uses different status transitions.
+ *
+ * Uses Firestore transaction for atomicity to prevent race conditions.
+ *
+ * @param params - Family ID, agreement ID, signature data, and custody context
+ * @throws SignatureServiceError if validation fails
+ */
+export async function recordParentSignature(
+  params: RecordSignatureParamsWithCustody
+): Promise<void> {
+  const { familyId, agreementId, signature, isSharedCustody = false } = params
+  const docRef = doc(db, 'families', familyId, 'agreements', agreementId)
+
+  // Use transaction for atomic read-validate-write
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(docRef)
+
+    if (!snapshot.exists()) {
+      throw new SignatureServiceError(
+        'not-found',
+        'Agreement not found'
+      )
+    }
+
+    const data = snapshot.data()
+    const currentStatus = (data?.signingStatus as SigningStatus) || 'pending'
+    const signatures = data?.signatures || { parent: null, coParent: null, child: null }
+
+    // Check if parent can sign - validated inside transaction
+    if (!canParentSign(currentStatus)) {
+      if (signatures.parent) {
+        throw new SignatureServiceError(
+          'already-signed',
+          'Parent has already signed this agreement'
+        )
+      }
+    }
+
+    // Calculate new status with shared custody consideration
+    const newStatus = getNextSigningStatus(currentStatus, 'parent', isSharedCustody)
+
+    // Update agreement with signature and status atomically
+    transaction.update(docRef, {
+      'signatures.parent': signature,
+      signingStatus: newStatus,
+    })
+  })
+
+  // Create audit log entry
+  await createAuditLogEntry(familyId, agreementId, 'parent_signed', signature)
+}
+
+/**
+ * Record a co-parent's signature on a shared custody agreement
+ *
+ * Story 6.2 Task 5: Shared custody dual signing
+ *
+ * In shared custody situations, both parents must sign before the child.
+ * Co-parent signs after the first parent has signed.
+ *
  * Uses Firestore transaction for atomicity to prevent race conditions.
  *
  * @param params - Family ID, agreement ID, and signature data
  * @throws SignatureServiceError if validation fails
  */
-export async function recordParentSignature(
+export async function recordCoParentSignature(
   params: RecordSignatureParams
 ): Promise<void> {
   const { familyId, agreementId, signature } = params
@@ -256,30 +327,40 @@ export async function recordParentSignature(
 
     const data = snapshot.data()
     const currentStatus = (data?.signingStatus as SigningStatus) || 'pending'
-    const signatures = data?.signatures || { parent: null, child: null }
+    const signatures = data?.signatures || { parent: null, coParent: null, child: null }
 
-    // Check if parent can sign - validated inside transaction
-    if (!canParentSign(currentStatus)) {
-      if (signatures.parent) {
+    // Check if co-parent can sign - validated inside transaction
+    if (!canCoParentSign(currentStatus)) {
+      if (currentStatus === 'pending') {
         throw new SignatureServiceError(
-          'already-signed',
-          'Parent has already signed this agreement'
+          'invalid-state',
+          'First parent must sign before co-parent can sign'
         )
       }
+      if (signatures.coParent) {
+        throw new SignatureServiceError(
+          'already-signed',
+          'Co-parent has already signed this agreement'
+        )
+      }
+      throw new SignatureServiceError(
+        'invalid-state',
+        'Cannot sign at this time'
+      )
     }
 
-    // Calculate new status
-    const newStatus = getNextSigningStatus(currentStatus, 'parent')
+    // Calculate new status - co-parent signing always goes to both_parents_signed
+    const newStatus = getNextSigningStatus(currentStatus, 'co-parent')
 
-    // Update agreement with signature and status atomically
+    // Update agreement with co-parent signature and status atomically
     transaction.update(docRef, {
-      'signatures.parent': signature,
+      'signatures.coParent': signature,
       signingStatus: newStatus,
     })
   })
 
   // Create audit log entry
-  await createAuditLogEntry(familyId, agreementId, 'parent_signed', signature)
+  await createAuditLogEntry(familyId, agreementId, 'co_parent_signed', signature)
 }
 
 /**
@@ -308,7 +389,7 @@ export async function getAgreementSigningStatus(
 
   return {
     signingStatus: (data?.signingStatus as SigningStatus) || 'pending',
-    signatures: data?.signatures || { parent: null, child: null },
+    signatures: data?.signatures || { parent: null, coParent: null, child: null },
   }
 }
 

@@ -7,6 +7,8 @@ import {
   type SigningStatus,
   canChildSign as checkCanChildSign,
   canParentSign as checkCanParentSign,
+  canCoParentSign as checkCanCoParentSign,
+  isWaitingForCoParent as checkIsWaitingForCoParent,
 } from '@fledgely/contracts'
 
 /**
@@ -23,15 +25,19 @@ export interface UseSigningOrderOptions {
  * Return type for the useSigningOrder hook
  */
 export interface UseSigningOrderResult {
-  /** Whether the child can currently sign (parent has signed) */
+  /** Whether the child can currently sign (parent(s) have signed) */
   canChildSign: boolean
   /** Whether the parent can currently sign (no one has signed yet) */
   canParentSign: boolean
-  /** Child-friendly message when waiting for parent */
+  /** Whether the co-parent can sign (first parent signed in shared custody) */
+  canCoParentSign: boolean
+  /** Whether waiting for co-parent in shared custody */
+  isWaitingForCoParent: boolean
+  /** Child-friendly message when waiting for parent(s) */
   waitingMessage: string | null
   /** Current signing status */
   signingStatus: SigningStatus | null
-  /** Whether signing is complete (both parties signed) */
+  /** Whether signing is complete (all required parties signed) */
   isComplete: boolean
   /** Whether data is still loading */
   loading: boolean
@@ -104,18 +110,27 @@ export function useSigningOrder({
   // Compute derived values
   const canChildSign = signingStatus ? checkCanChildSign(signingStatus) : false
   const canParentSign = signingStatus ? checkCanParentSign(signingStatus) : false
+  const canCoParentSign = signingStatus ? checkCanCoParentSign(signingStatus) : false
+  const isWaitingForCoParent = signingStatus ? checkIsWaitingForCoParent(signingStatus) : false
   const isComplete = signingStatus === 'complete'
 
-  // Generate waiting message for child (Task 6.5)
+  // Generate waiting message (Task 6.5)
   // Using child-friendly language at 6th-grade reading level (NFR65)
-  const waitingMessage =
-    signingStatus === 'pending'
-      ? "Your parent needs to sign first. This shows you that they're making the same promise you are!"
-      : null
+  let waitingMessage: string | null = null
+
+  if (signingStatus === 'pending') {
+    waitingMessage =
+      "Your parent needs to sign first. This shows you that they're making the same promise you are!"
+  } else if (signingStatus === 'one_parent_signed') {
+    waitingMessage =
+      'Waiting for the other parent to sign. Once they sign, you can sign too!'
+  }
 
   return {
     canChildSign,
     canParentSign,
+    canCoParentSign,
+    isWaitingForCoParent,
     waitingMessage,
     signingStatus,
     isComplete,

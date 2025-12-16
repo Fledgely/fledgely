@@ -982,8 +982,10 @@ export {
   // Signing Order Helper Functions
   canChildSign,
   canParentSign,
+  canCoParentSign,
   getNextSigningStatus,
   isSigningComplete,
+  isWaitingForCoParent,
   // Types
   type SignatureType,
   type SignerRole,
