@@ -5,6 +5,8 @@ import {
   getInvitation,
   revokeInvitation,
   verifyInvitationToken,
+  acceptInvitation,
+  getInvitationPreview,
 } from './invitationService'
 
 // Mock uuid
@@ -22,6 +24,7 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
   serverTimestamp: vi.fn(() => ({ _serverTimestamp: true })),
   writeBatch: vi.fn(),
+  arrayUnion: vi.fn((value) => ({ _arrayUnion: true, value })),
 }))
 
 vi.mock('@/lib/firebase', () => ({
@@ -61,6 +64,7 @@ const mockWriteBatch = vi.mocked(writeBatch)
  * Invitation Service Tests
  *
  * Story 3.1: Co-Parent Invitation Generation
+ * Story 3.3: Co-Parent Invitation Acceptance
  *
  * Tests verify:
  * - Invitation creation with proper validation
@@ -69,6 +73,9 @@ const mockWriteBatch = vi.mocked(writeBatch)
  * - Single pending invitation limit
  * - Token generation and hashing
  * - Firestore operations
+ * - Invitation acceptance flow (Story 3.3)
+ * - Self-invitation prevention (Story 3.3)
+ * - Duplicate guardian prevention (Story 3.3)
  */
 
 describe('invitationService', () => {
@@ -719,6 +726,400 @@ describe('invitationService', () => {
       expect(result.valid).toBe(false)
       expect(result.invitation).toBeNull()
       expect(result.errorCode).toBe('already-used')
+    })
+  })
+
+  // ============================================================================
+  // Story 3.3: Invitation Acceptance Tests
+  // ============================================================================
+
+  describe('acceptInvitation', () => {
+    const invitationId = 'invitation-123'
+    const token = 'test-token'
+    const acceptingUserId = 'user-new-456'
+    const inviterUserId = 'user-123'
+    const familyId = 'family-456'
+
+    const setupValidInvitationMocks = () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+
+      const futureDate = new Date(Date.now() + 86400000)
+      const expectedHash = '0'.repeat(64)
+
+      // Mock getDoc calls
+      let getDocCallCount = 0
+      mockGetDoc.mockImplementation(() => {
+        getDocCallCount++
+        if (getDocCallCount === 1) {
+          // First call: get invitation for token verification
+          return Promise.resolve({
+            exists: () => true,
+            id: invitationId,
+            data: () => ({
+              id: invitationId,
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: inviterUserId,
+              invitedByName: 'Jane Smith',
+              tokenHash: expectedHash,
+              status: 'pending',
+              createdAt: { toDate: () => new Date() },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: null,
+              acceptedBy: null,
+            }),
+          } as unknown as Awaited<ReturnType<typeof getDoc>>)
+        }
+        if (getDocCallCount === 2) {
+          // Second call: get family document
+          return Promise.resolve({
+            exists: () => true,
+            data: () => ({
+              id: familyId,
+              guardians: [
+                { uid: inviterUserId, role: 'primary', permissions: 'full' },
+              ],
+            }),
+          } as unknown as Awaited<ReturnType<typeof getDoc>>)
+        }
+        return Promise.resolve({
+          exists: () => false,
+        } as unknown as Awaited<ReturnType<typeof getDoc>>)
+      })
+
+      // Mock children query
+      mockGetDocs.mockResolvedValue({
+        docs: [
+          { id: 'child-1' },
+          { id: 'child-2' },
+        ],
+        length: 2,
+      } as unknown as ReturnType<typeof getDocs>)
+    }
+
+    it('accepts invitation successfully and adds user to family', async () => {
+      setupValidInvitationMocks()
+
+      const result = await acceptInvitation(invitationId, token, acceptingUserId)
+
+      expect(result.success).toBe(true)
+      expect(result.familyId).toBe(familyId)
+      expect(result.familyName).toBe('Smith Family')
+      expect(result.childrenCount).toBe(2)
+      expect(result.errorCode).toBeUndefined()
+
+      // Verify batch operations were called
+      expect(mockBatch.update).toHaveBeenCalled()
+      expect(mockBatch.set).toHaveBeenCalled()
+      expect(mockBatch.commit).toHaveBeenCalled()
+    })
+
+    it('returns self-invitation error when user is the inviter', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+      const expectedHash = '0'.repeat(64)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId,
+          familyName: 'Smith Family',
+          invitedBy: inviterUserId, // Same as accepting user
+          invitedByName: 'Jane Smith',
+          tokenHash: expectedHash,
+          status: 'pending',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      // User trying to accept their own invitation
+      const result = await acceptInvitation(invitationId, token, inviterUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('self-invitation')
+    })
+
+    it('returns already-guardian error when user is already in the family', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+      const expectedHash = '0'.repeat(64)
+
+      let getDocCallCount = 0
+      mockGetDoc.mockImplementation(() => {
+        getDocCallCount++
+        if (getDocCallCount === 1) {
+          // Get invitation
+          return Promise.resolve({
+            exists: () => true,
+            id: invitationId,
+            data: () => ({
+              id: invitationId,
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: inviterUserId,
+              invitedByName: 'Jane Smith',
+              tokenHash: expectedHash,
+              status: 'pending',
+              createdAt: { toDate: () => new Date() },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: null,
+              acceptedBy: null,
+            }),
+          } as unknown as Awaited<ReturnType<typeof getDoc>>)
+        }
+        // Get family - user already a guardian
+        return Promise.resolve({
+          exists: () => true,
+          data: () => ({
+            guardians: [
+              { uid: inviterUserId, role: 'primary', permissions: 'full' },
+              { uid: acceptingUserId, role: 'co-parent', permissions: 'full' }, // Already there
+            ],
+          }),
+        } as unknown as Awaited<ReturnType<typeof getDoc>>)
+      })
+
+      const result = await acceptInvitation(invitationId, token, acceptingUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('already-guardian')
+    })
+
+    it('returns token-invalid error when token does not match', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+      const differentHash = '1'.repeat(64) // Different from what our mock generates
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId,
+          familyName: 'Smith Family',
+          invitedBy: inviterUserId,
+          invitedByName: 'Jane Smith',
+          tokenHash: differentHash, // Won't match
+          status: 'pending',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await acceptInvitation(invitationId, token, acceptingUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('token-invalid')
+    })
+
+    it('returns invitation-expired error when invitation is expired', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const pastDate = new Date(Date.now() - 86400000) // Yesterday
+      const expectedHash = '0'.repeat(64)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId,
+          familyName: 'Smith Family',
+          invitedBy: inviterUserId,
+          invitedByName: 'Jane Smith',
+          tokenHash: expectedHash,
+          status: 'pending',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => pastDate }, // Expired
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await acceptInvitation(invitationId, token, acceptingUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('invitation-expired')
+    })
+
+    it('returns invitation-not-found error when invitation does not exist', async () => {
+      mockDoc.mockReturnValue({ id: 'non-existent' } as ReturnType<typeof doc>)
+      mockGetDoc.mockResolvedValue({
+        exists: () => false,
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await acceptInvitation('non-existent', token, acceptingUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('invitation-not-found')
+    })
+
+    it('returns invitation-revoked error when invitation is revoked', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+      const expectedHash = '0'.repeat(64)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId,
+          familyName: 'Smith Family',
+          invitedBy: inviterUserId,
+          invitedByName: 'Jane Smith',
+          tokenHash: expectedHash,
+          status: 'revoked', // Revoked
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await acceptInvitation(invitationId, token, acceptingUserId)
+
+      expect(result.success).toBe(false)
+      expect(result.errorCode).toBe('invitation-revoked')
+    })
+  })
+
+  describe('getInvitationPreview', () => {
+    const invitationId = 'invitation-123'
+
+    it('returns preview for valid pending invitation', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId: 'family-456',
+          familyName: 'Smith Family',
+          invitedBy: 'user-123',
+          invitedByName: 'Jane Smith',
+          tokenHash: 'hash-123',
+          status: 'pending',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await getInvitationPreview(invitationId)
+
+      expect(result).not.toBeNull()
+      expect(result?.familyName).toBe('Smith Family')
+      expect(result?.invitedByName).toBe('Jane Smith')
+      expect(result?.status).toBe('pending')
+      expect(result?.isExpired).toBe(false)
+    })
+
+    it('returns expired status for past date even with pending status', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const pastDate = new Date(Date.now() - 86400000) // Yesterday
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId: 'family-456',
+          familyName: 'Smith Family',
+          invitedBy: 'user-123',
+          invitedByName: 'Jane Smith',
+          tokenHash: 'hash-123',
+          status: 'pending', // Still pending in DB
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => pastDate }, // But expired
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await getInvitationPreview(invitationId)
+
+      expect(result?.status).toBe('expired')
+      expect(result?.isExpired).toBe(true)
+    })
+
+    it('returns null when invitation not found', async () => {
+      mockDoc.mockReturnValue({ id: 'non-existent' } as ReturnType<typeof doc>)
+      mockGetDoc.mockResolvedValue({
+        exists: () => false,
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await getInvitationPreview('non-existent')
+
+      expect(result).toBeNull()
+    })
+
+    it('returns accepted status for accepted invitation', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId: 'family-456',
+          familyName: 'Smith Family',
+          invitedBy: 'user-123',
+          invitedByName: 'Jane Smith',
+          tokenHash: 'hash-123',
+          status: 'accepted',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: { toDate: () => new Date() },
+          acceptedBy: 'user-456',
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await getInvitationPreview(invitationId)
+
+      expect(result?.status).toBe('accepted')
+      expect(result?.isExpired).toBe(false)
+    })
+
+    it('returns revoked status for revoked invitation', async () => {
+      mockDoc.mockReturnValue({ id: invitationId } as ReturnType<typeof doc>)
+      const futureDate = new Date(Date.now() + 86400000)
+
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        id: invitationId,
+        data: () => ({
+          id: invitationId,
+          familyId: 'family-456',
+          familyName: 'Smith Family',
+          invitedBy: 'user-123',
+          invitedByName: 'Jane Smith',
+          tokenHash: 'hash-123',
+          status: 'revoked',
+          createdAt: { toDate: () => new Date() },
+          expiresAt: { toDate: () => futureDate },
+          acceptedAt: null,
+          acceptedBy: null,
+        }),
+      } as unknown as Awaited<ReturnType<typeof getDoc>>)
+
+      const result = await getInvitationPreview(invitationId)
+
+      expect(result?.status).toBe('revoked')
+      expect(result?.isExpired).toBe(false)
     })
   })
 })

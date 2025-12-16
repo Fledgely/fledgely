@@ -9,6 +9,7 @@ import {
   where,
   serverTimestamp,
   writeBatch,
+  arrayUnion,
   type Timestamp,
 } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
@@ -24,6 +25,7 @@ import {
   type Invitation,
   type CreateInvitationInput,
   type InvitationFirestore,
+  type AcceptInvitationResult,
 } from '@fledgely/contracts'
 
 /**
@@ -890,6 +892,223 @@ export async function getInvitationEmailInfo(
     }
   } catch (error) {
     console.error('[invitationService.getInvitationEmailInfo]', error)
+    return null
+  }
+}
+
+// ============================================================================
+// Story 3.3: Co-Parent Invitation Acceptance
+// ============================================================================
+
+/**
+ * Accept a co-parent invitation and join a family
+ *
+ * Story 3.3: Co-Parent Invitation Acceptance
+ *
+ * This function performs the following atomic operations:
+ * 1. Verify token matches stored hash (timing-safe comparison)
+ * 2. Validate invitation is pending and not expired
+ * 3. Check user is not the inviter (self-invitation prevention)
+ * 4. Check user is not already a guardian in the family
+ * 5. Add user to family's guardians array as co-parent with full permissions
+ * 6. Add user to all children's guardians array with full permissions
+ * 7. Update invitation status to 'accepted' with acceptedAt and acceptedBy
+ * 8. Create audit log entry for the acceptance
+ *
+ * Security:
+ * - Token verification uses timing-safe comparison
+ * - All updates are atomic via Firestore batch
+ * - User must be authenticated (userId required)
+ *
+ * @param invitationId - Invitation document ID
+ * @param token - Invitation token to verify
+ * @param userId - ID of the user accepting the invitation
+ * @returns AcceptInvitationResult with success status and family details or error
+ */
+export async function acceptInvitation(
+  invitationId: string,
+  token: string,
+  userId: string
+): Promise<AcceptInvitationResult> {
+  try {
+    // 1. Verify the token
+    const verifyResult = await verifyInvitationToken(invitationId, token)
+
+    if (!verifyResult.valid || !verifyResult.invitation) {
+      // Map error codes to acceptance error codes
+      const errorCodeMap: Record<string, AcceptInvitationResult['errorCode']> = {
+        'not-found': 'invitation-not-found',
+        'expired': 'invitation-expired',
+        'already-used': 'invitation-revoked', // Revoked or accepted
+        'invalid-token': 'token-invalid',
+      }
+      return {
+        success: false,
+        errorCode: errorCodeMap[verifyResult.errorCode || 'not-found'] || 'invitation-not-found',
+      }
+    }
+
+    const invitation = verifyResult.invitation
+
+    // 2. Check for self-invitation
+    if (invitation.invitedBy === userId) {
+      return { success: false, errorCode: 'self-invitation' }
+    }
+
+    // 3. Get family document to check if user is already a guardian
+    const familyRef = doc(db, FAMILIES_COLLECTION, invitation.familyId)
+    const familySnapshot = await getDoc(familyRef)
+
+    if (!familySnapshot.exists()) {
+      return { success: false, errorCode: 'invitation-not-found' }
+    }
+
+    const familyData = familySnapshot.data()
+    const guardians = familyData.guardians as Array<{
+      uid: string
+      role: string
+      permissions: string
+    }>
+
+    // 4. Check if user is already a guardian
+    const existingGuardian = guardians?.find((g) => g.uid === userId)
+    if (existingGuardian) {
+      return { success: false, errorCode: 'already-guardian' }
+    }
+
+    // 5. Get all children in this family for guardian addition
+    const childrenQuery = query(
+      collection(db, CHILDREN_COLLECTION),
+      where('familyId', '==', invitation.familyId)
+    )
+    const childrenSnapshot = await getDocs(childrenQuery)
+    const childrenCount = childrenSnapshot.docs.length
+
+    // 6. Prepare the new guardian entry for family
+    const newFamilyGuardian = {
+      uid: userId,
+      role: 'co-parent',
+      permissions: 'full',
+      joinedAt: serverTimestamp(),
+    }
+
+    // 7. Prepare the new guardian entry for children
+    const newChildGuardian = {
+      uid: userId,
+      permissions: 'full',
+      grantedAt: serverTimestamp(),
+    }
+
+    // 8. Execute atomic batch operation
+    const batch = writeBatch(db)
+
+    // 8a. Update invitation status to 'accepted'
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, invitationId)
+    batch.update(invitationRef, {
+      status: 'accepted',
+      acceptedAt: serverTimestamp(),
+      acceptedBy: userId,
+    })
+
+    // 8b. Add user to family guardians array
+    batch.update(familyRef, {
+      guardians: arrayUnion(newFamilyGuardian),
+    })
+
+    // 8c. Add user to each child's guardians array
+    childrenSnapshot.docs.forEach((childDoc) => {
+      const childRef = doc(db, CHILDREN_COLLECTION, childDoc.id)
+      batch.update(childRef, {
+        guardians: arrayUnion(newChildGuardian),
+      })
+    })
+
+    // 8d. Create audit log entry
+    const auditRef = doc(
+      collection(
+        db,
+        FAMILIES_COLLECTION,
+        invitation.familyId,
+        AUDIT_LOG_SUBCOLLECTION
+      )
+    )
+    batch.set(auditRef, {
+      id: auditRef.id,
+      action: 'guardian_joined',
+      entityType: 'family',
+      entityId: invitation.familyId,
+      performedBy: userId,
+      performedAt: serverTimestamp(),
+      metadata: {
+        invitationId,
+        joinedAs: 'co-parent',
+        childrenCount,
+        invitedBy: invitation.invitedBy,
+      },
+    })
+
+    // 9. Commit the batch
+    await batch.commit()
+
+    // 10. Return success result
+    return {
+      success: true,
+      familyId: invitation.familyId,
+      familyName: invitation.familyName,
+      childrenCount,
+    }
+  } catch (error) {
+    console.error('[invitationService.acceptInvitation]', error)
+    return { success: false, errorCode: 'acceptance-failed' }
+  }
+}
+
+/**
+ * Get invitation details for the join page (without requiring token verification)
+ *
+ * This function returns limited invitation details for display purposes.
+ * It does NOT verify the token - that's done during acceptance.
+ *
+ * Returns:
+ * - Family name for display
+ * - Inviter name for display
+ * - Status to show appropriate messaging
+ * - Expiry information
+ *
+ * @param invitationId - Invitation document ID
+ * @returns Invitation preview or null if not found
+ */
+export async function getInvitationPreview(
+  invitationId: string
+): Promise<{
+  familyName: string
+  invitedByName: string
+  status: 'pending' | 'expired' | 'accepted' | 'revoked'
+  expiresAt: Date
+  isExpired: boolean
+} | null> {
+  try {
+    const invitation = await getInvitation(invitationId)
+
+    if (!invitation) {
+      return null
+    }
+
+    const isExpired =
+      invitation.status === 'expired' || new Date() > invitation.expiresAt
+
+    // Determine effective status
+    const status = isExpired && invitation.status === 'pending' ? 'expired' : invitation.status
+
+    return {
+      familyName: invitation.familyName,
+      invitedByName: invitation.invitedByName,
+      status,
+      expiresAt: invitation.expiresAt,
+      isExpired,
+    }
+  } catch (error) {
+    console.error('[invitationService.getInvitationPreview]', error)
     return null
   }
 }

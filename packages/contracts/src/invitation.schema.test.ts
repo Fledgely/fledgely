@@ -9,6 +9,9 @@ import {
   // Story 3.2: Email schemas
   invitationWithEmailSchema,
   sendInvitationEmailInputSchema,
+  // Story 3.3: Acceptance schemas
+  acceptInvitationInputSchema,
+  acceptInvitationResultSchema,
   // Helper functions
   getInvitationErrorMessage,
   isInvitationExpired,
@@ -26,6 +29,10 @@ import {
   getEmailErrorMessage,
   maskEmail,
   isEmailRateLimited,
+  // Story 3.3: Acceptance helper functions
+  getAcceptanceErrorMessage,
+  validateAcceptInvitationInput,
+  safeParseAcceptInvitationInput,
   // Classes
   InvitationError,
   // Constants
@@ -33,6 +40,8 @@ import {
   // Story 3.2: Email constants
   EMAIL_ERROR_MESSAGES,
   MAX_EMAILS_PER_HOUR,
+  // Story 3.3: Acceptance constants
+  ACCEPTANCE_ERROR_MESSAGES,
   // Types
   type Invitation,
   type InvitationFirestore,
@@ -40,6 +49,9 @@ import {
   // Story 3.2: Email types
   type InvitationWithEmail,
   type SendInvitationEmailInput,
+  // Story 3.3: Acceptance types
+  type AcceptInvitationInput,
+  type AcceptInvitationResult,
 } from './invitation.schema'
 
 /**
@@ -47,6 +59,7 @@ import {
  *
  * Story 3.1: Co-Parent Invitation Generation
  * Story 3.2: Invitation Delivery (Email tracking)
+ * Story 3.3: Co-Parent Invitation Acceptance
  *
  * Tests verify:
  * - Schema validation for invitation status and expiry options
@@ -56,6 +69,7 @@ import {
  * - Firestore conversion functions
  * - Helper functions for invitation state checks
  * - Email masking and rate limiting (Story 3.2)
+ * - Acceptance input validation and error messages (Story 3.3)
  */
 
 describe('invitation.schema', () => {
@@ -986,6 +1000,213 @@ describe('invitation.schema', () => {
 
       // Should NOT be rate limited (past hour, counter should reset)
       expect(isEmailRateLimited(3, sixtyOneMinutesAgo)).toBe(false)
+    })
+  })
+
+  // ============================================================================
+  // Story 3.3: Accept Invitation Input Schema Tests
+  // ============================================================================
+
+  describe('acceptInvitationInputSchema', () => {
+    it('should accept valid acceptance input', () => {
+      const input: AcceptInvitationInput = {
+        invitationId: 'inv-123',
+        token: 'abc123token',
+      }
+
+      const result = acceptInvitationInputSchema.parse(input)
+      expect(result.invitationId).toBe('inv-123')
+      expect(result.token).toBe('abc123token')
+    })
+
+    it('should reject empty invitationId', () => {
+      expect(() =>
+        acceptInvitationInputSchema.parse({ invitationId: '', token: 'abc123' })
+      ).toThrow()
+    })
+
+    it('should reject empty token', () => {
+      expect(() =>
+        acceptInvitationInputSchema.parse({ invitationId: 'inv-123', token: '' })
+      ).toThrow()
+    })
+
+    it('should reject missing invitationId', () => {
+      expect(() => acceptInvitationInputSchema.parse({ token: 'abc123' })).toThrow()
+    })
+
+    it('should reject missing token', () => {
+      expect(() => acceptInvitationInputSchema.parse({ invitationId: 'inv-123' })).toThrow()
+    })
+  })
+
+  // ============================================================================
+  // Story 3.3: Accept Invitation Result Schema Tests
+  // ============================================================================
+
+  describe('acceptInvitationResultSchema', () => {
+    it('should accept successful result with family details', () => {
+      const result: AcceptInvitationResult = {
+        success: true,
+        familyId: 'family-456',
+        familyName: 'Smith Family',
+        childrenCount: 2,
+      }
+
+      const parsed = acceptInvitationResultSchema.parse(result)
+      expect(parsed.success).toBe(true)
+      expect(parsed.familyId).toBe('family-456')
+      expect(parsed.familyName).toBe('Smith Family')
+      expect(parsed.childrenCount).toBe(2)
+      expect(parsed.errorCode).toBeUndefined()
+    })
+
+    it('should accept failure result with error code', () => {
+      const result: AcceptInvitationResult = {
+        success: false,
+        errorCode: 'self-invitation',
+      }
+
+      const parsed = acceptInvitationResultSchema.parse(result)
+      expect(parsed.success).toBe(false)
+      expect(parsed.errorCode).toBe('self-invitation')
+      expect(parsed.familyId).toBeUndefined()
+    })
+
+    it('should accept all valid error codes', () => {
+      const validErrorCodes = [
+        'self-invitation',
+        'already-guardian',
+        'token-invalid',
+        'invitation-expired',
+        'invitation-not-found',
+        'invitation-revoked',
+        'acceptance-failed',
+      ]
+
+      validErrorCodes.forEach((errorCode) => {
+        const result = acceptInvitationResultSchema.parse({
+          success: false,
+          errorCode,
+        })
+        expect(result.errorCode).toBe(errorCode)
+      })
+    })
+
+    it('should reject invalid error codes', () => {
+      expect(() =>
+        acceptInvitationResultSchema.parse({
+          success: false,
+          errorCode: 'invalid-error-code',
+        })
+      ).toThrow()
+    })
+
+    it('should reject negative childrenCount', () => {
+      expect(() =>
+        acceptInvitationResultSchema.parse({
+          success: true,
+          familyId: 'family-123',
+          childrenCount: -1,
+        })
+      ).toThrow()
+    })
+
+    it('should reject non-integer childrenCount', () => {
+      expect(() =>
+        acceptInvitationResultSchema.parse({
+          success: true,
+          familyId: 'family-123',
+          childrenCount: 1.5,
+        })
+      ).toThrow()
+    })
+  })
+
+  // ============================================================================
+  // Story 3.3: Acceptance Error Message Tests
+  // ============================================================================
+
+  describe('getAcceptanceErrorMessage', () => {
+    it('should return correct message for known acceptance error codes', () => {
+      expect(getAcceptanceErrorMessage('self-invitation')).toBe(
+        "You can't join your own family. Share this link with your co-parent instead."
+      )
+      expect(getAcceptanceErrorMessage('already-guardian')).toBe(
+        "You're already a member of this family."
+      )
+      expect(getAcceptanceErrorMessage('token-invalid')).toBe(
+        'This invitation link is not valid.'
+      )
+      expect(getAcceptanceErrorMessage('invitation-expired')).toBe(
+        'This invitation has expired. Please ask the person who invited you to send a new one.'
+      )
+      expect(getAcceptanceErrorMessage('invitation-not-found')).toBe(
+        'This invitation no longer exists.'
+      )
+      expect(getAcceptanceErrorMessage('invitation-revoked')).toBe(
+        'This invitation was canceled.'
+      )
+      expect(getAcceptanceErrorMessage('acceptance-failed')).toBe(
+        'Could not join the family. Please try again.'
+      )
+    })
+
+    it('should return default message for unknown error codes', () => {
+      expect(getAcceptanceErrorMessage('unknown-code')).toBe(
+        'Something went wrong. Please try again.'
+      )
+      expect(getAcceptanceErrorMessage('')).toBe('Something went wrong. Please try again.')
+    })
+
+    it('acceptance error messages should be at 6th-grade reading level', () => {
+      Object.values(ACCEPTANCE_ERROR_MESSAGES).forEach((message) => {
+        // Messages should be short (less than 100 characters)
+        expect(message.length).toBeLessThan(100)
+        // Messages should not contain technical jargon
+        expect(message).not.toMatch(/unauthorized|forbidden|exception|null|undefined/)
+        // Messages should end with proper punctuation
+        expect(message).toMatch(/[.!?]$/)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 3.3: Acceptance Validation Helper Tests
+  // ============================================================================
+
+  describe('validateAcceptInvitationInput', () => {
+    it('should return validated input for valid data', () => {
+      const input = { invitationId: 'inv-123', token: 'token-abc' }
+
+      const result = validateAcceptInvitationInput(input)
+      expect(result.invitationId).toBe('inv-123')
+      expect(result.token).toBe('token-abc')
+    })
+
+    it('should throw for invalid data', () => {
+      expect(() => validateAcceptInvitationInput({ invitationId: '', token: '' })).toThrow()
+      expect(() => validateAcceptInvitationInput({ invitationId: 'inv-123' })).toThrow()
+      expect(() => validateAcceptInvitationInput({})).toThrow()
+    })
+  })
+
+  describe('safeParseAcceptInvitationInput', () => {
+    it('should return parsed input for valid data', () => {
+      const input = { invitationId: 'inv-123', token: 'token-abc' }
+
+      const result = safeParseAcceptInvitationInput(input)
+      expect(result).not.toBeNull()
+      expect(result?.invitationId).toBe('inv-123')
+      expect(result?.token).toBe('token-abc')
+    })
+
+    it('should return null for invalid data', () => {
+      expect(safeParseAcceptInvitationInput({ invitationId: '' })).toBeNull()
+      expect(safeParseAcceptInvitationInput({ token: '' })).toBeNull()
+      expect(safeParseAcceptInvitationInput({})).toBeNull()
+      expect(safeParseAcceptInvitationInput(null)).toBeNull()
+      expect(safeParseAcceptInvitationInput('invalid')).toBeNull()
     })
   })
 })

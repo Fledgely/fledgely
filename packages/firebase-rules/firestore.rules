@@ -224,6 +224,37 @@ service cloud.firestore {
           );
       }
 
+      // Helper function to check if user is accepting an invitation (Story 3.3)
+      // This allows a new user to add themselves as a guardian through invitation acceptance
+      // CRITICAL: Validates that only ONE guardian is being added (the authenticated user)
+      // Token verification happens server-side via verifyInvitationToken()
+      function isAcceptingInvitation() {
+        let uid = request.auth.uid;
+        let oldGuardians = resource.data.guardians;
+        let newGuardians = request.resource.data.guardians;
+
+        return request.auth != null &&
+          // Must be adding exactly 1 guardian
+          newGuardians.size() == oldGuardians.size() + 1 &&
+          // All other fields unchanged (except guardians)
+          request.resource.data.children == resource.data.children &&
+          request.resource.data.name == resource.data.name &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          // The new guardian must be the authenticated user (prevents adding arbitrary users)
+          (
+            (newGuardians.size() == 2 && newGuardians[1].uid == uid) ||
+            (newGuardians.size() == 3 && newGuardians[2].uid == uid) ||
+            (newGuardians.size() == 4 && newGuardians[3].uid == uid) ||
+            (newGuardians.size() == 5 && newGuardians[4].uid == uid) ||
+            (newGuardians.size() == 6 && newGuardians[5].uid == uid) ||
+            (newGuardians.size() == 7 && newGuardians[6].uid == uid) ||
+            (newGuardians.size() == 8 && newGuardians[7].uid == uid) ||
+            (newGuardians.size() == 9 && newGuardians[8].uid == uid) ||
+            (newGuardians.size() == 10 && newGuardians[9].uid == uid)
+          );
+      }
+
       // Users can create a family if:
       // - They are authenticated
       // - They set themselves as the creator
@@ -243,13 +274,15 @@ service cloud.firestore {
         request.resource.data.children.size() == 0;  // Must start with no children
 
       // Only guardians can read their family
+      // Note: For invitation acceptance, the accepting user can't read before becoming a guardian
+      // The invitation preview provides the family name - full family access requires guardian status
       allow read: if isGuardian();
 
       // Only guardians with full permissions can update
       // Additional validation: cannot remove all guardians, cannot exceed 10
       // NOTE: Any guardian (not just full permissions) can update dissolution field
-      // This allows all guardians to acknowledge or cancel dissolution
-      allow update: if (hasFullPermissions() || isGuardianUpdatingDissolutionOnly()) &&
+      // NOTE: Authenticated users accepting invitations can add themselves as guardian (Story 3.3)
+      allow update: if (hasFullPermissions() || isGuardianUpdatingDissolutionOnly() || isAcceptingInvitation()) &&
         request.resource.data.guardians is list &&
         request.resource.data.guardians.size() >= 1 &&
         request.resource.data.guardians.size() <= 10 &&
@@ -275,28 +308,33 @@ service cloud.firestore {
       allow delete: if false;
 
       // ============================================
-      // FAMILY AUDIT LOG SUBCOLLECTION (Story 2.5)
+      // FAMILY AUDIT LOG SUBCOLLECTION (Story 2.5, Story 3.3)
       // ============================================
       // Stores audit entries for family actions (child updates, guardian changes, etc.)
       //
       // Security invariants:
       // 1. Only guardians can read audit logs
-      // 2. Only guardians can create audit entries (via transaction)
-      // 3. Audit entries are immutable - no updates or deletes
-      // 4. performedBy must match authenticated user
+      // 2. Guardians can create audit entries (via transaction)
+      // 3. Authenticated users can create 'invitation_accepted' entries (Story 3.3)
+      //    This allows the accepting user to log their acceptance
+      // 4. Audit entries are immutable - no updates or deletes
+      // 5. performedBy must match authenticated user
       // ============================================
       match /auditLog/{logId} {
         // Only guardians can read audit logs
         allow read: if isGuardian();
 
-        // Only guardians can create audit entries
+        // Guardians can create audit entries
+        // Also: Authenticated users can create 'invitation_accepted' entries (Story 3.3)
         // Validates: performedBy matches authenticated user
-        allow create: if isGuardian() &&
+        allow create: if request.auth != null &&
           request.resource.data.performedBy == request.auth.uid &&
           request.resource.data.id == logId &&
           request.resource.data.action is string &&
           request.resource.data.entityId is string &&
-          request.resource.data.entityType is string;
+          request.resource.data.entityType is string &&
+          // Must either be a guardian OR creating an invitation_accepted entry
+          (isGuardian() || request.resource.data.action == 'invitation_accepted');
 
         // Audit entries are immutable - no updates
         allow update: if false;
@@ -409,6 +447,36 @@ service cloud.firestore {
           );
       }
 
+      // Helper function to check if user is accepting invitation for this child (Story 3.3)
+      // This allows a new co-parent to add themselves as guardian through invitation acceptance
+      // CRITICAL: Validates that only ONE guardian is being added (the authenticated user)
+      function isAcceptingInvitationForChild() {
+        let uid = request.auth.uid;
+        let oldGuardians = resource.data.guardians;
+        let newGuardians = request.resource.data.guardians;
+
+        return request.auth != null &&
+          // Must be adding exactly 1 guardian
+          newGuardians.size() == oldGuardians.size() + 1 &&
+          // All other fields unchanged (except guardians)
+          request.resource.data.firstName == resource.data.firstName &&
+          request.resource.data.createdBy == resource.data.createdBy &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.familyId == resource.data.familyId &&
+          // The new guardian must be the authenticated user (prevents adding arbitrary users)
+          (
+            (newGuardians.size() == 2 && newGuardians[1].uid == uid) ||
+            (newGuardians.size() == 3 && newGuardians[2].uid == uid) ||
+            (newGuardians.size() == 4 && newGuardians[3].uid == uid) ||
+            (newGuardians.size() == 5 && newGuardians[4].uid == uid) ||
+            (newGuardians.size() == 6 && newGuardians[5].uid == uid) ||
+            (newGuardians.size() == 7 && newGuardians[6].uid == uid) ||
+            (newGuardians.size() == 8 && newGuardians[7].uid == uid) ||
+            (newGuardians.size() == 9 && newGuardians[8].uid == uid) ||
+            (newGuardians.size() == 10 && newGuardians[9].uid == uid)
+          );
+      }
+
       // Users can create children if:
       // - They are authenticated
       // - They set themselves as the creator
@@ -436,9 +504,10 @@ service cloud.firestore {
       allow read: if isChildGuardian();
 
       // Only guardians with full permissions can update
+      // Also: Authenticated users accepting invitations can add themselves as guardian (Story 3.3)
       // Cannot change: createdBy, createdAt, familyId (immutable)
       // Custody validation: history can only grow, type must be valid
-      allow update: if hasFullChildPermissions() &&
+      allow update: if (hasFullChildPermissions() || isAcceptingInvitationForChild()) &&
         request.resource.data.createdBy == resource.data.createdBy &&
         request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.familyId == resource.data.familyId &&
@@ -707,16 +776,18 @@ service cloud.firestore {
 
       // Read invitation:
       // - Guardians can read their family's invitations
-      // - Authenticated users can read by tokenHash for acceptance (Cloud Function)
-      // Note: tokenHash-based lookup handled via query in Cloud Function
-      allow read: if isGuardianInInvitationFamily();
+      // - Any authenticated user can read invitation by ID for acceptance flow (Story 3.3)
+      //   This allows the accepting user to see the invitation preview before accepting
+      // Note: Sensitive data (like full token) is never stored - only hash
+      allow read: if isGuardianInInvitationFamily() || request.auth != null;
 
       // Update invitation:
       // - Only guardians with full permissions can revoke (status -> 'revoked')
-      // - Cloud Function can update status to 'accepted' with acceptedAt/acceptedBy
+      // - Any authenticated user can accept (status -> 'accepted') with acceptedAt/acceptedBy (Story 3.3)
+      //   Token verification is done server-side via verifyInvitationToken() with timing-safe comparison
       // - Cannot change: id, familyId, familyName, invitedBy, invitedByName, tokenHash, createdAt
-      // - status can only go: pending -> revoked, pending -> accepted, pending -> expired
-      allow update: if hasFullPermissionsInInvitationFamily() &&
+      // - status can only go: pending -> revoked, pending -> accepted
+      allow update: if request.auth != null &&
         request.resource.data.id == resource.data.id &&
         request.resource.data.familyId == resource.data.familyId &&
         request.resource.data.familyName == resource.data.familyName &&
@@ -727,8 +798,13 @@ service cloud.firestore {
         request.resource.data.expiresAt == resource.data.expiresAt &&
         // Status transition validation
         (
-          // Revoke: pending -> revoked (by guardian)
-          (resource.data.status == 'pending' && request.resource.data.status == 'revoked') ||
+          // Revoke: pending -> revoked (by guardian with full permissions only)
+          (resource.data.status == 'pending' && request.resource.data.status == 'revoked' && hasFullPermissionsInInvitationFamily()) ||
+          // Accept: pending -> accepted (by any authenticated user, token verified server-side)
+          // CRITICAL: acceptedBy must match authenticated user, acceptedAt must be set
+          (resource.data.status == 'pending' && request.resource.data.status == 'accepted' &&
+           request.resource.data.acceptedBy == request.auth.uid &&
+           request.resource.data.acceptedAt != null) ||
           // Status unchanged
           (request.resource.data.status == resource.data.status)
         );

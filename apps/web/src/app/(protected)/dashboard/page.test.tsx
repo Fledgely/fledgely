@@ -11,10 +11,12 @@ vi.mock('@/lib/firebase', () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn()
+const mockSearchParams = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  useSearchParams: () => mockSearchParams,
 }))
 
 // Mock AuthProvider

@@ -352,3 +352,93 @@ export function isEmailRateLimited(
 
   return emailSendCount >= MAX_EMAILS_PER_HOUR
 }
+
+// ============================================================================
+// Story 3.3: Invitation Acceptance
+// ============================================================================
+
+/**
+ * Input schema for accepting an invitation
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export const acceptInvitationInputSchema = z.object({
+  /** Invitation document ID */
+  invitationId: z.string().min(1, 'Invitation ID is required'),
+  /** Invitation token for verification */
+  token: z.string().min(1, 'Token is required'),
+})
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationInputSchema>
+
+/**
+ * Result schema for invitation acceptance
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export const acceptInvitationResultSchema = z.object({
+  /** Whether acceptance was successful */
+  success: z.boolean(),
+  /** Error code if failed */
+  errorCode: z
+    .enum([
+      'self-invitation',
+      'already-guardian',
+      'token-invalid',
+      'invitation-expired',
+      'invitation-not-found',
+      'invitation-revoked',
+      'acceptance-failed',
+    ])
+    .optional(),
+  /** Family ID if successful */
+  familyId: z.string().optional(),
+  /** Family name if successful */
+  familyName: z.string().optional(),
+  /** Number of children in family if successful */
+  childrenCount: z.number().int().nonnegative().optional(),
+})
+
+export type AcceptInvitationResult = z.infer<typeof acceptInvitationResultSchema>
+
+/**
+ * Acceptance-related error messages at 6th-grade reading level (NFR65)
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export const ACCEPTANCE_ERROR_MESSAGES: Record<string, string> = {
+  'self-invitation':
+    "You can't join your own family. Share this link with your co-parent instead.",
+  'already-guardian': "You're already a member of this family.",
+  'token-invalid': 'This invitation link is not valid.',
+  'invitation-expired':
+    'This invitation has expired. Please ask the person who invited you to send a new one.',
+  'invitation-not-found': 'This invitation no longer exists.',
+  'invitation-revoked': 'This invitation was canceled.',
+  'acceptance-failed': 'Could not join the family. Please try again.',
+  default: 'Something went wrong. Please try again.',
+}
+
+/**
+ * Get acceptance error message by code at 6th-grade reading level
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export function getAcceptanceErrorMessage(code: string): string {
+  return ACCEPTANCE_ERROR_MESSAGES[code] || ACCEPTANCE_ERROR_MESSAGES.default
+}
+
+/**
+ * Validate AcceptInvitationInput and return typed result
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export function validateAcceptInvitationInput(input: unknown): AcceptInvitationInput {
+  return acceptInvitationInputSchema.parse(input)
+}
+
+/**
+ * Safely parse accept invitation input, returning null if invalid
+ * Story 3.3: Co-Parent Invitation Acceptance
+ */
+export function safeParseAcceptInvitationInput(
+  data: unknown
+): AcceptInvitationInput | null {
+  const result = acceptInvitationInputSchema.safeParse(data)
+  return result.success ? result.data : null
+}

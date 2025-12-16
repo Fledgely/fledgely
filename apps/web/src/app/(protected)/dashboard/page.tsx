@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
@@ -12,7 +12,7 @@ import { RemoveChildConfirmDialog } from '@/components/child/RemoveChildConfirmD
 import { InvitationDialog } from '@/components/invitation'
 import { calculateAge } from '@fledgely/contracts'
 import type { ChildProfile } from '@fledgely/contracts'
-import { Trash2, UserPlus } from 'lucide-react'
+import { Trash2, UserPlus, CheckCircle2, X } from 'lucide-react'
 
 /**
  * Dashboard Page - Main landing page after onboarding
@@ -31,6 +31,7 @@ import { Trash2, UserPlus } from 'lucide-react'
  */
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuthContext()
   const { userProfile, loading: userLoading } = useUser()
   const { family, hasFamily, loading: familyLoading } = useFamily()
@@ -41,6 +42,34 @@ export default function DashboardPage() {
 
   // State for invitation dialog (Story 3.1)
   const [invitationDialogOpen, setInvitationDialogOpen] = useState(false)
+
+  // State for welcome banner (Story 3.3: Co-Parent Invitation Acceptance)
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(false)
+  const [joinedFamilyName, setJoinedFamilyName] = useState<string | null>(null)
+
+  // Check for join success params and show welcome banner
+  useEffect(() => {
+    const joined = searchParams.get('joined')
+    const familyName = searchParams.get('family')
+
+    if (joined === 'true') {
+      setShowWelcomeBanner(true)
+      setJoinedFamilyName(familyName)
+
+      // Clear the URL params without causing a refresh
+      const url = new URL(window.location.href)
+      url.searchParams.delete('joined')
+      url.searchParams.delete('family')
+      window.history.replaceState({}, '', url.pathname)
+
+      // Auto-dismiss after 5 seconds
+      const timer = setTimeout(() => {
+        setShowWelcomeBanner(false)
+      }, 5000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams])
 
   // Get first name for personalized message
   const firstName = userProfile?.displayName?.split(' ')[0] || 'there'
@@ -121,6 +150,43 @@ export default function DashboardPage() {
     <div className="flex min-h-screen flex-col">
       <main className="flex flex-1 flex-col p-4">
         <div className="mx-auto w-full max-w-2xl space-y-6">
+          {/* Welcome Banner - Story 3.3: Co-Parent Invitation Acceptance */}
+          {showWelcomeBanner && (
+            <div
+              className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4"
+              role="alert"
+              aria-live="polite"
+            >
+              <div className="flex items-center gap-3">
+                <CheckCircle2
+                  className="h-5 w-5 text-green-600"
+                  aria-hidden="true"
+                />
+                <div>
+                  <p className="font-medium text-green-900">
+                    Welcome to the family!
+                  </p>
+                  <p className="text-sm text-green-700">
+                    You&apos;ve successfully joined{' '}
+                    {joinedFamilyName ? (
+                      <span className="font-medium">{joinedFamilyName}</span>
+                    ) : (
+                      'the family'
+                    )}
+                    .
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWelcomeBanner(false)}
+                className="min-h-[44px] min-w-[44px] rounded-md p-2 text-green-600 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                aria-label="Dismiss welcome message"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
           {/* Header */}
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight">
