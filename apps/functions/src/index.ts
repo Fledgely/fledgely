@@ -118,3 +118,10 @@ export { emergencyAllowlistPush } from './callable/emergencyAllowlistPush'
 
 // Scheduled Functions - Emergency Push Verification (Story 7.4)
 export { verifyEmergencyPushes } from './scheduled/verifyEmergencyPushes'
+
+// HTTP Endpoints - Fuzzy Match Logging (Story 7.5)
+export { logFuzzyMatchEndpoint } from './http/logFuzzyMatch'
+
+// Callable Functions - Fuzzy Match Admin (Story 7.5)
+export { getFuzzyMatchStatsFn as getFuzzyMatchStats } from './callable/getFuzzyMatchStats'
+export { getRecentFuzzyMatchLogsFn as getRecentFuzzyMatchLogs } from './callable/getRecentFuzzyMatchLogs'

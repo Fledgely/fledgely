@@ -2,6 +2,7 @@
  * Crisis Protection Service
  *
  * Story 7.2: Crisis Visit Zero-Data-Path - Task 1
+ * Story 7.5: Fuzzy Domain Matching - Task 7
  *
  * CRITICAL SAFETY FEATURE: This service implements the zero-data-path
  * for crisis resource visits. When a child visits a crisis URL, NO data
@@ -11,9 +12,12 @@
  *
  * This is a SYNCHRONOUS, BLOCKING check. It must complete BEFORE any
  * monitoring action is attempted. Never async. Never delayed. Never skipped.
+ *
+ * Story 7.5 Enhancement: Fuzzy matching catches common typos.
+ * When a fuzzy match occurs, it's logged anonymously for allowlist improvement.
  */
 
-import { isCrisisUrl } from '@fledgely/shared'
+import { isCrisisUrl, isCrisisUrlFuzzy } from '@fledgely/shared'
 
 /**
  * Guard type for use in monitoring hooks
@@ -42,10 +46,60 @@ export interface CrisisProtectionGuard {
 }
 
 /**
+ * Log a fuzzy match anonymously for allowlist improvement
+ *
+ * Story 7.5: Fuzzy Domain Matching - Task 7.3
+ *
+ * Fire-and-forget - non-blocking, won't affect monitoring decisions.
+ *
+ * @param inputDomain - The typo'd domain the user visited
+ * @param matchedDomain - The crisis domain it matched against
+ * @param distance - Levenshtein distance
+ */
+function logFuzzyMatch(inputDomain: string, matchedDomain: string, distance: number): void {
+  // Fire and forget - don't await, don't block
+  const logEndpoint = '/api/log-fuzzy-match'
+
+  // Use beacon API for guaranteed delivery without blocking
+  if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+    try {
+      const payload = JSON.stringify({
+        inputDomain,
+        matchedDomain,
+        distance,
+        deviceType: 'web',
+      })
+      navigator.sendBeacon(logEndpoint, new Blob([payload], { type: 'application/json' }))
+    } catch {
+      // Silently fail - logging should never impact protection
+    }
+  } else {
+    // Fallback to fetch for environments without beacon
+    fetch(logEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputDomain,
+        matchedDomain,
+        distance,
+        deviceType: 'web',
+      }),
+      // Fire and forget
+      keepalive: true,
+    }).catch(() => {
+      // Silently fail - logging should never impact protection
+    })
+  }
+}
+
+/**
  * Check if monitoring should be blocked for this URL
  *
  * CRITICAL: This is the primary check function. It must be called
  * BEFORE any monitoring action is attempted.
+ *
+ * Story 7.5 Enhancement: Now includes fuzzy matching for typo protection.
+ * Fuzzy matches are logged anonymously for allowlist improvement.
  *
  * @param url - The URL being visited
  * @returns true if this is a crisis URL and ALL monitoring must be blocked
@@ -58,7 +112,24 @@ export function shouldBlockMonitoring(url: string): boolean {
   }
 
   try {
-    return isCrisisUrl(url)
+    // First try exact match (fastest path)
+    if (isCrisisUrl(url)) {
+      return true
+    }
+
+    // Try fuzzy match for typo protection (Story 7.5)
+    const fuzzyResult = isCrisisUrlFuzzy(url)
+    if (fuzzyResult.match) {
+      // If it's a fuzzy match (not exact), log it for allowlist improvement
+      if (fuzzyResult.fuzzy && fuzzyResult.matchedAgainst && fuzzyResult.distance) {
+        // Extract domain from URL for logging
+        const domain = url.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
+        logFuzzyMatch(domain, fuzzyResult.matchedAgainst, fuzzyResult.distance)
+      }
+      return true
+    }
+
+    return false
   } catch {
     // Fail-open for non-crisis URLs
     // If the check fails, we don't block normal browsing

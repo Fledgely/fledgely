@@ -47,7 +47,23 @@ export {
   isOlderThan,
 } from './version'
 
+// Re-export fuzzy matching (Story 7.5)
+export {
+  levenshteinDistance,
+  parseDomain,
+  isBlocklisted,
+  lengthRatio,
+  fuzzyDomainMatch,
+  shouldAttemptFuzzyMatch,
+  MAX_LEVENSHTEIN_DISTANCE,
+  MIN_DOMAIN_LENGTH,
+  MIN_LENGTH_RATIO,
+  FUZZY_BLOCKLIST,
+  type FuzzyMatchResult,
+} from './fuzzyMatch'
+
 import { crisisAllowlistSchema, type CrisisAllowlist, type CrisisUrlEntry, type CrisisResourceCategory } from './schema'
+import { fuzzyDomainMatch, shouldAttemptFuzzyMatch, type FuzzyMatchResult } from './fuzzyMatch'
 import allowlistData from './allowlist.json'
 
 /** Cached validated allowlist to avoid repeated validation */
@@ -305,4 +321,120 @@ export function searchCrisisResources(query: string): CrisisUrlEntry[] {
       entry.name.toLowerCase().includes(normalizedQuery) ||
       entry.description.toLowerCase().includes(normalizedQuery)
   )
+}
+
+/**
+ * Result of fuzzy URL checking
+ *
+ * Story 7.5: Fuzzy Domain Matching
+ */
+export interface CrisisUrlFuzzyResult {
+  /** Whether any match (exact or fuzzy) was found */
+  match: boolean
+  /** Whether the match was fuzzy (true) or exact (false) */
+  fuzzy: boolean
+  /** The matching crisis entry if found */
+  entry?: CrisisUrlEntry
+  /** Levenshtein distance if fuzzy match */
+  distance?: number
+  /** Which domain/alias was matched against */
+  matchedAgainst?: string
+}
+
+/**
+ * Check if a URL matches any crisis resource with optional fuzzy matching
+ *
+ * Story 7.5: Fuzzy Domain Matching - Task 3.3
+ *
+ * This function first tries exact matching (primary domain, aliases, wildcards).
+ * If no exact match is found and fuzzy matching is enabled, it attempts
+ * fuzzy matching using Levenshtein distance.
+ *
+ * @param url - Full URL or domain to check
+ * @param options - Optional configuration
+ * @param options.useFuzzyMatch - Enable fuzzy matching (default: true)
+ * @returns Detailed result with match info
+ *
+ * @example
+ * ```typescript
+ * // Check with fuzzy matching (default)
+ * const result = isCrisisUrlFuzzy('trevorproject.org')
+ * if (result.match) {
+ *   console.log(`Matched ${result.matchedAgainst} (fuzzy: ${result.fuzzy})`)
+ * }
+ *
+ * // Disable fuzzy matching
+ * const exactOnly = isCrisisUrlFuzzy('trevorproject.org', { useFuzzyMatch: false })
+ * ```
+ */
+export function isCrisisUrlFuzzy(
+  url: string,
+  options: { useFuzzyMatch?: boolean } = {}
+): CrisisUrlFuzzyResult {
+  const { useFuzzyMatch = true } = options
+
+  // Handle invalid input
+  if (!url || typeof url !== 'string') {
+    return { match: false, fuzzy: false }
+  }
+
+  const domain = extractDomain(url)
+  if (!domain) {
+    return { match: false, fuzzy: false }
+  }
+
+  const allowlist = getCrisisAllowlist()
+
+  // First, try exact match (faster, more reliable)
+  for (const entry of allowlist.entries) {
+    // Check primary domain
+    if (domainMatches(domain, entry.domain)) {
+      return {
+        match: true,
+        fuzzy: false,
+        entry,
+        matchedAgainst: entry.domain,
+      }
+    }
+
+    // Check aliases
+    for (const alias of entry.aliases) {
+      if (domainMatches(domain, alias)) {
+        return {
+          match: true,
+          fuzzy: false,
+          entry,
+          matchedAgainst: alias,
+        }
+      }
+    }
+
+    // Check wildcard patterns
+    for (const pattern of entry.wildcardPatterns) {
+      if (wildcardMatches(domain, pattern)) {
+        return {
+          match: true,
+          fuzzy: false,
+          entry,
+          matchedAgainst: pattern,
+        }
+      }
+    }
+  }
+
+  // No exact match found - try fuzzy matching if enabled
+  if (useFuzzyMatch && shouldAttemptFuzzyMatch(domain)) {
+    const fuzzyResult = fuzzyDomainMatch(domain, allowlist.entries)
+    if (fuzzyResult) {
+      return {
+        match: true,
+        fuzzy: true,
+        entry: fuzzyResult.entry,
+        distance: fuzzyResult.distance,
+        matchedAgainst: fuzzyResult.matchedAgainst,
+      }
+    }
+  }
+
+  return { match: false, fuzzy: false }
 }

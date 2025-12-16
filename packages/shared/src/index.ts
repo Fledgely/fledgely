@@ -29,6 +29,9 @@ export {
   type CrisisAllowlist,
   type ContactMethod,
   type ParsedVersion,
+  // Story 7.5: Fuzzy matching types
+  type CrisisUrlFuzzyResult,
+  type FuzzyMatchResult,
   // API functions
   getCrisisAllowlist,
   isCrisisUrl,
@@ -49,4 +52,17 @@ export {
   isOlderThan,
   parseAllowlistVersion,
   createAllowlistVersion,
+  // Story 7.5: Fuzzy matching functions
+  isCrisisUrlFuzzy,
+  levenshteinDistance,
+  parseDomain,
+  isBlocklisted,
+  lengthRatio,
+  fuzzyDomainMatch,
+  shouldAttemptFuzzyMatch,
+  // Story 7.5: Fuzzy matching constants
+  MAX_LEVENSHTEIN_DISTANCE,
+  MIN_DOMAIN_LENGTH,
+  MIN_LENGTH_RATIO,
+  FUZZY_BLOCKLIST,
 } from './constants/crisis-urls'

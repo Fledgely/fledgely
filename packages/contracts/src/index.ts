@@ -1071,3 +1071,22 @@ export {
   type EmergencyOverrideEntry,
   type EmergencyPushResponse,
 } from './emergencyAllowlist.schema'
+
+// Fuzzy Match Log Schemas (Story 7.5)
+export {
+  // Constants
+  FUZZY_MATCH_RATE_LIMIT,
+  FUZZY_MATCH_LOGS_COLLECTION,
+  // Schemas
+  deviceTypeSchema,
+  fuzzyMatchLogInputSchema,
+  fuzzyMatchLogSchema,
+  fuzzyMatchStatsSchema,
+  fuzzyMatchRateLimitSchema,
+  // Types
+  type DeviceType,
+  type FuzzyMatchLogInput,
+  type FuzzyMatchLog,
+  type FuzzyMatchStats,
+  type FuzzyMatchRateLimit,
+} from './fuzzyMatchLog.schema'
