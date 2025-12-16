@@ -898,6 +898,22 @@ export {
   filterSectionsForMode,
   filterTemplateForMode,
   templateHasMonitoringSections,
+  // Story 5.7 Version History Schemas and Types
+  versionTypeSchema,
+  sessionVersionSchema,
+  sessionVersionFirestoreSchema,
+  type VersionType,
+  type SessionVersion,
+  type SessionVersionFirestore,
+  // Story 5.7 Version History Constants
+  VERSION_TYPE_LABELS,
+  VERSION_TYPE_DESCRIPTIONS,
+  // Story 5.7 Version History Helper Functions
+  getVersionTypeLabel,
+  getVersionTypeDescription,
+  createVersionSnapshot,
+  safeParseSessionVersion,
+  convertFirestoreToSessionVersion,
 } from './co-creation-session.schema'
 
 // Readability Validation Utilities (Story 4.2 - Task 3)
@@ -927,3 +943,52 @@ export {
   type SectionReadabilityResult,
   type TemplateReadabilityResult,
 } from './utils/readabilityUtils'
+
+// Digital Signature Schemas (Story 6.1)
+export {
+  // Constants
+  SIGNATURE_ORDER,
+  SIGNATURE_VALIDATION,
+  SIGNATURE_TYPE_LABELS,
+  SIGNER_ROLE_LABELS,
+  SIGNING_STATUS_LABELS,
+  SIGNING_STATUS_DESCRIPTIONS,
+  // Legacy aliases (deprecated)
+  signatureTypeLabels,
+  signerRoleLabels,
+  signingStatusLabels,
+  signingStatusChildLabels,
+  // Schemas
+  signatureTypeSchema,
+  signerRoleSchema,
+  signingStatusSchema,
+  signatureSchema,
+  agreementSignatureSchema as digitalAgreementSignatureSchema,
+  agreementSignaturesSchema,
+  // Label Getter Functions
+  getSignatureTypeLabel,
+  getSignerRoleLabel,
+  getSigningStatusLabel,
+  getSigningStatusDescription,
+  // Safe Parse Functions
+  safeParseSignature,
+  safeParseAgreementSignature,
+  // Validation Functions
+  validateSignature,
+  validateAgreementSignature,
+  isTypedSignatureValid,
+  isDrawnSignatureValid,
+  isSignatureValid,
+  // Signing Order Helper Functions
+  canChildSign,
+  canParentSign,
+  getNextSigningStatus,
+  isSigningComplete,
+  // Types
+  type SignatureType,
+  type SignerRole,
+  type SigningStatus,
+  type Signature,
+  type AgreementSignature as DigitalAgreementSignature,
+  type AgreementSignatures,
+} from './signature.schema'
