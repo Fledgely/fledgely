@@ -1,7 +1,7 @@
 # Story 7.5.1: Hidden Safety Signal Access
 
 **Epic**: 7.5 - Child Safety Signal (Survivor Advocate)
-**Status**: In Dev
+**Status**: Complete
 **Priority**: Critical (Child Safety)
 
 ---
