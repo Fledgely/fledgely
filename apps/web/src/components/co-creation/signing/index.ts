@@ -30,3 +30,6 @@ export type { KeyCommitmentsReadAloudProps } from './KeyCommitmentsReadAloud'
 
 export { SigningCelebration } from './SigningCelebration'
 export type { SigningCelebrationProps } from './SigningCelebration'
+
+export { FamilyCelebration } from './FamilyCelebration'
+export type { FamilyCelebrationProps } from './FamilyCelebration'

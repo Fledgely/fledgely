@@ -9,9 +9,10 @@ import { useCoCreationSession } from '@/hooks/useCoCreationSession'
 import { useSigningOrder } from '@/hooks/useSigningOrder'
 import {
   ChildSigningCeremony,
-  SigningCelebration,
+  FamilyCelebration,
 } from '@/components/co-creation/signing'
 import { recordChildSignature } from '@/services/signatureService'
+import { useAgreementDownload } from '@/hooks/useAgreementDownload'
 import type { AgreementSignature } from '@fledgely/contracts'
 
 /**
@@ -63,11 +64,21 @@ function ChildSigningContent() {
   const [pageState, setPageState] = useState<PageState>('loading')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [agreementVersion, setAgreementVersion] = useState<string>('1.0')
 
   // Get child name from family data
   const childName = session?.childId
     ? family?.children?.find((c) => c.id === session.childId)?.name || 'Friend'
     : 'Friend'
+
+  // Get parent name(s) from family data
+  const parentNames = family?.parents?.map((p) => p.name || 'Parent') || ['Parent']
+
+  // Agreement download/share functionality
+  const { downloadAgreement, shareAgreement } = useAgreementDownload({
+    agreementId,
+    familyId,
+  })
 
   // Determine page state based on loading and signing status
   useEffect(() => {
@@ -141,10 +152,15 @@ function ChildSigningContent() {
   }, [router])
 
   /**
-   * Handle celebration continue
+   * Handle next step selection from FamilyCelebration
    */
-  const handleCelebrationContinue = useCallback(() => {
-    router.push('/dashboard')
+  const handleNextStep = useCallback((choice: 'device-enrollment' | 'dashboard') => {
+    if (choice === 'device-enrollment') {
+      // Navigate to device enrollment flow (when available)
+      router.push('/devices/enroll')
+    } else {
+      router.push('/dashboard')
+    }
   }, [router])
 
   // Not authenticated
@@ -249,14 +265,23 @@ function ChildSigningContent() {
     )
   }
 
-  // Celebration state
+  // Celebration state - Family celebration when agreement is activated
   if (pageState === 'celebration') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-        <main className="container mx-auto px-4 py-8 max-w-2xl">
-          <SigningCelebration
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+        <main className="container mx-auto px-4 py-8 max-w-3xl">
+          <FamilyCelebration
+            agreement={{
+              id: agreementId,
+              version: agreementVersion,
+              activatedAt: new Date().toISOString(),
+              termsCount: session?.terms?.length || 0,
+            }}
+            parentNames={parentNames}
             childName={childName}
-            onContinue={handleCelebrationContinue}
+            onNextStep={handleNextStep}
+            onDownload={downloadAgreement}
+            onShare={shareAgreement}
           />
         </main>
       </div>

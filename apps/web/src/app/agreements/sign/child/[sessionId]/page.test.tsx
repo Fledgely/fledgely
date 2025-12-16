@@ -3,6 +3,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ChildSigningPage from './page'
 
+// Mock Firebase
+vi.mock('@/lib/firebase', () => ({
+  db: {},
+  auth: {},
+}))
+
 // Mock next/navigation
 const mockPush = vi.fn()
 const mockBack = vi.fn()
@@ -29,6 +35,7 @@ vi.mock('@/hooks/useFamily', () => ({
     family: {
       id: 'family-123',
       children: [{ id: 'child-123', name: 'Alex' }],
+      parents: [{ id: 'parent-123', name: 'Sarah' }],
     },
     loading: false,
     hasFamily: true,
@@ -65,7 +72,17 @@ vi.mock('@/services/signatureService', () => ({
   recordChildSignature: (...args: unknown[]) => mockRecordChildSignature(...args),
 }))
 
-// Mock signing components
+// Mock useAgreementDownload hook
+vi.mock('@/hooks/useAgreementDownload', () => ({
+  useAgreementDownload: () => ({
+    downloadAgreement: vi.fn().mockResolvedValue(undefined),
+    shareAgreement: vi.fn().mockResolvedValue(undefined),
+    isLoading: false,
+    error: null,
+  }),
+}))
+
+// Mock signing components - Updated for Story 6.4 to use FamilyCelebration
 vi.mock('@/components/co-creation/signing', () => ({
   ChildSigningCeremony: ({ childName, onComplete, onBack }: {
     childName: string
@@ -80,13 +97,17 @@ vi.mock('@/components/co-creation/signing', () => ({
       <button onClick={onBack}>Back</button>
     </div>
   ),
-  SigningCelebration: ({ childName, onContinue }: {
+  // Story 6.4: FamilyCelebration replaces SigningCelebration for family-level celebration
+  FamilyCelebration: ({ childName, parentNames, onNextStep }: {
     childName: string
-    onContinue: () => void
+    parentNames: string[]
+    onNextStep: (choice: 'device-enrollment' | 'dashboard') => void
   }) => (
     <div data-testid="signing-celebration">
-      <span>Congratulations {childName}!</span>
-      <button onClick={onContinue}>Continue</button>
+      <span>Congratulations {parentNames.join(', ')} and {childName}!</span>
+      <span>You did this together!</span>
+      <button onClick={() => onNextStep('dashboard')}>Go to Dashboard</button>
+      <button onClick={() => onNextStep('device-enrollment')}>Set Up Devices</button>
     </div>
   ),
 }))
@@ -234,9 +255,9 @@ describe('ChildSigningPage', () => {
         expect(screen.getByTestId('signing-celebration')).toBeInTheDocument()
       })
 
-      // Click continue
-      const continueButton = screen.getByRole('button', { name: /continue/i })
-      await user.click(continueButton)
+      // Click "Go to Dashboard" - Story 6.4 uses FamilyCelebration with next step options
+      const dashboardButton = screen.getByRole('button', { name: /go to dashboard/i })
+      await user.click(dashboardButton)
 
       expect(mockPush).toHaveBeenCalledWith('/dashboard')
     })
