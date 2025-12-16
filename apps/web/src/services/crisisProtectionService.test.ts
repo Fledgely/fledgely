@@ -16,6 +16,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@fledgely/shared', () => ({
   isCrisisUrl: vi.fn(),
   isCrisisUrlFuzzy: vi.fn(),
+  isCrisisSearchQuery: vi.fn(),
+  getResourcesForCategory: vi.fn(),
   getCrisisAllowlist: vi.fn(() => ({
     version: '1.0.0-2025-12-16T12:00:00Z',
     lastUpdated: '2025-12-16T12:00:00Z',
@@ -54,12 +56,15 @@ import {
   shouldBlockNotification,
   shouldBlockAnalytics,
   crisisGuard,
+  checkSearchQuery,
   type CrisisProtectionGuard,
 } from './crisisProtectionService'
-import { isCrisisUrl, isCrisisUrlFuzzy } from '@fledgely/shared'
+import { isCrisisUrl, isCrisisUrlFuzzy, isCrisisSearchQuery, getResourcesForCategory } from '@fledgely/shared'
 
 const mockIsCrisisUrl = vi.mocked(isCrisisUrl)
 const mockIsCrisisUrlFuzzy = vi.mocked(isCrisisUrlFuzzy)
+const mockIsCrisisSearchQuery = vi.mocked(isCrisisSearchQuery)
+const mockGetResourcesForCategory = vi.mocked(getResourcesForCategory)
 
 describe('crisisProtectionService', () => {
   beforeEach(() => {
@@ -368,6 +373,233 @@ describe('crisisProtectionService', () => {
       // Exact match succeeded, so fuzzy should NOT be called (optimization)
       // Actually in current impl, isCrisisUrlFuzzy IS called but the exact match returns first
       expect(mockIsCrisisUrl).toHaveBeenCalled()
+    })
+  })
+
+  /**
+   * Story 7.6: Crisis Search Redirection Tests
+   *
+   * CRITICAL: These tests verify the ZERO-DATA-PATH requirement.
+   * checkSearchQuery must NEVER log search queries.
+   */
+  describe('checkSearchQuery (Story 7.6)', () => {
+    const mockResources = [
+      { domain: '988lifeline.org', name: '988 Lifeline', contactMethods: ['phone', 'text'] },
+    ]
+
+    beforeEach(() => {
+      mockIsCrisisSearchQuery.mockReturnValue(null)
+      mockGetResourcesForCategory.mockReturnValue(mockResources)
+    })
+
+    describe('Basic Functionality', () => {
+      it('returns shouldShowInterstitial = true for crisis search query', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'how to kill myself',
+          category: 'suicide',
+          confidence: 'high',
+          matchedPattern: 'how to kill myself',
+        })
+
+        const result = checkSearchQuery('how to kill myself')
+
+        expect(result.shouldShowInterstitial).toBe(true)
+        expect(result.match).not.toBeNull()
+        expect(result.match?.category).toBe('suicide')
+      })
+
+      it('returns shouldShowInterstitial = false for non-crisis query', () => {
+        mockIsCrisisSearchQuery.mockReturnValue(null)
+
+        const result = checkSearchQuery('cute puppies')
+
+        expect(result.shouldShowInterstitial).toBe(false)
+        expect(result.match).toBeNull()
+      })
+
+      it('returns suggested resources for crisis match', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'suicide',
+          category: 'suicide',
+          confidence: 'medium',
+          matchedPattern: 'suicide',
+        })
+
+        const result = checkSearchQuery('suicide')
+
+        expect(result.suggestedResources).toEqual(mockResources)
+        expect(mockGetResourcesForCategory).toHaveBeenCalledWith('suicide')
+      })
+
+      it('returns empty array for non-crisis query', () => {
+        mockIsCrisisSearchQuery.mockReturnValue(null)
+
+        const result = checkSearchQuery('weather today')
+
+        expect(result.suggestedResources).toEqual([])
+      })
+    })
+
+    describe('Defensive Behavior', () => {
+      it('handles empty string gracefully', () => {
+        const result = checkSearchQuery('')
+
+        expect(result.shouldShowInterstitial).toBe(false)
+        expect(result.match).toBeNull()
+        expect(mockIsCrisisSearchQuery).not.toHaveBeenCalled()
+      })
+
+      it('handles null/undefined gracefully', () => {
+        const resultNull = checkSearchQuery(null as unknown as string)
+        const resultUndefined = checkSearchQuery(undefined as unknown as string)
+
+        expect(resultNull.shouldShowInterstitial).toBe(false)
+        expect(resultUndefined.shouldShowInterstitial).toBe(false)
+      })
+
+      it('handles non-string input gracefully', () => {
+        const result = checkSearchQuery(123 as unknown as string)
+
+        expect(result.shouldShowInterstitial).toBe(false)
+      })
+
+      it('fails open on error (does not show interstitial)', () => {
+        mockIsCrisisSearchQuery.mockImplementation(() => {
+          throw new Error('Unexpected error')
+        })
+
+        const result = checkSearchQuery('some query')
+
+        expect(result.shouldShowInterstitial).toBe(false)
+        expect(result.match).toBeNull()
+      })
+    })
+
+    describe('ZERO-DATA-PATH (AC: 4)', () => {
+      it('NEVER logs the search query - no console.log', () => {
+        const consoleSpy = vi.spyOn(console, 'log')
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'how to kill myself',
+          category: 'suicide',
+          confidence: 'high',
+          matchedPattern: 'how to kill myself',
+        })
+
+        checkSearchQuery('how to kill myself')
+
+        expect(consoleSpy).not.toHaveBeenCalled()
+        consoleSpy.mockRestore()
+      })
+
+      it('NEVER makes network requests', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'suicide',
+          category: 'suicide',
+          confidence: 'medium',
+          matchedPattern: 'suicide',
+        })
+
+        // Clear any previous calls
+        mockFetch.mockClear()
+        mockSendBeacon.mockClear()
+
+        checkSearchQuery('suicide')
+
+        expect(mockFetch).not.toHaveBeenCalled()
+        expect(mockSendBeacon).not.toHaveBeenCalled()
+      })
+
+      it('NEVER sends analytics events', () => {
+        // Mock any analytics that might exist
+        const windowDataLayer = (window as { dataLayer?: unknown[] }).dataLayer
+        const originalDataLayer = windowDataLayer
+        ;(window as { dataLayer?: unknown[] }).dataLayer = []
+
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'self harm',
+          category: 'self_harm',
+          confidence: 'medium',
+          matchedPattern: 'self harm',
+        })
+
+        checkSearchQuery('self harm')
+
+        expect((window as { dataLayer?: unknown[] }).dataLayer).toEqual([])
+        ;(window as { dataLayer?: unknown[] }).dataLayer = originalDataLayer
+      })
+
+      it('is synchronous (no async operations)', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'abuse help',
+          category: 'abuse',
+          confidence: 'medium',
+          matchedPattern: 'abuse',
+        })
+
+        const result = checkSearchQuery('abuse help')
+
+        // Result should not be a promise
+        expect(result).not.toBeInstanceOf(Promise)
+        expect(typeof result.shouldShowInterstitial).toBe('boolean')
+      })
+    })
+
+    describe('Category Handling', () => {
+      it('handles suicide category', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'suicide hotline',
+          category: 'suicide',
+          confidence: 'medium',
+          matchedPattern: 'suicide',
+        })
+
+        const result = checkSearchQuery('suicide hotline')
+
+        expect(result.match?.category).toBe('suicide')
+        expect(mockGetResourcesForCategory).toHaveBeenCalledWith('suicide')
+      })
+
+      it('handles self_harm category', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'cutting',
+          category: 'self_harm',
+          confidence: 'medium',
+          matchedPattern: 'cutting',
+        })
+
+        const result = checkSearchQuery('cutting')
+
+        expect(result.match?.category).toBe('self_harm')
+        expect(mockGetResourcesForCategory).toHaveBeenCalledWith('self_harm')
+      })
+
+      it('handles abuse category', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'my parent hits me',
+          category: 'abuse',
+          confidence: 'high',
+          matchedPattern: 'my parent hits me',
+        })
+
+        const result = checkSearchQuery('my parent hits me')
+
+        expect(result.match?.category).toBe('abuse')
+        expect(mockGetResourcesForCategory).toHaveBeenCalledWith('abuse')
+      })
+
+      it('handles help category', () => {
+        mockIsCrisisSearchQuery.mockReturnValue({
+          query: 'i need help',
+          category: 'help',
+          confidence: 'high',
+          matchedPattern: 'i need help',
+        })
+
+        const result = checkSearchQuery('i need help')
+
+        expect(result.match?.category).toBe('help')
+        expect(mockGetResourcesForCategory).toHaveBeenCalledWith('help')
+      })
     })
   })
 })

@@ -1090,3 +1090,19 @@ export {
   type FuzzyMatchStats,
   type FuzzyMatchRateLimit,
 } from './fuzzyMatchLog.schema'
+
+// Crisis Search Schemas (Story 7.6)
+export {
+  // Schemas
+  crisisSearchCategorySchema,
+  crisisSearchConfidenceSchema,
+  crisisSearchMatchSchema,
+  crisisRedirectActionSchema,
+  crisisSearchResultSchema,
+  // Types
+  type CrisisSearchCategory,
+  type CrisisSearchConfidence,
+  type CrisisSearchMatch,
+  type CrisisRedirectAction,
+  type CrisisSearchResult,
+} from './crisisSearch.schema'

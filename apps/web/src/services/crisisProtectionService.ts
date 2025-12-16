@@ -17,7 +17,13 @@
  * When a fuzzy match occurs, it's logged anonymously for allowlist improvement.
  */
 
-import { isCrisisUrl, isCrisisUrlFuzzy } from '@fledgely/shared'
+import {
+  isCrisisUrl,
+  isCrisisUrlFuzzy,
+  isCrisisSearchQuery,
+  getResourcesForCategory,
+} from '@fledgely/shared'
+import type { CrisisSearchResult, CrisisSearchMatch } from '@fledgely/contracts'
 
 /**
  * Guard type for use in monitoring hooks
@@ -230,4 +236,66 @@ export function isCrisisProtectionGuard(
     'shouldBlockAnalytics' in guard &&
     typeof (guard as CrisisProtectionGuard).shouldBlock === 'function'
   )
+}
+
+/**
+ * Check if a search query indicates crisis intent
+ *
+ * Story 7.6: Crisis Search Redirection - Task 5
+ *
+ * CRITICAL SAFETY FEATURE: This is a ZERO-DATA-PATH function.
+ * - NO logging of the search query
+ * - NO analytics events
+ * - NO parent notifications
+ * - NO family audit trail
+ *
+ * The query is checked locally and immediately discarded.
+ *
+ * @param query - The search query to check
+ * @returns CrisisSearchResult with interstitial recommendation and resources
+ */
+export function checkSearchQuery(query: string): CrisisSearchResult {
+  // ZERO-DATA-PATH: NO logging, NO analytics, NO tracking
+  // The query is processed locally and never persisted
+
+  // Defensive: handle null/undefined gracefully
+  if (!query || typeof query !== 'string') {
+    return {
+      shouldShowInterstitial: false,
+      match: null,
+      suggestedResources: [],
+    }
+  }
+
+  try {
+    // Check for crisis intent
+    const match = isCrisisSearchQuery(query) as CrisisSearchMatch | null
+
+    // No crisis intent detected
+    if (!match) {
+      return {
+        shouldShowInterstitial: false,
+        match: null,
+        suggestedResources: [],
+      }
+    }
+
+    // Crisis intent detected - get suggested resources
+    // IMPORTANT: Do NOT log or persist the match details
+    const suggestedResources = getResourcesForCategory(match.category)
+
+    return {
+      shouldShowInterstitial: true,
+      match,
+      suggestedResources,
+    }
+  } catch {
+    // Fail-open for search queries
+    // If the check fails, we don't show the interstitial
+    return {
+      shouldShowInterstitial: false,
+      match: null,
+      suggestedResources: [],
+    }
+  }
 }
