@@ -1,12 +1,24 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import type { SessionTerm, SessionTermType, SessionTermStatus, SessionContributor, AgreementMode } from '@fledgely/contracts'
+import type {
+  SessionTerm,
+  SessionTermType,
+  SessionTermStatus,
+  SessionContributor,
+  AgreementMode,
+  CoCreationSession,
+  SessionVersion,
+} from '@fledgely/contracts'
 import { AGREEMENT_MODE_LABELS } from '@fledgely/contracts'
 import { TermDropZone } from './TermDropZone'
 import { TermCountIndicator, MAX_TERMS, useCanAddTerm } from './TermCountIndicator'
 import { getTermTypeLabel, getTermCategoryColors } from './termUtils'
 import { useAgreementModeTerms } from '../../../hooks/useAgreementModeTerms'
+import { useAutoSave, type SaveResult } from '../../../hooks/useAutoSave'
+import { SaveButton } from './SaveButton'
+import { VersionHistoryPanel } from './VersionHistoryPanel'
+import { VersionPreviewDialog } from './VersionPreviewDialog'
 
 /**
  * Category section for grouping terms
@@ -51,6 +63,27 @@ export interface VisualAgreementBuilderProps {
   className?: string
   /** Data attributes for testing */
   'data-testid'?: string
+
+  // ============================================
+  // SAVE & VERSION HISTORY PROPS (Story 5.7)
+  // ============================================
+
+  /** Full session object for save/version features */
+  session?: CoCreationSession | null
+  /** List of session versions for version history */
+  versions?: SessionVersion[]
+  /** Function to perform save operation */
+  performSave?: (session: CoCreationSession) => Promise<SaveResult>
+  /** Function to restore a version */
+  onRestoreVersion?: (version: SessionVersion) => Promise<void>
+  /** Whether auto-save is enabled (default: true when session provided) */
+  autoSaveEnabled?: boolean
+  /** Callback on successful save */
+  onSaveSuccess?: () => void
+  /** Callback on save error */
+  onSaveError?: (error: Error) => void
+  /** Whether save/version features are enabled (default: true when session provided) */
+  enableSaveFeatures?: boolean
 }
 
 /**
@@ -134,7 +167,69 @@ export function VisualAgreementBuilder({
   layout = 'list',
   className = '',
   'data-testid': dataTestId,
+  // Save & Version History props (Story 5.7)
+  session,
+  versions = [],
+  performSave,
+  onRestoreVersion,
+  autoSaveEnabled = true,
+  onSaveSuccess,
+  onSaveError,
+  enableSaveFeatures,
 }: VisualAgreementBuilderProps) {
+  // ============================================
+  // SAVE & VERSION STATE (Story 5.7)
+  // ============================================
+
+  // Determine if save features are enabled
+  const saveFeaturesEnabled = enableSaveFeatures ?? (!!session && !!performSave)
+
+  // State for version history panel visibility
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+
+  // State for version preview dialog
+  const [previewVersion, setPreviewVersion] = useState<SessionVersion | null>(null)
+
+  // State for restore operation
+  const [isRestoring, setIsRestoring] = useState(false)
+
+  // Use auto-save hook when enabled
+  const {
+    status: saveStatus,
+    lastSaved,
+    saveNow,
+    timeSinceLastSave,
+  } = useAutoSave({
+    session: saveFeaturesEnabled ? session ?? null : null,
+    performSave: performSave ?? (async () => ({ success: true })),
+    enabled: saveFeaturesEnabled && autoSaveEnabled,
+    onSaveSuccess,
+    onSaveError,
+  })
+
+  // Handle version preview
+  const handleVersionPreview = useCallback((version: SessionVersion) => {
+    setPreviewVersion(version)
+  }, [])
+
+  // Handle version restore
+  const handleVersionRestore = useCallback(async (version: SessionVersion) => {
+    if (!onRestoreVersion) return
+
+    setIsRestoring(true)
+    try {
+      await onRestoreVersion(version)
+      setPreviewVersion(null)
+    } finally {
+      setIsRestoring(false)
+    }
+  }, [onRestoreVersion])
+
+  // Toggle version history panel
+  const toggleVersionHistory = useCallback(() => {
+    setShowVersionHistory((prev) => !prev)
+  }, [])
+
   // Use agreement mode hook for term filtering
   const {
     visibleTerms,
@@ -252,13 +347,15 @@ export function VisualAgreementBuilder({
   }
 
   return (
-    <div
-      className={`flex flex-col gap-6 ${className}`}
-      data-testid={dataTestId ?? 'visual-agreement-builder'}
-      data-term-count={terms.length}
-      onKeyDown={handleKeyDown}
-    >
-      {/* Header with mode badge, count and add button */}
+    <div className="flex">
+      {/* Main builder content */}
+      <div
+        className={`flex-1 flex flex-col gap-6 ${showVersionHistory ? 'pr-4' : ''} ${className}`}
+        data-testid={dataTestId ?? 'visual-agreement-builder'}
+        data-term-count={terms.length}
+        onKeyDown={handleKeyDown}
+      >
+      {/* Header with mode badge, count, save button, and add button */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           {/* Mode badge */}
@@ -285,36 +382,93 @@ export function VisualAgreementBuilder({
           <TermCountIndicator count={visibleTerms.length} />
         </div>
 
-        {!isReadOnly && (
-          <button
-            type="button"
-            onClick={() => handleAddTermClick()}
-            disabled={!canAddTerm}
-            className={`inline-flex items-center px-4 py-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 min-h-[44px] min-w-[44px] transition-colors ${
-              canAddTerm
-                ? 'bg-primary text-white hover:bg-primary/90'
-                : 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
-            }`}
-            aria-label={canAddTerm ? 'Add new term' : 'Maximum terms reached'}
-            aria-disabled={!canAddTerm}
-          >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
+        {/* Action buttons */}
+        <div className="flex items-center gap-3">
+          {/* Save button - Story 5.7 Task 6.2 */}
+          {saveFeaturesEnabled && (
+            <SaveButton
+              status={saveStatus}
+              lastSaved={lastSaved}
+              timeSinceLastSave={timeSinceLastSave}
+              onSave={saveNow}
+              disabled={isReadOnly}
+              data-testid="builder-save-button"
+            />
+          )}
+
+          {/* Version history toggle - Story 5.7 Task 6.3 */}
+          {saveFeaturesEnabled && versions.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleVersionHistory}
+              className={`
+                inline-flex items-center px-3 py-2 rounded-lg
+                min-h-[44px] min-w-[44px]
+                text-sm font-medium
+                transition-colors duration-200
+                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                ${
+                  showVersionHistory
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                }
+              `}
+              aria-label={showVersionHistory ? 'Hide version history' : 'Show version history'}
+              aria-expanded={showVersionHistory}
+              aria-controls="version-history-panel"
+              data-testid="version-history-toggle"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Add Term
-          </button>
-        )}
+              <svg
+                className="w-5 h-5 mr-2"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              History
+              <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-gray-200 dark:bg-gray-700">
+                {versions.length}
+              </span>
+            </button>
+          )}
+
+          {/* Add term button */}
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={() => handleAddTermClick()}
+              disabled={!canAddTerm}
+              className={`inline-flex items-center px-4 py-2 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 min-h-[44px] min-w-[44px] transition-colors ${
+                canAddTerm
+                  ? 'bg-primary text-white hover:bg-primary/90'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+              }`}
+              aria-label={canAddTerm ? 'Add new term' : 'Maximum terms reached'}
+              aria-disabled={!canAddTerm}
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Add Term
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Terms display */}
@@ -352,6 +506,34 @@ export function VisualAgreementBuilder({
           onTermClick={handleTermClick}
           onTermEdit={isReadOnly ? undefined : onTermEdit}
           onTermStatusChange={isReadOnly ? undefined : onTermStatusChange}
+        />
+      )}
+      </div>
+
+      {/* Version History Panel - Story 5.7 Task 6.4 */}
+      {saveFeaturesEnabled && showVersionHistory && (
+        <div id="version-history-panel">
+          <VersionHistoryPanel
+            versions={versions}
+            selectedVersionId={previewVersion?.id}
+            onPreview={handleVersionPreview}
+            onRestore={handleVersionRestore}
+            className="flex-shrink-0"
+            data-testid="builder-version-history"
+          />
+        </div>
+      )}
+
+      {/* Version Preview Dialog - Story 5.7 */}
+      {saveFeaturesEnabled && (
+        <VersionPreviewDialog
+          version={previewVersion}
+          isOpen={!!previewVersion}
+          onClose={() => setPreviewVersion(null)}
+          onRestore={handleVersionRestore}
+          isRestoring={isRestoring}
+          currentTerms={terms}
+          data-testid="builder-version-preview"
         />
       )}
     </div>

@@ -128,6 +128,20 @@ import {
   filterSectionsForMode,
   filterTemplateForMode,
   templateHasMonitoringSections,
+  // Story 5.7: Version History Schemas
+  versionTypeSchema,
+  sessionVersionSchema,
+  // Story 5.7: Version History Constants
+  VERSION_TYPE_LABELS,
+  VERSION_TYPE_DESCRIPTIONS,
+  // Story 5.7: Version History Helper Functions
+  getVersionTypeLabel,
+  getVersionTypeDescription,
+  createVersionSnapshot,
+  safeParseSessionVersion,
+  // Story 5.7 Types
+  type VersionType,
+  type SessionVersion,
 } from './co-creation-session.schema'
 
 /**
@@ -250,6 +264,8 @@ describe('co-creation-session.schema', () => {
       expect(contributionActionSchema.parse('session_started')).toBe('session_started')
       expect(contributionActionSchema.parse('session_paused')).toBe('session_paused')
       expect(contributionActionSchema.parse('session_resumed')).toBe('session_resumed')
+      expect(contributionActionSchema.parse('version_created')).toBe('version_created')
+      expect(contributionActionSchema.parse('version_restored')).toBe('version_restored')
     })
 
     it('should reject invalid action values', () => {
@@ -2676,6 +2692,243 @@ describe('co-creation-session.schema', () => {
           sections: [{ type: 'monitoring_rules' }],
         }
         expect(templateHasMonitoringSections(template)).toBe(true)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 5.7: Version History Schema Tests
+  // ============================================================================
+
+  describe('Story 5.7: Version History Schemas', () => {
+    describe('versionTypeSchema', () => {
+      it('should accept valid version types', () => {
+        const validTypes: VersionType[] = [
+          'initial_draft',
+          'child_contribution',
+          'negotiation_resolved',
+          'manual_save',
+          'restored_from_version',
+        ]
+        validTypes.forEach((type) => {
+          expect(versionTypeSchema.parse(type)).toBe(type)
+        })
+      })
+
+      it('should reject invalid version types', () => {
+        expect(() => versionTypeSchema.parse('invalid')).toThrow()
+        expect(() => versionTypeSchema.parse('')).toThrow()
+        expect(() => versionTypeSchema.parse(123)).toThrow()
+      })
+    })
+
+    describe('sessionVersionSchema', () => {
+      const createValidVersion = (overrides?: Partial<SessionVersion>): SessionVersion => ({
+        id: '550e8400-e29b-41d4-a716-446655440100',
+        sessionId: '550e8400-e29b-41d4-a716-446655440000',
+        versionType: 'initial_draft',
+        createdBy: 'parent',
+        snapshot: {
+          terms: [createValidTerm()],
+          contributions: [createValidContribution()],
+          agreementMode: 'full',
+        },
+        createdAt: '2024-01-15T10:00:00.000Z',
+        ...overrides,
+      })
+
+      it('should accept a valid session version', () => {
+        const version = createValidVersion()
+        expect(() => sessionVersionSchema.parse(version)).not.toThrow()
+      })
+
+      it('should accept version with optional label', () => {
+        const version = createValidVersion({ label: 'First draft with child' })
+        expect(() => sessionVersionSchema.parse(version)).not.toThrow()
+      })
+
+      it('should reject version without id', () => {
+        const version = createValidVersion()
+        const { id, ...versionWithoutId } = version
+        expect(() => sessionVersionSchema.parse(versionWithoutId)).toThrow()
+      })
+
+      it('should reject version with invalid UUID', () => {
+        const version = createValidVersion({ id: 'not-a-uuid' })
+        expect(() => sessionVersionSchema.parse(version)).toThrow()
+      })
+
+      it('should reject version without sessionId', () => {
+        const version = createValidVersion()
+        const { sessionId, ...versionWithoutSessionId } = version
+        expect(() => sessionVersionSchema.parse(versionWithoutSessionId)).toThrow()
+      })
+
+      it('should reject version with invalid versionType', () => {
+        const version = createValidVersion({ versionType: 'invalid' as VersionType })
+        expect(() => sessionVersionSchema.parse(version)).toThrow()
+      })
+
+      it('should reject version with invalid contributor', () => {
+        const version = createValidVersion({ createdBy: 'invalid' as any })
+        expect(() => sessionVersionSchema.parse(version)).toThrow()
+      })
+
+      it('should accept version with agreement_only mode', () => {
+        const version = createValidVersion({
+          snapshot: {
+            terms: [],
+            contributions: [],
+            agreementMode: 'agreement_only',
+          },
+        })
+        expect(() => sessionVersionSchema.parse(version)).not.toThrow()
+      })
+
+      it('should reject version with label too long', () => {
+        const version = createValidVersion({ label: 'a'.repeat(101) })
+        expect(() => sessionVersionSchema.parse(version)).toThrow()
+      })
+    })
+
+    describe('VERSION_TYPE_LABELS', () => {
+      it('should have labels for all version types', () => {
+        const types: VersionType[] = [
+          'initial_draft',
+          'child_contribution',
+          'negotiation_resolved',
+          'manual_save',
+          'restored_from_version',
+        ]
+        types.forEach((type) => {
+          expect(VERSION_TYPE_LABELS[type]).toBeDefined()
+          expect(typeof VERSION_TYPE_LABELS[type]).toBe('string')
+          expect(VERSION_TYPE_LABELS[type].length).toBeGreaterThan(0)
+        })
+      })
+    })
+
+    describe('VERSION_TYPE_DESCRIPTIONS', () => {
+      it('should have descriptions for all version types', () => {
+        const types: VersionType[] = [
+          'initial_draft',
+          'child_contribution',
+          'negotiation_resolved',
+          'manual_save',
+          'restored_from_version',
+        ]
+        types.forEach((type) => {
+          expect(VERSION_TYPE_DESCRIPTIONS[type]).toBeDefined()
+          expect(typeof VERSION_TYPE_DESCRIPTIONS[type]).toBe('string')
+          expect(VERSION_TYPE_DESCRIPTIONS[type].length).toBeGreaterThan(0)
+        })
+      })
+
+      it('should have descriptions at 6th-grade reading level (NFR65)', () => {
+        // Simple check: descriptions should be readable sentences
+        Object.values(VERSION_TYPE_DESCRIPTIONS).forEach((desc) => {
+          expect(desc.length).toBeLessThan(100) // Keep descriptions short
+          expect(desc).toMatch(/\.$/) // End with period
+        })
+      })
+    })
+
+    describe('getVersionTypeLabel', () => {
+      it('should return correct labels', () => {
+        expect(getVersionTypeLabel('initial_draft')).toBe('Initial Draft')
+        expect(getVersionTypeLabel('child_contribution')).toBe('Child Added Content')
+        expect(getVersionTypeLabel('negotiation_resolved')).toBe('Agreement Reached')
+        expect(getVersionTypeLabel('manual_save')).toBe('Saved')
+        expect(getVersionTypeLabel('restored_from_version')).toBe('Restored Version')
+      })
+    })
+
+    describe('getVersionTypeDescription', () => {
+      it('should return correct descriptions', () => {
+        expect(getVersionTypeDescription('initial_draft')).toBe('The agreement when you first started.')
+        expect(getVersionTypeDescription('manual_save')).toBe('You saved your work.')
+      })
+    })
+
+    describe('createVersionSnapshot', () => {
+      it('should create a valid version snapshot', () => {
+        const session = createValidSession()
+        const versionId = '550e8400-e29b-41d4-a716-446655440100'
+        const version = createVersionSnapshot(session, 'initial_draft', 'parent', versionId)
+
+        expect(version.id).toBe(versionId)
+        expect(version.sessionId).toBe(session.id)
+        expect(version.versionType).toBe('initial_draft')
+        expect(version.createdBy).toBe('parent')
+        expect(version.snapshot.terms).toEqual(session.terms)
+        expect(version.snapshot.contributions).toEqual(session.contributions)
+        expect(version.snapshot.agreementMode).toBe('full')
+        expect(version.createdAt).toBeDefined()
+      })
+
+      it('should create version with child_contribution type', () => {
+        const session = createValidSession()
+        const versionId = '550e8400-e29b-41d4-a716-446655440101'
+        const version = createVersionSnapshot(session, 'child_contribution', 'child', versionId)
+
+        expect(version.versionType).toBe('child_contribution')
+        expect(version.createdBy).toBe('child')
+      })
+
+      it('should preserve agreement_only mode in snapshot', () => {
+        const session = createValidSession({ agreementMode: 'agreement_only' })
+        const versionId = '550e8400-e29b-41d4-a716-446655440102'
+        const version = createVersionSnapshot(session, 'manual_save', 'parent', versionId)
+
+        expect(version.snapshot.agreementMode).toBe('agreement_only')
+      })
+
+      it('should default to full mode if agreementMode is undefined', () => {
+        const session = createValidSession()
+        // Simulate legacy session without agreementMode
+        const sessionWithoutMode = { ...session, agreementMode: undefined } as CoCreationSession
+        const versionId = '550e8400-e29b-41d4-a716-446655440103'
+        const version = createVersionSnapshot(sessionWithoutMode, 'manual_save', 'parent', versionId)
+
+        expect(version.snapshot.agreementMode).toBe('full')
+      })
+
+      it('should create valid snapshot that passes schema validation', () => {
+        const session = createValidSession()
+        const versionId = '550e8400-e29b-41d4-a716-446655440104'
+        const version = createVersionSnapshot(session, 'negotiation_resolved', 'parent', versionId)
+
+        expect(() => sessionVersionSchema.parse(version)).not.toThrow()
+      })
+    })
+
+    describe('safeParseSessionVersion', () => {
+      it('should return version for valid data', () => {
+        const version: SessionVersion = {
+          id: '550e8400-e29b-41d4-a716-446655440100',
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          versionType: 'initial_draft',
+          createdBy: 'parent',
+          snapshot: {
+            terms: [],
+            contributions: [],
+            agreementMode: 'full',
+          },
+          createdAt: '2024-01-15T10:00:00.000Z',
+        }
+        expect(safeParseSessionVersion(version)).toEqual(version)
+      })
+
+      it('should return null for invalid data', () => {
+        expect(safeParseSessionVersion(null)).toBeNull()
+        expect(safeParseSessionVersion({})).toBeNull()
+        expect(safeParseSessionVersion({ id: 'not-uuid' })).toBeNull()
+      })
+    })
+
+    describe('SESSION_ARRAY_LIMITS.maxVersions', () => {
+      it('should have maxVersions constant set to 50', () => {
+        expect(SESSION_ARRAY_LIMITS.maxVersions).toBe(50)
       })
     })
   })

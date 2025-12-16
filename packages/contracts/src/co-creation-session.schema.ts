@@ -45,6 +45,7 @@ export const SESSION_FIELD_LIMITS = {
 export const SESSION_ARRAY_LIMITS = {
   maxTerms: 100, // NFR60: 100 conditions max
   maxContributions: 1000, // Audit trail limit
+  maxVersions: 50, // Story 5.7: Max version snapshots per session
 } as const
 
 /**
@@ -154,6 +155,8 @@ export const contributionActionSchema = z.enum([
   'session_started', // Session began
   'session_paused', // Session paused
   'session_resumed', // Session resumed
+  'version_created', // Version snapshot created (Story 5.7)
+  'version_restored', // Restored to previous version (Story 5.7)
 ])
 
 export type ContributionAction = z.infer<typeof contributionActionSchema>
@@ -170,6 +173,8 @@ export const CONTRIBUTION_ACTION_LABELS: Record<ContributionAction, string> = {
   session_started: 'Started Session',
   session_paused: 'Paused Session',
   session_resumed: 'Resumed Session',
+  version_created: 'Created Version',
+  version_restored: 'Restored Version',
 }
 
 /**
@@ -1872,5 +1877,170 @@ export function getContributionStats(contributions: ContributionSummary[]): {
     childAdded,
     parentPercentage: total > 0 ? Math.round((parentAdded / total) * 100) : 0,
     childPercentage: total > 0 ? Math.round((childAdded / total) * 100) : 0,
+  }
+}
+
+// ============================================
+// VERSION HISTORY SCHEMAS (Story 5.7)
+// ============================================
+
+/**
+ * Types of version snapshots (AC #3)
+ * Tracks major milestones during agreement co-creation
+ */
+export const versionTypeSchema = z.enum([
+  'initial_draft', // First version when session starts
+  'child_contribution', // When child adds first term
+  'negotiation_resolved', // When a discussion term is resolved
+  'manual_save', // User clicked save button
+  'restored_from_version', // After restoring a previous version
+])
+
+export type VersionType = z.infer<typeof versionTypeSchema>
+
+/**
+ * Human-readable labels for version types
+ */
+export const VERSION_TYPE_LABELS: Record<VersionType, string> = {
+  initial_draft: 'Initial Draft',
+  child_contribution: 'Child Added Content',
+  negotiation_resolved: 'Agreement Reached',
+  manual_save: 'Saved',
+  restored_from_version: 'Restored Version',
+}
+
+/**
+ * Descriptions for version types at 6th-grade reading level (NFR65)
+ */
+export const VERSION_TYPE_DESCRIPTIONS: Record<VersionType, string> = {
+  initial_draft: 'The agreement when you first started.',
+  child_contribution: 'When your child added something to the agreement.',
+  negotiation_resolved: 'When you both agreed on something you discussed.',
+  manual_save: 'You saved your work.',
+  restored_from_version: 'You went back to an earlier version.',
+}
+
+/**
+ * Get human-readable label for version type
+ */
+export function getVersionTypeLabel(type: VersionType): string {
+  return VERSION_TYPE_LABELS[type]
+}
+
+/**
+ * Get description for version type
+ */
+export function getVersionTypeDescription(type: VersionType): string {
+  return VERSION_TYPE_DESCRIPTIONS[type]
+}
+
+/**
+ * A snapshot of the session at a point in time (AC #3, #4)
+ * Used for version history and restore functionality
+ */
+export const sessionVersionSchema = z.object({
+  /** Unique version ID (UUID) */
+  id: z.string().uuid('Version ID must be a valid UUID'),
+
+  /** Session this version belongs to */
+  sessionId: z.string().uuid('Session ID must be a valid UUID'),
+
+  /** Type of milestone this version represents */
+  versionType: versionTypeSchema,
+
+  /** Who triggered this version creation */
+  createdBy: sessionContributorSchema,
+
+  /** Snapshot of session state at this point */
+  snapshot: z.object({
+    terms: z.array(sessionTermSchema),
+    contributions: z.array(sessionContributionSchema),
+    agreementMode: agreementModeSchema,
+  }),
+
+  /** Human-readable label for this version */
+  label: z.string().max(100).optional(),
+
+  /** When this version was created (ISO 8601 datetime) */
+  createdAt: z.string().datetime('Invalid datetime format'),
+})
+
+export type SessionVersion = z.infer<typeof sessionVersionSchema>
+
+/**
+ * Firestore-compatible session version
+ */
+export const sessionVersionFirestoreSchema = sessionVersionSchema.extend({
+  snapshot: z.object({
+    terms: z.array(sessionTermFirestoreSchema),
+    contributions: z.array(sessionContributionFirestoreSchema),
+    agreementMode: agreementModeSchema,
+  }),
+  createdAt: z.any(), // Firestore Timestamp
+})
+
+export type SessionVersionFirestore = z.infer<typeof sessionVersionFirestoreSchema>
+
+/**
+ * Create a version snapshot from current session state
+ * @param session - The co-creation session to snapshot
+ * @param versionType - Type of milestone this represents
+ * @param contributor - Who triggered the version creation
+ * @param versionId - UUID for the new version
+ * @returns A valid SessionVersion object
+ */
+export function createVersionSnapshot(
+  session: CoCreationSession,
+  versionType: VersionType,
+  contributor: SessionContributor,
+  versionId: string
+): SessionVersion {
+  return {
+    id: versionId,
+    sessionId: session.id,
+    versionType,
+    createdBy: contributor,
+    snapshot: {
+      terms: session.terms,
+      contributions: session.contributions,
+      agreementMode: session.agreementMode ?? 'full',
+    },
+    createdAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * Safely parse a session version, returning null if invalid
+ */
+export function safeParseSessionVersion(data: unknown): SessionVersion | null {
+  const result = sessionVersionSchema.safeParse(data)
+  return result.success ? result.data : null
+}
+
+/**
+ * Convert Firestore version to application type
+ */
+export function convertFirestoreToSessionVersion(
+  firestoreData: SessionVersionFirestore
+): SessionVersion {
+  return {
+    ...firestoreData,
+    snapshot: {
+      terms: firestoreData.snapshot.terms.map((term) => ({
+        ...term,
+        createdAt: term.createdAt?.toDate?.()?.toISOString() ?? term.createdAt,
+        updatedAt: term.updatedAt?.toDate?.()?.toISOString() ?? term.updatedAt,
+        discussionNotes: term.discussionNotes.map((note) => ({
+          ...note,
+          createdAt: note.createdAt?.toDate?.()?.toISOString() ?? note.createdAt,
+        })),
+      })),
+      contributions: firestoreData.snapshot.contributions.map((contrib) => ({
+        ...contrib,
+        createdAt: contrib.createdAt?.toDate?.()?.toISOString() ?? contrib.createdAt,
+      })),
+      agreementMode: firestoreData.snapshot.agreementMode,
+    },
+    createdAt: firestoreData.createdAt?.toDate?.()?.toISOString() ?? firestoreData.createdAt,
   }
 }

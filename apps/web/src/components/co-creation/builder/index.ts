@@ -62,6 +62,18 @@ export type { UseChildContributionOptions, UseChildContributionReturn } from './
 export { ChildModeWrapper } from './ChildModeWrapper'
 export type { ChildModeWrapperProps } from './ChildModeWrapper'
 
+// Save button (Story 5.7)
+export { SaveButton } from './SaveButton'
+export type { SaveButtonProps } from './SaveButton'
+
+// Version history panel (Story 5.7)
+export { VersionHistoryPanel } from './VersionHistoryPanel'
+export type { VersionHistoryPanelProps } from './VersionHistoryPanel'
+
+// Version preview dialog (Story 5.7)
+export { VersionPreviewDialog } from './VersionPreviewDialog'
+export type { VersionPreviewDialogProps } from './VersionPreviewDialog'
+
 // Term count indicator
 export {
   TermCountIndicator,
