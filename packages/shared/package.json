@@ -1,0 +1,33 @@
+{
+  "name": "@fledgely/shared",
+  "version": "0.0.1",
+  "description": "Shared constants, utilities, and crisis allowlist for Fledgely",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "tsc",
+    "export:allowlist": "npx tsx scripts/export-allowlist.ts"
+  },
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./constants/crisis-urls": {
+      "import": "./src/constants/crisis-urls/index.ts",
+      "types": "./src/constants/crisis-urls/index.ts"
+    }
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0",
+    "tsx": "^4.7.0"
+  }
+}

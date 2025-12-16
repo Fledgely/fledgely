@@ -134,8 +134,8 @@ development_status:
   epic-6-retrospective: completed
 
   # Epic 7: Crisis Allowlist Foundation
-  epic-7: backlog
-  7-1-crisis-allowlist-data-structure: backlog
+  epic-7: in-progress
+  7-1-crisis-allowlist-data-structure: done
   7-2-crisis-visit-zero-data-path: backlog
   7-3-child-allowlist-visibility: backlog
   7-4-emergency-allowlist-push: backlog
