@@ -225,6 +225,101 @@ export const sessionContributionFirestoreSchema = sessionContributionSchema.exte
 export type SessionContributionFirestore = z.infer<typeof sessionContributionFirestoreSchema>
 
 // ============================================
+// DISCUSSION & NEGOTIATION SCHEMAS (Story 5.4)
+// ============================================
+
+/**
+ * Resolution status for terms in discussion
+ * Tracks which parties have agreed to the term
+ */
+export const resolutionStatusSchema = z.enum([
+  'unresolved', // Neither party has agreed
+  'parent-agreed', // Parent has agreed, waiting for child
+  'child-agreed', // Child has agreed, waiting for parent
+  'resolved', // Both parties have agreed
+])
+
+export type ResolutionStatus = z.infer<typeof resolutionStatusSchema>
+
+/**
+ * Human-readable labels for resolution status
+ */
+export const RESOLUTION_STATUS_LABELS: Record<ResolutionStatus, string> = {
+  unresolved: 'Needs Agreement',
+  'parent-agreed': 'Parent Agreed',
+  'child-agreed': 'Child Agreed',
+  resolved: 'Both Agreed',
+}
+
+/**
+ * Descriptions for resolution status at 6th-grade reading level (NFR65)
+ */
+export const RESOLUTION_STATUS_DESCRIPTIONS: Record<ResolutionStatus, string> = {
+  unresolved: 'You both need to agree on this.',
+  'parent-agreed': 'Parent said okay. Waiting for child.',
+  'child-agreed': 'Child said okay. Waiting for parent.',
+  resolved: 'You both agree! Ready to move on.',
+}
+
+/**
+ * Get human-readable label for resolution status
+ */
+export function getResolutionStatusLabel(status: ResolutionStatus): string {
+  return RESOLUTION_STATUS_LABELS[status]
+}
+
+/**
+ * Get description for resolution status
+ */
+export function getResolutionStatusDescription(status: ResolutionStatus): string {
+  return RESOLUTION_STATUS_DESCRIPTIONS[status]
+}
+
+/**
+ * A note/comment added during discussion (AC #2)
+ */
+export const discussionNoteSchema = z.object({
+  /** Unique note ID (UUID) */
+  id: z.string().uuid('Note ID must be a valid UUID'),
+
+  /** Who added this note */
+  contributor: sessionContributorSchema,
+
+  /** Note text (6th-grade reading level, max 500 chars) */
+  text: z.string().min(1, 'Note cannot be empty').max(500, 'Note is too long'),
+
+  /** When this note was created (ISO 8601 datetime) */
+  createdAt: z.string().datetime('Invalid datetime format'),
+})
+
+export type DiscussionNote = z.infer<typeof discussionNoteSchema>
+
+/**
+ * Firestore-compatible discussion note
+ */
+export const discussionNoteFirestoreSchema = discussionNoteSchema.extend({
+  createdAt: z.any(), // Firestore Timestamp
+})
+
+export type DiscussionNoteFirestore = z.infer<typeof discussionNoteFirestoreSchema>
+
+/**
+ * Maximum number of discussion notes per term
+ */
+export const DISCUSSION_LIMITS = {
+  maxNotesPerTerm: 50,
+  maxNoteLength: 500,
+} as const
+
+/**
+ * Safely parse a discussion note
+ */
+export function safeParseDiscussionNote(data: unknown): DiscussionNote | null {
+  const result = discussionNoteSchema.safeParse(data)
+  return result.success ? result.data : null
+}
+
+// ============================================
 // SESSION TERM SCHEMAS
 // ============================================
 
@@ -315,6 +410,22 @@ export const sessionTermSchema = z.object({
 
   /** When this term was last modified (ISO 8601 datetime) */
   updatedAt: z.string().datetime('Invalid datetime format'),
+
+  // ============================================
+  // Discussion fields (Story 5.4)
+  // ============================================
+
+  /** Notes/comments added during discussion (AC #2) */
+  discussionNotes: z
+    .array(discussionNoteSchema)
+    .max(DISCUSSION_LIMITS.maxNotesPerTerm)
+    .default([]),
+
+  /** Resolution status for discussion terms (AC #4) */
+  resolutionStatus: resolutionStatusSchema.default('unresolved'),
+
+  /** ID of accepted compromise suggestion (AC #3) */
+  compromiseAccepted: z.string().optional(),
 })
 
 export type SessionTerm = z.infer<typeof sessionTermSchema>
@@ -325,6 +436,7 @@ export type SessionTerm = z.infer<typeof sessionTermSchema>
 export const sessionTermFirestoreSchema = sessionTermSchema.extend({
   createdAt: z.any(), // Firestore Timestamp
   updatedAt: z.any(), // Firestore Timestamp
+  discussionNotes: z.array(discussionNoteFirestoreSchema).max(DISCUSSION_LIMITS.maxNotesPerTerm).default([]),
 })
 
 export type SessionTermFirestore = z.infer<typeof sessionTermFirestoreSchema>
@@ -575,6 +687,67 @@ export const getSessionInputSchema = z.object({
 export type GetSessionInput = z.infer<typeof getSessionInputSchema>
 
 // ============================================
+// DISCUSSION INPUT SCHEMAS (Story 5.4)
+// ============================================
+
+/**
+ * Input for adding a discussion note (AC #2)
+ */
+export const addDiscussionNoteInputSchema = z.object({
+  /** Session ID */
+  sessionId: z.string().uuid('Session ID must be a valid UUID'),
+
+  /** Term ID to add note to */
+  termId: z.string().uuid('Term ID must be a valid UUID'),
+
+  /** Who is adding the note */
+  contributor: sessionContributorSchema,
+
+  /** Note text */
+  text: z.string().min(1, 'Note cannot be empty').max(500, 'Note is too long'),
+})
+
+export type AddDiscussionNoteInput = z.infer<typeof addDiscussionNoteInputSchema>
+
+/**
+ * Input for marking agreement on a term (AC #4)
+ */
+export const markTermAgreementInputSchema = z.object({
+  /** Session ID */
+  sessionId: z.string().uuid('Session ID must be a valid UUID'),
+
+  /** Term ID */
+  termId: z.string().uuid('Term ID must be a valid UUID'),
+
+  /** Who is agreeing */
+  contributor: sessionContributorSchema,
+})
+
+export type MarkTermAgreementInput = z.infer<typeof markTermAgreementInputSchema>
+
+/**
+ * Input for accepting a compromise suggestion (AC #3)
+ */
+export const acceptCompromiseInputSchema = z.object({
+  /** Session ID */
+  sessionId: z.string().uuid('Session ID must be a valid UUID'),
+
+  /** Term ID */
+  termId: z.string().uuid('Term ID must be a valid UUID'),
+
+  /** Who is accepting */
+  contributor: sessionContributorSchema,
+
+  /** Compromise suggestion ID */
+  compromiseId: z.string().min(1, 'Compromise ID is required'),
+
+  /** New term content after applying compromise */
+  newContent: z.record(z.unknown()),
+})
+
+export type AcceptCompromiseInput = z.infer<typeof acceptCompromiseInputSchema>
+
+// ============================================
 // RESPONSE SCHEMAS
 // ============================================
 
@@ -701,6 +874,10 @@ export function convertFirestoreToCoCreationSession(
       ...term,
       createdAt: term.createdAt?.toDate?.()?.toISOString() ?? term.createdAt,
       updatedAt: term.updatedAt?.toDate?.()?.toISOString() ?? term.updatedAt,
+      discussionNotes: term.discussionNotes.map((note) => ({
+        ...note,
+        createdAt: note.createdAt?.toDate?.()?.toISOString() ?? note.createdAt,
+      })),
     })),
     contributions: firestoreData.contributions.map((contrib) => ({
       ...contrib,
@@ -900,4 +1077,125 @@ export function createResumeContribution(
     action: 'session_resumed',
     createdAt: new Date().toISOString(),
   }
+}
+
+// ============================================
+// DISCUSSION HELPER FUNCTIONS (Story 5.4)
+// ============================================
+
+/**
+ * Get unresolved discussion terms (AC #5, AC #6)
+ * Used to check if session can proceed to signing
+ */
+export function getUnresolvedDiscussionTerms(session: CoCreationSession): SessionTerm[] {
+  return session.terms.filter(
+    (term) => term.status === 'discussion' && term.resolutionStatus !== 'resolved'
+  )
+}
+
+/**
+ * Check if session can proceed to signing (AC #6)
+ * Returns false if any discussion terms are unresolved
+ */
+export function canProceedToSigning(session: CoCreationSession): boolean {
+  const unresolvedTerms = getUnresolvedDiscussionTerms(session)
+  return unresolvedTerms.length === 0
+}
+
+/**
+ * Get the next resolution status after a contributor agrees (AC #4)
+ * Implements the resolution state machine
+ */
+export function getNextResolutionStatus(
+  currentStatus: ResolutionStatus,
+  contributor: SessionContributor
+): ResolutionStatus {
+  if (currentStatus === 'resolved') {
+    return 'resolved' // Already resolved, no change
+  }
+
+  if (currentStatus === 'unresolved') {
+    // First agreement
+    return contributor === 'parent' ? 'parent-agreed' : 'child-agreed'
+  }
+
+  if (currentStatus === 'parent-agreed' && contributor === 'child') {
+    return 'resolved' // Both agreed
+  }
+
+  if (currentStatus === 'child-agreed' && contributor === 'parent') {
+    return 'resolved' // Both agreed
+  }
+
+  // Contributor already agreed, no change
+  return currentStatus
+}
+
+/**
+ * Check if a contributor has agreed to a term
+ */
+export function hasContributorAgreed(
+  resolutionStatus: ResolutionStatus,
+  contributor: SessionContributor
+): boolean {
+  if (resolutionStatus === 'resolved') return true
+  if (contributor === 'parent' && resolutionStatus === 'parent-agreed') return true
+  if (contributor === 'child' && resolutionStatus === 'child-agreed') return true
+  return false
+}
+
+/**
+ * Create a discussion note
+ */
+export function createDiscussionNote(
+  noteId: string,
+  contributor: SessionContributor,
+  text: string
+): DiscussionNote {
+  return {
+    id: noteId,
+    contributor,
+    text,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * Signing readiness information (AC #6)
+ */
+export interface SigningReadiness {
+  canProceed: boolean
+  unresolvedCount: number
+  unresolvedTerms: SessionTerm[]
+}
+
+/**
+ * Get signing readiness info (AC #6)
+ * Returns detailed info about what's blocking signing
+ */
+export function getSigningReadiness(session: CoCreationSession): SigningReadiness {
+  const unresolvedTerms = getUnresolvedDiscussionTerms(session)
+  return {
+    canProceed: unresolvedTerms.length === 0,
+    unresolvedCount: unresolvedTerms.length,
+    unresolvedTerms,
+  }
+}
+
+/**
+ * Add error messages for discussion operations
+ */
+export const DISCUSSION_ERROR_MESSAGES: Record<string, string> = {
+  'note-too-long': 'Your note is too long. Please keep it under 500 characters.',
+  'max-notes-reached': 'This term has too many notes. Please resolve it first.',
+  'already-agreed': 'You have already agreed to this term.',
+  'term-not-in-discussion': 'This term is not marked for discussion.',
+  'cannot-sign-unresolved': 'Please resolve all discussion items before signing.',
+}
+
+/**
+ * Get user-friendly error message for discussion operations
+ */
+export function getDiscussionErrorMessage(code: keyof typeof DISCUSSION_ERROR_MESSAGES | string): string {
+  return DISCUSSION_ERROR_MESSAGES[code] || SESSION_ERROR_MESSAGES.unknown
 }

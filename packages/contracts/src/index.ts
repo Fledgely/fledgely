@@ -806,6 +806,19 @@ export {
   createSessionStartContribution,
   createPauseContribution,
   createResumeContribution,
+  // Discussion & Negotiation (Story 5.4)
+  getUnresolvedDiscussionTerms,
+  canProceedToSigning,
+  getNextResolutionStatus,
+  hasContributorAgreed,
+  createDiscussionNote,
+  getSigningReadiness,
+  resolutionStatusSchema,
+  discussionNoteSchema,
+  addDiscussionNoteInputSchema,
+  markTermAgreementInputSchema,
+  acceptCompromiseInputSchema,
+  DISCUSSION_LIMITS,
   // Types
   type SessionStatus,
   type SessionContributor,
@@ -829,6 +842,13 @@ export {
   type GetSessionInput,
   type CreateSessionResponse,
   type SessionOperationResponse,
+  // Story 5.4 Discussion Types
+  type ResolutionStatus,
+  type DiscussionNote,
+  type AddDiscussionNoteInput,
+  type MarkTermAgreementInput,
+  type AcceptCompromiseInput,
+  type SigningReadiness,
 } from './co-creation-session.schema'
 
 // Readability Validation Utilities (Story 4.2 - Task 3)

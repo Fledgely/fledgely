@@ -23,3 +23,38 @@ export {
   buildDraftUrl,
 } from './useDraftLoader'
 export type { UseDraftLoaderReturn, DraftSource, CustomRule } from './useDraftLoader'
+
+// Story 5.4: Discussion & Negotiation Components
+export {
+  DiscussionPrompt,
+  TermNotesPanel,
+  CompromiseSuggestions,
+  ResolutionControls,
+  DiscussionTermCard,
+  // Utilities
+  DISCUSSION_PROMPTS,
+  DEFAULT_PROMPTS,
+  getDiscussionPrompt,
+  getDiscussionPrompts,
+  COMPROMISE_SUGGESTIONS,
+  getCompromiseSuggestions,
+  hasCompromiseSuggestions,
+  getCompromiseSuggestionById,
+  RESOLUTION_STATUS_LABELS,
+  getResolutionStatusLabel,
+  isInDiscussion,
+  getRemainingAgreement,
+  getResolutionAnnouncement,
+  getNoteAddedAnnouncement,
+  getCompromiseAcceptedAnnouncement,
+} from './discussion'
+export type {
+  DiscussionPromptProps,
+  TermNotesPanelProps,
+  CompromiseSuggestionsProps,
+  ResolutionControlsProps,
+  DiscussionTermCardProps,
+  DiscussionPromptType,
+  CompromiseSuggestion,
+  PromptSet,
+} from './discussion'

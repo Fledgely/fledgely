@@ -18,6 +18,12 @@ import {
   addTermInputSchema,
   updateTermInputSchema,
   getSessionInputSchema,
+  // Story 5.4: Discussion schemas
+  resolutionStatusSchema,
+  discussionNoteSchema,
+  addDiscussionNoteInputSchema,
+  markTermAgreementInputSchema,
+  acceptCompromiseInputSchema,
   // Helper functions
   getSessionStatusLabel,
   getSessionStatusDescription,
@@ -48,17 +54,33 @@ import {
   createSessionStartContribution,
   createPauseContribution,
   createResumeContribution,
+  // Story 5.4: Discussion helper functions
+  getResolutionStatusLabel,
+  getResolutionStatusDescription,
+  safeParseDiscussionNote,
+  getUnresolvedDiscussionTerms,
+  canProceedToSigning,
+  getNextResolutionStatus,
+  hasContributorAgreed,
+  createDiscussionNote,
+  getSigningReadiness,
+  getDiscussionErrorMessage,
   // Constants
   SESSION_FIELD_LIMITS,
   SESSION_ARRAY_LIMITS,
   SESSION_TIMEOUT_CONSTANTS,
   SESSION_STATUS_LABELS,
   SESSION_ERROR_MESSAGES,
+  RESOLUTION_STATUS_LABELS,
+  DISCUSSION_LIMITS,
+  DISCUSSION_ERROR_MESSAGES,
   // Types
   type CoCreationSession,
   type SessionContribution,
   type SessionTerm,
   type CreateCoCreationSessionInput,
+  type DiscussionNote,
+  type ResolutionStatus,
 } from './co-creation-session.schema'
 
 /**
@@ -90,6 +112,14 @@ const createValidContribution = (overrides?: Partial<SessionContribution>): Sess
   ...overrides,
 })
 
+const createValidDiscussionNote = (overrides?: Partial<DiscussionNote>): DiscussionNote => ({
+  id: '550e8400-e29b-41d4-a716-446655440020',
+  contributor: 'child',
+  text: 'I think I need more time for homework',
+  createdAt: '2024-01-15T10:15:00.000Z',
+  ...overrides,
+})
+
 const createValidTerm = (overrides?: Partial<SessionTerm>): SessionTerm => ({
   id: '550e8400-e29b-41d4-a716-446655440003',
   type: 'screen_time',
@@ -99,6 +129,8 @@ const createValidTerm = (overrides?: Partial<SessionTerm>): SessionTerm => ({
   order: 0,
   createdAt: '2024-01-15T10:00:00.000Z',
   updatedAt: '2024-01-15T10:00:00.000Z',
+  discussionNotes: [],
+  resolutionStatus: 'unresolved',
   ...overrides,
 })
 
@@ -901,6 +933,436 @@ describe('co-creation-session.schema', () => {
       expect(SESSION_ERROR_MESSAGES).toHaveProperty('session-not-found')
       expect(SESSION_ERROR_MESSAGES).toHaveProperty('not-authorized')
       expect(SESSION_ERROR_MESSAGES).toHaveProperty('unknown')
+    })
+  })
+
+  // ============================================================================
+  // Story 5.4: Discussion Schema Tests
+  // ============================================================================
+
+  describe('resolutionStatusSchema (Story 5.4)', () => {
+    it('should accept valid resolution status values', () => {
+      expect(resolutionStatusSchema.parse('unresolved')).toBe('unresolved')
+      expect(resolutionStatusSchema.parse('parent-agreed')).toBe('parent-agreed')
+      expect(resolutionStatusSchema.parse('child-agreed')).toBe('child-agreed')
+      expect(resolutionStatusSchema.parse('resolved')).toBe('resolved')
+    })
+
+    it('should reject invalid resolution status values', () => {
+      expect(() => resolutionStatusSchema.parse('invalid')).toThrow()
+      expect(() => resolutionStatusSchema.parse('')).toThrow()
+      expect(() => resolutionStatusSchema.parse(null)).toThrow()
+    })
+  })
+
+  describe('discussionNoteSchema (Story 5.4)', () => {
+    it('should accept valid discussion note', () => {
+      const note = createValidDiscussionNote()
+      const result = discussionNoteSchema.parse(note)
+      expect(result.id).toBe(note.id)
+      expect(result.contributor).toBe('child')
+      expect(result.text).toBe('I think I need more time for homework')
+    })
+
+    it('should reject note with empty text', () => {
+      const note = createValidDiscussionNote({ text: '' })
+      expect(() => discussionNoteSchema.parse(note)).toThrow()
+    })
+
+    it('should reject note with text over 500 characters', () => {
+      const note = createValidDiscussionNote({ text: 'a'.repeat(501) })
+      expect(() => discussionNoteSchema.parse(note)).toThrow()
+    })
+
+    it('should accept note with exactly 500 characters', () => {
+      const note = createValidDiscussionNote({ text: 'a'.repeat(500) })
+      const result = discussionNoteSchema.parse(note)
+      expect(result.text.length).toBe(500)
+    })
+
+    it('should reject note with invalid UUID', () => {
+      const note = createValidDiscussionNote({ id: 'not-a-uuid' })
+      expect(() => discussionNoteSchema.parse(note)).toThrow()
+    })
+
+    it('should reject note with invalid datetime', () => {
+      const note = createValidDiscussionNote({ createdAt: 'not-a-date' })
+      expect(() => discussionNoteSchema.parse(note)).toThrow()
+    })
+  })
+
+  describe('sessionTermSchema with discussion fields (Story 5.4)', () => {
+    it('should accept term with empty discussion notes', () => {
+      const term = createValidTerm({ discussionNotes: [] })
+      const result = sessionTermSchema.parse(term)
+      expect(result.discussionNotes).toHaveLength(0)
+    })
+
+    it('should accept term with discussion notes', () => {
+      const term = createValidTerm({
+        status: 'discussion',
+        discussionNotes: [createValidDiscussionNote()],
+      })
+      const result = sessionTermSchema.parse(term)
+      expect(result.discussionNotes).toHaveLength(1)
+      expect(result.discussionNotes[0].contributor).toBe('child')
+    })
+
+    it('should accept term with resolution status', () => {
+      const term = createValidTerm({
+        status: 'discussion',
+        resolutionStatus: 'parent-agreed',
+      })
+      const result = sessionTermSchema.parse(term)
+      expect(result.resolutionStatus).toBe('parent-agreed')
+    })
+
+    it('should accept term with compromiseAccepted', () => {
+      const term = createValidTerm({
+        status: 'discussion',
+        compromiseAccepted: 'st-less-30',
+      })
+      const result = sessionTermSchema.parse(term)
+      expect(result.compromiseAccepted).toBe('st-less-30')
+    })
+
+    it('should default discussionNotes to empty array', () => {
+      const { discussionNotes, ...termWithoutNotes } = createValidTerm()
+      const result = sessionTermSchema.parse(termWithoutNotes)
+      expect(result.discussionNotes).toEqual([])
+    })
+
+    it('should default resolutionStatus to unresolved', () => {
+      const { resolutionStatus, ...termWithoutStatus } = createValidTerm()
+      const result = sessionTermSchema.parse(termWithoutStatus)
+      expect(result.resolutionStatus).toBe('unresolved')
+    })
+
+    it('should enforce max notes per term limit', () => {
+      const manyNotes = Array.from({ length: DISCUSSION_LIMITS.maxNotesPerTerm + 1 }, (_, i) =>
+        createValidDiscussionNote({ id: `550e8400-e29b-41d4-a716-44665544${String(i).padStart(4, '0')}` })
+      )
+      const term = createValidTerm({ discussionNotes: manyNotes })
+      expect(() => sessionTermSchema.parse(term)).toThrow()
+    })
+  })
+
+  describe('Discussion Input Schemas (Story 5.4)', () => {
+    describe('addDiscussionNoteInputSchema', () => {
+      it('should accept valid add note input', () => {
+        const input = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          termId: '550e8400-e29b-41d4-a716-446655440003',
+          contributor: 'child',
+          text: 'I need this for homework',
+        }
+        const result = addDiscussionNoteInputSchema.parse(input)
+        expect(result.contributor).toBe('child')
+        expect(result.text).toBe('I need this for homework')
+      })
+
+      it('should reject note input with empty text', () => {
+        const input = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          termId: '550e8400-e29b-41d4-a716-446655440003',
+          contributor: 'child',
+          text: '',
+        }
+        expect(() => addDiscussionNoteInputSchema.parse(input)).toThrow()
+      })
+    })
+
+    describe('markTermAgreementInputSchema', () => {
+      it('should accept valid agreement input', () => {
+        const input = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          termId: '550e8400-e29b-41d4-a716-446655440003',
+          contributor: 'parent',
+        }
+        const result = markTermAgreementInputSchema.parse(input)
+        expect(result.contributor).toBe('parent')
+      })
+    })
+
+    describe('acceptCompromiseInputSchema', () => {
+      it('should accept valid compromise input', () => {
+        const input = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          termId: '550e8400-e29b-41d4-a716-446655440003',
+          contributor: 'child',
+          compromiseId: 'st-less-30',
+          newContent: { weekdayMinutes: 30 },
+        }
+        const result = acceptCompromiseInputSchema.parse(input)
+        expect(result.compromiseId).toBe('st-less-30')
+        expect(result.newContent).toEqual({ weekdayMinutes: 30 })
+      })
+
+      it('should reject compromise input with empty compromiseId', () => {
+        const input = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          termId: '550e8400-e29b-41d4-a716-446655440003',
+          contributor: 'child',
+          compromiseId: '',
+          newContent: {},
+        }
+        expect(() => acceptCompromiseInputSchema.parse(input)).toThrow()
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 5.4: Discussion Label Helper Tests
+  // ============================================================================
+
+  describe('Discussion label helpers (Story 5.4)', () => {
+    it('getResolutionStatusLabel should return correct labels', () => {
+      expect(getResolutionStatusLabel('unresolved')).toBe('Needs Agreement')
+      expect(getResolutionStatusLabel('parent-agreed')).toBe('Parent Agreed')
+      expect(getResolutionStatusLabel('child-agreed')).toBe('Child Agreed')
+      expect(getResolutionStatusLabel('resolved')).toBe('Both Agreed')
+    })
+
+    it('getResolutionStatusDescription should return 6th-grade level descriptions', () => {
+      expect(getResolutionStatusDescription('unresolved')).toContain('both need to agree')
+      expect(getResolutionStatusDescription('parent-agreed')).toContain('Waiting for child')
+      expect(getResolutionStatusDescription('child-agreed')).toContain('Waiting for parent')
+      expect(getResolutionStatusDescription('resolved')).toContain('both agree')
+    })
+  })
+
+  // ============================================================================
+  // Story 5.4: Discussion Helper Function Tests
+  // ============================================================================
+
+  describe('Discussion helper functions (Story 5.4)', () => {
+    describe('safeParseDiscussionNote', () => {
+      it('should return note for valid data', () => {
+        const note = createValidDiscussionNote()
+        expect(safeParseDiscussionNote(note)).not.toBeNull()
+      })
+
+      it('should return null for invalid data', () => {
+        expect(safeParseDiscussionNote({ invalid: 'data' })).toBeNull()
+      })
+    })
+
+    describe('getUnresolvedDiscussionTerms (AC #5, AC #6)', () => {
+      it('should return only unresolved discussion terms', () => {
+        const session = createValidSession({
+          terms: [
+            createValidTerm({ status: 'accepted' }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440010',
+              status: 'discussion',
+              resolutionStatus: 'unresolved',
+            }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440011',
+              status: 'discussion',
+              resolutionStatus: 'resolved',
+            }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440012',
+              status: 'discussion',
+              resolutionStatus: 'parent-agreed',
+            }),
+          ],
+        })
+        const unresolved = getUnresolvedDiscussionTerms(session)
+        expect(unresolved).toHaveLength(2) // unresolved and parent-agreed
+        expect(unresolved.every((t) => t.status === 'discussion')).toBe(true)
+        expect(unresolved.every((t) => t.resolutionStatus !== 'resolved')).toBe(true)
+      })
+
+      it('should return empty array when all discussion terms are resolved', () => {
+        const session = createValidSession({
+          terms: [
+            createValidTerm({ status: 'accepted' }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440010',
+              status: 'discussion',
+              resolutionStatus: 'resolved',
+            }),
+          ],
+        })
+        const unresolved = getUnresolvedDiscussionTerms(session)
+        expect(unresolved).toHaveLength(0)
+      })
+    })
+
+    describe('canProceedToSigning (AC #6)', () => {
+      it('should return true when no unresolved discussion terms', () => {
+        const session = createValidSession({
+          terms: [
+            createValidTerm({ status: 'accepted' }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440010',
+              status: 'discussion',
+              resolutionStatus: 'resolved',
+            }),
+          ],
+        })
+        expect(canProceedToSigning(session)).toBe(true)
+      })
+
+      it('should return false when unresolved discussion terms exist', () => {
+        const session = createValidSession({
+          terms: [
+            createValidTerm({ status: 'accepted' }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440010',
+              status: 'discussion',
+              resolutionStatus: 'unresolved',
+            }),
+          ],
+        })
+        expect(canProceedToSigning(session)).toBe(false)
+      })
+    })
+
+    describe('getNextResolutionStatus (AC #4)', () => {
+      it('should transition from unresolved to parent-agreed when parent agrees', () => {
+        expect(getNextResolutionStatus('unresolved', 'parent')).toBe('parent-agreed')
+      })
+
+      it('should transition from unresolved to child-agreed when child agrees', () => {
+        expect(getNextResolutionStatus('unresolved', 'child')).toBe('child-agreed')
+      })
+
+      it('should transition from parent-agreed to resolved when child agrees', () => {
+        expect(getNextResolutionStatus('parent-agreed', 'child')).toBe('resolved')
+      })
+
+      it('should transition from child-agreed to resolved when parent agrees', () => {
+        expect(getNextResolutionStatus('child-agreed', 'parent')).toBe('resolved')
+      })
+
+      it('should stay parent-agreed when parent agrees again', () => {
+        expect(getNextResolutionStatus('parent-agreed', 'parent')).toBe('parent-agreed')
+      })
+
+      it('should stay child-agreed when child agrees again', () => {
+        expect(getNextResolutionStatus('child-agreed', 'child')).toBe('child-agreed')
+      })
+
+      it('should stay resolved when already resolved', () => {
+        expect(getNextResolutionStatus('resolved', 'parent')).toBe('resolved')
+        expect(getNextResolutionStatus('resolved', 'child')).toBe('resolved')
+      })
+    })
+
+    describe('hasContributorAgreed', () => {
+      it('should return true for parent when parent-agreed', () => {
+        expect(hasContributorAgreed('parent-agreed', 'parent')).toBe(true)
+      })
+
+      it('should return false for child when parent-agreed', () => {
+        expect(hasContributorAgreed('parent-agreed', 'child')).toBe(false)
+      })
+
+      it('should return true for child when child-agreed', () => {
+        expect(hasContributorAgreed('child-agreed', 'child')).toBe(true)
+      })
+
+      it('should return false for parent when child-agreed', () => {
+        expect(hasContributorAgreed('child-agreed', 'parent')).toBe(false)
+      })
+
+      it('should return true for both when resolved', () => {
+        expect(hasContributorAgreed('resolved', 'parent')).toBe(true)
+        expect(hasContributorAgreed('resolved', 'child')).toBe(true)
+      })
+
+      it('should return false for both when unresolved', () => {
+        expect(hasContributorAgreed('unresolved', 'parent')).toBe(false)
+        expect(hasContributorAgreed('unresolved', 'child')).toBe(false)
+      })
+    })
+
+    describe('createDiscussionNote', () => {
+      it('should create valid discussion note', () => {
+        const note = createDiscussionNote(
+          '550e8400-e29b-41d4-a716-446655440099',
+          'child',
+          'Can we talk about this?'
+        )
+        expect(note.id).toBe('550e8400-e29b-41d4-a716-446655440099')
+        expect(note.contributor).toBe('child')
+        expect(note.text).toBe('Can we talk about this?')
+        expect(note.createdAt).toBeDefined()
+      })
+    })
+
+    describe('getSigningReadiness (AC #6)', () => {
+      it('should return canProceed true when all resolved', () => {
+        const session = createValidSession({
+          terms: [createValidTerm({ status: 'accepted' })],
+        })
+        const readiness = getSigningReadiness(session)
+        expect(readiness.canProceed).toBe(true)
+        expect(readiness.unresolvedCount).toBe(0)
+        expect(readiness.unresolvedTerms).toHaveLength(0)
+      })
+
+      it('should return canProceed false with unresolved terms', () => {
+        const session = createValidSession({
+          terms: [
+            createValidTerm({
+              status: 'discussion',
+              resolutionStatus: 'unresolved',
+            }),
+            createValidTerm({
+              id: '550e8400-e29b-41d4-a716-446655440010',
+              status: 'discussion',
+              resolutionStatus: 'parent-agreed',
+            }),
+          ],
+        })
+        const readiness = getSigningReadiness(session)
+        expect(readiness.canProceed).toBe(false)
+        expect(readiness.unresolvedCount).toBe(2)
+        expect(readiness.unresolvedTerms).toHaveLength(2)
+      })
+    })
+
+    describe('getDiscussionErrorMessage', () => {
+      it('should return correct error messages', () => {
+        expect(getDiscussionErrorMessage('note-too-long')).toContain('too long')
+        expect(getDiscussionErrorMessage('max-notes-reached')).toContain('too many notes')
+        expect(getDiscussionErrorMessage('already-agreed')).toContain('already agreed')
+        expect(getDiscussionErrorMessage('cannot-sign-unresolved')).toContain('resolve all')
+      })
+
+      it('should return unknown message for unrecognized codes', () => {
+        expect(getDiscussionErrorMessage('unknown-code')).toBe('Something went wrong. Please try again.')
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 5.4: Discussion Constants Tests
+  // ============================================================================
+
+  describe('Discussion constants (Story 5.4)', () => {
+    it('RESOLUTION_STATUS_LABELS should have all statuses', () => {
+      expect(Object.keys(RESOLUTION_STATUS_LABELS)).toHaveLength(4)
+      expect(RESOLUTION_STATUS_LABELS).toHaveProperty('unresolved')
+      expect(RESOLUTION_STATUS_LABELS).toHaveProperty('parent-agreed')
+      expect(RESOLUTION_STATUS_LABELS).toHaveProperty('child-agreed')
+      expect(RESOLUTION_STATUS_LABELS).toHaveProperty('resolved')
+    })
+
+    it('DISCUSSION_LIMITS should have correct values', () => {
+      expect(DISCUSSION_LIMITS.maxNotesPerTerm).toBe(50)
+      expect(DISCUSSION_LIMITS.maxNoteLength).toBe(500)
+    })
+
+    it('DISCUSSION_ERROR_MESSAGES should have common error codes', () => {
+      expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('note-too-long')
+      expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('max-notes-reached')
+      expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('already-agreed')
+      expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('cannot-sign-unresolved')
     })
   })
 })
