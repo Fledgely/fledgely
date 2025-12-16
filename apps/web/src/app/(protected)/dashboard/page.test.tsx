@@ -38,6 +38,10 @@ vi.mock('@/hooks/useChild', () => ({
   useChild: vi.fn(),
 }))
 
+vi.mock('@/hooks/useOtherGuardians', () => ({
+  useOtherGuardians: vi.fn(),
+}))
+
 // Mock RemoveChildConfirmDialog to prevent rendering issues
 vi.mock('@/components/child/RemoveChildConfirmDialog', () => ({
   RemoveChildConfirmDialog: () => null,
@@ -47,10 +51,12 @@ vi.mock('@/components/child/RemoveChildConfirmDialog', () => ({
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
+import { useOtherGuardians } from '@/hooks/useOtherGuardians'
 
 const mockUseUser = vi.mocked(useUser)
 const mockUseFamily = vi.mocked(useFamily)
 const mockUseChild = vi.mocked(useChild)
+const mockUseOtherGuardians = vi.mocked(useOtherGuardians)
 
 describe('DashboardPage', () => {
   const mockUserProfile = {
@@ -123,6 +129,13 @@ describe('DashboardPage', () => {
       addChild: vi.fn(),
       clearError: vi.fn(),
       refreshChildren: vi.fn(),
+    })
+
+    // Default: single guardian (no co-managed indicator)
+    mockUseOtherGuardians.mockReturnValue({
+      otherGuardianNames: [],
+      isLoading: false,
+      error: null,
     })
   })
 
@@ -445,6 +458,235 @@ describe('DashboardPage', () => {
 
       const removeButton = screen.getByRole('button', { name: /remove emma from family/i })
       expect(removeButton).toHaveClass('text-destructive')
+    })
+  })
+
+  // ============================================================================
+  // Story 3.4: Co-Managed Indicator Tests
+  // ============================================================================
+
+  describe('co-managed indicator (Story 3.4)', () => {
+    it('does not show co-managed indicator for single guardian family', () => {
+      // Default mock has no other guardians
+      render(<DashboardPage />)
+
+      expect(screen.queryByText(/co-managed with/i)).not.toBeInTheDocument()
+    })
+
+    it('shows co-managed indicator when family has multiple guardians', () => {
+      mockUseOtherGuardians.mockReturnValue({
+        otherGuardianNames: ['Jane Smith'],
+        isLoading: false,
+        error: null,
+      })
+
+      // Update family mock to have 2 guardians
+      mockUseFamily.mockReturnValue({
+        family: {
+          id: 'test-family-456',
+          createdAt: new Date(),
+          createdBy: 'test-user-123',
+          guardians: [
+            {
+              uid: 'test-user-123',
+              role: 'primary',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-456',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+          ],
+          children: ['test-child-789'],
+        },
+        loading: false,
+        error: null,
+        hasFamily: true,
+        createNewFamily: vi.fn(),
+        clearError: vi.fn(),
+        refreshFamily: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.getByText('Co-managed with Jane Smith')).toBeInTheDocument()
+    })
+
+    it('shows multiple co-parent names correctly', () => {
+      mockUseOtherGuardians.mockReturnValue({
+        otherGuardianNames: ['Jane Smith', 'Bob Johnson'],
+        isLoading: false,
+        error: null,
+      })
+
+      mockUseFamily.mockReturnValue({
+        family: {
+          id: 'test-family-456',
+          createdAt: new Date(),
+          createdBy: 'test-user-123',
+          guardians: [
+            {
+              uid: 'test-user-123',
+              role: 'primary',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-456',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-789',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+          ],
+          children: ['test-child-789'],
+        },
+        loading: false,
+        error: null,
+        hasFamily: true,
+        createNewFamily: vi.fn(),
+        clearError: vi.fn(),
+        refreshFamily: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.getByText('Co-managed with Jane Smith and Bob Johnson')).toBeInTheDocument()
+    })
+
+    it('shows loading skeleton when guardian names are loading', () => {
+      mockUseOtherGuardians.mockReturnValue({
+        otherGuardianNames: [],
+        isLoading: true,
+        error: null,
+      })
+
+      mockUseFamily.mockReturnValue({
+        family: {
+          id: 'test-family-456',
+          createdAt: new Date(),
+          createdBy: 'test-user-123',
+          guardians: [
+            {
+              uid: 'test-user-123',
+              role: 'primary',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-456',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+          ],
+          children: ['test-child-789'],
+        },
+        loading: false,
+        error: null,
+        hasFamily: true,
+        createNewFamily: vi.fn(),
+        clearError: vi.fn(),
+        refreshFamily: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      // Should show loading skeleton, not the co-managed text
+      expect(screen.queryByText(/co-managed with/i)).not.toBeInTheDocument()
+      // Should have a loading indicator (skeleton)
+      expect(screen.getByRole('status', { hidden: true })).toBeInTheDocument()
+    })
+
+    it('displays guardian count correctly for multiple guardians', () => {
+      mockUseOtherGuardians.mockReturnValue({
+        otherGuardianNames: ['Jane Smith'],
+        isLoading: false,
+        error: null,
+      })
+
+      mockUseFamily.mockReturnValue({
+        family: {
+          id: 'test-family-456',
+          createdAt: new Date(),
+          createdBy: 'test-user-123',
+          guardians: [
+            {
+              uid: 'test-user-123',
+              role: 'primary',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-456',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+          ],
+          children: ['test-child-789'],
+        },
+        loading: false,
+        error: null,
+        hasFamily: true,
+        createNewFamily: vi.fn(),
+        clearError: vi.fn(),
+        refreshFamily: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.getByText('2 guardians')).toBeInTheDocument()
+    })
+
+    it('co-managed indicator has accessible aria-label', () => {
+      mockUseOtherGuardians.mockReturnValue({
+        otherGuardianNames: ['Jane Smith'],
+        isLoading: false,
+        error: null,
+      })
+
+      mockUseFamily.mockReturnValue({
+        family: {
+          id: 'test-family-456',
+          createdAt: new Date(),
+          createdBy: 'test-user-123',
+          guardians: [
+            {
+              uid: 'test-user-123',
+              role: 'primary',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+            {
+              uid: 'co-parent-456',
+              role: 'co-parent',
+              permissions: 'full',
+              joinedAt: new Date(),
+            },
+          ],
+          children: ['test-child-789'],
+        },
+        loading: false,
+        error: null,
+        hasFamily: true,
+        createNewFamily: vi.fn(),
+        clearError: vi.fn(),
+        refreshFamily: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      const indicator = screen.getByLabelText('Co-managed with Jane Smith')
+      expect(indicator).toBeInTheDocument()
     })
   })
 })

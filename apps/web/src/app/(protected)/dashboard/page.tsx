@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
+import { useOtherGuardians } from '@/hooks/useOtherGuardians'
 import { useAuthContext } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
 import { RemoveChildConfirmDialog } from '@/components/child/RemoveChildConfirmDialog'
 import { InvitationDialog } from '@/components/invitation'
+import { CoManagedIndicator } from '@/components/family'
 import { calculateAge } from '@fledgely/contracts'
 import type { ChildProfile } from '@fledgely/contracts'
 import { Trash2, UserPlus, CheckCircle2, X } from 'lucide-react'
@@ -36,6 +38,12 @@ export default function DashboardPage() {
   const { userProfile, loading: userLoading } = useUser()
   const { family, hasFamily, loading: familyLoading } = useFamily()
   const { children, hasChildren, loading: childLoading, refreshChildren } = useChild()
+
+  // Fetch other guardian names for co-managed indicator (Story 3.4)
+  const { otherGuardianNames, isLoading: guardiansLoading } = useOtherGuardians(
+    family?.guardians ?? null,
+    user?.uid ?? null
+  )
 
   // State for remove child dialog
   const [removeDialogChild, setRemoveDialogChild] = useState<ChildProfile | null>(null)
@@ -197,7 +205,7 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Family section with invite co-parent (Story 3.1) */}
+          {/* Family section with invite co-parent (Story 3.1) and co-managed indicator (Story 3.4) */}
           {family && (
             <section aria-labelledby="family-heading" className="rounded-lg border bg-card p-4">
               <div className="flex items-center justify-between">
@@ -208,6 +216,14 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground">
                     {family.guardians.length} {family.guardians.length === 1 ? 'guardian' : 'guardians'}
                   </p>
+                  {/* Co-managed indicator - Story 3.4: Equal Access Verification */}
+                  {(otherGuardianNames.length > 0 || guardiansLoading) && (
+                    <CoManagedIndicator
+                      otherGuardianNames={otherGuardianNames}
+                      isLoading={guardiansLoading}
+                      className="mt-1"
+                    />
+                  )}
                 </div>
                 <Button
                   variant="outline"
