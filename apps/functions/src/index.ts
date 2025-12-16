@@ -70,8 +70,14 @@ export { logDataView, getViewAuditLog } from './callable/logDataView'
 export { proposeSafetySettingChange } from './callable/proposeSafetySettingChange'
 export { respondToSafetyProposal, disputeSafetyProposal } from './callable/respondToSafetyProposal'
 
+// Callable Functions - Cooling Period Cancellation (Story 3A.4)
+export { cancelCoolingPeriod } from './callable/cancelCoolingPeriod'
+
 // Scheduled Functions - Safety Settings Proposal Expiry (Story 3A.2)
 export { expireStaleProposals } from './scheduled/expireStaleProposals'
+
+// Scheduled Functions - Cooling Period Completion (Story 3A.4)
+export { completeCoolingPeriods } from './scheduled/completeCoolingPeriods'
 
 // Callable Functions - Agreement Change Proposal (Story 3A.3)
 export { proposeAgreementChange } from './callable/proposeAgreementChange'

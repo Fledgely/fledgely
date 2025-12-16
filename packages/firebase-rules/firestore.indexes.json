@@ -77,6 +77,14 @@
       ]
     },
     {
+      "collectionGroup": "safetySettingsProposals",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "coolingPeriod.endsAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "agreementChangeProposals",
       "queryScope": "COLLECTION",
       "fields": [

@@ -9,6 +9,8 @@ import {
   createSafetySettingsProposalInputSchema,
   respondToProposalInputSchema,
   disputeProposalInputSchema,
+  // Story 3A.4: Cooling period schema
+  cancelCoolingPeriodInputSchema,
   // Constants
   SAFETY_SETTING_TYPE_LABELS,
   PROPOSAL_STATUS_LABELS,
@@ -34,6 +36,13 @@ import {
   formatProposalDiff,
   formatSettingValue,
   getSafetyProposalErrorMessage,
+  // Story 3A.4: Cooling period functions
+  requiresCoolingPeriod,
+  calculateCoolingPeriodEnd,
+  getCoolingPeriodTimeRemaining,
+  formatCoolingPeriodCountdown,
+  isCoolingPeriodActive,
+  canCancelCoolingPeriod,
   // Types
   type SafetySettingType,
   type ProposalStatus,
@@ -1090,11 +1099,620 @@ describe('SAFETY_PROPOSAL_ERROR_MESSAGES', () => {
       'invalid-setting',
       'invalid-value',
       'unknown',
+      // Story 3A.4: Cooling period error codes
+      'not-in-cooling-period',
+      'cooling-period-expired',
+      'cooling-already-cancelled',
     ]
 
     for (const code of requiredCodes) {
       expect(SAFETY_PROPOSAL_ERROR_MESSAGES[code]).toBeDefined()
       expect(typeof SAFETY_PROPOSAL_ERROR_MESSAGES[code]).toBe('string')
     }
+  })
+})
+
+// ============================================
+// STORY 3A.4: COOLING PERIOD TESTS
+// ============================================
+
+// Helper to create a proposal with cooling period
+function createCoolingPeriodProposal(overrides: Partial<SafetySettingsProposal> = {}): SafetySettingsProposal {
+  const now = new Date()
+  const coolingStartsAt = now
+  const coolingEndsAt = new Date(now.getTime() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS)
+
+  return {
+    id: 'cooling-proposal-123',
+    childId: 'child-456',
+    proposedBy: 'parent-1',
+    settingType: 'monitoring_interval',
+    currentValue: 15,
+    proposedValue: 30, // Less frequent = protection decrease
+    status: 'cooling_in_progress',
+    createdAt: now,
+    expiresAt: new Date(now.getTime() + PROPOSAL_TIME_LIMITS.RESPONSE_WINDOW_MS),
+    isEmergencyIncrease: false,
+    respondedBy: 'parent-2',
+    respondedAt: now,
+    declineMessage: null,
+    appliedAt: null,
+    dispute: null,
+    coolingPeriod: {
+      startsAt: coolingStartsAt,
+      endsAt: coolingEndsAt,
+      cancelledBy: null,
+      cancelledAt: null,
+    },
+    ...overrides,
+  }
+}
+
+describe('Story 3A.4: proposalStatusSchema - cooling period statuses', () => {
+  const coolingStatuses: ProposalStatus[] = [
+    'cooling_in_progress',
+    'cooling_cancelled',
+    'cooling_completed',
+  ]
+
+  it.each(coolingStatuses)('accepts cooling period status: %s', (status) => {
+    expect(proposalStatusSchema.parse(status)).toBe(status)
+  })
+})
+
+describe('Story 3A.4: PROPOSAL_STATUS_LABELS - cooling period labels', () => {
+  it('has labels for all cooling period statuses', () => {
+    expect(PROPOSAL_STATUS_LABELS.cooling_in_progress).toBe('In 48-hour cooling period')
+    expect(PROPOSAL_STATUS_LABELS.cooling_cancelled).toBe('Cancelled during cooling period')
+    expect(PROPOSAL_STATUS_LABELS.cooling_completed).toBe('Cooling period complete, applied')
+  })
+})
+
+describe('Story 3A.4: PROPOSAL_TIME_LIMITS - cooling period constant', () => {
+  it('defines 48-hour cooling period', () => {
+    expect(PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS).toBe(48 * 60 * 60 * 1000)
+  })
+})
+
+describe('Story 3A.4: safetySettingsProposalSchema - coolingPeriod field', () => {
+  it('accepts proposal with cooling period', () => {
+    const proposal = createCoolingPeriodProposal()
+    const result = safetySettingsProposalSchema.parse(proposal)
+
+    expect(result.status).toBe('cooling_in_progress')
+    expect(result.coolingPeriod).not.toBeNull()
+    expect(result.coolingPeriod?.startsAt).toBeInstanceOf(Date)
+    expect(result.coolingPeriod?.endsAt).toBeInstanceOf(Date)
+  })
+
+  it('accepts proposal with cancelled cooling period', () => {
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_cancelled',
+      coolingPeriod: {
+        startsAt: new Date(),
+        endsAt: new Date(Date.now() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS),
+        cancelledBy: 'parent-2',
+        cancelledAt: new Date(),
+      },
+    })
+    const result = safetySettingsProposalSchema.parse(proposal)
+
+    expect(result.status).toBe('cooling_cancelled')
+    expect(result.coolingPeriod?.cancelledBy).toBe('parent-2')
+    expect(result.coolingPeriod?.cancelledAt).toBeInstanceOf(Date)
+  })
+
+  it('accepts proposal without cooling period (null)', () => {
+    const proposal = createCoolingPeriodProposal({
+      status: 'approved',
+      coolingPeriod: null,
+    })
+    const result = safetySettingsProposalSchema.parse(proposal)
+
+    expect(result.coolingPeriod).toBeNull()
+  })
+})
+
+describe('Story 3A.4: cancelCoolingPeriodInputSchema', () => {
+  it('accepts valid cancel cooling period input', () => {
+    const input = {
+      proposalId: 'proposal-123',
+      childId: 'child-456',
+    }
+    const result = cancelCoolingPeriodInputSchema.parse(input)
+    expect(result.proposalId).toBe('proposal-123')
+    expect(result.childId).toBe('child-456')
+  })
+
+  it('rejects missing proposalId', () => {
+    const input = { childId: 'child-456' }
+    expect(() => cancelCoolingPeriodInputSchema.parse(input)).toThrow()
+  })
+
+  it('rejects missing childId', () => {
+    const input = { proposalId: 'proposal-123' }
+    expect(() => cancelCoolingPeriodInputSchema.parse(input)).toThrow()
+  })
+
+  it('rejects empty proposalId', () => {
+    const input = { proposalId: '', childId: 'child-456' }
+    expect(() => cancelCoolingPeriodInputSchema.parse(input)).toThrow()
+  })
+
+  it('rejects empty childId', () => {
+    const input = { proposalId: 'proposal-123', childId: '' }
+    expect(() => cancelCoolingPeriodInputSchema.parse(input)).toThrow()
+  })
+})
+
+describe('Story 3A.4: requiresCoolingPeriod', () => {
+  describe('monitoring_interval', () => {
+    it('returns true when interval increases (less frequent = protection decrease)', () => {
+      expect(requiresCoolingPeriod('monitoring_interval', 15, 30)).toBe(true)
+    })
+
+    it('returns false when interval decreases (more frequent = protection increase)', () => {
+      expect(requiresCoolingPeriod('monitoring_interval', 30, 15)).toBe(false)
+    })
+
+    it('returns false when interval stays the same', () => {
+      expect(requiresCoolingPeriod('monitoring_interval', 30, 30)).toBe(false)
+    })
+  })
+
+  describe('retention_period', () => {
+    it('returns true when retention decreases (kept shorter = protection decrease)', () => {
+      expect(requiresCoolingPeriod('retention_period', 30, 7)).toBe(true)
+    })
+
+    it('returns false when retention increases (kept longer = protection increase)', () => {
+      expect(requiresCoolingPeriod('retention_period', 7, 30)).toBe(false)
+    })
+  })
+
+  describe('age_restriction', () => {
+    it('returns true when age restriction decreases (less restrictive)', () => {
+      expect(requiresCoolingPeriod('age_restriction', 18, 13)).toBe(true)
+    })
+
+    it('returns false when age restriction increases (more restrictive)', () => {
+      expect(requiresCoolingPeriod('age_restriction', 13, 18)).toBe(false)
+    })
+  })
+
+  describe('screen_time_daily', () => {
+    it('returns true when time limit increases (more time = protection decrease)', () => {
+      expect(requiresCoolingPeriod('screen_time_daily', 120, 180)).toBe(true)
+    })
+
+    it('returns false when time limit decreases (less time = protection increase)', () => {
+      expect(requiresCoolingPeriod('screen_time_daily', 180, 120)).toBe(false)
+    })
+  })
+
+  describe('screen_time_per_app', () => {
+    it('returns true when per-app limit increases', () => {
+      expect(requiresCoolingPeriod('screen_time_per_app', 30, 60)).toBe(true)
+    })
+
+    it('returns false when per-app limit decreases', () => {
+      expect(requiresCoolingPeriod('screen_time_per_app', 60, 30)).toBe(false)
+    })
+  })
+
+  describe('bedtime_start', () => {
+    it('returns true when bedtime is later (protection decrease)', () => {
+      // 9 PM = 1260, 10 PM = 1320
+      expect(requiresCoolingPeriod('bedtime_start', 1260, 1320)).toBe(true)
+    })
+
+    it('returns false when bedtime is earlier (protection increase)', () => {
+      expect(requiresCoolingPeriod('bedtime_start', 1320, 1260)).toBe(false)
+    })
+  })
+
+  describe('bedtime_end', () => {
+    it('returns true when wake time is earlier (protection decrease)', () => {
+      // 8 AM = 480, 7 AM = 420
+      expect(requiresCoolingPeriod('bedtime_end', 480, 420)).toBe(true)
+    })
+
+    it('returns false when wake time is later (protection increase)', () => {
+      expect(requiresCoolingPeriod('bedtime_end', 420, 480)).toBe(false)
+    })
+  })
+
+  describe('crisis_allowlist', () => {
+    it('always returns false (never reduces protection)', () => {
+      expect(requiresCoolingPeriod('crisis_allowlist', 'old', 'new')).toBe(false)
+      expect(requiresCoolingPeriod('crisis_allowlist', '', 'site.org')).toBe(false)
+    })
+  })
+
+  describe('non-numeric values', () => {
+    it('returns false for string values', () => {
+      expect(requiresCoolingPeriod('monitoring_interval', 'old', 'new')).toBe(false)
+    })
+
+    it('returns false for boolean values', () => {
+      expect(requiresCoolingPeriod('monitoring_interval', true, false)).toBe(false)
+    })
+  })
+
+  describe('inverse relationship with isEmergencySafetyIncrease', () => {
+    // Verify that requiresCoolingPeriod and isEmergencySafetyIncrease are mutually exclusive
+    const testCases: Array<{
+      type: SafetySettingType
+      current: number
+      proposed: number
+    }> = [
+      { type: 'monitoring_interval', current: 15, proposed: 30 }, // decrease protection
+      { type: 'monitoring_interval', current: 30, proposed: 15 }, // increase protection
+      { type: 'retention_period', current: 30, proposed: 7 }, // decrease protection
+      { type: 'retention_period', current: 7, proposed: 30 }, // increase protection
+      { type: 'screen_time_daily', current: 120, proposed: 180 }, // decrease protection
+      { type: 'screen_time_daily', current: 180, proposed: 120 }, // increase protection
+    ]
+
+    it.each(testCases)(
+      'requiresCoolingPeriod and isEmergencySafetyIncrease are mutually exclusive for $type',
+      ({ type, current, proposed }) => {
+        const needsCooling = requiresCoolingPeriod(type, current, proposed)
+        const isEmergency = isEmergencySafetyIncrease(type, current, proposed)
+
+        // At most one can be true (both can be false for same value)
+        expect(needsCooling && isEmergency).toBe(false)
+      }
+    )
+  })
+})
+
+describe('Story 3A.4: calculateCoolingPeriodEnd', () => {
+  it('calculates end date 48 hours from start', () => {
+    const startsAt = new Date('2024-01-01T12:00:00Z')
+    const endsAt = calculateCoolingPeriodEnd(startsAt)
+
+    const expectedEnd = new Date('2024-01-03T12:00:00Z')
+    expect(endsAt.getTime()).toBe(expectedEnd.getTime())
+  })
+})
+
+describe('Story 3A.4: getCoolingPeriodTimeRemaining', () => {
+  it('returns positive time for active cooling period', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + 60000), // 1 minute from now
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    const remaining = getCoolingPeriodTimeRemaining(proposal, now)
+    expect(remaining).toBeGreaterThan(0)
+    expect(remaining).toBeLessThanOrEqual(60000)
+  })
+
+  it('returns 0 for expired cooling period', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: new Date(now.getTime() - 60000),
+        endsAt: new Date(now.getTime() - 1000), // 1 second ago
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(getCoolingPeriodTimeRemaining(proposal, now)).toBe(0)
+  })
+
+  it('returns 0 for non-cooling status', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'approved' })
+    expect(getCoolingPeriodTimeRemaining(proposal)).toBe(0)
+  })
+
+  it('returns 0 for proposal without cooling period data', () => {
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: null,
+    })
+    expect(getCoolingPeriodTimeRemaining(proposal)).toBe(0)
+  })
+})
+
+describe('Story 3A.4: formatCoolingPeriodCountdown', () => {
+  it('formats hours and minutes', () => {
+    const now = new Date()
+    // 23 hours, 30 minutes remaining
+    const remaining = 23 * 60 * 60 * 1000 + 30 * 60 * 1000
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + remaining),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(formatCoolingPeriodCountdown(proposal, now)).toBe('23 hours, 30 minutes')
+  })
+
+  it('formats hours only when no minutes', () => {
+    const now = new Date()
+    const remaining = 2 * 60 * 60 * 1000 // 2 hours
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + remaining),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(formatCoolingPeriodCountdown(proposal, now)).toBe('2 hours')
+  })
+
+  it('formats single hour correctly', () => {
+    const now = new Date()
+    const remaining = 1 * 60 * 60 * 1000 // 1 hour
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + remaining),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(formatCoolingPeriodCountdown(proposal, now)).toBe('1 hour')
+  })
+
+  it('formats minutes only when less than an hour', () => {
+    const now = new Date()
+    const remaining = 45 * 60 * 1000 // 45 minutes
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + remaining),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(formatCoolingPeriodCountdown(proposal, now)).toBe('45 minutes')
+  })
+
+  it('formats single minute correctly', () => {
+    const now = new Date()
+    const remaining = 1 * 60 * 1000 // 1 minute
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: now,
+        endsAt: new Date(now.getTime() + remaining),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(formatCoolingPeriodCountdown(proposal, now)).toBe('1 minute')
+  })
+
+  it('returns ended message for expired cooling period', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'approved' })
+    expect(formatCoolingPeriodCountdown(proposal)).toBe('Cooling period ended')
+  })
+})
+
+describe('Story 3A.4: isCoolingPeriodActive', () => {
+  it('returns true for active cooling period', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: new Date(now.getTime() - 1000), // started 1 second ago
+        endsAt: new Date(now.getTime() + 60000), // ends in 1 minute
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(isCoolingPeriodActive(proposal, now)).toBe(true)
+  })
+
+  it('returns false for expired cooling period', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: new Date(now.getTime() - 60000),
+        endsAt: new Date(now.getTime() - 1000), // ended 1 second ago
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(isCoolingPeriodActive(proposal, now)).toBe(false)
+  })
+
+  it('returns false for non-cooling status', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'approved' })
+    expect(isCoolingPeriodActive(proposal)).toBe(false)
+  })
+
+  it('returns false for cooling_cancelled status', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'cooling_cancelled' })
+    expect(isCoolingPeriodActive(proposal)).toBe(false)
+  })
+
+  it('returns false for cooling_completed status', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'cooling_completed' })
+    expect(isCoolingPeriodActive(proposal)).toBe(false)
+  })
+
+  it('returns false for missing cooling period data', () => {
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: null,
+    })
+    expect(isCoolingPeriodActive(proposal)).toBe(false)
+  })
+
+  it('returns false before cooling period starts', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: new Date(now.getTime() + 60000), // starts in 1 minute
+        endsAt: new Date(now.getTime() + 120000),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(isCoolingPeriodActive(proposal, now)).toBe(false)
+  })
+})
+
+describe('Story 3A.4: canCancelCoolingPeriod', () => {
+  it('returns true for active cooling period', () => {
+    const proposal = createCoolingPeriodProposal()
+    expect(canCancelCoolingPeriod(proposal)).toBe(true)
+  })
+
+  it('returns false for expired cooling period', () => {
+    const now = new Date()
+    const proposal = createCoolingPeriodProposal({
+      status: 'cooling_in_progress',
+      coolingPeriod: {
+        startsAt: new Date(now.getTime() - 60000),
+        endsAt: new Date(now.getTime() - 1000),
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    })
+
+    expect(canCancelCoolingPeriod(proposal, now)).toBe(false)
+  })
+
+  it('returns false for already cancelled cooling period', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'cooling_cancelled' })
+    expect(canCancelCoolingPeriod(proposal)).toBe(false)
+  })
+
+  it('returns false for completed cooling period', () => {
+    const proposal = createCoolingPeriodProposal({ status: 'cooling_completed' })
+    expect(canCancelCoolingPeriod(proposal)).toBe(false)
+  })
+})
+
+describe('Story 3A.4: Firestore schema with cooling period', () => {
+  it('accepts Firestore proposal with cooling period', () => {
+    const now = new Date()
+    const firestoreProposal = {
+      id: 'proposal-123',
+      childId: 'child-456',
+      proposedBy: 'parent-1',
+      settingType: 'monitoring_interval',
+      currentValue: 15,
+      proposedValue: 30,
+      status: 'cooling_in_progress',
+      createdAt: { toDate: () => now },
+      expiresAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.RESPONSE_WINDOW_MS) },
+      isEmergencyIncrease: false,
+      respondedBy: 'parent-2',
+      respondedAt: { toDate: () => now },
+      declineMessage: null,
+      appliedAt: null,
+      dispute: null,
+      coolingPeriod: {
+        startsAt: { toDate: () => now },
+        endsAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS) },
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    }
+
+    const result = safetySettingsProposalFirestoreSchema.parse(firestoreProposal)
+    expect(result.status).toBe('cooling_in_progress')
+    expect(result.coolingPeriod).not.toBeNull()
+  })
+})
+
+describe('Story 3A.4: convertFirestoreToSafetySettingsProposal with cooling period', () => {
+  it('converts Firestore proposal with cooling period', () => {
+    const now = new Date()
+    const firestoreProposal = {
+      id: 'proposal-123',
+      childId: 'child-456',
+      proposedBy: 'parent-1',
+      settingType: 'monitoring_interval' as const,
+      currentValue: 15,
+      proposedValue: 30,
+      status: 'cooling_in_progress' as const,
+      createdAt: { toDate: () => now },
+      expiresAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.RESPONSE_WINDOW_MS) },
+      isEmergencyIncrease: false,
+      respondedBy: 'parent-2',
+      respondedAt: { toDate: () => now },
+      declineMessage: null,
+      appliedAt: null,
+      dispute: null,
+      coolingPeriod: {
+        startsAt: { toDate: () => now },
+        endsAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS) },
+        cancelledBy: null,
+        cancelledAt: null,
+      },
+    }
+
+    const result = convertFirestoreToSafetySettingsProposal(firestoreProposal)
+
+    expect(result.status).toBe('cooling_in_progress')
+    expect(result.coolingPeriod).not.toBeNull()
+    expect(result.coolingPeriod?.startsAt).toBeInstanceOf(Date)
+    expect(result.coolingPeriod?.endsAt).toBeInstanceOf(Date)
+  })
+
+  it('converts Firestore proposal with cancelled cooling period', () => {
+    const now = new Date()
+    const cancelledAt = new Date(now.getTime() + 1000)
+    const firestoreProposal = {
+      id: 'proposal-123',
+      childId: 'child-456',
+      proposedBy: 'parent-1',
+      settingType: 'monitoring_interval' as const,
+      currentValue: 15,
+      proposedValue: 30,
+      status: 'cooling_cancelled' as const,
+      createdAt: { toDate: () => now },
+      expiresAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.RESPONSE_WINDOW_MS) },
+      isEmergencyIncrease: false,
+      respondedBy: 'parent-2',
+      respondedAt: { toDate: () => now },
+      declineMessage: null,
+      appliedAt: null,
+      dispute: null,
+      coolingPeriod: {
+        startsAt: { toDate: () => now },
+        endsAt: { toDate: () => new Date(now.getTime() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS) },
+        cancelledBy: 'parent-1',
+        cancelledAt: { toDate: () => cancelledAt },
+      },
+    }
+
+    const result = convertFirestoreToSafetySettingsProposal(firestoreProposal)
+
+    expect(result.status).toBe('cooling_cancelled')
+    expect(result.coolingPeriod?.cancelledBy).toBe('parent-1')
+    expect(result.coolingPeriod?.cancelledAt).toBeInstanceOf(Date)
   })
 })

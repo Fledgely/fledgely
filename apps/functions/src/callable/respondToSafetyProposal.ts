@@ -6,6 +6,8 @@ import {
   canRespondToProposal,
   canDisputeProposal,
   convertFirestoreToSafetySettingsProposal,
+  requiresCoolingPeriod,
+  calculateCoolingPeriodEnd,
   PROPOSAL_TIME_LIMITS,
   type RespondToProposalInput,
   type DisputeProposalInput,
@@ -17,6 +19,7 @@ import {
  * Callable Cloud Function: respondToSafetyProposal
  *
  * Story 3A.2: Safety Settings Two-Parent Approval
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period
  *
  * Allows a co-parent to approve or decline a safety setting proposal.
  * The responding parent cannot be the one who proposed the change.
@@ -26,7 +29,8 @@ import {
  * 2. Caller MUST be a guardian of the child (but NOT the proposer)
  * 3. Proposal MUST be in 'pending' status
  * 4. Response MUST be within 72-hour window
- * 5. If approved, change is applied immediately
+ * 5. If approved and change INCREASES protection: apply immediately
+ * 6. If approved and change DECREASES protection: enter 48-hour cooling period
  */
 export const respondToSafetyProposal = onCall(
   {
@@ -136,22 +140,55 @@ export const respondToSafetyProposal = onCall(
         respondedAt: FieldValue.serverTimestamp(),
       }
 
-      if (action === 'approve') {
-        updateData.status = 'approved'
-        updateData.appliedAt = FieldValue.serverTimestamp()
+      // Track the final status for the response
+      let finalStatus: string
 
-        // Apply the setting change
-        await applySettingChange(
-          db,
-          childId,
+      if (action === 'approve') {
+        // Story 3A.4: Check if this approval requires a cooling period
+        // Protection decreases (less monitoring, more screen time, etc.) need 48-hour delay
+        const needsCoolingPeriod = requiresCoolingPeriod(
           proposal.settingType,
+          proposal.currentValue,
           proposal.proposedValue
         )
+
+        if (needsCoolingPeriod) {
+          // Protection DECREASE: Enter 48-hour cooling period before applying
+          const now = new Date()
+          const coolingEndsAt = calculateCoolingPeriodEnd(now)
+
+          updateData.status = 'cooling_in_progress'
+          updateData.coolingPeriod = {
+            startsAt: Timestamp.fromDate(now),
+            endsAt: Timestamp.fromDate(coolingEndsAt),
+            cancelledBy: null,
+            cancelledAt: null,
+          }
+          // Store original value for potential reversion if cancelled
+          // (already stored in proposal.currentValue)
+
+          finalStatus = 'cooling_in_progress'
+        } else {
+          // Protection INCREASE or no change: Apply immediately
+          updateData.status = 'approved'
+          updateData.appliedAt = FieldValue.serverTimestamp()
+
+          // Apply the setting change immediately
+          await applySettingChange(
+            db,
+            childId,
+            proposal.settingType,
+            proposal.proposedValue
+          )
+
+          finalStatus = 'approved'
+        }
       } else {
         updateData.status = 'declined'
         if (message) {
           updateData.declineMessage = message
         }
+        finalStatus = 'declined'
       }
 
       // Update the proposal
@@ -165,17 +202,28 @@ export const respondToSafetyProposal = onCall(
       // TODO: Task 4 - Trigger notification to proposing parent
       // This will be implemented as a Firestore trigger
 
+      // Build response message based on final status
+      let responseMessage: string
+      if (finalStatus === 'cooling_in_progress') {
+        responseMessage =
+          'Proposal approved. Because this change reduces protection, a 48-hour cooling period has started. Either parent can cancel during this time.'
+      } else if (finalStatus === 'approved') {
+        responseMessage = 'Proposal approved. The safety setting has been updated.'
+      } else {
+        responseMessage = 'Proposal declined. The proposing parent has been notified.'
+      }
+
       return {
         success: true,
         proposalId,
         childId,
         action,
-        status: action === 'approve' ? 'approved' : 'declined',
+        status: finalStatus,
         settingType: proposal.settingType,
-        message:
-          action === 'approve'
-            ? 'Proposal approved. The safety setting has been updated.'
-            : 'Proposal declined. The proposing parent has been notified.',
+        message: responseMessage,
+        ...(finalStatus === 'cooling_in_progress' && {
+          coolingPeriodEndsAt: calculateCoolingPeriodEnd(new Date()).toISOString(),
+        }),
       }
     } catch (error) {
       if (error instanceof HttpsError) {

@@ -432,6 +432,8 @@ export {
   createSafetySettingsProposalInputSchema,
   respondToProposalInputSchema,
   disputeProposalInputSchema,
+  // Story 3A.4: Cooling period schema
+  cancelCoolingPeriodInputSchema,
   // Helper functions
   getSafetySettingTypeLabel,
   getProposalStatusLabel,
@@ -450,6 +452,13 @@ export {
   formatProposalDiff,
   formatSettingValue,
   getSafetyProposalErrorMessage,
+  // Story 3A.4: Cooling period helper functions
+  requiresCoolingPeriod,
+  calculateCoolingPeriodEnd,
+  getCoolingPeriodTimeRemaining,
+  formatCoolingPeriodCountdown,
+  isCoolingPeriodActive,
+  canCancelCoolingPeriod,
   // Types
   type SafetySettingType,
   type ProposalStatus,
@@ -459,6 +468,9 @@ export {
   type CreateSafetySettingsProposalInput,
   type RespondToProposalInput,
   type DisputeProposalInput,
+  // Story 3A.4: Cooling period types
+  type CancelCoolingPeriodInput,
+  type CoolingPeriod,
 } from './safety-settings-proposal.schema'
 
 // Agreement Change Proposal Schemas (Story 3A.3)

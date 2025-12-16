@@ -61,15 +61,23 @@ export function getSafetySettingTypeLabel(settingType: SafetySettingType): strin
 
 /**
  * Status of a safety settings proposal
+ *
+ * Story 3A.4 adds cooling period statuses for protection decreases:
+ * - cooling_in_progress: Approved but in 48-hour cooling period before taking effect
+ * - cooling_cancelled: Cooling period was cancelled by a guardian, change reverted
+ * - cooling_completed: Cooling period finished, change now applied
  */
 export const proposalStatusSchema = z.enum([
   'pending', // Waiting for other parent's response
-  'approved', // Other parent approved, change applied
+  'approved', // Other parent approved, change applied (protection increase or no cooling needed)
   'declined', // Other parent declined
   'expired', // 72 hours passed without response
   'auto_applied', // Emergency safety increase, applied immediately
   'disputed', // Auto-applied change disputed within 48 hours
   'reverted', // Disputed auto-applied change reverted to original
+  'cooling_in_progress', // Story 3A.4: Approved protection decrease in 48-hour cooling period
+  'cooling_cancelled', // Story 3A.4: Cooling period cancelled, change not applied
+  'cooling_completed', // Story 3A.4: Cooling period finished, change applied
 ])
 
 export type ProposalStatus = z.infer<typeof proposalStatusSchema>
@@ -85,6 +93,9 @@ export const PROPOSAL_STATUS_LABELS: Record<ProposalStatus, string> = {
   auto_applied: 'Applied immediately (emergency)',
   disputed: 'Under dispute review',
   reverted: 'Reverted to original',
+  cooling_in_progress: 'In 48-hour cooling period',
+  cooling_cancelled: 'Cancelled during cooling period',
+  cooling_completed: 'Cooling period complete, applied',
 }
 
 /**
@@ -121,6 +132,8 @@ export const PROPOSAL_TIME_LIMITS = {
   DISPUTE_WINDOW_MS: 48 * 60 * 60 * 1000,
   /** 7 days before a declined proposal can be re-proposed */
   REPROPOSAL_COOLDOWN_MS: 7 * 24 * 60 * 60 * 1000,
+  /** Story 3A.4: 48 hours cooling period before protection decreases take effect */
+  COOLING_PERIOD_MS: 48 * 60 * 60 * 1000,
 } as const
 
 /**
@@ -208,9 +221,33 @@ export const safetySettingsProposalSchema = z.object({
     })
     .optional()
     .nullable(),
+
+  /**
+   * Story 3A.4: Cooling period details for protection decreases
+   * When an approved change reduces protections, it enters a 48-hour cooling period
+   * before taking effect. Either parent can cancel during this window.
+   */
+  coolingPeriod: z
+    .object({
+      /** When the cooling period started */
+      startsAt: z.date(),
+      /** When the cooling period ends (startsAt + 48 hours) */
+      endsAt: z.date(),
+      /** Guardian who cancelled the cooling period (if cancelled) */
+      cancelledBy: z.string().max(PROPOSAL_FIELD_LIMITS.respondedBy).optional().nullable(),
+      /** When the cooling period was cancelled (if cancelled) */
+      cancelledAt: z.date().optional().nullable(),
+    })
+    .optional()
+    .nullable(),
 })
 
 export type SafetySettingsProposal = z.infer<typeof safetySettingsProposalSchema>
+
+/**
+ * Story 3A.4: Cooling period object type for typed access
+ */
+export type CoolingPeriod = NonNullable<SafetySettingsProposal['coolingPeriod']>
 
 /**
  * Firestore-compatible safety settings proposal schema (uses Timestamp)
@@ -258,6 +295,25 @@ export const safetySettingsProposalFirestoreSchema = z.object({
         .optional()
         .nullable(),
       resolution: z.enum(['confirmed', 'reverted']).optional().nullable(),
+    })
+    .optional()
+    .nullable(),
+  // Story 3A.4: Cooling period for protection decreases
+  coolingPeriod: z
+    .object({
+      startsAt: z.custom<{ toDate: () => Date }>(
+        (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+      ),
+      endsAt: z.custom<{ toDate: () => Date }>(
+        (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+      ),
+      cancelledBy: z.string().max(PROPOSAL_FIELD_LIMITS.respondedBy).optional().nullable(),
+      cancelledAt: z
+        .custom<{ toDate: () => Date }>(
+          (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+        )
+        .optional()
+        .nullable(),
     })
     .optional()
     .nullable(),
@@ -322,6 +378,20 @@ export const disputeProposalInputSchema = z.object({
 
 export type DisputeProposalInput = z.infer<typeof disputeProposalInputSchema>
 
+/**
+ * Story 3A.4: Input schema for cancelling a cooling period
+ * Either guardian can cancel a cooling period, preventing the change from taking effect
+ */
+export const cancelCoolingPeriodInputSchema = z.object({
+  /** Proposal ID with active cooling period */
+  proposalId: z.string().min(1, 'Proposal ID is required').max(PROPOSAL_FIELD_LIMITS.id),
+
+  /** Child ID (for validation) */
+  childId: z.string().min(1, 'Child ID is required').max(PROPOSAL_FIELD_LIMITS.childId),
+})
+
+export type CancelCoolingPeriodInput = z.infer<typeof cancelCoolingPeriodInputSchema>
+
 // ============================================
 // CONVERSION UTILITIES
 // ============================================
@@ -354,6 +424,15 @@ export function convertFirestoreToSafetySettingsProposal(
           reason: data.dispute.reason,
           resolvedAt: data.dispute.resolvedAt?.toDate() ?? null,
           resolution: data.dispute.resolution,
+        }
+      : null,
+    // Story 3A.4: Cooling period conversion
+    coolingPeriod: data.coolingPeriod
+      ? {
+          startsAt: data.coolingPeriod.startsAt.toDate(),
+          endsAt: data.coolingPeriod.endsAt.toDate(),
+          cancelledBy: data.coolingPeriod.cancelledBy ?? null,
+          cancelledAt: data.coolingPeriod.cancelledAt?.toDate() ?? null,
         }
       : null,
   })
@@ -446,6 +525,74 @@ export function isEmergencySafetyIncrease(
   }
 
   // String or boolean comparisons - not considered emergency by default
+  return false
+}
+
+// ============================================
+// STORY 3A.4: COOLING PERIOD DETECTION
+// ============================================
+
+/**
+ * Story 3A.4: Determine if an approved change requires a cooling period
+ *
+ * Cooling periods are required when a change REDUCES protections (opposite of emergency increase).
+ * The child and both parents need 48 hours to reconsider before the change takes effect.
+ *
+ * IMPORTANT: This is the INVERSE of isEmergencySafetyIncrease:
+ * - isEmergencySafetyIncrease === true → No cooling period (protection UP, auto-apply)
+ * - requiresCoolingPeriod === true → Cooling period needed (protection DOWN, delay apply)
+ *
+ * Protection reductions:
+ * - monitoring_interval: INCREASED (less frequent monitoring)
+ * - retention_period: DECREASED (screenshots kept shorter)
+ * - age_restriction: LOWERED (less content filtering)
+ * - screen_time_daily: INCREASED (more time allowed)
+ * - screen_time_per_app: INCREASED (more time allowed)
+ * - bedtime_start: DELAYED (later bedtime = more evening time)
+ * - bedtime_end: ADVANCED (earlier wake = less sleep requirement)
+ * - crisis_allowlist: NEVER reduces protection (additions are always protective)
+ */
+export function requiresCoolingPeriod(
+  settingType: SafetySettingType,
+  currentValue: SafetySettingValue,
+  proposedValue: SafetySettingValue
+): boolean {
+  // Crisis allowlist changes never reduce protection
+  if (settingType === 'crisis_allowlist') {
+    return false
+  }
+
+  // Handle numeric comparisons
+  if (typeof currentValue === 'number' && typeof proposedValue === 'number') {
+    switch (settingType) {
+      case 'monitoring_interval':
+        // Less frequent monitoring = reduces protection = cooling period required
+        return proposedValue > currentValue
+
+      case 'retention_period':
+        // Shorter retention = reduces protection = cooling period required
+        return proposedValue < currentValue
+
+      case 'age_restriction':
+        // Lower age restriction = reduces protection = cooling period required
+        return proposedValue < currentValue
+
+      case 'screen_time_daily':
+      case 'screen_time_per_app':
+        // More time allowed = reduces protection = cooling period required
+        return proposedValue > currentValue
+
+      case 'bedtime_start':
+        // Later bedtime = reduces protection = cooling period required (value is minutes from midnight)
+        return proposedValue > currentValue
+
+      case 'bedtime_end':
+        // Earlier wake time = reduces protection = cooling period required (value is minutes from midnight)
+        return proposedValue < currentValue
+    }
+  }
+
+  // String or boolean comparisons - default to no cooling period
   return false
 }
 
@@ -549,6 +696,102 @@ export function calculateReproposalDate(declinedAt: Date): Date {
 }
 
 // ============================================
+// STORY 3A.4: COOLING PERIOD UTILITIES
+// ============================================
+
+/**
+ * Story 3A.4: Calculate cooling period end date (48 hours from start)
+ */
+export function calculateCoolingPeriodEnd(startsAt: Date): Date {
+  return new Date(startsAt.getTime() + PROPOSAL_TIME_LIMITS.COOLING_PERIOD_MS)
+}
+
+/**
+ * Story 3A.4: Get milliseconds remaining in cooling period
+ * Returns 0 if cooling period has ended or proposal not in cooling period
+ */
+export function getCoolingPeriodTimeRemaining(
+  proposal: SafetySettingsProposal,
+  now: Date = new Date()
+): number {
+  // Must be in cooling period status
+  if (proposal.status !== 'cooling_in_progress') {
+    return 0
+  }
+
+  // Must have cooling period data
+  if (!proposal.coolingPeriod) {
+    return 0
+  }
+
+  const remaining = proposal.coolingPeriod.endsAt.getTime() - now.getTime()
+  return Math.max(0, remaining)
+}
+
+/**
+ * Story 3A.4: Format cooling period countdown for display
+ * Returns human-readable string like "23 hours, 45 minutes" or "Cooling period ended"
+ */
+export function formatCoolingPeriodCountdown(
+  proposal: SafetySettingsProposal,
+  now: Date = new Date()
+): string {
+  const remaining = getCoolingPeriodTimeRemaining(proposal, now)
+
+  if (remaining === 0) {
+    return 'Cooling period ended'
+  }
+
+  const hours = Math.floor(remaining / (60 * 60 * 1000))
+  const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000))
+
+  if (hours === 0) {
+    return minutes === 1 ? '1 minute' : `${minutes} minutes`
+  }
+
+  if (minutes === 0) {
+    return hours === 1 ? '1 hour' : `${hours} hours`
+  }
+
+  const hourStr = hours === 1 ? '1 hour' : `${hours} hours`
+  const minStr = minutes === 1 ? '1 minute' : `${minutes} minutes`
+  return `${hourStr}, ${minStr}`
+}
+
+/**
+ * Story 3A.4: Check if proposal is currently in an active cooling period
+ */
+export function isCoolingPeriodActive(
+  proposal: SafetySettingsProposal,
+  now: Date = new Date()
+): boolean {
+  // Must be in cooling_in_progress status
+  if (proposal.status !== 'cooling_in_progress') {
+    return false
+  }
+
+  // Must have cooling period data
+  if (!proposal.coolingPeriod) {
+    return false
+  }
+
+  // Check if within the cooling window
+  const { startsAt, endsAt } = proposal.coolingPeriod
+  return now.getTime() >= startsAt.getTime() && now.getTime() < endsAt.getTime()
+}
+
+/**
+ * Story 3A.4: Check if a guardian can cancel a cooling period
+ * Returns true if proposal is in cooling_in_progress status and within the window
+ */
+export function canCancelCoolingPeriod(
+  proposal: SafetySettingsProposal,
+  now: Date = new Date()
+): boolean {
+  return isCoolingPeriodActive(proposal, now)
+}
+
+// ============================================
 // DIFF FORMATTING
 // ============================================
 
@@ -637,6 +880,10 @@ export const SAFETY_PROPOSAL_ERROR_MESSAGES: Record<string, string> = {
   'rate-limit': 'You have made too many proposals. Please wait an hour.',
   'invalid-setting': 'The setting type is not valid.',
   'invalid-value': 'The proposed value is not valid for this setting.',
+  // Story 3A.4: Cooling period error messages
+  'not-in-cooling-period': 'This change is not in a cooling period.',
+  'cooling-period-expired': 'The cooling period has already ended.',
+  'cooling-already-cancelled': 'This cooling period was already cancelled.',
   unknown: 'Something went wrong. Please try again.',
 }
 
