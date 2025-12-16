@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "tsc",
-    "export:allowlist": "npx tsx scripts/export-allowlist.ts"
+    "generate:allowlist": "npx tsx scripts/export-allowlist.ts",
+    "export:allowlist": "npm run generate:allowlist"
   },
   "exports": {
     ".": {

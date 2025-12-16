@@ -9,6 +9,7 @@ import {
   getCrisisAllowlist,
   extractDomain,
   isCrisisUrl,
+  isCrisisUrlFuzzy,
   getCrisisResourceByDomain,
   getCrisisResourcesByCategory,
   getCrisisResourcesByRegion,
@@ -368,5 +369,133 @@ describe('searchCrisisResources', () => {
   it('returns empty array for invalid input', () => {
     expect(searchCrisisResources(null as unknown as string)).toEqual([])
     expect(searchCrisisResources(undefined as unknown as string)).toEqual([])
+  })
+})
+
+/**
+ * Story 7.5: Fuzzy Domain Matching - Task 3.6
+ */
+describe('isCrisisUrlFuzzy', () => {
+  describe('exact matches (fuzzy: false)', () => {
+    it('returns exact match for primary domain', () => {
+      const result = isCrisisUrlFuzzy('https://988lifeline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(false)
+      expect(result.entry?.domain).toBe('988lifeline.org')
+      expect(result.matchedAgainst).toBe('988lifeline.org')
+    })
+
+    it('returns exact match for alias', () => {
+      const result = isCrisisUrlFuzzy('https://suicidepreventionlifeline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(false)
+      expect(result.entry?.domain).toBe('988lifeline.org')
+      expect(result.matchedAgainst).toBe('suicidepreventionlifeline.org')
+    })
+
+    it('returns exact match for wildcard subdomain', () => {
+      const result = isCrisisUrlFuzzy('https://chat.988lifeline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(false)
+      expect(result.matchedAgainst).toBe('*.988lifeline.org')
+    })
+  })
+
+  describe('fuzzy matches (fuzzy: true)', () => {
+    it('fuzzy matches 988lifline.org to 988lifeline.org (1 typo)', () => {
+      const result = isCrisisUrlFuzzy('988lifline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(true)
+      expect(result.entry?.domain).toBe('988lifeline.org')
+      expect(result.distance).toBe(1)
+    })
+
+    it('fuzzy matches crisistxtline.org to crisistextline.org (1 typo)', () => {
+      const result = isCrisisUrlFuzzy('crisistxtline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(true)
+      expect(result.entry?.domain).toBe('crisistextline.org')
+      expect(result.distance).toBe(1)
+    })
+
+    it('fuzzy matches with www prefix', () => {
+      const result = isCrisisUrlFuzzy('www.988lifline.org')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(true)
+    })
+  })
+
+  describe('no matches', () => {
+    it('returns no match for unrelated domains', () => {
+      const result = isCrisisUrlFuzzy('https://google.com')
+
+      expect(result.match).toBe(false)
+      expect(result.fuzzy).toBe(false)
+      expect(result.entry).toBeUndefined()
+    })
+
+    it('returns no match for wrong TLD even with correct domain', () => {
+      const result = isCrisisUrlFuzzy('988lifeline.com')
+
+      expect(result.match).toBe(false)
+      expect(result.fuzzy).toBe(false)
+    })
+
+    it('returns no match for short domains', () => {
+      const result = isCrisisUrlFuzzy('988.org')
+
+      expect(result.match).toBe(false)
+      expect(result.fuzzy).toBe(false)
+    })
+  })
+
+  describe('useFuzzyMatch option', () => {
+    it('disables fuzzy matching when useFuzzyMatch is false', () => {
+      // This would fuzzy match if enabled
+      const withFuzzy = isCrisisUrlFuzzy('988lifline.org', { useFuzzyMatch: true })
+      const withoutFuzzy = isCrisisUrlFuzzy('988lifline.org', { useFuzzyMatch: false })
+
+      expect(withFuzzy.match).toBe(true)
+      expect(withFuzzy.fuzzy).toBe(true)
+      expect(withoutFuzzy.match).toBe(false)
+      expect(withoutFuzzy.fuzzy).toBe(false)
+    })
+
+    it('still returns exact matches even when fuzzy is disabled', () => {
+      const result = isCrisisUrlFuzzy('988lifeline.org', { useFuzzyMatch: false })
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(false)
+    })
+  })
+
+  describe('edge cases', () => {
+    it('returns no match for empty string', () => {
+      const result = isCrisisUrlFuzzy('')
+
+      expect(result.match).toBe(false)
+      expect(result.fuzzy).toBe(false)
+    })
+
+    it('returns no match for null/undefined', () => {
+      const resultNull = isCrisisUrlFuzzy(null as unknown as string)
+      const resultUndefined = isCrisisUrlFuzzy(undefined as unknown as string)
+
+      expect(resultNull.match).toBe(false)
+      expect(resultUndefined.match).toBe(false)
+    })
+
+    it('is case-insensitive', () => {
+      const result = isCrisisUrlFuzzy('988LIFLINE.ORG')
+
+      expect(result.match).toBe(true)
+      expect(result.fuzzy).toBe(true)
+    })
   })
 })

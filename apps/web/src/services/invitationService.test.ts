@@ -7,6 +7,7 @@ import {
   verifyInvitationToken,
   acceptInvitation,
   getInvitationPreview,
+  getFamilyInvitations,
 } from './invitationService'
 
 // Mock uuid
@@ -22,6 +23,7 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
   query: vi.fn(),
   where: vi.fn(),
+  orderBy: vi.fn(),
   serverTimestamp: vi.fn(() => ({ _serverTimestamp: true })),
   writeBatch: vi.fn(),
   arrayUnion: vi.fn((value) => ({ _arrayUnion: true, value })),
@@ -50,6 +52,7 @@ import {
   query,
   where,
   writeBatch,
+  orderBy,
 } from 'firebase/firestore'
 
 const mockDoc = vi.mocked(doc)
@@ -58,6 +61,7 @@ const mockGetDocs = vi.mocked(getDocs)
 const mockCollection = vi.mocked(collection)
 const mockQuery = vi.mocked(query)
 const mockWhere = vi.mocked(where)
+const mockOrderBy = vi.mocked(orderBy)
 const mockWriteBatch = vi.mocked(writeBatch)
 
 /**
@@ -1120,6 +1124,198 @@ describe('invitationService', () => {
 
       expect(result?.status).toBe('revoked')
       expect(result?.isExpired).toBe(false)
+    })
+  })
+
+  // ============================================================================
+  // Story 3.5: Invitation Management - getFamilyInvitations Tests
+  // ============================================================================
+
+  describe('getFamilyInvitations', () => {
+    const familyId = 'family-456'
+
+    it('returns all invitations for a family sorted by createdAt desc', async () => {
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+      mockOrderBy.mockReturnValue({} as ReturnType<typeof orderBy>)
+
+      const now = new Date()
+      const yesterday = new Date(now.getTime() - 86400000)
+      const twoDaysAgo = new Date(now.getTime() - 2 * 86400000)
+      const futureDate = new Date(now.getTime() + 86400000)
+
+      mockGetDocs.mockResolvedValue({
+        docs: [
+          {
+            id: 'invitation-1',
+            data: () => ({
+              id: 'invitation-1',
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: 'user-123',
+              invitedByName: 'Jane Smith',
+              tokenHash: 'hash-1',
+              status: 'pending',
+              createdAt: { toDate: () => now },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: null,
+              acceptedBy: null,
+            }),
+          },
+          {
+            id: 'invitation-2',
+            data: () => ({
+              id: 'invitation-2',
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: 'user-123',
+              invitedByName: 'Jane Smith',
+              tokenHash: 'hash-2',
+              status: 'accepted',
+              createdAt: { toDate: () => yesterday },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: { toDate: () => now },
+              acceptedBy: 'user-456',
+            }),
+          },
+          {
+            id: 'invitation-3',
+            data: () => ({
+              id: 'invitation-3',
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: 'user-123',
+              invitedByName: 'Jane Smith',
+              tokenHash: 'hash-3',
+              status: 'revoked',
+              createdAt: { toDate: () => twoDaysAgo },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: null,
+              acceptedBy: null,
+            }),
+          },
+        ],
+      } as unknown as ReturnType<typeof getDocs>)
+
+      const result = await getFamilyInvitations(familyId)
+
+      expect(result).toHaveLength(3)
+      expect(result[0].id).toBe('invitation-1')
+      expect(result[0].status).toBe('pending')
+      expect(result[1].id).toBe('invitation-2')
+      expect(result[1].status).toBe('accepted')
+      expect(result[2].id).toBe('invitation-3')
+      expect(result[2].status).toBe('revoked')
+
+      // Verify query was called with correct parameters
+      expect(mockCollection).toHaveBeenCalledWith(expect.anything(), 'invitations')
+      expect(mockWhere).toHaveBeenCalledWith('familyId', '==', familyId)
+      expect(mockOrderBy).toHaveBeenCalledWith('createdAt', 'desc')
+    })
+
+    it('returns empty array when no invitations exist', async () => {
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+      mockOrderBy.mockReturnValue({} as ReturnType<typeof orderBy>)
+
+      mockGetDocs.mockResolvedValue({
+        docs: [],
+      } as unknown as ReturnType<typeof getDocs>)
+
+      const result = await getFamilyInvitations(familyId)
+
+      expect(result).toHaveLength(0)
+      expect(result).toEqual([])
+    })
+
+    it('converts Firestore timestamps to Date objects', async () => {
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+      mockOrderBy.mockReturnValue({} as ReturnType<typeof orderBy>)
+
+      const createdDate = new Date('2024-12-10T10:00:00Z')
+      const expiresDate = new Date('2024-12-17T10:00:00Z')
+      const acceptedDate = new Date('2024-12-11T10:00:00Z')
+
+      mockGetDocs.mockResolvedValue({
+        docs: [
+          {
+            id: 'invitation-1',
+            data: () => ({
+              id: 'invitation-1',
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: 'user-123',
+              invitedByName: 'Jane Smith',
+              tokenHash: 'hash-1',
+              status: 'accepted',
+              createdAt: { toDate: () => createdDate },
+              expiresAt: { toDate: () => expiresDate },
+              acceptedAt: { toDate: () => acceptedDate },
+              acceptedBy: 'user-456',
+            }),
+          },
+        ],
+      } as unknown as ReturnType<typeof getDocs>)
+
+      const result = await getFamilyInvitations(familyId)
+
+      expect(result[0].createdAt).toBeInstanceOf(Date)
+      expect(result[0].expiresAt).toBeInstanceOf(Date)
+      expect(result[0].acceptedAt).toBeInstanceOf(Date)
+      expect(result[0].createdAt.toISOString()).toBe(createdDate.toISOString())
+      expect(result[0].expiresAt.toISOString()).toBe(expiresDate.toISOString())
+      expect(result[0].acceptedAt?.toISOString()).toBe(acceptedDate.toISOString())
+    })
+
+    it('handles null acceptedAt for non-accepted invitations', async () => {
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+      mockOrderBy.mockReturnValue({} as ReturnType<typeof orderBy>)
+
+      const now = new Date()
+      const futureDate = new Date(now.getTime() + 86400000)
+
+      mockGetDocs.mockResolvedValue({
+        docs: [
+          {
+            id: 'invitation-1',
+            data: () => ({
+              id: 'invitation-1',
+              familyId,
+              familyName: 'Smith Family',
+              invitedBy: 'user-123',
+              invitedByName: 'Jane Smith',
+              tokenHash: 'hash-1',
+              status: 'pending',
+              createdAt: { toDate: () => now },
+              expiresAt: { toDate: () => futureDate },
+              acceptedAt: null,
+              acceptedBy: null,
+            }),
+          },
+        ],
+      } as unknown as ReturnType<typeof getDocs>)
+
+      const result = await getFamilyInvitations(familyId)
+
+      expect(result[0].acceptedAt).toBeNull()
+      expect(result[0].acceptedBy).toBeNull()
+    })
+
+    it('throws error when Firestore query fails', async () => {
+      mockCollection.mockReturnValue({ id: 'invitations' } as ReturnType<typeof collection>)
+      mockQuery.mockReturnValue({} as ReturnType<typeof query>)
+      mockWhere.mockReturnValue({} as ReturnType<typeof where>)
+      mockOrderBy.mockReturnValue({} as ReturnType<typeof orderBy>)
+
+      mockGetDocs.mockRejectedValue(new Error('Firestore error'))
+
+      await expect(getFamilyInvitations(familyId)).rejects.toThrow()
     })
   })
 })

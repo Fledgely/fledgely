@@ -1106,3 +1106,42 @@ export {
   type CrisisRedirectAction,
   type CrisisSearchResult,
 } from './crisisSearch.schema'
+
+// Allowlist Sync Schemas (Story 7.7)
+export {
+  // Schemas
+  allowlistPlatformSchema,
+  allowlistSyncStatusSchema,
+  allowlistSyncStatusFirestoreSchema,
+  reportSyncStatusInputSchema,
+  allowlistSyncAlertSchema,
+  allowlistSyncAlertFirestoreSchema,
+  reportSyncStatusResponseSchema,
+  getAllSyncStatusesResponseSchema,
+  // Constants
+  ALLOWLIST_SYNC_CONSTANTS,
+  ALLOWLIST_PLATFORM_LABELS,
+  ALLOWLIST_PLATFORM_DESCRIPTIONS,
+  // Helper functions
+  getAllowlistPlatformLabel,
+  getAllowlistPlatformDescription,
+  isSyncStatusStale,
+  calculateStaleDuration,
+  formatStaleDuration,
+  getTTLForVersion,
+  shouldRefreshCache,
+  createSyncStatus,
+  safeParseSyncStatus,
+  safeParseSyncAlert,
+  validateReportSyncStatusInput,
+  safeParseReportSyncStatusInput,
+  // Types
+  type AllowlistPlatform,
+  type AllowlistSyncStatus,
+  type AllowlistSyncStatusFirestore,
+  type ReportSyncStatusInput,
+  type AllowlistSyncAlert,
+  type AllowlistSyncAlertFirestore,
+  type ReportSyncStatusResponse,
+  type GetAllSyncStatusesResponse,
+} from './allowlistSync.schema'

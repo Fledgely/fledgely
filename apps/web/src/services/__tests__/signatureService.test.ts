@@ -15,6 +15,9 @@ const mockSetDoc = vi.fn()
 const mockCollection = vi.fn()
 const mockAddDoc = vi.fn()
 const mockServerTimestamp = vi.fn(() => ({ _serverTimestamp: true }))
+const mockGetDocs = vi.fn()
+const mockQuery = vi.fn()
+const mockWhere = vi.fn()
 
 // Transaction mock - captures the callback and executes it with a mock transaction
 const mockTransactionGet = vi.fn()
@@ -45,6 +48,9 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => mockServerTimestamp(),
   runTransaction: (...args: unknown[]) => mockRunTransaction(...args),
   writeBatch: (...args: unknown[]) => mockWriteBatch(...args),
+  getDocs: (...args: unknown[]) => mockGetDocs(...args),
+  query: (...args: unknown[]) => mockQuery(...args),
+  where: (...args: unknown[]) => mockWhere(...args),
 }))
 
 vi.mock('@/lib/firebase', () => ({
@@ -70,6 +76,8 @@ describe('signatureService', () => {
     mockUpdateDoc.mockResolvedValue(undefined)
     mockAddDoc.mockResolvedValue({ id: 'audit-log-123' })
     mockBatchCommit.mockResolvedValue(undefined)
+    // Default getDocs returns empty (no existing versions, no active agreements)
+    mockGetDocs.mockResolvedValue({ docs: [], empty: true })
   })
 
   describe('recordChildSignature (Task 7.2)', () => {
@@ -182,6 +190,130 @@ describe('signatureService', () => {
       await expect(recordChildSignature(params)).rejects.toThrow(
         /already.*signed/i
       )
+    })
+
+    // Story 6.3 Task 3: Agreement Activation Integration Tests
+    describe('Agreement Activation (Story 6.3)', () => {
+      it('sets agreement status to active when signing completes (AC: 1)', async () => {
+        mockTransactionGet.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            signingStatus: 'parent_signed',
+            signatures: {
+              parent: { signature: { signedAt: '2025-12-16T11:00:00Z' } },
+              child: null,
+            },
+          }),
+        })
+        // First call: findActiveAgreement (no active), Second: getExistingVersions (empty)
+        mockGetDocs.mockResolvedValue({ docs: [], empty: true })
+
+        await recordChildSignature(params)
+
+        const updateCall = mockTransactionUpdate.mock.calls[0][1]
+        expect(updateCall.status).toBe('active')
+      })
+
+      it('assigns version number 1.0 for first agreement (AC: 2)', async () => {
+        mockTransactionGet.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            signingStatus: 'parent_signed',
+            signatures: {
+              parent: { signature: { signedAt: '2025-12-16T11:00:00Z' } },
+              child: null,
+            },
+          }),
+        })
+        mockGetDocs.mockResolvedValue({ docs: [], empty: true })
+
+        await recordChildSignature(params)
+
+        const updateCall = mockTransactionUpdate.mock.calls[0][1]
+        expect(updateCall.version).toBe('1.0')
+      })
+
+      it('increments version for subsequent agreements (AC: 2)', async () => {
+        mockTransactionGet.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            signingStatus: 'parent_signed',
+            signatures: {
+              parent: { signature: { signedAt: '2025-12-16T11:00:00Z' } },
+              child: null,
+            },
+          }),
+        })
+        // First call: getExistingVersions (1.0, 1.1), Second: findActiveAgreement (empty)
+        mockGetDocs
+          .mockResolvedValueOnce({
+            docs: [
+              { data: () => ({ version: '1.0' }) },
+              { data: () => ({ version: '1.1' }) },
+            ],
+            empty: false,
+          })
+          .mockResolvedValueOnce({ docs: [], empty: true })
+
+        await recordChildSignature(params)
+
+        const updateCall = mockTransactionUpdate.mock.calls[0][1]
+        expect(updateCall.version).toBe('1.2')
+      })
+
+      it('records activatedAt timestamp (AC: 3)', async () => {
+        mockTransactionGet.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            signingStatus: 'parent_signed',
+            signatures: {
+              parent: { signature: { signedAt: '2025-12-16T11:00:00Z' } },
+              child: null,
+            },
+          }),
+        })
+        mockGetDocs.mockResolvedValue({ docs: [], empty: true })
+
+        await recordChildSignature(params)
+
+        const updateCall = mockTransactionUpdate.mock.calls[0][1]
+        expect(updateCall.activatedAt).toEqual({ _serverTimestamp: true })
+      })
+
+      it('archives previous active agreement when new one activates (AC: 7)', async () => {
+        mockTransactionGet.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            signingStatus: 'parent_signed',
+            signatures: {
+              parent: { signature: { signedAt: '2025-12-16T11:00:00Z' } },
+              child: null,
+            },
+          }),
+        })
+        // First call: getExistingVersions
+        // Second call: findActiveAgreement (returns old agreement)
+        mockGetDocs
+          .mockResolvedValueOnce({
+            docs: [{ data: () => ({ version: '1.0' }) }],
+            empty: false,
+          })
+          .mockResolvedValueOnce({
+            docs: [{ id: 'old-agreement-123', data: () => ({ status: 'active' }) }],
+            empty: false,
+          })
+
+        await recordChildSignature(params)
+
+        // Should have two update calls: one for archiving old, one for activating new
+        expect(mockTransactionUpdate).toHaveBeenCalledTimes(2)
+
+        // First call should archive the old agreement
+        const archiveCall = mockTransactionUpdate.mock.calls[0][1]
+        expect(archiveCall.status).toBe('superseded')
+        expect(archiveCall.archiveReason).toBe('new_version')
+        expect(archiveCall.supersededBy).toBe('agreement-123')
+      })
     })
   })
 

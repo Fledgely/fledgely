@@ -27,6 +27,8 @@ export const auditActionTypeSchema = z.enum([
   'dissolution_acknowledged',
   'dissolution_cancelled',
   'dissolution_completed',
+  // Story 3.3: Invitation actions
+  'invitation_accepted',
 ])
 
 export type AuditActionType = z.infer<typeof auditActionTypeSchema>
@@ -158,6 +160,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionType, string> = {
   dissolution_acknowledged: 'Dissolution acknowledged',
   dissolution_cancelled: 'Dissolution cancelled',
   dissolution_completed: 'Family dissolved',
+  // Story 3.3: Invitation action labels
+  invitation_accepted: 'Invitation accepted',
 }
 
 /**

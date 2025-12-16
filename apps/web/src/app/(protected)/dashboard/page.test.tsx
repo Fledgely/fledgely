@@ -42,6 +42,14 @@ vi.mock('@/hooks/useOtherGuardians', () => ({
   useOtherGuardians: vi.fn(),
 }))
 
+vi.mock('@/hooks/useInvitationList', () => ({
+  useInvitationList: vi.fn(),
+}))
+
+vi.mock('@/hooks/useActiveAgreement', () => ({
+  useActiveAgreement: vi.fn(),
+}))
+
 // Mock RemoveChildConfirmDialog to prevent rendering issues
 vi.mock('@/components/child/RemoveChildConfirmDialog', () => ({
   RemoveChildConfirmDialog: () => null,
@@ -52,11 +60,15 @@ import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
 import { useOtherGuardians } from '@/hooks/useOtherGuardians'
+import { useInvitationList } from '@/hooks/useInvitationList'
+import { useActiveAgreement } from '@/hooks/useActiveAgreement'
 
 const mockUseUser = vi.mocked(useUser)
 const mockUseFamily = vi.mocked(useFamily)
 const mockUseChild = vi.mocked(useChild)
 const mockUseOtherGuardians = vi.mocked(useOtherGuardians)
+const mockUseInvitationList = vi.mocked(useInvitationList)
+const mockUseActiveAgreement = vi.mocked(useActiveAgreement)
 
 describe('DashboardPage', () => {
   const mockUserProfile = {
@@ -137,6 +149,24 @@ describe('DashboardPage', () => {
       otherGuardianNames: [],
       isLoading: false,
       error: null,
+    })
+
+    // Default: no pending invitations (Story 3.5)
+    mockUseInvitationList.mockReturnValue({
+      pendingInvitation: null,
+      invitations: [],
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+    })
+
+    // Default: no active agreement (Story 6.3)
+    mockUseActiveAgreement.mockReturnValue({
+      agreement: null,
+      pendingAgreement: null,
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
     })
   })
 
@@ -699,6 +729,205 @@ describe('DashboardPage', () => {
 
       const indicator = screen.getByLabelText('Co-managed with Jane Smith')
       expect(indicator).toBeInTheDocument()
+    })
+  })
+
+  // ============================================================================
+  // Story 6.3: Agreement Section Tests (Task 8: Dashboard Integration)
+  // ============================================================================
+
+  describe('agreement section (Story 6.3 Task 8)', () => {
+    it('shows Family Agreement heading when children exist', () => {
+      render(<DashboardPage />)
+
+      expect(screen.getByText('Family Agreement')).toBeInTheDocument()
+    })
+
+    it('does not show agreement section when no children', () => {
+      mockUseChild.mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+        hasChildren: false,
+        addChild: vi.fn(),
+        clearError: vi.fn(),
+        refreshChildren: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.queryByText('Family Agreement')).not.toBeInTheDocument()
+    })
+
+    describe('no agreement state (Task 8.2)', () => {
+      it('shows empty state when no active or pending agreement', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByText('No Active Agreement')).toBeInTheDocument()
+      })
+
+      it('shows create agreement prompt in empty state', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByText(/create a family agreement/i)).toBeInTheDocument()
+      })
+
+      it('shows Create Agreement button', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByRole('button', { name: /create agreement/i })).toBeInTheDocument()
+      })
+
+      it('navigates to co-creation when Create Agreement clicked', async () => {
+        const user = userEvent.setup()
+        render(<DashboardPage />)
+
+        await user.click(screen.getByRole('button', { name: /create agreement/i }))
+
+        expect(mockPush).toHaveBeenCalledWith('/co-creation/new')
+      })
+    })
+
+    describe('active agreement display (AC: 5)', () => {
+      beforeEach(() => {
+        mockUseActiveAgreement.mockReturnValue({
+          agreement: {
+            id: 'agreement-123',
+            status: 'active',
+            version: '1.0',
+            activatedAt: '2025-12-16T12:00:00Z',
+            termsCount: 5,
+            signedBy: ['Parent', 'Child'],
+            signingStatus: 'complete',
+          },
+          pendingAgreement: null,
+          loading: false,
+          error: null,
+          refresh: vi.fn(),
+        })
+      })
+
+      it('displays ActiveAgreementCard when active agreement exists', () => {
+        render(<DashboardPage />)
+
+        // ActiveAgreementCard shows version
+        expect(screen.getByText(/version 1\.0/i)).toBeInTheDocument()
+      })
+
+      it('shows active status badge', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByText('Active')).toBeInTheDocument()
+      })
+
+      it('shows View Agreement button', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByRole('button', { name: /view.*agreement/i })).toBeInTheDocument()
+      })
+
+      it('navigates to agreement detail when View Agreement clicked', async () => {
+        const user = userEvent.setup()
+        render(<DashboardPage />)
+
+        await user.click(screen.getByRole('button', { name: /view.*agreement/i }))
+
+        expect(mockPush).toHaveBeenCalledWith('/agreements/agreement-123')
+      })
+    })
+
+    describe('pending signature banner (Task 8.3)', () => {
+      beforeEach(() => {
+        mockUseActiveAgreement.mockReturnValue({
+          agreement: null,
+          pendingAgreement: {
+            id: 'pending-agreement-456',
+            status: 'pending_signatures',
+            version: '1.0',
+            termsCount: 3,
+            signedBy: ['Parent'],
+            signingStatus: 'parent_signed',
+          },
+          loading: false,
+          error: null,
+          refresh: vi.fn(),
+        })
+      })
+
+      it('shows pending signature banner when no active but has pending', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByText('Agreement Pending Signatures')).toBeInTheDocument()
+      })
+
+      it('shows waiting for signatures message', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByText(/waiting for all parties to sign/i)).toBeInTheDocument()
+      })
+
+      it('shows View & Sign Agreement button', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByRole('button', { name: /view.*sign agreement/i })).toBeInTheDocument()
+      })
+
+      it('navigates to agreement when View & Sign clicked', async () => {
+        const user = userEvent.setup()
+        render(<DashboardPage />)
+
+        await user.click(screen.getByRole('button', { name: /view.*sign agreement/i }))
+
+        expect(mockPush).toHaveBeenCalledWith('/agreements/pending-agreement-456')
+      })
+    })
+
+    describe('agreement loading state', () => {
+      it('shows loading skeleton when agreement is loading', () => {
+        mockUseActiveAgreement.mockReturnValue({
+          agreement: null,
+          pendingAgreement: null,
+          loading: true,
+          error: null,
+          refresh: vi.fn(),
+        })
+
+        render(<DashboardPage />)
+
+        // Should show loading skeleton but not the empty state text
+        expect(screen.queryByText('No Active Agreement')).not.toBeInTheDocument()
+        // Heading should still be present
+        expect(screen.getByText('Family Agreement')).toBeInTheDocument()
+      })
+    })
+
+    describe('accessibility', () => {
+      it('agreement section has proper heading', () => {
+        render(<DashboardPage />)
+
+        expect(screen.getByRole('heading', { name: 'Family Agreement' })).toBeInTheDocument()
+      })
+
+      it('pending banner is announced as alert', () => {
+        mockUseActiveAgreement.mockReturnValue({
+          agreement: null,
+          pendingAgreement: {
+            id: 'pending-123',
+            status: 'pending_signatures',
+            version: '1.0',
+            termsCount: 2,
+            signedBy: ['Parent'],
+            signingStatus: 'parent_signed',
+          },
+          loading: false,
+          error: null,
+          refresh: vi.fn(),
+        })
+
+        render(<DashboardPage />)
+
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+      })
     })
   })
 })

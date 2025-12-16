@@ -1,0 +1,28 @@
+{
+  "name": "fledgely",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fledgely - Family safety monitoring platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test:contracts && npm run test:shared && npm run test:functions && npm run test:web",
+    "test:contracts": "cd packages/contracts && npm test",
+    "test:shared": "cd packages/shared && npm test",
+    "test:functions": "cd apps/functions && npm test",
+    "test:web": "cd apps/web && npm test",
+    "typecheck": "npm run typecheck:contracts && npm run typecheck:shared && npm run typecheck:functions && npm run typecheck:web",
+    "typecheck:contracts": "cd packages/contracts && npm run typecheck",
+    "typecheck:shared": "cd packages/shared && npm run typecheck",
+    "typecheck:functions": "cd apps/functions && npm run build",
+    "typecheck:web": "cd apps/web && npm run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "jsdom": "^27.3.0"
+  }
+}

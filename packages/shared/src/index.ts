@@ -149,3 +149,31 @@ export {
   getResourcesForCategory,
   getAllCrisisCategories,
 } from './constants/crisis-search'
+
+// Story 7.7: Allowlist Sync Service exports
+export {
+  // Types
+  type AllowlistSyncConfig,
+  type AllowlistSyncAdapter,
+  type CachedAllowlist,
+  type SyncResult,
+  type AllowlistSyncService,
+  // Factory function
+  createAllowlistSyncService,
+  // Utility functions
+  isEmergencyVersion,
+  compareSemanticVersions,
+  shouldResync,
+} from './services/allowlistSyncService'
+
+// Story 7.7: Chrome Extension Adapter (for Epic 11)
+export {
+  // Types
+  type ChromeExtensionAdapterConfig,
+  type ChromeStorageResult,
+  // Constants
+  CHROME_CACHE_KEY,
+  CHROME_ETAG_KEY,
+  // Factory function
+  createChromeExtensionAdapter,
+} from './adapters/chromeExtensionAdapter'

@@ -9,6 +9,9 @@ import {
   serverTimestamp,
   runTransaction,
   writeBatch,
+  getDocs,
+  query,
+  where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import {
@@ -18,6 +21,8 @@ import {
   canParentSign,
   canCoParentSign,
   getNextSigningStatus,
+  getNextVersionNumber,
+  type AgreementStatus,
 } from '@fledgely/contracts'
 
 /**
@@ -135,6 +140,49 @@ async function createAuditLogEntry(
 }
 
 /**
+ * Story 6.3 Task 3.3: Get all existing version numbers for a family's agreements
+ */
+async function getExistingVersions(familyId: string): Promise<string[]> {
+  const agreementsRef = collection(db, 'families', familyId, 'agreements')
+  const snapshot = await getDocs(agreementsRef)
+
+  const versions: string[] = []
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data()
+    if (data.version) {
+      versions.push(data.version)
+    }
+  })
+
+  return versions
+}
+
+/**
+ * Story 6.3 Task 3.3: Find the currently active agreement for a family (if any)
+ */
+async function findActiveAgreement(
+  familyId: string,
+  excludeAgreementId?: string
+): Promise<{ id: string } | null> {
+  const agreementsRef = collection(db, 'families', familyId, 'agreements')
+  const q = query(agreementsRef, where('status', '==', 'active'))
+  const snapshot = await getDocs(q)
+
+  if (snapshot.empty) {
+    return null
+  }
+
+  // Find first active agreement that isn't the one being activated
+  for (const doc of snapshot.docs) {
+    if (doc.id !== excludeAgreementId) {
+      return { id: doc.id }
+    }
+  }
+
+  return null
+}
+
+/**
  * Record a child's signature on an agreement
  *
  * Task 7.2: Implements recordChildSignature(agreementId, signature)
@@ -188,11 +236,42 @@ export async function recordChildSignature(
     // Calculate new status
     const calculatedNewStatus = getNextSigningStatus(currentStatus, 'child')
 
+    // Story 6.3 Task 3.3: If agreement will be complete, assign version and activate
+    let versionNumber: string | undefined
+    if (calculatedNewStatus === 'complete') {
+      // Get existing versions to calculate next version
+      const existingVersions = await getExistingVersions(familyId)
+      versionNumber = getNextVersionNumber(existingVersions)
+
+      // Story 6.3 AC 7: Archive previous active agreement if exists
+      const existingActive = await findActiveAgreement(familyId, agreementId)
+      if (existingActive) {
+        const oldDocRef = doc(
+          db,
+          'families',
+          familyId,
+          'agreements',
+          existingActive.id
+        )
+        transaction.update(oldDocRef, {
+          status: 'superseded' as AgreementStatus,
+          archivedAt: serverTimestamp(),
+          archiveReason: 'new_version',
+          supersededBy: agreementId,
+        })
+      }
+    }
+
     // Task 7.3 & 7.4: Update agreement with signature and status atomically
+    // Story 6.3 AC 1, 2, 3: Set status to active, assign version, record activatedAt
     transaction.update(docRef, {
       'signatures.child': signature,
       signingStatus: calculatedNewStatus,
-      ...(calculatedNewStatus === 'complete' && { activatedAt: serverTimestamp() }),
+      ...(calculatedNewStatus === 'complete' && {
+        activatedAt: serverTimestamp(),
+        status: 'active' as AgreementStatus,
+        version: versionNumber,
+      }),
     })
 
     return calculatedNewStatus

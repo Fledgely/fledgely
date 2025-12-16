@@ -7,15 +7,17 @@ import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
 import { useOtherGuardians } from '@/hooks/useOtherGuardians'
 import { useInvitationList } from '@/hooks/useInvitationList'
+import { useActiveAgreement } from '@/hooks/useActiveAgreement'
 import { useAuthContext } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
 import { RemoveChildConfirmDialog } from '@/components/child/RemoveChildConfirmDialog'
 import { InvitationDialog } from '@/components/invitation'
 import { CoManagedIndicator } from '@/components/family'
+import { ActiveAgreementCard } from '@/components/dashboard'
 import { calculateAge } from '@fledgely/contracts'
 import type { ChildProfile } from '@fledgely/contracts'
-import { Trash2, UserPlus, CheckCircle2, X, Mail, Clock } from 'lucide-react'
+import { Trash2, UserPlus, CheckCircle2, X, Mail, Clock, FileText } from 'lucide-react'
 
 /**
  * Dashboard Page - Main landing page after onboarding
@@ -51,6 +53,13 @@ export default function DashboardPage() {
     family?.id ?? null,
     user?.uid ?? null
   )
+
+  // Fetch active agreement for dashboard card (Story 6.3 Task 8)
+  const {
+    agreement: activeAgreement,
+    pendingAgreement,
+    loading: agreementLoading,
+  } = useActiveAgreement({ familyId: family?.id })
 
   // State for remove child dialog
   const [removeDialogChild, setRemoveDialogChild] = useState<ChildProfile | null>(null)
@@ -125,6 +134,27 @@ export default function DashboardPage() {
     // Refresh the children list
     await refreshChildren()
   }, [refreshChildren])
+
+  /**
+   * Handle view agreement details (Story 6.3 Task 8)
+   */
+  const handleViewAgreement = useCallback(
+    (agreementId: string) => {
+      router.push(`/agreements/${agreementId}`)
+    },
+    [router]
+  )
+
+  /**
+   * Handle request change to agreement (Story 6.3 Task 8)
+   */
+  const handleRequestChange = useCallback(
+    (agreementId: string) => {
+      // TODO: Implement change request flow in future epic
+      router.push(`/agreements/${agreementId}`)
+    },
+    [router]
+  )
 
   // Loading state
   if (userLoading || familyLoading || childLoading) {
@@ -275,6 +305,87 @@ export default function DashboardPage() {
             </section>
           )}
 
+          {/* Agreement section - Story 6.3 Task 8: Dashboard Integration */}
+          {hasChildren && (
+            <section aria-labelledby="agreement-heading" className="space-y-4">
+              <h2 id="agreement-heading" className="text-lg font-medium">
+                Family Agreement
+              </h2>
+
+              {/* Loading state */}
+              {agreementLoading && (
+                <div className="rounded-lg border bg-card p-6">
+                  <div className="animate-pulse space-y-3">
+                    <div className="h-5 w-40 rounded bg-muted" />
+                    <div className="h-4 w-64 rounded bg-muted" />
+                    <div className="h-10 w-32 rounded bg-muted" />
+                  </div>
+                </div>
+              )}
+
+              {/* Active agreement card (AC: 5) */}
+              {!agreementLoading && activeAgreement && (
+                <ActiveAgreementCard
+                  agreement={activeAgreement}
+                  onViewDetails={handleViewAgreement}
+                  onRequestChange={handleRequestChange}
+                />
+              )}
+
+              {/* Pending signature banner (Task 8.3) */}
+              {!agreementLoading && !activeAgreement && pendingAgreement && (
+                <div
+                  className="rounded-lg border border-yellow-200 bg-yellow-50 p-4"
+                  role="alert"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-3">
+                    <FileText
+                      className="mt-0.5 h-5 w-5 text-yellow-600"
+                      aria-hidden="true"
+                    />
+                    <div className="flex-1">
+                      <h3 className="font-medium text-yellow-900">
+                        Agreement Pending Signatures
+                      </h3>
+                      <p className="mt-1 text-sm text-yellow-700">
+                        Your family agreement is waiting for all parties to sign.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewAgreement(pendingAgreement.id)}
+                        className="mt-3 min-h-[44px] border-yellow-300 hover:bg-yellow-100"
+                      >
+                        View &amp; Sign Agreement
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No agreement state (Task 8.2) */}
+              {!agreementLoading && !activeAgreement && !pendingAgreement && (
+                <div className="rounded-lg border bg-card p-6 text-center">
+                  <FileText
+                    className="mx-auto h-10 w-10 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <h3 className="mt-3 font-medium">No Active Agreement</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Create a family agreement to establish digital boundaries together.
+                  </p>
+                  <Button
+                    onClick={() => router.push('/co-creation/new')}
+                    className="mt-4 min-h-[44px]"
+                  >
+                    Create Agreement
+                  </Button>
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Children section */}
           <section aria-labelledby="children-heading">
             <div className="flex items-center justify-between">
@@ -415,7 +526,7 @@ export default function DashboardPage() {
                 Quick Actions
               </h2>
               <div className="rounded-lg border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-                <p>Device agreements and monitoring features coming soon.</p>
+                <p>Device monitoring features coming soon.</p>
               </div>
             </section>
           )}
