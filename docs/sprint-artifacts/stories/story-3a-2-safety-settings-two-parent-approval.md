@@ -1,6 +1,6 @@
 # Story 3A.2: Safety Settings Two-Parent Approval
 
-Status: in-progress
+Status: done
 
 ## Story
 

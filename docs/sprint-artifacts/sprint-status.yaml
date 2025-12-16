@@ -93,7 +93,7 @@ development_status:
   # Epic 3A: Shared Custody Safeguards
   epic-3a: in-progress
   3a-1-data-symmetry-enforcement: done
-  3a-2-safety-settings-two-parent-approval: in-progress
+  3a-2-safety-settings-two-parent-approval: done
   3a-3-agreement-changes-two-parent-approval: backlog
   3a-4-safety-rule-48-hour-cooling-period: backlog
   3a-5-screenshot-viewing-rate-alert: backlog
