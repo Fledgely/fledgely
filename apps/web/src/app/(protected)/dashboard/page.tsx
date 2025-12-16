@@ -9,9 +9,10 @@ import { useAuthContext } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
 import { RemoveChildConfirmDialog } from '@/components/child/RemoveChildConfirmDialog'
+import { InvitationDialog } from '@/components/invitation'
 import { calculateAge } from '@fledgely/contracts'
 import type { ChildProfile } from '@fledgely/contracts'
-import { Trash2 } from 'lucide-react'
+import { Trash2, UserPlus } from 'lucide-react'
 
 /**
  * Dashboard Page - Main landing page after onboarding
@@ -38,8 +39,26 @@ export default function DashboardPage() {
   // State for remove child dialog
   const [removeDialogChild, setRemoveDialogChild] = useState<ChildProfile | null>(null)
 
+  // State for invitation dialog (Story 3.1)
+  const [invitationDialogOpen, setInvitationDialogOpen] = useState(false)
+
   // Get first name for personalized message
   const firstName = userProfile?.displayName?.split(' ')[0] || 'there'
+
+  // Generate family name from user's last name or display name
+  // Uses format "Smith Family" or "Your Family" as fallback
+  const familyName = (() => {
+    const displayName = userProfile?.displayName || ''
+    const nameParts = displayName.trim().split(' ')
+    if (nameParts.length > 1) {
+      // Use last name for family name (e.g., "Smith Family")
+      return `${nameParts[nameParts.length - 1]} Family`
+    } else if (nameParts[0]) {
+      // Use first name if only one name part (e.g., "John's Family")
+      return `${nameParts[0]}'s Family`
+    }
+    return 'Your Family'
+  })()
 
   /**
    * Check if the current user has full permissions for a child
@@ -111,6 +130,32 @@ export default function DashboardPage() {
               Manage your family and children from here.
             </p>
           </div>
+
+          {/* Family section with invite co-parent (Story 3.1) */}
+          {family && (
+            <section aria-labelledby="family-heading" className="rounded-lg border bg-card p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 id="family-heading" className="text-lg font-medium">
+                    {familyName}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {family.guardians.length} {family.guardians.length === 1 ? 'guardian' : 'guardians'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setInvitationDialogOpen(true)}
+                  className="min-h-[44px] gap-2"
+                  aria-label="Invite a co-parent to join your family"
+                >
+                  <UserPlus className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Invite Co-Parent</span>
+                  <span className="sm:hidden">Invite</span>
+                </Button>
+              </div>
+            </section>
+          )}
 
           {/* Children section */}
           <section aria-labelledby="children-heading">
@@ -290,6 +335,16 @@ export default function DashboardPage() {
               : removeDialogChild.firstName
           }
           onSuccess={handleRemoveSuccess}
+        />
+      )}
+
+      {/* Invitation Dialog (Story 3.1) */}
+      {family && (
+        <InvitationDialog
+          open={invitationDialogOpen}
+          onOpenChange={setInvitationDialogOpen}
+          familyId={family.id}
+          familyName={familyName}
         />
       )}
     </div>

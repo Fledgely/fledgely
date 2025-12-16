@@ -587,6 +587,158 @@ service cloud.firestore {
     }
 
     // ============================================
+    // INVITATIONS COLLECTION (Story 3.1)
+    // ============================================
+    // Stores co-parent invitation documents for family joining
+    //
+    // Security invariants:
+    // 1. Only guardians with 'full' permissions can create invitations
+    // 2. Only guardians can read their family's invitations
+    // 3. Only guardians with 'full' permissions can revoke invitations
+    // 4. NEVER delete - compliance requirement
+    // 5. Token is hashed (SHA-256) - never stored in plaintext
+    // 6. Only one pending invitation per family at a time
+    // 7. Public query by tokenHash allowed for invitation acceptance
+    //
+    // Invitation acceptance (Story 3.2) will use Cloud Function to:
+    // - Verify token hash matches
+    // - Check invitation hasn't expired
+    // - Add accepting user to family guardians array
+    // - Update invitation status to 'accepted'
+    // ============================================
+
+    match /invitations/{invitationId} {
+      // Helper function to check if user is a guardian in the invitation's family
+      // with full permissions
+      function hasFullPermissionsInInvitationFamily() {
+        let familyId = resource.data.familyId;
+        let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+        let guardians = familyDoc.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          familyDoc != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Helper function to check if user is a guardian in the invitation's family
+      function isGuardianInInvitationFamily() {
+        let familyId = resource.data.familyId;
+        let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+        let guardians = familyDoc.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          familyDoc != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid) ||
+            (guardians.size() >= 2 && guardians[1].uid == uid) ||
+            (guardians.size() >= 3 && guardians[2].uid == uid) ||
+            (guardians.size() >= 4 && guardians[3].uid == uid) ||
+            (guardians.size() >= 5 && guardians[4].uid == uid) ||
+            (guardians.size() >= 6 && guardians[5].uid == uid) ||
+            (guardians.size() >= 7 && guardians[6].uid == uid) ||
+            (guardians.size() >= 8 && guardians[7].uid == uid) ||
+            (guardians.size() >= 9 && guardians[8].uid == uid) ||
+            (guardians.size() >= 10 && guardians[9].uid == uid)
+          );
+      }
+
+      // Helper function for create - check if user has full permissions in target family
+      function hasFullPermissionsInTargetFamily(familyId) {
+        let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+        let guardians = familyDoc.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          familyDoc != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Create invitation:
+      // - User must be authenticated
+      // - User must be a guardian with full permissions in the family
+      // - invitedBy must match authenticated user
+      // - Required fields: id, familyId, familyName, invitedBy, invitedByName, tokenHash, status, createdAt, expiresAt
+      // - Status must be 'pending' on creation
+      // - tokenHash must be a string (SHA-256 hash)
+      allow create: if request.auth != null &&
+        request.resource.data.id == invitationId &&
+        request.resource.data.familyId is string &&
+        request.resource.data.familyId.size() > 0 &&
+        request.resource.data.familyName is string &&
+        request.resource.data.invitedBy == request.auth.uid &&
+        request.resource.data.invitedByName is string &&
+        request.resource.data.tokenHash is string &&
+        request.resource.data.tokenHash.size() > 0 &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.acceptedAt == null &&
+        request.resource.data.acceptedBy == null &&
+        exists(/databases/$(database)/documents/families/$(request.resource.data.familyId)) &&
+        hasFullPermissionsInTargetFamily(request.resource.data.familyId);
+
+      // Read invitation:
+      // - Guardians can read their family's invitations
+      // - Authenticated users can read by tokenHash for acceptance (Cloud Function)
+      // Note: tokenHash-based lookup handled via query in Cloud Function
+      allow read: if isGuardianInInvitationFamily();
+
+      // Update invitation:
+      // - Only guardians with full permissions can revoke (status -> 'revoked')
+      // - Cloud Function can update status to 'accepted' with acceptedAt/acceptedBy
+      // - Cannot change: id, familyId, familyName, invitedBy, invitedByName, tokenHash, createdAt
+      // - status can only go: pending -> revoked, pending -> accepted, pending -> expired
+      allow update: if hasFullPermissionsInInvitationFamily() &&
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.familyName == resource.data.familyName &&
+        request.resource.data.invitedBy == resource.data.invitedBy &&
+        request.resource.data.invitedByName == resource.data.invitedByName &&
+        request.resource.data.tokenHash == resource.data.tokenHash &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.expiresAt == resource.data.expiresAt &&
+        // Status transition validation
+        (
+          // Revoke: pending -> revoked (by guardian)
+          (resource.data.status == 'pending' && request.resource.data.status == 'revoked') ||
+          // Status unchanged
+          (request.resource.data.status == resource.data.status)
+        );
+
+      // NEVER allow deletion - compliance requirement
+      // Invitations are kept for audit purposes
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN AUDIT LOG COLLECTION
     // ============================================
     // Separate audit log for admin/support actions

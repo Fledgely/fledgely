@@ -245,6 +245,39 @@ export {
   type SelfRemovalResultFirestore,
 } from './selfRemoval.schema'
 
+// Invitation Schemas (Story 3.1)
+export {
+  // Schemas
+  invitationStatusSchema,
+  invitationExpiryDaysSchema,
+  invitationSchema,
+  invitationFirestoreSchema,
+  createInvitationInputSchema,
+  // Helper functions
+  getInvitationErrorMessage,
+  isInvitationExpired,
+  isInvitationPending,
+  canRevokeInvitation,
+  canAcceptInvitation,
+  convertFirestoreToInvitation,
+  validateCreateInvitationInput,
+  safeParseInvitation,
+  safeParseCreateInvitationInput,
+  buildInvitationLink,
+  calculateExpiryDate,
+  getTimeUntilExpiry,
+  // Classes
+  InvitationError,
+  // Constants
+  INVITATION_ERROR_MESSAGES,
+  // Types
+  type InvitationStatus,
+  type InvitationExpiryDays,
+  type Invitation,
+  type InvitationFirestore,
+  type CreateInvitationInput,
+} from './invitation.schema'
+
 // Safety Document Schemas (Story 0.5.2)
 export {
   // Constants
