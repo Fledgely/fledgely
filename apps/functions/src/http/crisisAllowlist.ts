@@ -2,6 +2,7 @@
  * Crisis Allowlist HTTP Endpoint
  *
  * Story 7.2: Crisis Visit Zero-Data-Path - Task 5
+ * Story 7.4: Emergency Allowlist Push - Task 3
  *
  * Public HTTP endpoint to fetch the crisis resource allowlist.
  * Used by clients to sync the allowlist with local cache.
@@ -10,11 +11,23 @@
  * NFR28: Allowlist must be cached locally (fail-safe to protection)
  * FR62: Allowlist synchronized across platforms
  * FR63: Version control for sync verification
+ *
+ * Story 7.4 additions:
+ * - Fetches dynamic entries from Firestore (crisis-allowlist-override)
+ * - Merges with bundled allowlist
+ * - Returns emergency version when dynamic entries exist
  */
 
 import { onRequest } from 'firebase-functions/v2/https'
 import type { Request, Response } from 'express'
-import { getCrisisAllowlist, getAllowlistVersion } from '@fledgely/shared'
+import {
+  getCrisisAllowlist,
+  getAllowlistVersion,
+  type CrisisUrlEntry,
+  type CrisisAllowlist,
+} from '@fledgely/shared'
+import { getFirestore } from 'firebase-admin/firestore'
+import { createEmergencyVersion, type EmergencyOverrideEntry } from '@fledgely/contracts'
 
 /** Rate limiting store - simple in-memory for MVP */
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
@@ -92,6 +105,93 @@ function cleanupRateLimitStore(): void {
 // setInterval doesn't work in serverless - each invocation is isolated
 
 /**
+ * Fetch dynamic emergency override entries from Firestore
+ *
+ * Story 7.4: These are entries added via emergency push mechanism.
+ *
+ * @returns Array of CrisisUrlEntry from emergency pushes
+ */
+async function fetchDynamicEntries(): Promise<{
+  entries: CrisisUrlEntry[]
+  latestPushId: string | null
+}> {
+  try {
+    const db = getFirestore()
+    const snapshot = await db.collection('crisis-allowlist-override').get()
+
+    if (snapshot.empty) {
+      return { entries: [], latestPushId: null }
+    }
+
+    const entries: CrisisUrlEntry[] = []
+    let latestAddedAt = ''
+    let latestPushId: string | null = null
+
+    snapshot.forEach((doc) => {
+      const data = doc.data() as EmergencyOverrideEntry
+      entries.push(data.entry)
+
+      // Track the latest push for version
+      if (data.addedAt > latestAddedAt) {
+        latestAddedAt = data.addedAt
+        latestPushId = data.pushId
+      }
+    })
+
+    return { entries, latestPushId }
+  } catch (error) {
+    // On error, return empty - bundled allowlist will be used
+    console.error('Error fetching dynamic entries:', error)
+    return { entries: [], latestPushId: null }
+  }
+}
+
+/**
+ * Merge bundled and dynamic allowlist entries
+ *
+ * Dynamic entries take precedence (override) if there's a domain conflict.
+ *
+ * @param bundled - Bundled allowlist from @fledgely/shared
+ * @param dynamic - Dynamic entries from Firestore
+ * @param latestPushId - Latest push ID for emergency version
+ * @returns Merged allowlist with updated version
+ */
+function mergeAllowlists(
+  bundled: CrisisAllowlist,
+  dynamic: CrisisUrlEntry[],
+  latestPushId: string | null
+): CrisisAllowlist {
+  if (dynamic.length === 0) {
+    return bundled
+  }
+
+  // Create a map by domain for deduplication
+  const entriesByDomain = new Map<string, CrisisUrlEntry>()
+
+  // Add bundled entries first
+  for (const entry of bundled.entries) {
+    entriesByDomain.set(entry.domain, entry)
+  }
+
+  // Add dynamic entries (overrides bundled if same domain)
+  for (const entry of dynamic) {
+    entriesByDomain.set(entry.domain, entry)
+  }
+
+  // Create merged allowlist
+  const mergedEntries = Array.from(entriesByDomain.values())
+
+  // Use emergency version format when dynamic entries exist
+  const emergencyVersion = createEmergencyVersion(bundled.version, latestPushId!)
+
+  return {
+    version: emergencyVersion,
+    lastUpdated: new Date().toISOString(),
+    entries: mergedEntries,
+  }
+}
+
+/**
  * HTTP Endpoint: GET /api/crisis-allowlist
  *
  * Returns the crisis resource allowlist for client synchronization.
@@ -146,8 +246,16 @@ export const crisisAllowlistEndpoint = onRequest(
     }
 
     try {
-      const allowlist = getCrisisAllowlist()
-      const version = getAllowlistVersion()
+      // Get bundled allowlist
+      const bundledAllowlist = getCrisisAllowlist()
+      const bundledVersion = getAllowlistVersion()
+
+      // Fetch dynamic entries from Firestore (Story 7.4)
+      const { entries: dynamicEntries, latestPushId } = await fetchDynamicEntries()
+
+      // Merge bundled and dynamic entries
+      const allowlist = mergeAllowlists(bundledAllowlist, dynamicEntries, latestPushId)
+      const version = allowlist.version
 
       // Support conditional requests with ETag
       const requestETag = req.headers['if-none-match']
@@ -157,8 +265,13 @@ export const crisisAllowlistEndpoint = onRequest(
       }
 
       // Set cache headers
+      // If emergency entries exist, reduce cache time to ensure faster propagation
+      const cacheMaxAge = dynamicEntries.length > 0
+        ? 3600 // 1 hour for emergency updates (AC: 2 - devices receive within 1 hour)
+        : CACHE_MAX_AGE_SECONDS // 24 hours normally
+
       res.set({
-        'Cache-Control': `public, max-age=${CACHE_MAX_AGE_SECONDS}`, // 24 hours
+        'Cache-Control': `public, max-age=${cacheMaxAge}`,
         'ETag': version,
         'Content-Type': 'application/json',
         // Security headers
@@ -186,4 +299,6 @@ export const __testing = {
   rateLimitStore,
   RATE_LIMIT_WINDOW_MS,
   RATE_LIMIT_MAX_REQUESTS,
+  fetchDynamicEntries,
+  mergeAllowlists,
 }

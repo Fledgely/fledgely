@@ -2,6 +2,7 @@
  * Crisis Allowlist HTTP Endpoint Tests
  *
  * Story 7.2: Crisis Visit Zero-Data-Path - Task 5.6
+ * Story 7.4: Emergency Allowlist Push - Task 3.6
  *
  * Tests for the crisis allowlist HTTP endpoint.
  */
@@ -27,9 +28,22 @@ const mockAllowlist = {
   ],
 }
 
-vi.mock('@fledgely/shared', () => ({
-  getCrisisAllowlist: vi.fn(() => mockAllowlist),
-  getAllowlistVersion: vi.fn(() => '1.0.0-test'),
+vi.mock('@fledgely/shared', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@fledgely/shared')>()
+  return {
+    ...actual,
+    getCrisisAllowlist: vi.fn(() => mockAllowlist),
+    getAllowlistVersion: vi.fn(() => '1.0.0-test'),
+  }
+})
+
+// Mock firebase-admin/firestore
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: vi.fn().mockReturnValue({
+    collection: vi.fn().mockReturnValue({
+      get: vi.fn().mockResolvedValue({ empty: true, forEach: vi.fn() }),
+    }),
+  }),
 }))
 
 // Mock firebase-functions
@@ -130,10 +144,22 @@ describe('crisisAllowlist HTTP endpoint', () => {
       // Re-import to get fresh handler
       vi.resetModules()
 
-      // Set up mocks again
-      vi.doMock('@fledgely/shared', () => ({
-        getCrisisAllowlist: vi.fn(() => mockAllowlist),
-        getAllowlistVersion: vi.fn(() => '1.0.0-test'),
+      // Set up mocks again - use importOriginal to get all exports
+      vi.doMock('@fledgely/shared', async (importOriginal) => {
+        const actual = await importOriginal<typeof import('@fledgely/shared')>()
+        return {
+          ...actual,
+          getCrisisAllowlist: vi.fn(() => mockAllowlist),
+          getAllowlistVersion: vi.fn(() => '1.0.0-test'),
+        }
+      })
+
+      vi.doMock('firebase-admin/firestore', () => ({
+        getFirestore: vi.fn().mockReturnValue({
+          collection: vi.fn().mockReturnValue({
+            get: vi.fn().mockResolvedValue({ empty: true, forEach: vi.fn() }),
+          }),
+        }),
       }))
 
       vi.doMock('firebase-functions/v2/https', () => ({
@@ -156,6 +182,7 @@ describe('crisisAllowlist HTTP endpoint', () => {
 
     afterEach(() => {
       vi.doUnmock('@fledgely/shared')
+      vi.doUnmock('firebase-admin/firestore')
       vi.doUnmock('firebase-functions/v2/https')
     })
 
@@ -279,6 +306,80 @@ describe('crisisAllowlist HTTP endpoint', () => {
       await handler(req2, res2)
       expect(res2.status).toHaveBeenCalledWith(429)
       expect(res2.set).toHaveBeenCalledWith('Retry-After', '60')
+    })
+  })
+
+  describe('fetchDynamicEntries', () => {
+    const { fetchDynamicEntries } = __testing
+
+    it('returns empty array when collection is empty', async () => {
+      const result = await fetchDynamicEntries()
+      expect(result.entries).toEqual([])
+      expect(result.latestPushId).toBeNull()
+    })
+  })
+
+  describe('mergeAllowlists', () => {
+    const { mergeAllowlists } = __testing
+
+    it('returns bundled allowlist when no dynamic entries', () => {
+      const bundled = {
+        version: '1.0.0',
+        lastUpdated: '2025-12-16T00:00:00Z',
+        entries: [mockAllowlist.entries[0]],
+      }
+
+      const result = mergeAllowlists(bundled, [], null)
+      expect(result).toBe(bundled)
+    })
+
+    it('merges dynamic entries with bundled entries', () => {
+      const bundled = {
+        version: '1.0.0',
+        lastUpdated: '2025-12-16T00:00:00Z',
+        entries: [mockAllowlist.entries[0]],
+      }
+
+      const dynamicEntry = {
+        id: 'dynamic-1',
+        domain: 'newcrisis.org',
+        category: 'crisis' as const,
+        aliases: [],
+        wildcardPatterns: [],
+        name: 'New Crisis Resource',
+        description: 'New emergency resource',
+        region: 'us' as const,
+        contactMethods: ['phone' as const],
+      }
+
+      const result = mergeAllowlists(bundled, [dynamicEntry], 'push-123')
+
+      expect(result.entries).toHaveLength(2)
+      expect(result.entries).toContainEqual(mockAllowlist.entries[0])
+      expect(result.entries).toContainEqual(dynamicEntry)
+      expect(result.version).toContain('emergency')
+      expect(result.version).toContain('push-123')
+    })
+
+    it('dynamic entries override bundled entries with same domain', () => {
+      const bundled = {
+        version: '1.0.0',
+        lastUpdated: '2025-12-16T00:00:00Z',
+        entries: [mockAllowlist.entries[0]],
+      }
+
+      const dynamicOverride = {
+        ...mockAllowlist.entries[0],
+        id: 'override-1',
+        name: 'Updated Crisis Line',
+        description: 'Updated description',
+      }
+
+      const result = mergeAllowlists(bundled, [dynamicOverride], 'push-456')
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0].name).toBe('Updated Crisis Line')
+      expect(result.entries[0].id).toBe('override-1')
     })
   })
 })

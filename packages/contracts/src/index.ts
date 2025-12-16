@@ -1045,3 +1045,29 @@ export {
   type CrisisAllowlistResponse,
   type CrisisAllowlistError,
 } from './crisis.schema'
+
+// Emergency Allowlist Schemas (Story 7.4)
+export {
+  // Constants
+  EMERGENCY_PUSH_CONSTANTS,
+  EMERGENCY_PUSH_STATUS_LABELS,
+  EMERGENCY_PUSH_STATUS_DESCRIPTIONS,
+  // Schemas
+  emergencyPushStatusSchema,
+  emergencyPushSchema,
+  emergencyPushRecordSchema,
+  emergencyOverrideEntrySchema,
+  emergencyPushResponseSchema,
+  // Helper functions
+  getEmergencyPushStatusLabel,
+  getEmergencyPushStatusDescription,
+  createEmergencyVersion,
+  isEmergencyVersion,
+  extractPushIdFromVersion,
+  // Types
+  type EmergencyPushStatus,
+  type EmergencyPush,
+  type EmergencyPushRecord,
+  type EmergencyOverrideEntry,
+  type EmergencyPushResponse,
+} from './emergencyAllowlist.schema'

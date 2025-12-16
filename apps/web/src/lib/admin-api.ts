@@ -807,3 +807,92 @@ export async function addCourtOrderedParent(
   })
   return result.data
 }
+
+// =============================================================================
+// Emergency Allowlist Push (Story 7.4)
+// =============================================================================
+
+import type {
+  EmergencyPush,
+  EmergencyPushResponse,
+  EmergencyPushRecord,
+  EmergencyPushStatus,
+} from '@fledgely/contracts'
+import type { CrisisUrlEntry } from '@fledgely/shared'
+
+/**
+ * Cloud Function callable for emergency allowlist push
+ */
+const emergencyAllowlistPushFn = httpsCallable<
+  EmergencyPush,
+  EmergencyPushResponse
+>(functions, 'emergencyAllowlistPush')
+
+/**
+ * Push emergency allowlist entries
+ *
+ * CRITICAL: This is an emergency operation for crisis resources.
+ * - Only callable by admin users
+ * - Creates audit trail entry
+ * - Entries appear in API within 30 minutes
+ *
+ * @param entries - Crisis URL entries to add
+ * @param reason - Detailed reason for push (audit trail)
+ */
+export async function emergencyAllowlistPush(
+  entries: CrisisUrlEntry[],
+  reason: string
+): Promise<EmergencyPushResponse> {
+  const result = await emergencyAllowlistPushFn({
+    entries,
+    reason,
+  })
+  return result.data
+}
+
+/**
+ * Emergency push history item for list view
+ */
+export interface EmergencyPushHistoryItem {
+  id: string
+  timestamp: string
+  status: EmergencyPushStatus
+  operator: string
+  reason: string
+  entriesCount: number
+  entries: CrisisUrlEntry[]
+  verifiedAt?: string
+  failureReason?: string
+}
+
+/**
+ * Fetch emergency push history from Firestore
+ * Note: This reads directly from Firestore client SDK
+ */
+export async function getEmergencyPushHistory(): Promise<EmergencyPushHistoryItem[]> {
+  // Import Firestore functions
+  const { collection, getDocs, orderBy, query, limit } = await import('firebase/firestore')
+  const { db } = await import('./firebase')
+  const pushesRef = collection(db, 'emergency-pushes')
+  const q = query(pushesRef, orderBy('timestamp', 'desc'), limit(50))
+
+  const snapshot = await getDocs(q)
+  const pushes: EmergencyPushHistoryItem[] = []
+
+  snapshot.forEach((doc) => {
+    const data = doc.data() as EmergencyPushRecord
+    pushes.push({
+      id: data.id,
+      timestamp: data.timestamp,
+      status: data.status,
+      operator: data.operator,
+      reason: data.reason,
+      entriesCount: data.entries.length,
+      entries: data.entries,
+      verifiedAt: data.verifiedAt,
+      failureReason: data.failureReason,
+    })
+  })
+
+  return pushes
+}

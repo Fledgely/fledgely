@@ -112,3 +112,9 @@ export { completeCoCreationSession } from './callable/completeCoCreationSession'
 
 // HTTP Endpoints - Crisis Allowlist (Story 7.2)
 export { crisisAllowlistEndpoint } from './http/crisisAllowlist'
+
+// Callable Functions - Emergency Allowlist Push (Story 7.4)
+export { emergencyAllowlistPush } from './callable/emergencyAllowlistPush'
+
+// Scheduled Functions - Emergency Push Verification (Story 7.4)
+export { verifyEmergencyPushes } from './scheduled/verifyEmergencyPushes'

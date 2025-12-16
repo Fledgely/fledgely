@@ -73,6 +73,9 @@ import {
   getAllowlistWithFallback,
   refreshCacheOnLaunch,
   getCachedVersion,
+  isEmergencyVersion,
+  forceRefresh,
+  hasEmergencyEntries,
 } from './allowlistCacheService'
 import { getCrisisAllowlist } from '@fledgely/shared'
 
@@ -602,6 +605,253 @@ describe('allowlistCacheService', () => {
 
       // Even with expired cache, we should get bundled (or could enhance to use expired)
       expect(result).toBeDefined()
+    })
+  })
+
+  // ==========================================================================
+  // Story 7.4: Emergency Allowlist Push - New Tests
+  // ==========================================================================
+
+  describe('isEmergencyVersion (Story 7.4)', () => {
+    it('returns true for emergency version strings', () => {
+      expect(isEmergencyVersion('1.0.0-emergency-abc123')).toBe(true)
+      expect(isEmergencyVersion('2.1.0-emergency-uuid-here')).toBe(true)
+    })
+
+    it('returns false for normal version strings', () => {
+      expect(isEmergencyVersion('1.0.0-2025-12-16T00:00:00Z')).toBe(false)
+      expect(isEmergencyVersion('1.0.0-bundled')).toBe(false)
+      expect(isEmergencyVersion('1.0.0-test')).toBe(false)
+    })
+  })
+
+  describe('Emergency Version TTL (Story 7.4)', () => {
+    it('expires emergency versions after 1 hour', () => {
+      const emergencyAllowlist = {
+        version: '1.0.0-emergency-abc123',
+        lastUpdated: '2025-12-16T12:00:00Z',
+        entries: [],
+      }
+
+      const cached = {
+        data: emergencyAllowlist,
+        cachedAt: Date.now() - 61 * 60 * 1000, // 61 minutes ago
+        version: emergencyAllowlist.version,
+        isEmergency: true,
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(cached))
+
+      const result = getFromCache()
+
+      expect(result).toBeNull() // Expired
+    })
+
+    it('keeps emergency versions valid within 1 hour', () => {
+      const emergencyAllowlist = {
+        version: '1.0.0-emergency-abc123',
+        lastUpdated: '2025-12-16T12:00:00Z',
+        entries: [],
+      }
+
+      const cached = {
+        data: emergencyAllowlist,
+        cachedAt: Date.now() - 30 * 60 * 1000, // 30 minutes ago
+        version: emergencyAllowlist.version,
+        isEmergency: true,
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(cached))
+
+      const result = getFromCache()
+
+      expect(result).toEqual(emergencyAllowlist)
+    })
+
+    it('keeps normal versions valid for 24 hours', () => {
+      const cached = {
+        data: testAllowlist,
+        cachedAt: Date.now() - 23 * 60 * 60 * 1000, // 23 hours ago
+        version: testAllowlist.version,
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(cached))
+
+      const result = getFromCache()
+
+      expect(result).toEqual(testAllowlist)
+    })
+  })
+
+  describe('forceRefresh (Story 7.4)', () => {
+    it('fetches fresh data bypassing cache', async () => {
+      const freshAllowlist = {
+        version: '3.0.0-fresh',
+        lastUpdated: '2025-12-16T15:00:00Z',
+        entries: [],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => freshAllowlist,
+      })
+
+      const result = await forceRefresh()
+
+      expect(result).toEqual(freshAllowlist)
+      expect(localStorageMock.setItem).toHaveBeenCalled()
+    })
+
+    it('falls back to bundled on network failure', async () => {
+      localStorageMock.getItem.mockReturnValue(null)
+      mockFetch
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockRejectedValueOnce(new Error('Network error'))
+
+      const resultPromise = forceRefresh()
+
+      await vi.advanceTimersByTimeAsync(1000)
+      await vi.advanceTimersByTimeAsync(2000)
+      await vi.advanceTimersByTimeAsync(3000)
+
+      const result = await resultPromise
+
+      expect(result).toEqual(mockBundledAllowlist)
+    })
+  })
+
+  describe('hasEmergencyEntries (Story 7.4)', () => {
+    it('returns true when cache has emergency entries', () => {
+      const cached = {
+        data: testAllowlist,
+        cachedAt: Date.now(),
+        version: '1.0.0-emergency-abc123',
+        isEmergency: true,
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(cached))
+
+      expect(hasEmergencyEntries()).toBe(true)
+    })
+
+    it('returns false when cache has no emergency entries', () => {
+      const cached = {
+        data: testAllowlist,
+        cachedAt: Date.now(),
+        version: '1.0.0-test',
+      }
+      localStorageMock.getItem.mockReturnValue(JSON.stringify(cached))
+
+      expect(hasEmergencyEntries()).toBe(false)
+    })
+
+    it('returns false when no cache exists', () => {
+      localStorageMock.getItem.mockReturnValue(null)
+
+      expect(hasEmergencyEntries()).toBe(false)
+    })
+  })
+
+  describe('ETag Support (Story 7.4)', () => {
+    it('sends If-None-Match header when ETag is cached', async () => {
+      // Prime the ETag cache
+      localStorageMock.getItem.mockImplementation((key: string) => {
+        if (key === 'fledgely_crisis_allowlist_etag') {
+          return '1.0.0-cached-version'
+        }
+        if (key === 'fledgely_crisis_allowlist') {
+          return JSON.stringify({
+            data: testAllowlist,
+            cachedAt: Date.now(),
+            version: testAllowlist.version,
+          })
+        }
+        return null
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => testAllowlist,
+      })
+
+      await getAllowlistWithFallback()
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'If-None-Match': '1.0.0-cached-version',
+          }),
+        })
+      )
+    })
+
+    it('uses cached data on 304 Not Modified', async () => {
+      const cached = {
+        data: testAllowlist,
+        cachedAt: Date.now(),
+        version: testAllowlist.version,
+      }
+      localStorageMock.getItem.mockImplementation((key: string) => {
+        if (key === 'fledgely_crisis_allowlist_etag') {
+          return testAllowlist.version
+        }
+        if (key === 'fledgely_crisis_allowlist') {
+          return JSON.stringify(cached)
+        }
+        return null
+      })
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 304,
+      })
+
+      const result = await getAllowlistWithFallback()
+
+      expect(result).toEqual(testAllowlist)
+    })
+  })
+
+  describe('Offline→Online Sync (Story 7.4 AC: 3)', () => {
+    it('supersedes bundled with network data when coming online', async () => {
+      // Start with bundled data (offline scenario)
+      localStorageMock.getItem.mockReturnValue(null)
+
+      // Bundled has 1 entry
+      expect(mockBundledAllowlist.entries).toHaveLength(1)
+
+      // Coming online, network returns newer data
+      const networkAllowlist = {
+        version: '2.0.0-network-emergency-push123',
+        lastUpdated: '2025-12-16T15:00:00Z',
+        entries: [
+          mockBundledAllowlist.entries[0],
+          {
+            id: 'emergency-1',
+            domain: 'new-crisis.org',
+            category: 'crisis' as const,
+            aliases: [],
+            wildcardPatterns: [],
+            name: 'Emergency Crisis Resource',
+            description: 'Added via emergency push',
+            region: 'us' as const,
+            contactMethods: ['phone' as const],
+          },
+        ],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => networkAllowlist,
+      })
+
+      const result = await getAllowlistWithFallback()
+
+      // Network data supersedes bundled
+      expect(result).toEqual(networkAllowlist)
+      expect(result.entries).toHaveLength(2)
+      expect(isEmergencyVersion(result.version)).toBe(true)
     })
   })
 })
