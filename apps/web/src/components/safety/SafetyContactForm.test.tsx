@@ -298,4 +298,94 @@ describe('SafetyContactForm', () => {
       expect(screen.getByLabelText(/How can we help/i)).toBeInTheDocument()
     })
   })
+
+  describe('legal parent access links', () => {
+    it('should render legal parent access section', () => {
+      render(
+        <SafetyContactForm
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          source="login-page"
+        />
+      )
+
+      expect(
+        screen.getByText(/legal parent seeking access/i)
+      ).toBeInTheDocument()
+    })
+
+    it('should render submit request link', () => {
+      render(
+        <SafetyContactForm
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          source="login-page"
+        />
+      )
+
+      expect(
+        screen.getByRole('button', { name: /submit request/i })
+      ).toBeInTheDocument()
+    })
+
+    it('should render check status link', () => {
+      render(
+        <SafetyContactForm
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          source="login-page"
+        />
+      )
+
+      expect(
+        screen.getByRole('button', { name: /check status/i })
+      ).toBeInTheDocument()
+    })
+
+    it('should open legal petition form when submit request is clicked', async () => {
+      const user = userEvent.setup()
+
+      render(
+        <SafetyContactForm
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          source="login-page"
+        />
+      )
+
+      const submitRequestButton = screen.getByRole('button', {
+        name: /submit request/i,
+      })
+      await user.click(submitRequestButton)
+
+      // Legal petition form should appear
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Legal Parent Access Request/i)
+        ).toBeInTheDocument()
+      })
+    })
+
+    it('should open petition status checker when check status is clicked', async () => {
+      const user = userEvent.setup()
+
+      render(
+        <SafetyContactForm
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          source="login-page"
+        />
+      )
+
+      const checkStatusButton = screen.getByRole('button', {
+        name: /check status/i,
+      })
+      await user.click(checkStatusButton)
+
+      // Petition status checker should appear
+      await waitFor(() => {
+        expect(screen.getByText(/Check Petition Status/i)).toBeInTheDocument()
+      })
+    })
+  })
 })

@@ -24,6 +24,31 @@
         { "fieldPath": "familyId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "legalPetitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "legalPetitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedTo", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "legalPetitions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "referenceNumber", "order": "ASCENDING" },
+        { "fieldPath": "petitionerEmail", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

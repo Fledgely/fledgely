@@ -46,3 +46,19 @@ export { processEmailQueueOnCreate, processEmailQueueOnUpdate } from './triggers
 
 // Scheduled Functions - Resource Staleness Check (Story 0.5.9)
 export { checkResourceStaleness } from './scheduled/checkResourceStaleness'
+
+// Callable Functions - Legal Petition (Story 3.6)
+export { submitLegalPetition } from './callable/submitLegalPetition'
+export { checkPetitionStatus } from './callable/checkPetitionStatus'
+export { addCourtOrderedParent } from './callable/addCourtOrderedParent'
+
+// Callable Functions - Legal Petition Admin Dashboard (Story 3.6)
+export { listLegalPetitions } from './callable/listLegalPetitions'
+export { getLegalPetition } from './callable/getLegalPetition'
+export { updateLegalPetition } from './callable/updateLegalPetition'
+
+// Triggers - Legal Petition Notification Queue Processing (Story 3.6)
+export {
+  processLegalPetitionNotificationOnCreate,
+  processLegalPetitionNotificationOnUpdate,
+} from './triggers/processLegalPetitionNotifications'

@@ -43,6 +43,7 @@ describe('useChild', () => {
         role: 'primary',
         permissions: 'full',
         joinedAt: new Date(),
+        addedVia: 'creator',
       },
     ],
     children: [],
@@ -65,6 +66,8 @@ describe('useChild', () => {
     ],
     createdAt: new Date(),
     createdBy: 'test-user-123',
+    custodyHistory: [],
+    requiresSharedCustodySafeguards: false,
   }
 
   const mockCreateChildInput: CreateChildInput = {
@@ -88,6 +91,7 @@ describe('useChild', () => {
         error: null,
         signInWithGoogle: vi.fn(),
         signOut: vi.fn(),
+        clearError: vi.fn(),
       })
       mockUseFamily.mockReturnValue({
         family: null,

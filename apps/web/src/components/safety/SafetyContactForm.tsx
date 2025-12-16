@@ -27,6 +27,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { LegalPetitionForm } from './LegalPetitionForm'
+import { PetitionStatusChecker } from './PetitionStatusChecker'
 
 interface PendingFile {
   file: File
@@ -62,6 +64,8 @@ export function SafetyContactForm({
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [showLegalPetition, setShowLegalPetition] = useState(false)
+  const [showPetitionStatus, setShowPetitionStatus] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -428,8 +432,48 @@ export function SafetyContactForm({
                 Send
               </Button>
             </div>
+
+            {/* Legal Parent Access Section */}
+            <div className="border-t pt-4 mt-4">
+              <p className="text-xs text-muted-foreground mb-2">
+                Are you a legal parent seeking access to your child&apos;s account?
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setShowLegalPetition(true)}
+                  className="h-auto p-0 text-xs"
+                >
+                  Submit request
+                </Button>
+                <span className="text-xs text-muted-foreground">|</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={() => setShowPetitionStatus(true)}
+                  className="h-auto p-0 text-xs"
+                >
+                  Check status
+                </Button>
+              </div>
+            </div>
           </form>
         )}
+
+        {/* Legal Petition Form Dialog */}
+        <LegalPetitionForm
+          open={showLegalPetition}
+          onOpenChange={setShowLegalPetition}
+        />
+
+        {/* Petition Status Checker Dialog */}
+        <PetitionStatusChecker
+          open={showPetitionStatus}
+          onOpenChange={setShowPetitionStatus}
+        />
       </SheetContent>
     </Sheet>
   )

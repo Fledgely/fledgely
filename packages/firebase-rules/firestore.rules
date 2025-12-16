@@ -40,6 +40,73 @@ service cloud.firestore {
     }
 
     // ============================================
+    // LEGAL PETITIONS COLLECTION (Story 3.6)
+    // ============================================
+    // CRITICAL: This is a legal pathway for parents excluded from family monitoring.
+    // These rules ensure legal petitions are NEVER visible to family members.
+    //
+    // Security invariants:
+    // 1. Any authenticated user can create a petition (petitioning for access)
+    // 2. Only safety-team or admin can read/update
+    // 3. NEVER delete - compliance requirement
+    // 4. NEVER linked to family audit trail
+    // 5. Collection NOT accessible via family-scoped queries
+    // 6. Petitioner can only submit petition, not read/update (status check via Cloud Function)
+    // ============================================
+
+    match /legalPetitions/{petitionId} {
+      // Any authenticated user can create a legal petition
+      // This allows parents to petition for access even without family membership
+      // Validates required fields are present
+      allow create: if request.auth != null &&
+        request.resource.data.id == petitionId &&
+        request.resource.data.petitionerName is string &&
+        request.resource.data.petitionerName.size() >= 1 &&
+        request.resource.data.petitionerEmail is string &&
+        request.resource.data.petitionerEmail.matches('^[^@]+@[^@]+\\.[^@]+$') &&
+        request.resource.data.childName is string &&
+        request.resource.data.childName.size() >= 1 &&
+        request.resource.data.claimedRelationship in ['parent', 'legal-guardian'] &&
+        request.resource.data.status == 'submitted' &&
+        request.resource.data.referenceNumber is string &&
+        request.resource.data.referenceNumber.matches('^LP-[0-9]{8}-[A-Z0-9]{5}$') &&
+        request.resource.data.documents is list &&
+        request.resource.data.documents.size() <= 5 &&
+        request.resource.data.internalNotes is list &&
+        request.resource.data.internalNotes.size() == 0;  // No internal notes on creation
+
+      // Only support team members can read legal petitions
+      // This prevents family members from ever seeing these petitions
+      // Petitioners check their status via Cloud Function with reference number + email
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']);
+
+      // Only support team members can update legal petitions
+      // Updates include: status changes, assignment, target family ID, internal notes
+      // Status must be valid: submitted, reviewing, pending-more-info, verified, denied
+      allow update: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']) &&
+        // Cannot change immutable fields
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.referenceNumber == resource.data.referenceNumber &&
+        request.resource.data.petitionerName == resource.data.petitionerName &&
+        request.resource.data.petitionerEmail == resource.data.petitionerEmail &&
+        request.resource.data.childName == resource.data.childName &&
+        request.resource.data.childDOB == resource.data.childDOB &&
+        request.resource.data.claimedRelationship == resource.data.claimedRelationship &&
+        request.resource.data.message == resource.data.message &&
+        request.resource.data.submittedAt == resource.data.submittedAt &&
+        // Status must be valid
+        request.resource.data.status in ['submitted', 'reviewing', 'pending-more-info', 'verified', 'denied'];
+
+      // NEVER allow deletion - compliance requirement
+      // Legal petitions must be retained for legal/compliance purposes
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN ROLES COLLECTION
     // ============================================
     // Stores admin/support team role assignments

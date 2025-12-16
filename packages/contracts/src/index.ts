@@ -25,6 +25,7 @@ export {
   familyGuardianFirestoreSchema,
   guardianRoleSchema,
   guardianPermissionSchema,
+  guardianAddedViaSchema,
   createFamilyInputSchema,
   // Helper functions
   convertFirestoreToFamily,
@@ -34,6 +35,10 @@ export {
   getGuardianRole,
   getGuardianPermissions,
   hasFullPermissions,
+  // Story 3.6: Legal Parent Petition helper functions
+  getGuardianAddedVia,
+  canRevokeGuardian,
+  isCourtOrderedGuardian,
   // Types
   type Family,
   type FamilyFirestore,
@@ -41,6 +46,7 @@ export {
   type FamilyGuardianFirestore,
   type GuardianRole,
   type GuardianPermission,
+  type GuardianAddedVia,
   type CreateFamilyInput,
 } from './family.schema'
 
@@ -331,3 +337,46 @@ export {
   type DeleteSafetyDocumentInput,
   type DeleteSafetyDocumentResponse,
 } from './safety-document.schema'
+
+// Legal Petition Schemas (Story 3.6)
+export {
+  // Constants
+  PETITION_REVIEW_DAYS,
+  PETITION_EXPIRY_DAYS,
+  PETITION_STATUS_LABELS,
+  PETITION_ERROR_MESSAGES,
+  // Schemas
+  legalPetitionStatusSchema,
+  claimedRelationshipSchema,
+  petitionStatusHistoryEntrySchema,
+  petitionStatusHistoryEntryFirestoreSchema,
+  petitionReferenceNumberSchema,
+  submitLegalPetitionInputSchema,
+  legalPetitionSchema,
+  legalPetitionFirestoreSchema,
+  submitLegalPetitionResponseSchema,
+  checkPetitionStatusResponseSchema,
+  checkPetitionStatusInputSchema,
+  updatePetitionStatusInputSchema,
+  // Helper functions
+  generatePetitionReferenceNumber,
+  convertFirestoreToLegalPetition,
+  validateSubmitLegalPetitionInput,
+  safeParseLegalPetition,
+  isPetitionExpired,
+  canUpdatePetitionStatus,
+  getPetitionStatusLabel,
+  getPetitionErrorMessage,
+  // Types
+  type LegalPetitionStatus,
+  type ClaimedRelationship,
+  type PetitionStatusHistoryEntry,
+  type PetitionStatusHistoryEntryFirestore,
+  type SubmitLegalPetitionInput,
+  type LegalPetition,
+  type LegalPetitionFirestore,
+  type SubmitLegalPetitionResponse,
+  type CheckPetitionStatusResponse,
+  type CheckPetitionStatusInput,
+  type UpdatePetitionStatusInput,
+} from './legal-petition.schema'

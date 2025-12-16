@@ -28,6 +28,18 @@ export const guardianRoleSchema = z.enum([
 export type GuardianRole = z.infer<typeof guardianRoleSchema>
 
 /**
+ * How the guardian was added to the family
+ * Story 3.6: Legal Parent Petition for Access
+ */
+export const guardianAddedViaSchema = z.enum([
+  'creator', // Family creator (original primary guardian)
+  'invitation', // Added via invitation flow (Stories 3.1-3.5)
+  'court-order', // Added via legal petition process (Story 3.6)
+])
+
+export type GuardianAddedVia = z.infer<typeof guardianAddedViaSchema>
+
+/**
  * Family guardian reference - represents a parent/guardian in the family
  */
 export const familyGuardianSchema = z.object({
@@ -42,6 +54,17 @@ export const familyGuardianSchema = z.object({
 
   /** When the guardian joined the family */
   joinedAt: z.date(),
+
+  /**
+   * How the guardian was added to the family (Story 3.6)
+   * - 'creator': Original family creator
+   * - 'invitation': Added via invitation flow
+   * - 'court-order': Added via legal petition process (cannot be revoked by other guardians)
+   */
+  addedVia: guardianAddedViaSchema.default('invitation'),
+
+  /** Who added this guardian (user uid or 'system' for court-orders) */
+  addedBy: z.string().optional(),
 })
 
 export type FamilyGuardian = z.infer<typeof familyGuardianSchema>
@@ -56,6 +79,8 @@ export const familyGuardianFirestoreSchema = z.object({
   joinedAt: z.custom<{ toDate: () => Date }>(
     (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
   ),
+  addedVia: guardianAddedViaSchema.default('invitation'),
+  addedBy: z.string().optional(),
 })
 
 export type FamilyGuardianFirestore = z.infer<typeof familyGuardianFirestoreSchema>
@@ -148,6 +173,8 @@ export function convertFirestoreToFamily(data: FamilyFirestore): Family {
       role: guardian.role,
       permissions: guardian.permissions,
       joinedAt: guardian.joinedAt.toDate(),
+      addedVia: guardian.addedVia || 'invitation',
+      addedBy: guardian.addedBy,
     })),
     children: data.children || [],
   })
@@ -199,4 +226,35 @@ export function getGuardianPermissions(
  */
 export function hasFullPermissions(family: Family, uid: string): boolean {
   return getGuardianPermissions(family, uid) === 'full'
+}
+
+/**
+ * Get how a guardian was added to the family
+ * Story 3.6: Legal Parent Petition for Access
+ */
+export function getGuardianAddedVia(
+  family: Family,
+  uid: string
+): GuardianAddedVia | null {
+  const guardian = family.guardians.find((g) => g.uid === uid)
+  return guardian?.addedVia ?? null
+}
+
+/**
+ * Check if a guardian can be revoked by other guardians
+ * Court-ordered parents (addedVia: 'court-order') cannot be revoked
+ * Story 3.6: Legal Parent Petition for Access - AC6
+ */
+export function canRevokeGuardian(family: Family, uid: string): boolean {
+  const addedVia = getGuardianAddedVia(family, uid)
+  // Court-ordered parents cannot be revoked by other guardians
+  return addedVia !== 'court-order'
+}
+
+/**
+ * Check if a guardian was added via court order
+ * Story 3.6: Legal Parent Petition for Access
+ */
+export function isCourtOrderedGuardian(family: Family, uid: string): boolean {
+  return getGuardianAddedVia(family, uid) === 'court-order'
 }

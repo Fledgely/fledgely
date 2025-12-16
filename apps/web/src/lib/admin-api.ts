@@ -586,3 +586,224 @@ export async function activateNotificationStealth(
   })
   return result.data
 }
+
+// ============================================================================
+// Legal Petition API (Story 3.6)
+// ============================================================================
+
+/**
+ * Legal petition summary for list view
+ */
+export interface LegalPetitionSummary {
+  id: string
+  referenceNumber: string
+  petitionerName: string
+  petitionerEmail: string
+  childName: string
+  status: 'pending' | 'under-review' | 'verified' | 'denied'
+  claimedRelationship: 'parent' | 'legal-guardian'
+  submittedAt: { _seconds: number; _nanoseconds: number }
+  updatedAt: { _seconds: number; _nanoseconds: number }
+  hasDocuments: boolean
+  documentCount: number
+  assignedTo: string | null
+}
+
+/**
+ * Full legal petition detail
+ */
+export interface LegalPetitionDetail {
+  id: string
+  referenceNumber: string
+  petitionerName: string
+  petitionerEmail: string
+  petitionerPhone: string | null
+  childName: string
+  childDOB: { _seconds: number; _nanoseconds: number }
+  claimedRelationship: 'parent' | 'legal-guardian'
+  message: string
+  status: 'pending' | 'under-review' | 'verified' | 'denied'
+  submittedAt: { _seconds: number; _nanoseconds: number }
+  updatedAt: { _seconds: number; _nanoseconds: number }
+  documents: Array<{
+    id: string
+    fileName: string
+    fileType: string
+    storagePath: string
+    uploadedAt: { _seconds: number; _nanoseconds: number }
+    sizeBytes: number
+    signedUrl?: string
+  }>
+  targetFamilyId: string | null
+  assignedTo: string | null
+  internalNotes: Array<{
+    content: string
+    addedBy: string
+    addedAt: { _seconds: number; _nanoseconds: number }
+  }>
+  statusHistory: Array<{
+    status: string
+    timestamp: { _seconds: number; _nanoseconds: number }
+    updatedBy: string
+    note?: string
+  }>
+  supportMessageToUser: string | null
+}
+
+/**
+ * List legal petitions input
+ */
+export interface ListLegalPetitionsInput {
+  status?: 'pending' | 'under-review' | 'verified' | 'denied' | 'all'
+  limit?: number
+  startAfter?: string
+  sortBy?: 'submittedAt' | 'updatedAt'
+  sortDirection?: 'asc' | 'desc'
+}
+
+/**
+ * List legal petitions response
+ */
+export interface ListLegalPetitionsResponse {
+  success: boolean
+  petitions: LegalPetitionSummary[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+/**
+ * Update legal petition input
+ */
+export interface UpdateLegalPetitionInput {
+  petitionId: string
+  updateType: 'status' | 'assignment' | 'note' | 'support-message'
+  status?: 'pending' | 'under-review' | 'verified' | 'denied'
+  assignTo?: string | null
+  note?: { content: string }
+  supportMessage?: string
+  targetFamilyId?: string
+}
+
+/**
+ * Cloud Function callables for legal petition operations
+ */
+const listLegalPetitionsFn = httpsCallable<
+  ListLegalPetitionsInput,
+  ListLegalPetitionsResponse
+>(functions, 'listLegalPetitions')
+
+const getLegalPetitionFn = httpsCallable<
+  { petitionId: string },
+  { success: boolean; petition: LegalPetitionDetail }
+>(functions, 'getLegalPetition')
+
+const updateLegalPetitionFn = httpsCallable<
+  UpdateLegalPetitionInput,
+  { success: boolean; updateType: string; petitionId: string }
+>(functions, 'updateLegalPetition')
+
+const addCourtOrderedParentFn = httpsCallable<
+  { petitionId: string; familyId: string; newParentUserId: string },
+  { success: boolean; familyId: string; message: string }
+>(functions, 'addCourtOrderedParent')
+
+/**
+ * List legal petitions with filtering and pagination
+ */
+export async function listLegalPetitions(
+  input: ListLegalPetitionsInput = {}
+): Promise<ListLegalPetitionsResponse> {
+  const result = await listLegalPetitionsFn(input)
+  return result.data
+}
+
+/**
+ * Get full legal petition detail
+ */
+export async function getLegalPetition(
+  petitionId: string
+): Promise<LegalPetitionDetail> {
+  const result = await getLegalPetitionFn({ petitionId })
+  return result.data.petition
+}
+
+/**
+ * Update legal petition status
+ */
+export async function updatePetitionStatus(
+  petitionId: string,
+  status: 'pending' | 'under-review' | 'verified' | 'denied',
+  targetFamilyId?: string
+): Promise<void> {
+  await updateLegalPetitionFn({
+    petitionId,
+    updateType: 'status',
+    status,
+    targetFamilyId,
+  })
+}
+
+/**
+ * Assign petition to agent
+ */
+export async function assignPetition(
+  petitionId: string,
+  assignTo: string | null
+): Promise<void> {
+  await updateLegalPetitionFn({
+    petitionId,
+    updateType: 'assignment',
+    assignTo,
+  })
+}
+
+/**
+ * Add internal note to petition
+ */
+export async function addPetitionNote(
+  petitionId: string,
+  content: string
+): Promise<void> {
+  await updateLegalPetitionFn({
+    petitionId,
+    updateType: 'note',
+    note: { content },
+  })
+}
+
+/**
+ * Update support message to petitioner
+ */
+export async function updatePetitionSupportMessage(
+  petitionId: string,
+  supportMessage: string
+): Promise<void> {
+  await updateLegalPetitionFn({
+    petitionId,
+    updateType: 'support-message',
+    supportMessage,
+  })
+}
+
+/**
+ * Add court-ordered parent to family
+ *
+ * CRITICAL: Only callable by safety-team users
+ * This adds a verified legal parent to a family, bypassing normal invitation flow
+ *
+ * @param petitionId - Verified petition ID
+ * @param familyId - Family to add the parent to
+ * @param newParentUserId - User ID of the parent to add
+ */
+export async function addCourtOrderedParent(
+  petitionId: string,
+  familyId: string,
+  newParentUserId: string
+): Promise<{ success: boolean; familyId: string; message: string }> {
+  const result = await addCourtOrderedParentFn({
+    petitionId,
+    familyId,
+    newParentUserId,
+  })
+  return result.data
+}
