@@ -137,7 +137,7 @@ development_status:
   epic-7: in-progress
   7-1-crisis-allowlist-data-structure: done
   7-2-crisis-visit-zero-data-path: done
-  7-3-child-allowlist-visibility: backlog
+  7-3-child-allowlist-visibility: done
   7-4-emergency-allowlist-push: backlog
   7-5-fuzzy-domain-matching: backlog
   7-6-crisis-search-redirection: backlog
