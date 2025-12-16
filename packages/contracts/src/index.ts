@@ -413,3 +413,50 @@ export {
   type SymmetryViolationType,
   type SymmetryViolation,
 } from './data-symmetry.schema'
+
+// Safety Settings Proposal Schemas (Story 3A.2)
+export {
+  // Constants
+  SAFETY_SETTING_TYPE_LABELS,
+  PROPOSAL_STATUS_LABELS,
+  PROPOSAL_FIELD_LIMITS,
+  PROPOSAL_TIME_LIMITS,
+  PROPOSAL_RATE_LIMIT,
+  SAFETY_PROPOSAL_ERROR_MESSAGES,
+  // Schemas
+  safetySettingTypeSchema,
+  proposalStatusSchema,
+  safetySettingValueSchema,
+  safetySettingsProposalSchema,
+  safetySettingsProposalFirestoreSchema,
+  createSafetySettingsProposalInputSchema,
+  respondToProposalInputSchema,
+  disputeProposalInputSchema,
+  // Helper functions
+  getSafetySettingTypeLabel,
+  getProposalStatusLabel,
+  convertFirestoreToSafetySettingsProposal,
+  safeParseSafetySettingsProposal,
+  validateCreateSafetySettingsProposalInput,
+  safeParseCreateSafetySettingsProposalInput,
+  isEmergencySafetyIncrease,
+  canRespondToProposal,
+  canDisputeProposal,
+  canRepropose,
+  calculateProposalExpiry,
+  getProposalTimeUntilExpiry,
+  calculateDisputeDeadline,
+  calculateReproposalDate,
+  formatProposalDiff,
+  formatSettingValue,
+  getSafetyProposalErrorMessage,
+  // Types
+  type SafetySettingType,
+  type ProposalStatus,
+  type SafetySettingValue,
+  type SafetySettingsProposal,
+  type SafetySettingsProposalFirestore,
+  type CreateSafetySettingsProposalInput,
+  type RespondToProposalInput,
+  type DisputeProposalInput,
+} from './safety-settings-proposal.schema'

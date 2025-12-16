@@ -49,6 +49,32 @@
         { "fieldPath": "referenceNumber", "order": "ASCENDING" },
         { "fieldPath": "petitionerEmail", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "safetySettingsProposals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "proposedBy", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "safetySettingsProposals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "settingType", "order": "ASCENDING" },
+        { "fieldPath": "proposedBy", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "respondedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "safetySettingsProposals",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

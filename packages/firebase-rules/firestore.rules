@@ -649,6 +649,43 @@ service cloud.firestore {
         // Compliance requirement for custody situations
         allow delete: if false;
       }
+
+      // ============================================
+      // SAFETY SETTINGS PROPOSALS SUBCOLLECTION (Story 3A.2)
+      // ============================================
+      // Stores proposals for changing safety-related settings in shared custody families.
+      // CRITICAL: In shared custody, safety setting changes require dual-approval
+      // to prevent one parent from unilaterally weakening protections.
+      //
+      // Security invariants:
+      // 1. ALL guardians can read proposals (transparency for both co-parents)
+      // 2. Guardians can create proposals for their children
+      // 3. Only Cloud Functions can update proposals (status transitions)
+      // 4. Proposals cannot be deleted (immutable audit trail)
+      // 5. Emergency safety increases auto-apply but can be disputed
+      // ============================================
+      match /safetySettingsProposals/{proposalId} {
+        // ALL guardians can read proposals
+        // Both co-parents must see pending proposals to respond
+        allow read: if isChildGuardian();
+
+        // Guardians can create proposals for settings changes
+        // Validates: proposedBy matches authenticated user
+        allow create: if isChildGuardian() &&
+          request.resource.data.proposedBy == request.auth.uid &&
+          request.resource.data.id == proposalId &&
+          request.resource.data.childId == childId &&
+          request.resource.data.settingType is string &&
+          request.resource.data.status in ['pending', 'auto_applied'];
+
+        // Only Cloud Functions can update proposals
+        // Status transitions (approve/decline/dispute) go through functions
+        // This ensures proper validation and side effects
+        allow update: if false;
+
+        // Proposals cannot be deleted - compliance requirement
+        allow delete: if false;
+      }
     }
 
     // ============================================

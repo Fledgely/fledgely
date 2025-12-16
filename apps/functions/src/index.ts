@@ -65,3 +65,10 @@ export {
 
 // Callable Functions - Data Symmetry (Story 3A.1)
 export { logDataView, getViewAuditLog } from './callable/logDataView'
+
+// Callable Functions - Safety Settings Proposal (Story 3A.2)
+export { proposeSafetySettingChange } from './callable/proposeSafetySettingChange'
+export { respondToSafetyProposal, disputeSafetyProposal } from './callable/respondToSafetyProposal'
+
+// Scheduled Functions - Safety Settings Proposal Expiry (Story 3A.2)
+export { expireStaleProposals } from './scheduled/expireStaleProposals'
