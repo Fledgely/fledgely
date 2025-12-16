@@ -378,3 +378,246 @@ export function getSymmetryErrorMessage(
 ): string {
   return SYMMETRY_ERROR_MESSAGES[code] || SYMMETRY_ERROR_MESSAGES.unknown
 }
+
+// ============================================
+// SCREENSHOT VIEWING RATE ALERT
+// Story 3A.5: Screenshot Viewing Rate Alert
+// ============================================
+
+/**
+ * Screenshot viewing rate limits - NOT user-configurable
+ *
+ * Rationale for non-configurability (AC6):
+ * 1. Gaming prevention: Abusive parent could set to 1000 to avoid alerts
+ * 2. Weaponization prevention: Low threshold could generate constant alerts
+ * 3. Simplicity: One clear standard for all families
+ * 4. Consistency: Same behavior for all shared custody situations
+ */
+export const SCREENSHOT_VIEWING_RATE_LIMITS = Object.freeze({
+  /** Maximum screenshots viewable per hour before alert (AC1: 50 screenshots) */
+  THRESHOLD_PER_HOUR: 50,
+  /** Time window for rate calculation (1 hour in milliseconds) */
+  WINDOW_MS: 60 * 60 * 1000,
+  /** Minimum time between alerts for same guardian (1 hour cooldown) */
+  ALERT_COOLDOWN_MS: 60 * 60 * 1000,
+} as const)
+
+/**
+ * Screenshot viewing rate alert - triggered when one parent views excessively
+ *
+ * Stored in: children/{childId}/screenshotRateAlerts/{alertId}
+ *
+ * Security/privacy design:
+ * - Does NOT include which screenshots were viewed (AC2)
+ * - Alert goes to OTHER parent only, NOT the triggering parent
+ * - Child is NEVER notified (AC7 - prevent triangulation)
+ * - Informational only - does NOT block viewing (AC4)
+ */
+export const screenshotViewingRateAlertSchema = z.object({
+  /** Unique alert ID (Firestore document ID) */
+  id: z.string().min(1, 'Alert ID is required').max(AUDIT_FIELD_LIMITS.id),
+
+  /** Child ID whose screenshots were viewed */
+  childId: z.string().min(1, 'Child ID is required').max(AUDIT_FIELD_LIMITS.childId),
+
+  /** Guardian who triggered the alert by viewing excessively */
+  triggeredBy: z.string().min(1, 'Triggered by is required').max(AUDIT_FIELD_LIMITS.viewedBy),
+
+  /** Guardian(s) who were alerted (other parent(s), NOT the triggering parent)
+   * Note: May be empty for single-parent families (alert still created for audit purposes)
+   */
+  alertedTo: z.array(z.string().min(1).max(AUDIT_FIELD_LIMITS.viewedBy)),
+
+  /** Number of screenshots viewed in the window (>= THRESHOLD_PER_HOUR) */
+  screenshotCount: z.number().int().min(SCREENSHOT_VIEWING_RATE_LIMITS.THRESHOLD_PER_HOUR),
+
+  /** Start of the 1-hour window when counting began */
+  windowStart: z.date(),
+
+  /** End of the 1-hour window (when threshold was exceeded) */
+  windowEnd: z.date(),
+
+  /** When the alert was created */
+  createdAt: z.date(),
+})
+
+export type ScreenshotViewingRateAlert = z.infer<typeof screenshotViewingRateAlertSchema>
+
+/**
+ * Firestore-compatible screenshot viewing rate alert schema (uses Timestamp)
+ */
+export const screenshotViewingRateAlertFirestoreSchema = z.object({
+  id: z.string().min(1).max(AUDIT_FIELD_LIMITS.id),
+  childId: z.string().min(1).max(AUDIT_FIELD_LIMITS.childId),
+  triggeredBy: z.string().min(1).max(AUDIT_FIELD_LIMITS.viewedBy),
+  // Note: alertedTo may be empty for single-parent families
+  alertedTo: z.array(z.string().min(1).max(AUDIT_FIELD_LIMITS.viewedBy)),
+  screenshotCount: z.number().int().min(SCREENSHOT_VIEWING_RATE_LIMITS.THRESHOLD_PER_HOUR),
+  windowStart: z.custom<{ toDate: () => Date }>(
+    (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+  ),
+  windowEnd: z.custom<{ toDate: () => Date }>(
+    (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+  ),
+  createdAt: z.custom<{ toDate: () => Date }>(
+    (val) => val && typeof (val as { toDate?: () => Date }).toDate === 'function'
+  ),
+})
+
+export type ScreenshotViewingRateAlertFirestore = z.infer<
+  typeof screenshotViewingRateAlertFirestoreSchema
+>
+
+/**
+ * Input schema for checking screenshot viewing rate
+ * Used by checkScreenshotViewingRate Cloud Function
+ */
+export const checkScreenshotViewingRateInputSchema = z.object({
+  /** Child ID to check viewing rate for */
+  childId: z.string().min(1, 'Child ID is required').max(AUDIT_FIELD_LIMITS.childId),
+})
+
+export type CheckScreenshotViewingRateInput = z.infer<typeof checkScreenshotViewingRateInputSchema>
+
+/**
+ * Response schema for screenshot viewing rate check
+ */
+export const checkScreenshotViewingRateResponseSchema = z.object({
+  /** Whether rate limit was exceeded */
+  exceedsLimit: z.boolean(),
+  /** Number of screenshots viewed in the current window */
+  currentCount: z.number().int().min(0),
+  /** Threshold for triggering alert */
+  threshold: z.literal(SCREENSHOT_VIEWING_RATE_LIMITS.THRESHOLD_PER_HOUR),
+  /** Whether an alert was created (only if exceedsLimit and no recent alert) */
+  alertCreated: z.boolean(),
+  /** Alert ID if one was created */
+  alertId: z.string().nullable(),
+})
+
+export type CheckScreenshotViewingRateResponse = z.infer<
+  typeof checkScreenshotViewingRateResponseSchema
+>
+
+/**
+ * Convert Firestore screenshot viewing rate alert to domain type
+ */
+export function convertFirestoreToScreenshotViewingRateAlert(
+  data: ScreenshotViewingRateAlertFirestore
+): ScreenshotViewingRateAlert {
+  return screenshotViewingRateAlertSchema.parse({
+    id: data.id,
+    childId: data.childId,
+    triggeredBy: data.triggeredBy,
+    alertedTo: data.alertedTo,
+    screenshotCount: data.screenshotCount,
+    windowStart: data.windowStart.toDate(),
+    windowEnd: data.windowEnd.toDate(),
+    createdAt: data.createdAt.toDate(),
+  })
+}
+
+/**
+ * Safely parse screenshot viewing rate alert, returning null if invalid
+ */
+export function safeParseScreenshotViewingRateAlert(
+  data: unknown
+): ScreenshotViewingRateAlert | null {
+  const result = screenshotViewingRateAlertSchema.safeParse(data)
+  return result.success ? result.data : null
+}
+
+/**
+ * Check if a guardian has exceeded the screenshot viewing rate limit
+ * Returns the count and whether an alert should be triggered
+ *
+ * @param viewTimestamps - Array of timestamps when screenshots were viewed by the guardian
+ * @returns Object with exceedsLimit boolean and current count
+ */
+export function checkScreenshotViewingRate(viewTimestamps: Date[]): {
+  exceedsLimit: boolean
+  currentCount: number
+  windowStart: Date
+  windowEnd: Date
+} {
+  const now = new Date()
+  const windowStart = new Date(now.getTime() - SCREENSHOT_VIEWING_RATE_LIMITS.WINDOW_MS)
+
+  // Count views within the window
+  const viewsInWindow = viewTimestamps.filter((ts) => ts >= windowStart && ts <= now)
+
+  return {
+    exceedsLimit: viewsInWindow.length >= SCREENSHOT_VIEWING_RATE_LIMITS.THRESHOLD_PER_HOUR,
+    currentCount: viewsInWindow.length,
+    windowStart,
+    windowEnd: now,
+  }
+}
+
+/**
+ * Check if a guardian has a recent rate alert (within cooldown period)
+ * Used to prevent alert spam
+ *
+ * @param lastAlertCreatedAt - When the last alert was created for this guardian
+ * @returns true if within cooldown period (should NOT create new alert)
+ */
+export function isWithinAlertCooldown(lastAlertCreatedAt: Date | null): boolean {
+  if (!lastAlertCreatedAt) {
+    return false
+  }
+
+  const now = new Date()
+  const cooldownEnd = new Date(
+    lastAlertCreatedAt.getTime() + SCREENSHOT_VIEWING_RATE_LIMITS.ALERT_COOLDOWN_MS
+  )
+
+  return now < cooldownEnd
+}
+
+/**
+ * Calculate time remaining in cooldown period
+ *
+ * @param lastAlertCreatedAt - When the last alert was created
+ * @returns Milliseconds remaining in cooldown, or 0 if cooldown has passed
+ */
+export function getAlertCooldownRemaining(lastAlertCreatedAt: Date | null): number {
+  if (!lastAlertCreatedAt) {
+    return 0
+  }
+
+  const now = new Date()
+  const cooldownEnd = new Date(
+    lastAlertCreatedAt.getTime() + SCREENSHOT_VIEWING_RATE_LIMITS.ALERT_COOLDOWN_MS
+  )
+
+  const remaining = cooldownEnd.getTime() - now.getTime()
+  return Math.max(0, remaining)
+}
+
+/**
+ * Format a screenshot rate alert message for display
+ * Uses 6th-grade reading level language (per NFR65)
+ *
+ * @param screenshotCount - Number of screenshots viewed
+ * @returns Human-readable alert message (does NOT mention which screenshots)
+ */
+export function formatScreenshotRateAlertMessage(screenshotCount: number): string {
+  return `Your co-parent viewed ${screenshotCount} screenshots in the past hour.`
+}
+
+/**
+ * Error messages for screenshot rate alert operations (6th-grade reading level)
+ */
+export const SCREENSHOT_RATE_ALERT_ERROR_MESSAGES: Record<string, string> = {
+  'not-found': 'Could not find the child information.',
+  'not-guardian': 'You must be a guardian to check viewing rates.',
+  'rate-limit': 'Too many requests. Please wait a moment.',
+  unknown: 'Something went wrong. Please try again.',
+}
+
+/**
+ * Get user-friendly error message for screenshot rate alert operations
+ */
+export function getScreenshotRateAlertErrorMessage(code: string): string {
+  return SCREENSHOT_RATE_ALERT_ERROR_MESSAGES[code] || SCREENSHOT_RATE_ALERT_ERROR_MESSAGES.unknown
+}

@@ -381,12 +381,15 @@ export {
   type UpdatePetitionStatusInput,
 } from './legal-petition.schema'
 
-// Data Symmetry Schemas (Story 3A.1)
+// Data Symmetry Schemas (Story 3A.1, 3A.5)
 export {
   // Constants
   DATA_VIEW_TYPE_LABELS,
   SYMMETRY_ERROR_MESSAGES,
   AUDIT_FIELD_LIMITS,
+  // Story 3A.5: Screenshot viewing rate alert constants
+  SCREENSHOT_VIEWING_RATE_LIMITS,
+  SCREENSHOT_RATE_ALERT_ERROR_MESSAGES,
   // Schemas
   dataViewTypeSchema,
   dataViewAuditEntrySchema,
@@ -396,6 +399,11 @@ export {
   symmetryStatusSchema,
   symmetryViolationTypeSchema,
   symmetryViolationSchema,
+  // Story 3A.5: Screenshot viewing rate alert schemas
+  screenshotViewingRateAlertSchema,
+  screenshotViewingRateAlertFirestoreSchema,
+  checkScreenshotViewingRateInputSchema,
+  checkScreenshotViewingRateResponseSchema,
   // Helper functions
   convertFirestoreToDataViewAuditEntry,
   safeParseDataViewAuditEntry,
@@ -403,6 +411,14 @@ export {
   requiresSymmetryEnforcement,
   checkGuardianAccessSymmetry,
   getSymmetryErrorMessage,
+  // Story 3A.5: Screenshot viewing rate alert helper functions
+  convertFirestoreToScreenshotViewingRateAlert,
+  safeParseScreenshotViewingRateAlert,
+  checkScreenshotViewingRate,
+  isWithinAlertCooldown,
+  getAlertCooldownRemaining,
+  formatScreenshotRateAlertMessage,
+  getScreenshotRateAlertErrorMessage,
   // Types
   type DataViewType,
   type DataViewAuditEntry,
@@ -412,6 +428,11 @@ export {
   type SymmetryStatus,
   type SymmetryViolationType,
   type SymmetryViolation,
+  // Story 3A.5: Screenshot viewing rate alert types
+  type ScreenshotViewingRateAlert,
+  type ScreenshotViewingRateAlertFirestore,
+  type CheckScreenshotViewingRateInput,
+  type CheckScreenshotViewingRateResponse,
 } from './data-symmetry.schema'
 
 // Safety Settings Proposal Schemas (Story 3A.2)

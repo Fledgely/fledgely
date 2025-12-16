@@ -732,6 +732,42 @@ service cloud.firestore {
         // Immutable audit trail for legal/compliance purposes
         allow delete: if false;
       }
+
+      // ============================================
+      // SCREENSHOT RATE ALERTS SUBCOLLECTION (Story 3A.5)
+      // ============================================
+      // Stores alerts when a guardian views excessive screenshots.
+      // CRITICAL: Anti-weaponization mechanism for shared custody families.
+      // Detects potential monitoring abuse during custody disputes.
+      //
+      // Security invariants (per AC):
+      // 1. ALL guardians can read alerts (both co-parents see same alerts)
+      // 2. Only Cloud Functions can create alerts (triggered by rate detection)
+      // 3. Alerts are immutable - no updates or deletes (compliance)
+      // 4. Alert shows count/timeframe but NOT which screenshots (AC2)
+      // 5. Alert is informational only - viewing is NOT blocked (AC4)
+      // 6. Threshold (50/hour) is NOT user-configurable (AC6)
+      // 7. Child is NOT notified of alerts (AC7)
+      // ============================================
+      match /screenshotRateAlerts/{alertId} {
+        // ALL guardians can read alerts
+        // SYMMETRY ENFORCEMENT: Both co-parents must see same alert data
+        // This implements transparency over control (EF4)
+        allow read: if isChildGuardian();
+
+        // Only Cloud Functions can create alerts
+        // Direct client writes are not allowed - must go through rate detection trigger
+        // This ensures threshold enforcement cannot be bypassed
+        allow create: if false;
+
+        // Alerts are immutable - no updates
+        // Once created, alert data cannot be modified
+        allow update: if false;
+
+        // Alerts cannot be deleted - compliance requirement
+        // Must retain for audit/legal purposes
+        allow delete: if false;
+      }
     }
 
     // ============================================

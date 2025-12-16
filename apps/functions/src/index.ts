@@ -86,3 +86,6 @@ export { signAgreementChange } from './callable/signAgreementChange'
 
 // Scheduled Functions - Agreement Change Proposal Expiry (Story 3A.3)
 export { expireStaleAgreementProposals } from './scheduled/expireStaleAgreementProposals'
+
+// Triggers - Screenshot Viewing Rate Alert (Story 3A.5)
+export { onScreenshotViewLogged } from './triggers/onScreenshotViewLogged'

@@ -125,6 +125,23 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "signatureDeadline", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "viewAuditLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewedBy", "order": "ASCENDING" },
+        { "fieldPath": "dataType", "order": "ASCENDING" },
+        { "fieldPath": "viewedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshotRateAlerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "triggeredBy", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
