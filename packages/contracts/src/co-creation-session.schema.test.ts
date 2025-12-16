@@ -24,6 +24,13 @@ import {
   addDiscussionNoteInputSchema,
   markTermAgreementInputSchema,
   acceptCompromiseInputSchema,
+  // Story 5.5: Agreement Preview schemas
+  contributionSummarySchema,
+  screenTimeImpactSchema,
+  bedtimeImpactSchema,
+  monitoringImpactSchema,
+  impactEstimateSchema,
+  agreementPreviewSchema,
   // Helper functions
   getSessionStatusLabel,
   getSessionStatusDescription,
@@ -59,12 +66,24 @@ import {
   getResolutionStatusDescription,
   safeParseDiscussionNote,
   getUnresolvedDiscussionTerms,
-  canProceedToSigning,
   getNextResolutionStatus,
   hasContributorAgreed,
   createDiscussionNote,
   getSigningReadiness,
   getDiscussionErrorMessage,
+  // Story 5.5: Agreement Preview helper functions
+  formatDuration,
+  getTermTitle,
+  calculateScreenTimeImpact,
+  calculateBedtimeImpact,
+  calculateMonitoringImpact,
+  generateCommitmentSummary,
+  generateContributionSummary,
+  generateAgreementPreview,
+  canProceedToSigning,
+  canProceedFromPreview,
+  getScrollCompletionMessage,
+  getContributionStats,
   // Constants
   SESSION_FIELD_LIMITS,
   SESSION_ARRAY_LIMITS,
@@ -81,6 +100,10 @@ import {
   type CreateCoCreationSessionInput,
   type DiscussionNote,
   type ResolutionStatus,
+  // Story 5.5 Types
+  type AgreementPreview,
+  type ContributionSummary,
+  type ImpactEstimate,
 } from './co-creation-session.schema'
 
 /**
@@ -1363,6 +1386,807 @@ describe('co-creation-session.schema', () => {
       expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('max-notes-reached')
       expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('already-agreed')
       expect(DISCUSSION_ERROR_MESSAGES).toHaveProperty('cannot-sign-unresolved')
+    })
+  })
+
+  // ============================================================================
+  // Story 5.5: Agreement Preview Schema Tests
+  // ============================================================================
+
+  describe('Agreement Preview Schemas (Story 5.5)', () => {
+    const validTerm: SessionTerm = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      type: 'screen_time',
+      content: { dailyLimit: 120 },
+      addedBy: 'parent',
+      status: 'accepted',
+      order: 0,
+      createdAt: '2025-01-01T00:00:00Z',
+      updatedAt: '2025-01-01T00:00:00Z',
+      discussionNotes: [],
+      resolutionStatus: 'resolved',
+    }
+
+    const validContribution: SessionContribution = {
+      id: '550e8400-e29b-41d4-a716-446655440001',
+      contributor: 'parent',
+      action: 'added_term',
+      termId: validTerm.id,
+      createdAt: '2025-01-01T00:00:00Z',
+    }
+
+    const validSession: CoCreationSession = {
+      id: '550e8400-e29b-41d4-a716-446655440002',
+      familyId: 'family-123',
+      childId: 'child-123',
+      initiatedBy: 'parent',
+      status: 'active',
+      sourceDraft: { type: 'wizard' },
+      terms: [validTerm],
+      contributions: [validContribution],
+      createdAt: '2025-01-01T00:00:00Z',
+      updatedAt: '2025-01-01T00:00:00Z',
+      lastActivityAt: '2025-01-01T00:00:00Z',
+    }
+
+    describe('contributionSummarySchema', () => {
+      it('should validate a valid contribution summary', () => {
+        const summary = {
+          termId: '550e8400-e29b-41d4-a716-446655440000',
+          addedBy: 'parent',
+          termTitle: 'Screen Time: 2 hours daily',
+          category: 'screen_time',
+        }
+        const result = contributionSummarySchema.safeParse(summary)
+        expect(result.success).toBe(true)
+      })
+
+      it('should validate with optional modifiedBy', () => {
+        const summary = {
+          termId: '550e8400-e29b-41d4-a716-446655440000',
+          addedBy: 'parent',
+          modifiedBy: ['child'],
+          termTitle: 'Screen Time Rule',
+          category: 'screen_time',
+        }
+        const result = contributionSummarySchema.safeParse(summary)
+        expect(result.success).toBe(true)
+      })
+
+      it('should reject invalid UUID for termId', () => {
+        const summary = {
+          termId: 'not-a-uuid',
+          addedBy: 'parent',
+          termTitle: 'Test',
+          category: 'screen_time',
+        }
+        const result = contributionSummarySchema.safeParse(summary)
+        expect(result.success).toBe(false)
+      })
+
+      it('should reject empty termTitle', () => {
+        const summary = {
+          termId: '550e8400-e29b-41d4-a716-446655440000',
+          addedBy: 'parent',
+          termTitle: '',
+          category: 'screen_time',
+        }
+        const result = contributionSummarySchema.safeParse(summary)
+        expect(result.success).toBe(false)
+      })
+    })
+
+    describe('screenTimeImpactSchema', () => {
+      it('should validate valid screen time impact', () => {
+        const impact = {
+          daily: 120,
+          weekly: 840,
+          description: '2 hours per day',
+        }
+        const result = screenTimeImpactSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+
+      it('should reject negative minutes', () => {
+        const impact = {
+          daily: -30,
+          weekly: 0,
+          description: 'Invalid',
+        }
+        const result = screenTimeImpactSchema.safeParse(impact)
+        expect(result.success).toBe(false)
+      })
+    })
+
+    describe('bedtimeImpactSchema', () => {
+      it('should validate valid bedtime impact', () => {
+        const impact = {
+          weekday: '9:00 PM',
+          weekend: '10:00 PM',
+          description: '9:00 PM on school nights, 10:00 PM on weekends',
+        }
+        const result = bedtimeImpactSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+
+      it('should validate with only weekday time', () => {
+        const impact = {
+          weekday: '8:30 PM',
+          description: 'Bedtime is 8:30 PM',
+        }
+        const result = bedtimeImpactSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+    })
+
+    describe('monitoringImpactSchema', () => {
+      it('should validate all monitoring levels', () => {
+        const levels = ['minimal', 'moderate', 'active']
+        for (const level of levels) {
+          const impact = {
+            level,
+            description: `${level} monitoring`,
+          }
+          const result = monitoringImpactSchema.safeParse(impact)
+          expect(result.success).toBe(true)
+        }
+      })
+
+      it('should reject invalid monitoring level', () => {
+        const impact = {
+          level: 'extreme',
+          description: 'Invalid level',
+        }
+        const result = monitoringImpactSchema.safeParse(impact)
+        expect(result.success).toBe(false)
+      })
+    })
+
+    describe('impactEstimateSchema', () => {
+      it('should validate complete impact estimate', () => {
+        const impact = {
+          screenTime: { daily: 120, weekly: 840, description: '2 hours per day' },
+          bedtime: { weekday: '9:00 PM', description: 'Bedtime at 9 PM' },
+          monitoring: { level: 'moderate', description: 'Regular check-ins' },
+        }
+        const result = impactEstimateSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+
+      it('should validate with partial impact (only screenTime)', () => {
+        const impact = {
+          screenTime: { daily: 60, weekly: 420, description: '1 hour per day' },
+        }
+        const result = impactEstimateSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+
+      it('should validate empty impact estimate', () => {
+        const impact = {}
+        const result = impactEstimateSchema.safeParse(impact)
+        expect(result.success).toBe(true)
+      })
+    })
+
+    describe('agreementPreviewSchema', () => {
+      it('should validate a complete agreement preview', () => {
+        const preview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T12:00:00Z',
+          terms: [validTerm],
+          contributions: [{
+            termId: validTerm.id,
+            addedBy: 'parent',
+            termTitle: 'Screen Time: 2 hours daily',
+            category: 'screen_time',
+          }],
+          impact: {
+            screenTime: { daily: 120, weekly: 840, description: '2 hours per day' },
+          },
+          parentScrollComplete: false,
+          childScrollComplete: false,
+          parentCommitments: ['I will allow 2 hours of screen time each day.'],
+          childCommitments: ['I will stay within 2 hours of screen time each day.'],
+        }
+        const result = agreementPreviewSchema.safeParse(preview)
+        expect(result.success).toBe(true)
+      })
+
+      it('should default scroll completion to false', () => {
+        const preview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T12:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        const result = agreementPreviewSchema.parse(preview)
+        expect(result.parentScrollComplete).toBe(false)
+        expect(result.childScrollComplete).toBe(false)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 5.5: Agreement Preview Helper Function Tests
+  // ============================================================================
+
+  describe('Agreement Preview Helper Functions (Story 5.5)', () => {
+    describe('formatDuration', () => {
+      it('should format 0 minutes', () => {
+        expect(formatDuration(0)).toBe('0 minutes')
+      })
+
+      it('should format 1 minute', () => {
+        expect(formatDuration(1)).toBe('1 minute')
+      })
+
+      it('should format 30 minutes', () => {
+        expect(formatDuration(30)).toBe('30 minutes')
+      })
+
+      it('should format 60 minutes as 1 hour', () => {
+        expect(formatDuration(60)).toBe('1 hour')
+      })
+
+      it('should format 120 minutes as 2 hours', () => {
+        expect(formatDuration(120)).toBe('2 hours')
+      })
+
+      it('should format 90 minutes as 1 hour 30 min', () => {
+        expect(formatDuration(90)).toBe('1 hour 30 min')
+      })
+
+      it('should format 150 minutes as 2 hours 30 min', () => {
+        expect(formatDuration(150)).toBe('2 hours 30 min')
+      })
+
+      it('should handle negative values', () => {
+        expect(formatDuration(-10)).toBe('0 minutes')
+      })
+    })
+
+    describe('getTermTitle', () => {
+      it('should return screen time title with daily limit', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        expect(getTermTitle(term)).toBe('Screen Time: 2 hours daily')
+      })
+
+      it('should return bedtime title with time', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'bedtime',
+          content: { time: '9:00 PM' },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        expect(getTermTitle(term)).toBe('Bedtime: 9:00 PM')
+      })
+
+      it('should return monitoring title with level', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'monitoring',
+          content: { level: 'moderate' },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        expect(getTermTitle(term)).toBe('Monitoring: moderate level')
+      })
+
+      it('should truncate long rule descriptions', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'rule',
+          content: { description: 'A'.repeat(60) },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        const title = getTermTitle(term)
+        expect(title.length).toBeLessThanOrEqual(53) // 50 + '...'
+        expect(title).toContain('...')
+      })
+    })
+
+    describe('calculateScreenTimeImpact', () => {
+      it('should return undefined for empty terms', () => {
+        expect(calculateScreenTimeImpact([])).toBeUndefined()
+      })
+
+      it('should calculate impact for single screen time term', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }]
+        const impact = calculateScreenTimeImpact(terms)
+        expect(impact).toBeDefined()
+        expect(impact!.daily).toBe(120)
+        expect(impact!.weekly).toBe(840)
+        expect(impact!.description).toBe('2 hours per day')
+      })
+
+      it('should sum multiple screen time terms', () => {
+        const terms: SessionTerm[] = [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            type: 'screen_time',
+            content: { dailyLimit: 60 },
+            addedBy: 'parent',
+            status: 'accepted',
+            order: 0,
+            createdAt: '2025-01-01T00:00:00Z',
+            updatedAt: '2025-01-01T00:00:00Z',
+            discussionNotes: [],
+            resolutionStatus: 'resolved',
+          },
+          {
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'screen_time',
+            content: { dailyLimit: 30 },
+            addedBy: 'child',
+            status: 'accepted',
+            order: 1,
+            createdAt: '2025-01-01T00:00:00Z',
+            updatedAt: '2025-01-01T00:00:00Z',
+            discussionNotes: [],
+            resolutionStatus: 'resolved',
+          },
+        ]
+        const impact = calculateScreenTimeImpact(terms)
+        expect(impact).toBeDefined()
+        expect(impact!.daily).toBe(90)
+      })
+
+      it('should ignore non-accepted terms', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'discussion',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'unresolved',
+        }]
+        expect(calculateScreenTimeImpact(terms)).toBeUndefined()
+      })
+    })
+
+    describe('calculateBedtimeImpact', () => {
+      it('should return undefined for empty terms', () => {
+        expect(calculateBedtimeImpact([])).toBeUndefined()
+      })
+
+      it('should calculate bedtime impact', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'bedtime',
+          content: { time: '9:00 PM' },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }]
+        const impact = calculateBedtimeImpact(terms)
+        expect(impact).toBeDefined()
+        expect(impact!.weekday).toBe('9:00 PM')
+        expect(impact!.description).toContain('9:00 PM')
+      })
+    })
+
+    describe('calculateMonitoringImpact', () => {
+      it('should return undefined for empty terms', () => {
+        expect(calculateMonitoringImpact([])).toBeUndefined()
+      })
+
+      it('should return most restrictive level', () => {
+        const terms: SessionTerm[] = [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440000',
+            type: 'monitoring',
+            content: { level: 'minimal' },
+            addedBy: 'parent',
+            status: 'accepted',
+            order: 0,
+            createdAt: '2025-01-01T00:00:00Z',
+            updatedAt: '2025-01-01T00:00:00Z',
+            discussionNotes: [],
+            resolutionStatus: 'resolved',
+          },
+          {
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'monitoring',
+            content: { level: 'active' },
+            addedBy: 'parent',
+            status: 'accepted',
+            order: 1,
+            createdAt: '2025-01-01T00:00:00Z',
+            updatedAt: '2025-01-01T00:00:00Z',
+            discussionNotes: [],
+            resolutionStatus: 'resolved',
+          },
+        ]
+        const impact = calculateMonitoringImpact(terms)
+        expect(impact).toBeDefined()
+        expect(impact!.level).toBe('active')
+      })
+    })
+
+    describe('generateCommitmentSummary', () => {
+      it('should generate parent commitments for screen time', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }]
+        const commitments = generateCommitmentSummary(terms, 'parent')
+        expect(commitments).toHaveLength(1)
+        expect(commitments[0]).toContain('allow')
+        expect(commitments[0]).toContain('2 hours')
+      })
+
+      it('should generate child commitments for screen time', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }]
+        const commitments = generateCommitmentSummary(terms, 'child')
+        expect(commitments).toHaveLength(1)
+        expect(commitments[0]).toContain('stay within')
+        expect(commitments[0]).toContain('2 hours')
+      })
+
+      it('should skip non-accepted terms', () => {
+        const terms: SessionTerm[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'discussion',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'unresolved',
+        }]
+        const commitments = generateCommitmentSummary(terms, 'parent')
+        expect(commitments).toHaveLength(0)
+      })
+    })
+
+    describe('generateContributionSummary', () => {
+      it('should generate contribution summary for a term', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        const contributions: SessionContribution[] = [{
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          contributor: 'parent',
+          action: 'added_term',
+          termId: term.id,
+          createdAt: '2025-01-01T00:00:00Z',
+        }]
+
+        const summary = generateContributionSummary(term, contributions)
+        expect(summary.termId).toBe(term.id)
+        expect(summary.addedBy).toBe('parent')
+        expect(summary.category).toBe('screen_time')
+      })
+
+      it('should include modifiers when term was modified', () => {
+        const term: SessionTerm = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          type: 'screen_time',
+          content: { dailyLimit: 120 },
+          addedBy: 'parent',
+          status: 'accepted',
+          order: 0,
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          discussionNotes: [],
+          resolutionStatus: 'resolved',
+        }
+        const contributions: SessionContribution[] = [
+          {
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            contributor: 'parent',
+            action: 'added_term',
+            termId: term.id,
+            createdAt: '2025-01-01T00:00:00Z',
+          },
+          {
+            id: '550e8400-e29b-41d4-a716-446655440002',
+            contributor: 'child',
+            action: 'modified_term',
+            termId: term.id,
+            createdAt: '2025-01-01T01:00:00Z',
+          },
+        ]
+
+        const summary = generateContributionSummary(term, contributions)
+        expect(summary.modifiedBy).toContain('child')
+      })
+    })
+
+    describe('generateAgreementPreview', () => {
+      it('should generate complete preview from session', () => {
+        const session: CoCreationSession = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          familyId: 'family-123',
+          childId: 'child-123',
+          initiatedBy: 'parent',
+          status: 'active',
+          sourceDraft: { type: 'wizard' },
+          terms: [{
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            type: 'screen_time',
+            content: { dailyLimit: 120 },
+            addedBy: 'parent',
+            status: 'accepted',
+            order: 0,
+            createdAt: '2025-01-01T00:00:00Z',
+            updatedAt: '2025-01-01T00:00:00Z',
+            discussionNotes: [],
+            resolutionStatus: 'resolved',
+          }],
+          contributions: [{
+            id: '550e8400-e29b-41d4-a716-446655440002',
+            contributor: 'parent',
+            action: 'added_term',
+            termId: '550e8400-e29b-41d4-a716-446655440001',
+            createdAt: '2025-01-01T00:00:00Z',
+          }],
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          lastActivityAt: '2025-01-01T00:00:00Z',
+        }
+
+        const preview = generateAgreementPreview(session)
+
+        expect(preview.sessionId).toBe(session.id)
+        expect(preview.terms).toHaveLength(1)
+        expect(preview.contributions).toHaveLength(1)
+        expect(preview.impact.screenTime).toBeDefined()
+        expect(preview.parentScrollComplete).toBe(false)
+        expect(preview.childScrollComplete).toBe(false)
+        expect(preview.parentCommitments.length).toBeGreaterThan(0)
+        expect(preview.childCommitments.length).toBeGreaterThan(0)
+      })
+
+      it('should only include accepted terms', () => {
+        const session: CoCreationSession = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          familyId: 'family-123',
+          childId: 'child-123',
+          initiatedBy: 'parent',
+          status: 'active',
+          sourceDraft: { type: 'wizard' },
+          terms: [
+            {
+              id: '550e8400-e29b-41d4-a716-446655440001',
+              type: 'screen_time',
+              content: { dailyLimit: 120 },
+              addedBy: 'parent',
+              status: 'accepted',
+              order: 0,
+              createdAt: '2025-01-01T00:00:00Z',
+              updatedAt: '2025-01-01T00:00:00Z',
+              discussionNotes: [],
+              resolutionStatus: 'resolved',
+            },
+            {
+              id: '550e8400-e29b-41d4-a716-446655440002',
+              type: 'bedtime',
+              content: { time: '9:00 PM' },
+              addedBy: 'child',
+              status: 'discussion',
+              order: 1,
+              createdAt: '2025-01-01T00:00:00Z',
+              updatedAt: '2025-01-01T00:00:00Z',
+              discussionNotes: [],
+              resolutionStatus: 'unresolved',
+            },
+          ],
+          contributions: [],
+          createdAt: '2025-01-01T00:00:00Z',
+          updatedAt: '2025-01-01T00:00:00Z',
+          lastActivityAt: '2025-01-01T00:00:00Z',
+        }
+
+        const preview = generateAgreementPreview(session)
+        expect(preview.terms).toHaveLength(1)
+        expect(preview.terms[0].type).toBe('screen_time')
+      })
+    })
+
+    describe('canProceedFromPreview', () => {
+      it('should return false when neither has scrolled', () => {
+        const preview: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: false,
+          childScrollComplete: false,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(canProceedFromPreview(preview)).toBe(false)
+      })
+
+      it('should return false when only parent has scrolled', () => {
+        const preview: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: true,
+          childScrollComplete: false,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(canProceedFromPreview(preview)).toBe(false)
+      })
+
+      it('should return true when both have scrolled', () => {
+        const preview: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: true,
+          childScrollComplete: true,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(canProceedFromPreview(preview)).toBe(true)
+      })
+    })
+
+    describe('getScrollCompletionMessage', () => {
+      it('should return ready message when both complete', () => {
+        const preview: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: true,
+          childScrollComplete: true,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(getScrollCompletionMessage(preview)).toContain('Ready to sign')
+      })
+
+      it('should indicate who needs to scroll', () => {
+        const previewParentOnly: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: true,
+          childScrollComplete: false,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(getScrollCompletionMessage(previewParentOnly)).toContain('Child')
+
+        const previewChildOnly: AgreementPreview = {
+          sessionId: '550e8400-e29b-41d4-a716-446655440000',
+          generatedAt: '2025-01-01T00:00:00Z',
+          terms: [],
+          contributions: [],
+          impact: {},
+          parentScrollComplete: false,
+          childScrollComplete: true,
+          parentCommitments: [],
+          childCommitments: [],
+        }
+        expect(getScrollCompletionMessage(previewChildOnly)).toContain('Parent')
+      })
+    })
+
+    describe('getContributionStats', () => {
+      it('should calculate contribution percentages', () => {
+        const contributions: ContributionSummary[] = [
+          { termId: '1', addedBy: 'parent', termTitle: 'Test 1', category: 'rule' },
+          { termId: '2', addedBy: 'parent', termTitle: 'Test 2', category: 'rule' },
+          { termId: '3', addedBy: 'child', termTitle: 'Test 3', category: 'rule' },
+        ]
+        const stats = getContributionStats(contributions)
+        expect(stats.parentAdded).toBe(2)
+        expect(stats.childAdded).toBe(1)
+        expect(stats.parentPercentage).toBe(67)
+        expect(stats.childPercentage).toBe(33)
+      })
+
+      it('should handle empty contributions', () => {
+        const stats = getContributionStats([])
+        expect(stats.parentAdded).toBe(0)
+        expect(stats.childAdded).toBe(0)
+        expect(stats.parentPercentage).toBe(0)
+        expect(stats.childPercentage).toBe(0)
+      })
+
+      it('should handle all same contributor', () => {
+        const contributions: ContributionSummary[] = [
+          { termId: '1', addedBy: 'parent', termTitle: 'Test 1', category: 'rule' },
+          { termId: '2', addedBy: 'parent', termTitle: 'Test 2', category: 'rule' },
+        ]
+        const stats = getContributionStats(contributions)
+        expect(stats.parentPercentage).toBe(100)
+        expect(stats.childPercentage).toBe(0)
+      })
     })
   })
 })

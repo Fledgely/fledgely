@@ -58,3 +58,35 @@ export type {
   CompromiseSuggestion,
   PromptSet,
 } from './discussion'
+
+// Story 5.5: Agreement Preview & Summary Components
+export {
+  AgreementSummary,
+  ContributionAttribution,
+  ImpactSummary,
+  ScrollProgress,
+  ExportButton,
+  AgreementPreview,
+  // Utilities
+  groupTermsByCategory,
+  getSortedCategoryGroups,
+  CATEGORY_DISPLAY_ORDER,
+  getSectionDescription,
+  getSectionHeaderInfo,
+  SECTION_DESCRIPTIONS,
+  formatCommitmentsForDisplay,
+  getContributionForTerm,
+  formatContributorName,
+  getSimpleCategoryName,
+  SIMPLE_CATEGORY_NAMES,
+  getTermCountsByStatus,
+  getAcceptanceSummaryText,
+} from './preview'
+export type {
+  AgreementSummaryProps,
+  ContributionAttributionProps,
+  ImpactSummaryProps,
+  ScrollProgressProps,
+  ExportButtonProps,
+  AgreementPreviewProps,
+} from './preview'

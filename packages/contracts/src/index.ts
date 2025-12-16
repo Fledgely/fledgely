@@ -849,6 +849,32 @@ export {
   type MarkTermAgreementInput,
   type AcceptCompromiseInput,
   type SigningReadiness,
+  // Story 5.5 Agreement Preview Types
+  type ContributionSummary,
+  type ScreenTimeImpact,
+  type BedtimeImpact,
+  type MonitoringImpact,
+  type ImpactEstimate,
+  type AgreementPreview,
+  // Story 5.5 Preview Schemas
+  contributionSummarySchema,
+  screenTimeImpactSchema,
+  bedtimeImpactSchema,
+  monitoringImpactSchema,
+  impactEstimateSchema,
+  agreementPreviewSchema,
+  // Story 5.5 Preview Helper Functions
+  formatDuration,
+  getTermTitle,
+  calculateScreenTimeImpact,
+  calculateBedtimeImpact,
+  calculateMonitoringImpact,
+  generateCommitmentSummary,
+  generateContributionSummary,
+  generateAgreementPreview,
+  canProceedFromPreview,
+  getScrollCompletionMessage,
+  getContributionStats,
 } from './co-creation-session.schema'
 
 // Readability Validation Utilities (Story 4.2 - Task 3)

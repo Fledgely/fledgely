@@ -1199,3 +1199,461 @@ export const DISCUSSION_ERROR_MESSAGES: Record<string, string> = {
 export function getDiscussionErrorMessage(code: keyof typeof DISCUSSION_ERROR_MESSAGES | string): string {
   return DISCUSSION_ERROR_MESSAGES[code] || SESSION_ERROR_MESSAGES.unknown
 }
+
+// ============================================
+// AGREEMENT PREVIEW SCHEMAS (Story 5.5)
+// ============================================
+
+/**
+ * Summary of a single contribution for attribution display (AC #2)
+ */
+export const contributionSummarySchema = z.object({
+  /** ID of the term this contribution relates to */
+  termId: z.string().uuid('Term ID must be a valid UUID'),
+
+  /** Who originally added this term */
+  addedBy: sessionContributorSchema,
+
+  /** Who has modified this term (may include both parties) */
+  modifiedBy: z.array(sessionContributorSchema).optional(),
+
+  /** Human-readable title for the term */
+  termTitle: z.string().min(1).max(200),
+
+  /** Category/type of the term */
+  category: sessionTermTypeSchema,
+})
+
+export type ContributionSummary = z.infer<typeof contributionSummarySchema>
+
+/**
+ * Screen time impact estimate
+ */
+export const screenTimeImpactSchema = z.object({
+  /** Daily screen time in minutes */
+  daily: z.number().int().min(0),
+  /** Weekly screen time in minutes */
+  weekly: z.number().int().min(0),
+  /** Human-readable description (e.g., "2 hours per day") */
+  description: z.string(),
+})
+
+export type ScreenTimeImpact = z.infer<typeof screenTimeImpactSchema>
+
+/**
+ * Bedtime impact estimate
+ */
+export const bedtimeImpactSchema = z.object({
+  /** Weekday bedtime (e.g., "9:00 PM") */
+  weekday: z.string().optional(),
+  /** Weekend bedtime if different */
+  weekend: z.string().optional(),
+  /** Human-readable description */
+  description: z.string(),
+})
+
+export type BedtimeImpact = z.infer<typeof bedtimeImpactSchema>
+
+/**
+ * Monitoring impact estimate
+ */
+export const monitoringImpactSchema = z.object({
+  /** Monitoring level */
+  level: z.enum(['minimal', 'moderate', 'active']),
+  /** Human-readable description */
+  description: z.string(),
+})
+
+export type MonitoringImpact = z.infer<typeof monitoringImpactSchema>
+
+/**
+ * Impact estimate for the agreement (AC #4)
+ * Shows daily/weekly impact of the agreement terms
+ */
+export const impactEstimateSchema = z.object({
+  /** Screen time impact if applicable */
+  screenTime: screenTimeImpactSchema.optional(),
+  /** Bedtime impact if applicable */
+  bedtime: bedtimeImpactSchema.optional(),
+  /** Monitoring impact if applicable */
+  monitoring: monitoringImpactSchema.optional(),
+  /** Additional custom impacts */
+  custom: z.array(z.object({
+    label: z.string(),
+    description: z.string(),
+  })).optional(),
+})
+
+export type ImpactEstimate = z.infer<typeof impactEstimateSchema>
+
+/**
+ * Agreement preview for final review before signing (AC #1-6)
+ */
+export const agreementPreviewSchema = z.object({
+  /** Session ID this preview is for */
+  sessionId: z.string().uuid('Session ID must be a valid UUID'),
+
+  /** When this preview was generated */
+  generatedAt: z.string().datetime('Invalid datetime format'),
+
+  /** All accepted terms in the agreement */
+  terms: z.array(sessionTermSchema),
+
+  /** Contribution attribution for each term */
+  contributions: z.array(contributionSummarySchema),
+
+  /** Estimated daily/weekly impact */
+  impact: impactEstimateSchema,
+
+  /** Whether parent has scrolled through entire agreement (AC #5) */
+  parentScrollComplete: z.boolean().default(false),
+
+  /** Whether child has scrolled through entire agreement (AC #5) */
+  childScrollComplete: z.boolean().default(false),
+
+  /** Parent's plain-language commitment summary (AC #3) */
+  parentCommitments: z.array(z.string()),
+
+  /** Child's plain-language commitment summary (AC #3) */
+  childCommitments: z.array(z.string()),
+})
+
+export type AgreementPreview = z.infer<typeof agreementPreviewSchema>
+
+// ============================================
+// AGREEMENT PREVIEW HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Format minutes as human-readable duration
+ */
+export function formatDuration(minutes: number): string {
+  if (minutes <= 0) return '0 minutes'
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`
+
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+
+  if (mins === 0) {
+    return hours === 1 ? '1 hour' : `${hours} hours`
+  }
+
+  return `${hours} hour${hours > 1 ? 's' : ''} ${mins} min`
+}
+
+/**
+ * Get human-readable term title based on type and content
+ */
+export function getTermTitle(term: SessionTerm): string {
+  const typeLabel = SESSION_TERM_TYPE_LABELS[term.type]
+  const content = term.content as Record<string, unknown>
+
+  switch (term.type) {
+    case 'screen_time':
+      if (content.dailyLimit && typeof content.dailyLimit === 'number') {
+        return `${typeLabel}: ${formatDuration(content.dailyLimit)} daily`
+      }
+      return typeLabel
+    case 'bedtime':
+      if (content.time && typeof content.time === 'string') {
+        return `${typeLabel}: ${content.time}`
+      }
+      return typeLabel
+    case 'monitoring':
+      if (content.level && typeof content.level === 'string') {
+        return `${typeLabel}: ${content.level} level`
+      }
+      return typeLabel
+    case 'rule':
+    case 'consequence':
+    case 'reward':
+      if (content.title && typeof content.title === 'string') {
+        return content.title.slice(0, 50) + (content.title.length > 50 ? '...' : '')
+      }
+      if (content.description && typeof content.description === 'string') {
+        return content.description.slice(0, 50) + (content.description.length > 50 ? '...' : '')
+      }
+      return typeLabel
+    default:
+      return typeLabel
+  }
+}
+
+/**
+ * Calculate screen time impact from terms
+ */
+export function calculateScreenTimeImpact(terms: SessionTerm[]): ScreenTimeImpact | undefined {
+  const screenTimeTerms = terms.filter(
+    (t) => t.type === 'screen_time' && t.status === 'accepted'
+  )
+
+  if (screenTimeTerms.length === 0) return undefined
+
+  let dailyMinutes = 0
+  for (const term of screenTimeTerms) {
+    const content = term.content as Record<string, unknown>
+    if (content.dailyLimit && typeof content.dailyLimit === 'number') {
+      dailyMinutes += content.dailyLimit
+    }
+  }
+
+  // If no daily limits found, return undefined
+  if (dailyMinutes === 0) return undefined
+
+  return {
+    daily: dailyMinutes,
+    weekly: dailyMinutes * 7,
+    description: `${formatDuration(dailyMinutes)} per day`,
+  }
+}
+
+/**
+ * Calculate bedtime impact from terms
+ */
+export function calculateBedtimeImpact(terms: SessionTerm[]): BedtimeImpact | undefined {
+  const bedtimeTerms = terms.filter(
+    (t) => t.type === 'bedtime' && t.status === 'accepted'
+  )
+
+  if (bedtimeTerms.length === 0) return undefined
+
+  let weekdayTime: string | undefined
+  let weekendTime: string | undefined
+
+  for (const term of bedtimeTerms) {
+    const content = term.content as Record<string, unknown>
+    if (content.weekdayTime && typeof content.weekdayTime === 'string') {
+      weekdayTime = content.weekdayTime
+    }
+    if (content.time && typeof content.time === 'string') {
+      weekdayTime = content.time
+    }
+    if (content.weekendTime && typeof content.weekendTime === 'string') {
+      weekendTime = content.weekendTime
+    }
+  }
+
+  if (!weekdayTime && !weekendTime) return undefined
+
+  const parts: string[] = []
+  if (weekdayTime) parts.push(`${weekdayTime} on school nights`)
+  if (weekendTime) parts.push(`${weekendTime} on weekends`)
+
+  return {
+    weekday: weekdayTime,
+    weekend: weekendTime,
+    description: parts.join(', ') || 'Bedtime rules set',
+  }
+}
+
+/**
+ * Calculate monitoring impact from terms
+ */
+export function calculateMonitoringImpact(terms: SessionTerm[]): MonitoringImpact | undefined {
+  const monitoringTerms = terms.filter(
+    (t) => t.type === 'monitoring' && t.status === 'accepted'
+  )
+
+  if (monitoringTerms.length === 0) return undefined
+
+  // Find the most restrictive monitoring level
+  let level: 'minimal' | 'moderate' | 'active' = 'minimal'
+
+  for (const term of monitoringTerms) {
+    const content = term.content as Record<string, unknown>
+    if (content.level && typeof content.level === 'string') {
+      if (content.level === 'active') level = 'active'
+      else if (content.level === 'moderate' && level !== 'active') level = 'moderate'
+    }
+  }
+
+  const descriptions: Record<'minimal' | 'moderate' | 'active', string> = {
+    minimal: 'Basic check-ins with privacy respected',
+    moderate: 'Regular screenshots with your knowledge',
+    active: 'Active monitoring to keep you safe',
+  }
+
+  return {
+    level,
+    description: descriptions[level],
+  }
+}
+
+/**
+ * Generate commitment summary for a contributor (AC #3)
+ * Returns plain-language summaries at 6th-grade reading level
+ */
+export function generateCommitmentSummary(
+  terms: SessionTerm[],
+  contributor: SessionContributor
+): string[] {
+  const commitments: string[] = []
+  const acceptedTerms = terms.filter((t) => t.status === 'accepted')
+
+  for (const term of acceptedTerms) {
+    const content = term.content as Record<string, unknown>
+
+    if (contributor === 'parent') {
+      // Parent commitments focus on what they will respect/provide
+      switch (term.type) {
+        case 'screen_time':
+          if (content.dailyLimit && typeof content.dailyLimit === 'number') {
+            commitments.push(`I will allow ${formatDuration(content.dailyLimit)} of screen time each day.`)
+          }
+          break
+        case 'bedtime':
+          if (content.time && typeof content.time === 'string') {
+            commitments.push(`I will ensure devices are off by ${content.time}.`)
+          }
+          break
+        case 'monitoring':
+          commitments.push('I will only view screenshots when needed and will respect your privacy.')
+          break
+        case 'reward':
+          if (content.description && typeof content.description === 'string') {
+            commitments.push(`I will provide rewards when you follow the agreement: ${content.description}`)
+          }
+          break
+      }
+    } else {
+      // Child commitments focus on what they agree to do
+      switch (term.type) {
+        case 'screen_time':
+          if (content.dailyLimit && typeof content.dailyLimit === 'number') {
+            commitments.push(`I will stay within ${formatDuration(content.dailyLimit)} of screen time each day.`)
+          }
+          break
+        case 'bedtime':
+          if (content.time && typeof content.time === 'string') {
+            commitments.push(`I will have my devices off by ${content.time}.`)
+          }
+          break
+        case 'monitoring':
+          commitments.push('I understand my parent can see what I do online to keep me safe.')
+          break
+        case 'rule':
+          if (content.description && typeof content.description === 'string') {
+            commitments.push(`I will follow this rule: ${content.description}`)
+          }
+          break
+        case 'consequence':
+          if (content.description && typeof content.description === 'string') {
+            commitments.push(`I understand that if I break the rules: ${content.description}`)
+          }
+          break
+      }
+    }
+  }
+
+  return commitments
+}
+
+/**
+ * Generate contribution summary for a term (AC #2)
+ */
+export function generateContributionSummary(
+  term: SessionTerm,
+  contributions: SessionContribution[]
+): ContributionSummary {
+  // Find all contributors who modified this term
+  const termContributions = contributions.filter((c) => c.termId === term.id)
+  const modifiers = new Set<SessionContributor>()
+
+  for (const contrib of termContributions) {
+    if (contrib.action === 'modified_term') {
+      modifiers.add(contrib.contributor)
+    }
+  }
+
+  return {
+    termId: term.id,
+    addedBy: term.addedBy,
+    modifiedBy: modifiers.size > 0 ? Array.from(modifiers) : undefined,
+    termTitle: getTermTitle(term),
+    category: term.type,
+  }
+}
+
+/**
+ * Generate a complete agreement preview (AC #1-6)
+ * Call this when all terms are resolved and family is ready to review
+ */
+export function generateAgreementPreview(session: CoCreationSession): AgreementPreview {
+  // Get only accepted terms
+  const acceptedTerms = session.terms.filter((t) => t.status === 'accepted')
+
+  // Generate contribution summaries
+  const contributions = acceptedTerms.map((term) =>
+    generateContributionSummary(term, session.contributions)
+  )
+
+  // Calculate impacts
+  const screenTime = calculateScreenTimeImpact(acceptedTerms)
+  const bedtime = calculateBedtimeImpact(acceptedTerms)
+  const monitoring = calculateMonitoringImpact(acceptedTerms)
+
+  // Generate commitment summaries
+  const parentCommitments = generateCommitmentSummary(acceptedTerms, 'parent')
+  const childCommitments = generateCommitmentSummary(acceptedTerms, 'child')
+
+  return {
+    sessionId: session.id,
+    generatedAt: new Date().toISOString(),
+    terms: acceptedTerms,
+    contributions,
+    impact: {
+      screenTime,
+      bedtime,
+      monitoring,
+    },
+    parentScrollComplete: false,
+    childScrollComplete: false,
+    parentCommitments,
+    childCommitments,
+  }
+}
+
+/**
+ * Check if both parties have completed scrolling the preview (AC #5)
+ * Use this to determine if the family can proceed from preview to signing
+ */
+export function canProceedFromPreview(preview: AgreementPreview): boolean {
+  return preview.parentScrollComplete && preview.childScrollComplete
+}
+
+/**
+ * Get scroll completion status message
+ */
+export function getScrollCompletionMessage(preview: AgreementPreview): string {
+  if (preview.parentScrollComplete && preview.childScrollComplete) {
+    return 'Both parent and child have reviewed the agreement. Ready to sign!'
+  }
+  if (!preview.parentScrollComplete && !preview.childScrollComplete) {
+    return 'Both parent and child need to read through the agreement.'
+  }
+  if (!preview.parentScrollComplete) {
+    return 'Parent needs to scroll through the entire agreement.'
+  }
+  return 'Child needs to scroll through the entire agreement.'
+}
+
+/**
+ * Get contribution statistics for display
+ */
+export function getContributionStats(contributions: ContributionSummary[]): {
+  parentAdded: number
+  childAdded: number
+  parentPercentage: number
+  childPercentage: number
+} {
+  const parentAdded = contributions.filter((c) => c.addedBy === 'parent').length
+  const childAdded = contributions.filter((c) => c.addedBy === 'child').length
+  const total = parentAdded + childAdded
+
+  return {
+    parentAdded,
+    childAdded,
+    parentPercentage: total > 0 ? Math.round((parentAdded / total) * 100) : 0,
+    childPercentage: total > 0 ? Math.round((childAdded / total) * 100) : 0,
+  }
+}
