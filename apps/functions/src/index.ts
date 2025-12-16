@@ -109,3 +109,6 @@ export { resumeCoCreationSession } from './callable/resumeCoCreationSession'
 export { recordSessionContribution } from './callable/recordSessionContribution'
 export { getCoCreationSession } from './callable/getCoCreationSession'
 export { completeCoCreationSession } from './callable/completeCoCreationSession'
+
+// HTTP Endpoints - Crisis Allowlist (Story 7.2)
+export { crisisAllowlistEndpoint } from './http/crisisAllowlist'

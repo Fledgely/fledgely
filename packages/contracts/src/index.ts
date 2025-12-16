@@ -994,3 +994,54 @@ export {
   type AgreementSignature as DigitalAgreementSignature,
   type AgreementSignatures,
 } from './signature.schema'
+
+// Agreement Lifecycle Schemas (Story 6.3)
+export {
+  // Schemas
+  agreementStatusSchema,
+  agreementVersionSchema,
+  archiveReasonSchema,
+  // Constants
+  AGREEMENT_STATUS_LABELS,
+  AGREEMENT_STATUS_DESCRIPTIONS,
+  ARCHIVE_REASON_LABELS,
+  // Label Getter Functions
+  getAgreementStatusLabel,
+  getAgreementStatusDescription,
+  getArchiveReasonLabel,
+  // Status Helper Functions
+  isAgreementActive,
+  isAgreementArchived,
+  canActivateAgreement,
+  // Version Helper Functions
+  parseVersionNumber,
+  compareVersions,
+  getNextVersionNumber,
+  // Types
+  type AgreementStatus,
+  type AgreementVersion,
+  type ArchiveReason,
+} from './agreement.schema'
+
+// Crisis Protection Schemas (Story 7.2)
+export {
+  // Schemas
+  crisisCheckResultSchema,
+  crisisProtectionStatusSchema,
+  monitoringActionSchema,
+  blockingDecisionSchema,
+  crisisGuardConfigSchema,
+  allowlistCacheStatusSchema,
+  platformGuardInterfaceSchema,
+  crisisAllowlistResponseSchema,
+  crisisAllowlistErrorSchema,
+  // Types
+  type CrisisCheckResult,
+  type CrisisProtectionStatus,
+  type MonitoringAction,
+  type BlockingDecision,
+  type CrisisGuardConfig,
+  type AllowlistCacheStatus,
+  type CrisisAllowlistResponse,
+  type CrisisAllowlistError,
+} from './crisis.schema'
