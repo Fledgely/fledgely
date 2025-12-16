@@ -21,7 +21,7 @@ import {
   type FamilyDissolution,
   COOLING_PERIOD_DAYS,
 } from '@fledgely/contracts'
-import { AlertTriangle, Loader2, Info, Calendar, CheckCircle } from 'lucide-react'
+import { AlertTriangle, Loader2, Info, Calendar, CheckCircle, UserMinus } from 'lucide-react'
 
 /**
  * Props for the DissolutionInitiateDialog component
@@ -41,6 +41,8 @@ export interface DissolutionInitiateDialogProps {
   onSuccess?: (result: FamilyDissolution) => void
   /** Called when dissolution fails */
   onError?: (error: Error) => void
+  /** Called when user wants to self-remove instead (Story 2.8) */
+  onSelfRemoveRequest?: () => void
 }
 
 /**
@@ -76,6 +78,7 @@ export function DissolutionInitiateDialog({
   guardianCount,
   onSuccess,
   onError,
+  onSelfRemoveRequest,
 }: DissolutionInitiateDialogProps) {
   const [step, setStep] = useState<DissolutionStep>('explain')
   const [selectedOption, setSelectedOption] = useState<DataHandlingOption>('retain_90_days')
@@ -258,6 +261,24 @@ export function DissolutionInitiateDialog({
                         All {guardianCount} guardians will be notified. The waiting period won&apos;t
                         begin until everyone acknowledges this request.
                       </p>
+                    </div>
+                  )}
+
+                  {/* Self-removal option - Story 2.8: Survivor Escape */}
+                  {isSharedCustody && onSelfRemoveRequest && (
+                    <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+                      <button
+                        type="button"
+                        onClick={onSelfRemoveRequest}
+                        className="flex min-h-[44px] w-full items-center gap-2 rounded-md p-2 text-left text-sm text-blue-700 hover:bg-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-blue-400"
+                      >
+                        <UserMinus className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
+                        <span>
+                          <strong>Just leave myself?</strong>
+                          <br />
+                          Remove only yourself and let others continue. Takes effect immediately.
+                        </span>
+                      </button>
                     </div>
                   )}
                 </div>

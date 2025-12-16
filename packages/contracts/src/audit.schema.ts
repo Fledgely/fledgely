@@ -22,6 +22,11 @@ export const auditActionTypeSchema = z.enum([
   'guardian_removed',
   'family_created',
   'family_updated',
+  // Story 2.7: Dissolution actions
+  'dissolution_initiated',
+  'dissolution_acknowledged',
+  'dissolution_cancelled',
+  'dissolution_completed',
 ])
 
 export type AuditActionType = z.infer<typeof auditActionTypeSchema>
@@ -148,6 +153,11 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionType, string> = {
   guardian_removed: 'Guardian removed from family',
   family_created: 'Family created',
   family_updated: 'Family updated',
+  // Story 2.7: Dissolution action labels
+  dissolution_initiated: 'Family dissolution initiated',
+  dissolution_acknowledged: 'Dissolution acknowledged',
+  dissolution_cancelled: 'Dissolution cancelled',
+  dissolution_completed: 'Family dissolved',
 }
 
 /**

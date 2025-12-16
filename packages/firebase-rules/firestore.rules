@@ -547,6 +547,46 @@ service cloud.firestore {
     }
 
     // ============================================
+    // SEALED AUDITS COLLECTION (Story 2.8)
+    // ============================================
+    // CRITICAL LIFE-SAFETY FEATURE: Sealed audit trail for self-removal
+    //
+    // These entries are NEVER visible to family members.
+    // Only support agents with safety-team role can read.
+    // Used for survivor escape tracking without exposing to abusers.
+    //
+    // Security invariants:
+    // 1. Authenticated users can create entries (for self-removal)
+    // 2. Only safety-team or admin can read
+    // 3. NEVER delete or update - compliance requirement
+    // 4. NEVER linked to family audit trail
+    // ============================================
+
+    match /sealed_audits/{auditId} {
+      // Authenticated users can create sealed audit entries
+      // This allows guardians to log their own self-removal action
+      // without needing admin privileges
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.id == auditId &&
+        request.resource.data.action in ['guardian_self_removed', 'safety_escape_initiated'] &&
+        request.resource.data.familyId is string &&
+        request.resource.data.familyId.size() > 0;
+
+      // Only safety-team or admin can read sealed audits
+      // This prevents abusers from seeing that someone left
+      allow read: if request.auth != null &&
+        exists(/databases/$(database)/documents/adminRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/adminRoles/$(request.auth.uid)).data.roles.hasAny(['safety-team', 'admin']);
+
+      // NEVER allow updates - sealed audit entries are immutable
+      allow update: if false;
+
+      // NEVER allow deletion - compliance requirement
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN AUDIT LOG COLLECTION
     // ============================================
     // Separate audit log for admin/support actions

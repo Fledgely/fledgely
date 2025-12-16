@@ -212,6 +212,39 @@ export {
   type DissolutionAuditMetadata,
 } from './dissolution.schema'
 
+// Self-Removal Schemas (Story 2.8)
+export {
+  // Schemas
+  sealedAuditActionSchema,
+  sealedAuditEntrySchema,
+  sealedAuditEntryFirestoreSchema,
+  createSealedAuditInputSchema,
+  selfRemovalConfirmationSchema,
+  selfRemovalResultSchema,
+  selfRemovalResultFirestoreSchema,
+  // Helper functions
+  getSelfRemovalErrorMessage,
+  convertFirestoreToSealedAuditEntry,
+  safeParseSealedAuditEntry,
+  validateSelfRemovalConfirmation,
+  safeParseSelfRemovalConfirmation,
+  safeParseSelfRemovalResult,
+  convertFirestoreToSelfRemovalResult,
+  isReauthError,
+  // Classes
+  SelfRemovalError,
+  // Constants
+  SELF_REMOVAL_ERROR_MESSAGES,
+  // Types
+  type SealedAuditAction,
+  type SealedAuditEntry,
+  type SealedAuditEntryFirestore,
+  type CreateSealedAuditInput,
+  type SelfRemovalConfirmation,
+  type SelfRemovalResult,
+  type SelfRemovalResultFirestore,
+} from './selfRemoval.schema'
+
 // Safety Document Schemas (Story 0.5.2)
 export {
   // Constants
