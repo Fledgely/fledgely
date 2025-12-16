@@ -30,6 +30,38 @@ export type { TermExplanationTooltipProps, TooltipPosition } from './TermExplana
 export { AddTermModal } from './AddTermModal'
 export type { AddTermModalProps } from './AddTermModal'
 
+// Contributor toggle (Story 5.3)
+export { ContributorToggle } from './ContributorToggle'
+export type { ContributorToggleProps } from './ContributorToggle'
+
+// Child add term form (Story 5.3)
+export { ChildAddTermForm } from './ChildAddTermForm'
+export type { ChildAddTermFormProps, ChildTermFormData } from './ChildAddTermForm'
+
+// Voice input button (Story 5.3)
+export { VoiceInputButton } from './VoiceInputButton'
+export type { VoiceInputButtonProps } from './VoiceInputButton'
+
+// Emoji reaction (Story 5.3)
+export { EmojiReaction } from './EmojiReaction'
+export type { EmojiReactionProps } from './EmojiReaction'
+
+// Child feedback button (Story 5.3)
+export { ChildFeedbackButton } from './ChildFeedbackButton'
+export type { ChildFeedbackButtonProps, FeedbackType } from './ChildFeedbackButton'
+
+// Child contribution badge (Story 5.3)
+export { ChildContributionBadge } from './ChildContributionBadge'
+export type { ChildContributionBadgeProps, BadgeVariant } from './ChildContributionBadge'
+
+// Child contribution hook (Story 5.3)
+export { useChildContribution } from './useChildContribution'
+export type { UseChildContributionOptions, UseChildContributionReturn } from './useChildContribution'
+
+// Child mode wrapper (Story 5.3)
+export { ChildModeWrapper } from './ChildModeWrapper'
+export type { ChildModeWrapperProps } from './ChildModeWrapper'
+
 // Term count indicator
 export {
   TermCountIndicator,
