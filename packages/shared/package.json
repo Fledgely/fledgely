@@ -9,6 +9,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:allowlist": "vitest run src/testing",
+    "test:allowlist:presence": "vitest run src/testing/__tests__/allowlistPresence.test.ts",
+    "test:allowlist:zero-data-path": "vitest run src/testing/__tests__/zeroDataPath.test.ts",
+    "test:allowlist:fuzzy": "vitest run src/testing/__tests__/fuzzyMatching.test.ts",
+    "test:allowlist:fallback": "vitest run src/testing/__tests__/fallbackChain.test.ts",
+    "test:allowlist:e2e": "vitest run src/testing/__tests__/allowlistE2E.integration.test.ts",
+    "test:allowlist:report": "vitest run src/testing --reporter=json --outputFile=../../reports/allowlist-tests.json",
     "build": "tsc",
     "generate:allowlist": "npx tsx scripts/export-allowlist.ts",
     "export:allowlist": "npm run generate:allowlist"
@@ -21,6 +28,10 @@
     "./constants/crisis-urls": {
       "import": "./src/constants/crisis-urls/index.ts",
       "types": "./src/constants/crisis-urls/index.ts"
+    },
+    "./testing": {
+      "import": "./src/testing/index.ts",
+      "types": "./src/testing/index.ts"
     }
   },
   "dependencies": {

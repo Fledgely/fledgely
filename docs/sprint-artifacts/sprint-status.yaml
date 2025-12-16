@@ -134,7 +134,7 @@ development_status:
   epic-6-retrospective: completed
 
   # Epic 7: Crisis Allowlist Foundation
-  epic-7: in-progress
+  epic-7: done
   7-1-crisis-allowlist-data-structure: done
   7-2-crisis-visit-zero-data-path: done
   7-3-child-allowlist-visibility: done
@@ -142,8 +142,8 @@ development_status:
   7-5-fuzzy-domain-matching: done
   7-6-crisis-search-redirection: done
   7-7-allowlist-distribution-sync: done
-  7-8-privacy-gaps-injection: in-progress
-  7-9-cross-platform-allowlist-testing: backlog
+  7-8-privacy-gaps-injection: done
+  7-9-cross-platform-allowlist-testing: done
   epic-7-retrospective: optional
 
   # Epic 7.5: Child Safety Signal (Survivor Advocate)
