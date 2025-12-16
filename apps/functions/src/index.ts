@@ -72,3 +72,11 @@ export { respondToSafetyProposal, disputeSafetyProposal } from './callable/respo
 
 // Scheduled Functions - Safety Settings Proposal Expiry (Story 3A.2)
 export { expireStaleProposals } from './scheduled/expireStaleProposals'
+
+// Callable Functions - Agreement Change Proposal (Story 3A.3)
+export { proposeAgreementChange } from './callable/proposeAgreementChange'
+export { respondToAgreementProposal } from './callable/respondToAgreementProposal'
+export { signAgreementChange } from './callable/signAgreementChange'
+
+// Scheduled Functions - Agreement Change Proposal Expiry (Story 3A.3)
+export { expireStaleAgreementProposals } from './scheduled/expireStaleAgreementProposals'

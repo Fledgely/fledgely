@@ -686,6 +686,52 @@ service cloud.firestore {
         // Proposals cannot be deleted - compliance requirement
         allow delete: if false;
       }
+
+      // ============================================
+      // AGREEMENT CHANGE PROPOSALS SUBCOLLECTION (Story 3A.3)
+      // ============================================
+      // Stores proposals for changing family agreements in shared custody families.
+      // CRITICAL: Agreement changes require both parents to approve before child can sign.
+      // Unlike safety settings, agreement changes:
+      // - Have a 14-day approval window (vs 72 hours for safety)
+      // - Never auto-apply (always require dual-approval)
+      // - Require signature collection after approval
+      //
+      // Security invariants:
+      // 1. ALL guardians can read proposals (transparency for both co-parents)
+      // 2. Guardians can create proposals for agreement changes
+      // 3. Only Cloud Functions can update proposals (status transitions, signatures)
+      // 4. Proposals cannot be deleted (immutable audit trail)
+      // 5. Child cannot sign until both parents have approved
+      // ============================================
+      match /agreementChangeProposals/{proposalId} {
+        // ALL guardians can read proposals
+        // Both co-parents must see pending proposals to respond
+        // AC3: Pending changes visible to all family members
+        allow read: if isChildGuardian();
+
+        // Guardians can create proposals for agreement changes
+        // Validates: proposedBy matches authenticated user
+        // AC1: Either parent can propose agreement changes
+        allow create: if isChildGuardian() &&
+          request.resource.data.proposedBy == request.auth.uid &&
+          request.resource.data.id == proposalId &&
+          request.resource.data.childId == childId &&
+          request.resource.data.changeType is string &&
+          request.resource.data.status == 'pending';
+
+        // Only Cloud Functions can update proposals
+        // Status transitions (approve/decline/sign) go through functions
+        // This ensures proper validation, signature ordering, and side effects
+        // AC4: Co-parent can approve, decline, or propose modifications
+        // AC5: Modifications restart the approval process
+        // AC7: Original agreement remains active until all signatures collected
+        allow update: if false;
+
+        // Proposals cannot be deleted - compliance requirement
+        // Immutable audit trail for legal/compliance purposes
+        allow delete: if false;
+      }
     }
 
     // ============================================
