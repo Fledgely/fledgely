@@ -17,6 +17,12 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
+// Mock AuthProvider
+const mockUser = { uid: 'test-user-123', email: 'john@example.com' }
+vi.mock('@/components/providers/AuthProvider', () => ({
+  useAuthContext: () => ({ user: mockUser, loading: false }),
+}))
+
 // Mock hooks
 vi.mock('@/hooks/useUser', () => ({
   useUser: vi.fn(),
@@ -28,6 +34,11 @@ vi.mock('@/hooks/useFamily', () => ({
 
 vi.mock('@/hooks/useChild', () => ({
   useChild: vi.fn(),
+}))
+
+// Mock RemoveChildConfirmDialog to prevent rendering issues
+vi.mock('@/components/child/RemoveChildConfirmDialog', () => ({
+  RemoveChildConfirmDialog: () => null,
 }))
 
 // Import mocked hooks
@@ -354,6 +365,84 @@ describe('DashboardPage', () => {
 
       expect(screen.getByText(/privacy/i)).toBeInTheDocument()
       expect(screen.getByText(/terms/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('remove child functionality', () => {
+    it('shows remove button for guardians with full permissions', () => {
+      render(<DashboardPage />)
+
+      // Child has guardian with uid 'test-user-123' and 'full' permissions
+      expect(screen.getByRole('button', { name: /remove emma from family/i })).toBeInTheDocument()
+    })
+
+    it('hides remove button for guardians with readonly permissions', () => {
+      const readonlyChild = {
+        ...mockChild,
+        guardians: [
+          {
+            uid: 'test-user-123',
+            permissions: 'readonly' as const,
+            grantedAt: new Date(),
+          },
+        ],
+      }
+
+      mockUseChild.mockReturnValue({
+        children: [readonlyChild],
+        loading: false,
+        error: null,
+        hasChildren: true,
+        addChild: vi.fn(),
+        clearError: vi.fn(),
+        refreshChildren: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.queryByRole('button', { name: /remove emma from family/i })).not.toBeInTheDocument()
+    })
+
+    it('hides remove button if user is not a guardian', () => {
+      const otherUserChild = {
+        ...mockChild,
+        guardians: [
+          {
+            uid: 'other-user-999',
+            permissions: 'full' as const,
+            grantedAt: new Date(),
+          },
+        ],
+      }
+
+      mockUseChild.mockReturnValue({
+        children: [otherUserChild],
+        loading: false,
+        error: null,
+        hasChildren: true,
+        addChild: vi.fn(),
+        clearError: vi.fn(),
+        refreshChildren: vi.fn(),
+      })
+
+      render(<DashboardPage />)
+
+      expect(screen.queryByRole('button', { name: /remove emma from family/i })).not.toBeInTheDocument()
+    })
+
+    it('remove button has minimum touch target size (NFR49)', () => {
+      render(<DashboardPage />)
+
+      const removeButton = screen.getByRole('button', { name: /remove emma from family/i })
+      expect(removeButton).toHaveClass('min-h-[44px]')
+      expect(removeButton).toHaveClass('min-w-[44px]')
+    })
+
+    it('remove button is styled as destructive action', () => {
+      render(<DashboardPage />)
+
+      const removeButton = screen.getByRole('button', { name: /remove emma from family/i })
+      expect(removeButton).toHaveClass('text-destructive')
     })
   })
 })

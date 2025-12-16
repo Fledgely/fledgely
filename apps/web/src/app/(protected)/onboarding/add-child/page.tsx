@@ -370,7 +370,7 @@ export default function AddChildPage() {
             Terms
           </a>
           <span>&middot;</span>
-          <SafetyResourcesLink source="add-child-page" />
+          <SafetyResourcesLink source="onboarding-page" />
         </div>
       </footer>
     </div>

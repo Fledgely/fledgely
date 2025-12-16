@@ -9,7 +9,9 @@ import {
   where,
   serverTimestamp,
   runTransaction,
+  writeBatch,
   arrayUnion,
+  arrayRemove,
   type Timestamp,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -17,10 +19,14 @@ import {
   childProfileSchema,
   createChildInputSchema,
   updateChildInputSchema,
+  removeChildConfirmationSchema,
   buildChangesArray,
+  getChildRemovalErrorMessage,
   type ChildProfile,
   type CreateChildInput,
   type UpdateChildInput,
+  type RemoveChildConfirmation,
+  type ChildRemovalAuditMetadata,
 } from '@fledgely/contracts'
 
 /**
@@ -543,6 +549,150 @@ export async function updateChild(
     }
     const message = getErrorMessage(error)
     console.error('[childService.updateChild]', error)
+    throw new Error(message)
+  }
+}
+
+/**
+ * Result of removing a child from family
+ * Includes audit metadata for confirmation
+ */
+export interface RemoveChildResult {
+  success: true
+  childId: string
+  familyId: string
+  metadata: ChildRemovalAuditMetadata
+}
+
+/**
+ * Remove a child from family with data deletion
+ * DESTRUCTIVE: This operation is irreversible
+ *
+ * Story 2.6: Remove Child from Family
+ *
+ * Uses Firestore batch to atomically:
+ * 1. Delete child document
+ * 2. Remove childId from family's children array
+ * 3. Create audit log entry for the removal
+ *
+ * @param childId - ID of the child to remove
+ * @param userId - Firebase Auth uid of the user removing the child
+ * @param confirmationText - User must type child's first name to confirm
+ * @param reauthToken - Fresh re-authentication token (within 5 minutes)
+ * @returns Result with metadata about the removal
+ * @throws ChildServiceError if user lacks permission or removal fails
+ */
+export async function removeChildFromFamily(
+  childId: string,
+  userId: string,
+  confirmationText: string,
+  reauthToken: string
+): Promise<RemoveChildResult> {
+  try {
+    // Validate input using schema
+    const validatedInput: RemoveChildConfirmation = removeChildConfirmationSchema.parse({
+      childId,
+      confirmationText,
+      reauthToken,
+    })
+
+    // Get child document first to verify existence and get data
+    const childRef = doc(db, CHILDREN_COLLECTION, validatedInput.childId)
+    const childDoc = await getDoc(childRef)
+
+    if (!childDoc.exists()) {
+      throw new ChildServiceError('child-not-found', 'Child not found')
+    }
+
+    const childData = childDoc.data()
+    const familyId = childData.familyId as string
+    const childFirstName = childData.firstName as string
+    const childLastName = childData.lastName as string | null
+
+    // Verify user is guardian with full permissions
+    const guardians = childData.guardians as Array<{
+      uid: string
+      permissions: string
+    }>
+    const userGuardian = guardians.find((g) => g.uid === userId)
+
+    if (!userGuardian) {
+      throw new ChildServiceError('permission-denied', 'User is not a guardian for this child')
+    }
+
+    if (userGuardian.permissions !== 'full') {
+      throw new ChildServiceError(
+        'permission-denied',
+        'User does not have full permissions for this child'
+      )
+    }
+
+    // Verify confirmation text matches child's first name (case-insensitive)
+    if (validatedInput.confirmationText.toLowerCase() !== childFirstName.toLowerCase()) {
+      throw new ChildServiceError('confirmation-mismatch', 'Confirmation text does not match')
+    }
+
+    // Re-authentication token validation
+    // TODO [TECH-DEBT]: In production, verify token server-side via Firebase Admin SDK
+    // or use Cloud Functions to validate the token's iat (issued at) claim is within 5 minutes.
+    // For MVP, we rely on client-side fresh auth check via useReauthentication hook.
+    // See: https://firebase.google.com/docs/auth/admin/verify-id-tokens
+    // Tracked: Story 2.6 code review - production hardening required
+    if (!validatedInput.reauthToken) {
+      throw new ChildServiceError('reauth-required', 'Re-authentication required')
+    }
+
+    // Build audit metadata for the removal
+    const metadata: ChildRemovalAuditMetadata = {
+      childName: childFirstName,
+      childFullName: childLastName ? `${childFirstName} ${childLastName}` : childFirstName,
+      hadDevices: false, // Future: check for enrolled devices
+      devicesUnenrolled: 0, // Future: count of devices unenrolled
+      hadScreenshots: false, // Future: check for screenshots
+      screenshotsDeleted: 0, // Future: count of screenshots deleted
+    }
+
+    // Execute deletion in batch for atomicity
+    const batch = writeBatch(db)
+
+    // Delete child document
+    batch.delete(childRef)
+
+    // Remove childId from family's children array
+    const familyRef = doc(db, FAMILIES_COLLECTION, familyId)
+    batch.update(familyRef, {
+      children: arrayRemove(childId),
+    })
+
+    // Create audit log entry
+    const auditRef = doc(collection(db, FAMILIES_COLLECTION, familyId, AUDIT_LOG_SUBCOLLECTION))
+    batch.set(auditRef, {
+      id: auditRef.id,
+      action: 'child_removed',
+      entityId: childId,
+      entityType: 'child',
+      metadata,
+      performedBy: userId,
+      performedAt: serverTimestamp(),
+    })
+
+    // Commit batch - all operations succeed or fail together
+    await batch.commit()
+
+    return {
+      success: true,
+      childId,
+      familyId,
+      metadata,
+    }
+  } catch (error) {
+    if (error instanceof ChildServiceError) {
+      const message = getChildRemovalErrorMessage(error.code)
+      console.error('[childService.removeChildFromFamily]', error)
+      throw new Error(message)
+    }
+    const message = getChildRemovalErrorMessage('default')
+    console.error('[childService.removeChildFromFamily]', error)
     throw new Error(message)
   }
 }

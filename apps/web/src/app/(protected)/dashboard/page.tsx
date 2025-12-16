@@ -1,12 +1,17 @@
 'use client'
 
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
+import { useAuthContext } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
+import { RemoveChildConfirmDialog } from '@/components/child/RemoveChildConfirmDialog'
 import { calculateAge } from '@fledgely/contracts'
+import type { ChildProfile } from '@fledgely/contracts'
+import { Trash2 } from 'lucide-react'
 
 /**
  * Dashboard Page - Main landing page after onboarding
@@ -25,12 +30,38 @@ import { calculateAge } from '@fledgely/contracts'
  */
 export default function DashboardPage() {
   const router = useRouter()
+  const { user } = useAuthContext()
   const { userProfile, loading: userLoading } = useUser()
-  const { hasFamily, loading: familyLoading } = useFamily()
-  const { children, hasChildren, loading: childLoading } = useChild()
+  const { family, hasFamily, loading: familyLoading } = useFamily()
+  const { children, hasChildren, loading: childLoading, refreshChildren } = useChild()
+
+  // State for remove child dialog
+  const [removeDialogChild, setRemoveDialogChild] = useState<ChildProfile | null>(null)
 
   // Get first name for personalized message
   const firstName = userProfile?.displayName?.split(' ')[0] || 'there'
+
+  /**
+   * Check if the current user has full permissions for a child
+   * Only guardians with 'full' permissions can remove children
+   */
+  const hasFullPermissions = useCallback(
+    (child: ChildProfile): boolean => {
+      if (!user?.uid) return false
+      const guardian = child.guardians.find((g) => g.uid === user.uid)
+      return guardian?.permissions === 'full'
+    },
+    [user?.uid]
+  )
+
+  /**
+   * Handle successful child removal
+   */
+  const handleRemoveSuccess = useCallback(async () => {
+    setRemoveDialogChild(null)
+    // Refresh the children list
+    await refreshChildren()
+  }, [refreshChildren])
 
   // Loading state
   if (userLoading || familyLoading || childLoading) {
@@ -159,6 +190,19 @@ export default function DashboardPage() {
                             />
                           </svg>
                         </Button>
+
+                        {/* Remove button - only for guardians with full permissions */}
+                        {hasFullPermissions(child) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRemoveDialogChild(child)}
+                            className="min-h-[44px] min-w-[44px] p-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            aria-label={`Remove ${child.firstName} from family`}
+                          >
+                            <Trash2 className="h-5 w-5" aria-hidden="true" />
+                          </Button>
+                        )}
                       </div>
                     </li>
                   )
@@ -228,9 +272,26 @@ export default function DashboardPage() {
             Terms
           </a>
           <span>&middot;</span>
-          <SafetyResourcesLink source="dashboard-page" />
+          <SafetyResourcesLink source="settings" />
         </div>
       </footer>
+
+      {/* Remove Child Confirmation Dialog */}
+      {removeDialogChild && family && (
+        <RemoveChildConfirmDialog
+          open={!!removeDialogChild}
+          onOpenChange={(open) => !open && setRemoveDialogChild(null)}
+          childId={removeDialogChild.id}
+          familyId={family.id}
+          childName={removeDialogChild.firstName}
+          childFullName={
+            removeDialogChild.lastName
+              ? `${removeDialogChild.firstName} ${removeDialogChild.lastName}`
+              : removeDialogChild.firstName
+          }
+          onSuccess={handleRemoveSuccess}
+        />
+      )}
     </div>
   )
 }

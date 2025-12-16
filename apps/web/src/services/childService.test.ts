@@ -6,6 +6,7 @@ import {
   isUserGuardianForChild,
   hasFullPermissionsForChild,
   updateChild,
+  removeChildFromFamily,
   ChildServiceError,
 } from './childService'
 import type { CreateChildInput, UpdateChildInput } from '@fledgely/contracts'
@@ -20,7 +21,9 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
   serverTimestamp: vi.fn(() => ({ toDate: () => new Date() })),
   runTransaction: vi.fn(),
+  writeBatch: vi.fn(),
   arrayUnion: vi.fn((id) => id),
+  arrayRemove: vi.fn((id) => id),
 }))
 
 vi.mock('@/lib/firebase', () => ({
@@ -34,6 +37,7 @@ import {
   getDocs,
   collection,
   runTransaction,
+  writeBatch,
 } from 'firebase/firestore'
 
 describe('childService', () => {
@@ -732,6 +736,317 @@ describe('childService', () => {
         await expect(
           addChildToFamily(mockFamilyId, mockCreateChildInput, mockUserId)
         ).rejects.toThrow('You cannot add children')
+      })
+    })
+  })
+
+  describe('removeChildFromFamily', () => {
+    const mockReauthToken = 'mock-reauth-token-12345'
+
+    const mockChildDataForRemoval = {
+      id: mockChildId,
+      familyId: mockFamilyId,
+      firstName: 'Emma',
+      lastName: 'Smith',
+      nickname: null,
+      birthdate: { toDate: () => new Date('2015-06-15') },
+      photoUrl: null,
+      guardians: [
+        {
+          uid: mockUserId,
+          permissions: 'full',
+          grantedAt: { toDate: () => new Date() },
+        },
+      ],
+      createdAt: { toDate: () => new Date() },
+      createdBy: mockUserId,
+    }
+
+    it('removes child successfully with correct confirmation', async () => {
+      const mockBatch = {
+        delete: vi.fn(),
+        update: vi.fn(),
+        set: vi.fn(),
+        commit: vi.fn().mockResolvedValue(undefined),
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+      ;(writeBatch as Mock).mockReturnValue(mockBatch)
+
+      const result = await removeChildFromFamily(
+        mockChildId,
+        mockUserId,
+        'Emma', // Matches child's first name
+        mockReauthToken
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.childId).toBe(mockChildId)
+      expect(result.familyId).toBe(mockFamilyId)
+      expect(result.metadata.childName).toBe('Emma')
+      expect(result.metadata.childFullName).toBe('Emma Smith')
+      expect(mockBatch.delete).toHaveBeenCalled()
+      expect(mockBatch.update).toHaveBeenCalled()
+      expect(mockBatch.set).toHaveBeenCalled()
+      expect(mockBatch.commit).toHaveBeenCalled()
+    })
+
+    it('accepts case-insensitive confirmation text', async () => {
+      const mockBatch = {
+        delete: vi.fn(),
+        update: vi.fn(),
+        set: vi.fn(),
+        commit: vi.fn().mockResolvedValue(undefined),
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+      ;(writeBatch as Mock).mockReturnValue(mockBatch)
+
+      const result = await removeChildFromFamily(
+        mockChildId,
+        mockUserId,
+        'emma', // lowercase version
+        mockReauthToken
+      )
+
+      expect(result.success).toBe(true)
+    })
+
+    it('throws error when child not found', async () => {
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => false,
+      })
+
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, 'Emma', mockReauthToken)
+      ).rejects.toThrow('We could not find this child')
+    })
+
+    it('throws error when user is not a guardian', async () => {
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+
+      await expect(
+        removeChildFromFamily(mockChildId, 'stranger-user', 'Emma', mockReauthToken)
+      ).rejects.toThrow('You do not have permission to remove this child')
+    })
+
+    it('throws error when user has readonly permissions', async () => {
+      const childWithReadonlyGuardian = {
+        ...mockChildDataForRemoval,
+        guardians: [
+          {
+            uid: mockUserId,
+            permissions: 'readonly',
+            grantedAt: { toDate: () => new Date() },
+          },
+        ],
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => childWithReadonlyGuardian,
+      })
+
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, 'Emma', mockReauthToken)
+      ).rejects.toThrow('You do not have permission to remove this child')
+    })
+
+    it('throws error when confirmation text does not match', async () => {
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, 'WrongName', mockReauthToken)
+      ).rejects.toThrow('The name you typed does not match')
+    })
+
+    it('throws error when reauth token is missing', async () => {
+      // Schema validation rejects empty reauth token before service can provide specific message
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, 'Emma', '')
+      ).rejects.toThrow()
+    })
+
+    it('throws error when childId is empty', async () => {
+      await expect(
+        removeChildFromFamily('', mockUserId, 'Emma', mockReauthToken)
+      ).rejects.toThrow()
+    })
+
+    it('throws error when confirmation text is empty', async () => {
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, '', mockReauthToken)
+      ).rejects.toThrow()
+    })
+
+    it('handles child with no lastName', async () => {
+      const childWithoutLastName = {
+        ...mockChildDataForRemoval,
+        lastName: null,
+      }
+
+      const mockBatch = {
+        delete: vi.fn(),
+        update: vi.fn(),
+        set: vi.fn(),
+        commit: vi.fn().mockResolvedValue(undefined),
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => childWithoutLastName,
+      })
+      ;(writeBatch as Mock).mockReturnValue(mockBatch)
+
+      const result = await removeChildFromFamily(
+        mockChildId,
+        mockUserId,
+        'Emma',
+        mockReauthToken
+      )
+
+      expect(result.metadata.childFullName).toBe('Emma')
+    })
+
+    it('creates audit log entry with correct data', async () => {
+      const mockBatch = {
+        delete: vi.fn(),
+        update: vi.fn(),
+        set: vi.fn(),
+        commit: vi.fn().mockResolvedValue(undefined),
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+      ;(writeBatch as Mock).mockReturnValue(mockBatch)
+
+      await removeChildFromFamily(mockChildId, mockUserId, 'Emma', mockReauthToken)
+
+      // Verify set was called for audit log
+      expect(mockBatch.set).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: 'child_removed',
+          entityId: mockChildId,
+          entityType: 'child',
+          performedBy: mockUserId,
+          metadata: expect.objectContaining({
+            childName: 'Emma',
+            childFullName: 'Emma Smith',
+          }),
+        })
+      )
+    })
+
+    it('rolls back on batch commit failure', async () => {
+      const mockBatch = {
+        delete: vi.fn(),
+        update: vi.fn(),
+        set: vi.fn(),
+        commit: vi.fn().mockRejectedValue(new Error('Batch commit failed')),
+      }
+
+      ;(doc as Mock).mockReturnValue({ id: mockChildId })
+      ;(collection as Mock).mockReturnValue({})
+      ;(getDoc as Mock).mockResolvedValue({
+        exists: () => true,
+        data: () => mockChildDataForRemoval,
+      })
+      ;(writeBatch as Mock).mockReturnValue(mockBatch)
+
+      await expect(
+        removeChildFromFamily(mockChildId, mockUserId, 'Emma', mockReauthToken)
+      ).rejects.toThrow('Something went wrong')
+    })
+
+    describe('adversarial tests for removeChildFromFamily', () => {
+      it('user from family A cannot remove child from family B', async () => {
+        const childInFamilyB = {
+          ...mockChildDataForRemoval,
+          familyId: 'family-B',
+          guardians: [
+            {
+              uid: 'user-family-B',
+              permissions: 'full',
+              grantedAt: { toDate: () => new Date() },
+            },
+          ],
+        }
+
+        ;(doc as Mock).mockReturnValue({ id: mockChildId })
+        ;(getDoc as Mock).mockResolvedValue({
+          exists: () => true,
+          data: () => childInFamilyB,
+        })
+
+        await expect(
+          removeChildFromFamily(mockChildId, 'user-family-A', 'Emma', mockReauthToken)
+        ).rejects.toThrow('You do not have permission to remove this child')
+      })
+
+      it('rejects confirmation text with extra whitespace', async () => {
+        ;(doc as Mock).mockReturnValue({ id: mockChildId })
+        ;(getDoc as Mock).mockResolvedValue({
+          exists: () => true,
+          data: () => mockChildDataForRemoval,
+        })
+
+        // "Emma " with trailing space - after trim it should match
+        const mockBatch = {
+          delete: vi.fn(),
+          update: vi.fn(),
+          set: vi.fn(),
+          commit: vi.fn().mockResolvedValue(undefined),
+        }
+        ;(writeBatch as Mock).mockReturnValue(mockBatch)
+        ;(collection as Mock).mockReturnValue({})
+
+        const result = await removeChildFromFamily(
+          mockChildId,
+          mockUserId,
+          '  Emma  ',
+          mockReauthToken
+        )
+
+        expect(result.success).toBe(true)
+      })
+
+      it('rejects childId with path injection characters', async () => {
+        await expect(
+          removeChildFromFamily('../../../etc/passwd', mockUserId, 'Emma', mockReauthToken)
+        ).rejects.toThrow()
+      })
+
+      it('rejects childId with null bytes', async () => {
+        await expect(
+          removeChildFromFamily('child\x00id', mockUserId, 'Emma', mockReauthToken)
+        ).rejects.toThrow()
       })
     })
   })

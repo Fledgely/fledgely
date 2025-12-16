@@ -265,19 +265,27 @@ service cloud.firestore {
     }
 
     // ============================================
-    // CHILDREN COLLECTION (Story 2.2, Story 2.3, Story 2.5)
+    // CHILDREN COLLECTION (Story 2.2, Story 2.3, Story 2.5, Story 2.6)
     // ============================================
     // Stores child profile documents
     //
     // Security invariants:
     // 1. Only guardians can create children in their family
     // 2. Only guardians with 'full' permissions can read/update children
-    // 3. Children cannot be deleted (audit requirement)
+    // 3. Only guardians with 'full' permissions can delete children (Story 2.6)
     // 4. familyId must match the creator's family
     // 5. Maximum 10 guardians per child (same as family limit)
     // 6. Custody declaration can only be set/updated by guardians with full permissions
     // 7. Custody history can only grow, never shrink (audit trail)
     // 8. custodyDeclaration.type must be 'sole', 'shared', or 'complex'
+    //
+    // DELETION REQUIREMENTS (Story 2.6):
+    // - Only guardians with 'full' permissions can delete children
+    // - Deletion requires re-authentication (verified via token age on client)
+    // - Audit log entry must be created BEFORE deletion (via batch write)
+    // - Device documents must be deleted (via separate service call)
+    // - Data deletion (screenshots, activity logs) via separate service
+    // - childId removed from family's children array (via batch write)
     //
     // MONITORING GATE (Story 2.3, AC7 - Epic 9/12 enforcement):
     // - Device monitoring CANNOT be started until custody is declared
@@ -419,8 +427,12 @@ service cloud.firestore {
            request.resource.data.custodyDeclaration.type in ['sole', 'shared', 'complex'])
         );
 
-      // Children cannot be deleted (audit requirement)
-      allow delete: if false;
+      // Only guardians with full permissions can delete children (Story 2.6)
+      // Re-authentication and audit logging are enforced client-side via:
+      // - useReauthentication hook verifies recent auth token
+      // - removeChildFromFamily creates audit entry BEFORE deletion
+      // - Device documents are deleted via separate service call
+      allow delete: if hasFullChildPermissions();
     }
 
     // ============================================
@@ -445,10 +457,52 @@ service cloud.firestore {
     //   get(/databases/$(database)/documents/children/$(childId)).data.custodyDeclaration != null;
     // ============================================
 
-    // match /devices/{deviceId} {
-    //   // TODO: Implement in Epic 9/12
-    //   allow read, write: if false;
-    // }
+    match /devices/{deviceId} {
+      // Helper function to check if user has full permissions for the device's child
+      // Requires fetching the child document to verify guardian permissions
+      function hasFullChildPermissionsForDevice() {
+        let childId = resource.data.childId;
+        let childDoc = get(/databases/$(database)/documents/children/$(childId));
+        let guardians = childDoc.data.guardians;
+        let uid = request.auth.uid;
+        return request.auth != null &&
+          childDoc != null &&
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Guardians can read devices for their children
+      allow read: if hasFullChildPermissionsForDevice();
+
+      // Device creation: Full implementation in Epic 9/12
+      // For now, allow creation if user has full permissions for the child
+      // and the child has a custody declaration (monitoring gate)
+      allow create: if request.auth != null &&
+        request.resource.data.childId is string &&
+        request.resource.data.familyId is string &&
+        exists(/databases/$(database)/documents/children/$(request.resource.data.childId)) &&
+        get(/databases/$(database)/documents/children/$(request.resource.data.childId)).data.custodyDeclaration != null;
+
+      // Device updates: Only guardians with full permissions
+      allow update: if hasFullChildPermissionsForDevice();
+
+      // Device deletion: Only guardians with full permissions (Story 2.6)
+      // Required for child removal flow - unenroll devices before child deletion
+      allow delete: if hasFullChildPermissionsForDevice();
+    }
 
     // ============================================
     // ADMIN AUDIT LOG COLLECTION

@@ -284,7 +284,7 @@ export default function EditChildPage() {
       {/* Footer with Safety Resources */}
       <footer className="mt-auto py-6 border-t">
         <div className="container mx-auto px-4 max-w-2xl">
-          <SafetyResourcesLink />
+          <SafetyResourcesLink source="settings" />
         </div>
       </footer>
 

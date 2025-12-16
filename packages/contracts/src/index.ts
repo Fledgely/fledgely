@@ -59,7 +59,7 @@ export {
   type SafetyRequestResponse,
 } from './safety-request.schema'
 
-// Child Profile Schemas (Story 2.2)
+// Child Profile Schemas (Story 2.2, 2.6)
 export {
   // Schemas
   childProfileSchema,
@@ -69,6 +69,9 @@ export {
   childGuardianPermissionSchema,
   createChildInputSchema,
   updateChildInputSchema,
+  // Story 2.6: Remove Child schemas
+  removeChildConfirmationSchema,
+  childRemovalAuditMetadataSchema,
   // Helper functions
   convertFirestoreToChildProfile,
   validateCreateChildInput,
@@ -82,6 +85,13 @@ export {
   getAgeCategory,
   hasCustodyDeclaration,
   canStartMonitoring,
+  // Story 2.6: Remove Child helpers
+  validateRemoveChildConfirmation,
+  safeParseRemoveChildConfirmation,
+  isConfirmationTextValid,
+  getChildRemovalErrorMessage,
+  // Constants
+  CHILD_REMOVAL_ERROR_MESSAGES,
   // Types
   type ChildProfile,
   type ChildProfileFirestore,
@@ -90,6 +100,9 @@ export {
   type ChildGuardianPermission,
   type CreateChildInput,
   type UpdateChildInput,
+  // Story 2.6: Remove Child types
+  type RemoveChildConfirmation,
+  type ChildRemovalAuditMetadata,
 } from './child.schema'
 
 // Custody Declaration Schemas (Story 2.3)

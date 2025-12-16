@@ -17,6 +17,14 @@ import {
   getAgeCategory,
   hasCustodyDeclaration,
   canStartMonitoring,
+  // Story 2.6: Remove Child
+  removeChildConfirmationSchema,
+  childRemovalAuditMetadataSchema,
+  validateRemoveChildConfirmation,
+  safeParseRemoveChildConfirmation,
+  isConfirmationTextValid,
+  getChildRemovalErrorMessage,
+  CHILD_REMOVAL_ERROR_MESSAGES,
   type ChildProfile,
   type ChildProfileFirestore,
 } from './child.schema'
@@ -1187,5 +1195,304 @@ describe('custody adversarial tests', () => {
       },
     }
     expect(() => childProfileSchema.parse(child)).toThrow()
+  })
+})
+
+// ============================================================================
+// STORY 2.6: Remove Child from Family
+// ============================================================================
+
+describe('removeChildConfirmationSchema', () => {
+  const validConfirmation = {
+    childId: 'child-id-123',
+    confirmationText: 'Emma',
+    reauthToken: 'fresh-token-abc-123',
+  }
+
+  it('accepts valid confirmation input', () => {
+    const result = removeChildConfirmationSchema.parse(validConfirmation)
+    expect(result.childId).toBe('child-id-123')
+    expect(result.confirmationText).toBe('Emma')
+    expect(result.reauthToken).toBe('fresh-token-abc-123')
+  })
+
+  it('trims confirmation text', () => {
+    const input = {
+      ...validConfirmation,
+      confirmationText: '  Emma  ',
+    }
+    const result = removeChildConfirmationSchema.parse(input)
+    expect(result.confirmationText).toBe('Emma')
+  })
+
+  it('rejects empty childId', () => {
+    const input = { ...validConfirmation, childId: '' }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Child ID is required')
+  })
+
+  it('rejects childId over max length', () => {
+    const input = { ...validConfirmation, childId: 'A'.repeat(201) }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Invalid child ID')
+  })
+
+  it('rejects childId with forward slashes', () => {
+    const input = { ...validConfirmation, childId: 'path/to/child' }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Invalid child ID format')
+  })
+
+  it('rejects childId with null bytes', () => {
+    const input = { ...validConfirmation, childId: 'child\x00id' }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Invalid child ID format')
+  })
+
+  it('rejects empty confirmationText', () => {
+    const input = { ...validConfirmation, confirmationText: '' }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow("Please type the child's name to confirm")
+  })
+
+  it('rejects confirmationText over max length', () => {
+    const input = { ...validConfirmation, confirmationText: 'A'.repeat(51) }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Confirmation text is too long')
+  })
+
+  it('rejects empty reauthToken', () => {
+    const input = { ...validConfirmation, reauthToken: '' }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow('Please sign in again to confirm this action')
+  })
+
+  it('rejects missing required fields', () => {
+    expect(() => removeChildConfirmationSchema.parse({})).toThrow()
+    expect(() => removeChildConfirmationSchema.parse({ childId: 'id' })).toThrow()
+    expect(() => removeChildConfirmationSchema.parse({ childId: 'id', confirmationText: 'Emma' })).toThrow()
+  })
+})
+
+describe('childRemovalAuditMetadataSchema', () => {
+  const validMetadata = {
+    childName: 'Emma',
+    childFullName: 'Emma Smith',
+  }
+
+  it('accepts valid metadata with required fields only', () => {
+    const result = childRemovalAuditMetadataSchema.parse(validMetadata)
+    expect(result.childName).toBe('Emma')
+    expect(result.childFullName).toBe('Emma Smith')
+    expect(result.hadDevices).toBe(false) // default
+    expect(result.devicesUnenrolled).toBe(0) // default
+    expect(result.hadScreenshots).toBe(false) // default
+    expect(result.screenshotsDeleted).toBe(0) // default
+  })
+
+  it('accepts valid metadata with all fields', () => {
+    const input = {
+      ...validMetadata,
+      hadDevices: true,
+      devicesUnenrolled: 2,
+      hadScreenshots: true,
+      screenshotsDeleted: 150,
+    }
+    const result = childRemovalAuditMetadataSchema.parse(input)
+    expect(result.hadDevices).toBe(true)
+    expect(result.devicesUnenrolled).toBe(2)
+    expect(result.hadScreenshots).toBe(true)
+    expect(result.screenshotsDeleted).toBe(150)
+  })
+
+  it('rejects empty childName', () => {
+    const input = { ...validMetadata, childName: '' }
+    expect(() => childRemovalAuditMetadataSchema.parse(input)).toThrow()
+  })
+
+  it('rejects empty childFullName', () => {
+    const input = { ...validMetadata, childFullName: '' }
+    expect(() => childRemovalAuditMetadataSchema.parse(input)).toThrow()
+  })
+
+  it('rejects negative device counts', () => {
+    const input = { ...validMetadata, devicesUnenrolled: -1 }
+    expect(() => childRemovalAuditMetadataSchema.parse(input)).toThrow()
+  })
+
+  it('rejects negative screenshot counts', () => {
+    const input = { ...validMetadata, screenshotsDeleted: -5 }
+    expect(() => childRemovalAuditMetadataSchema.parse(input)).toThrow()
+  })
+
+  it('rejects non-integer device counts', () => {
+    const input = { ...validMetadata, devicesUnenrolled: 2.5 }
+    expect(() => childRemovalAuditMetadataSchema.parse(input)).toThrow()
+  })
+})
+
+describe('validateRemoveChildConfirmation', () => {
+  it('returns parsed confirmation for valid input', () => {
+    const input = {
+      childId: 'child-123',
+      confirmationText: 'Emma',
+      reauthToken: 'token-abc',
+    }
+    const result = validateRemoveChildConfirmation(input)
+    expect(result.childId).toBe('child-123')
+    expect(result.confirmationText).toBe('Emma')
+  })
+
+  it('throws for invalid input', () => {
+    expect(() => validateRemoveChildConfirmation({})).toThrow()
+    expect(() => validateRemoveChildConfirmation({ childId: '' })).toThrow()
+  })
+})
+
+describe('safeParseRemoveChildConfirmation', () => {
+  it('returns confirmation for valid input', () => {
+    const input = {
+      childId: 'child-123',
+      confirmationText: 'Emma',
+      reauthToken: 'token-abc',
+    }
+    const result = safeParseRemoveChildConfirmation(input)
+    expect(result).not.toBeNull()
+    expect(result?.childId).toBe('child-123')
+  })
+
+  it('returns null for invalid input', () => {
+    expect(safeParseRemoveChildConfirmation({})).toBeNull()
+    expect(safeParseRemoveChildConfirmation({ childId: '' })).toBeNull()
+    expect(safeParseRemoveChildConfirmation(null)).toBeNull()
+    expect(safeParseRemoveChildConfirmation(undefined)).toBeNull()
+  })
+})
+
+describe('isConfirmationTextValid', () => {
+  it('returns true for exact match (case-insensitive)', () => {
+    expect(isConfirmationTextValid('Emma', 'Emma')).toBe(true)
+    expect(isConfirmationTextValid('emma', 'Emma')).toBe(true)
+    expect(isConfirmationTextValid('EMMA', 'Emma')).toBe(true)
+    expect(isConfirmationTextValid('EmMa', 'emma')).toBe(true)
+  })
+
+  it('returns true with whitespace trimmed', () => {
+    expect(isConfirmationTextValid('  Emma  ', 'Emma')).toBe(true)
+    expect(isConfirmationTextValid('Emma', '  Emma  ')).toBe(true)
+    expect(isConfirmationTextValid('  Emma  ', '  Emma  ')).toBe(true)
+  })
+
+  it('returns false for non-matching text', () => {
+    expect(isConfirmationTextValid('Em', 'Emma')).toBe(false)
+    expect(isConfirmationTextValid('Emma Smith', 'Emma')).toBe(false)
+    expect(isConfirmationTextValid('Emmma', 'Emma')).toBe(false)
+    expect(isConfirmationTextValid('', 'Emma')).toBe(false)
+  })
+
+  it('handles special cases', () => {
+    expect(isConfirmationTextValid('O\'Connor', "O'Connor")).toBe(true)
+    expect(isConfirmationTextValid('Mary-Jane', 'Mary-Jane')).toBe(true)
+    expect(isConfirmationTextValid('Émilie', 'Émilie')).toBe(true)
+  })
+})
+
+describe('getChildRemovalErrorMessage', () => {
+  it('returns correct message for known error codes', () => {
+    expect(getChildRemovalErrorMessage('child-not-found')).toBe('We could not find this child.')
+    expect(getChildRemovalErrorMessage('permission-denied')).toBe(
+      'You do not have permission to remove this child.'
+    )
+    expect(getChildRemovalErrorMessage('reauth-required')).toBe(
+      'Please sign in again to confirm this action.'
+    )
+    expect(getChildRemovalErrorMessage('reauth-expired')).toBe(
+      'Your sign-in has expired. Please try again.'
+    )
+    expect(getChildRemovalErrorMessage('reauth-cancelled')).toBe(
+      'Sign-in was cancelled. Please try again.'
+    )
+    expect(getChildRemovalErrorMessage('confirmation-mismatch')).toBe(
+      'The name you typed does not match. Please try again.'
+    )
+    expect(getChildRemovalErrorMessage('removal-failed')).toBe(
+      'Could not remove the child. Please try again.'
+    )
+    expect(getChildRemovalErrorMessage('removal-in-progress')).toBe(
+      'Removal is already in progress. Please wait.'
+    )
+    expect(getChildRemovalErrorMessage('network-error')).toBe(
+      'Connection problem. Please check your internet and try again.'
+    )
+  })
+
+  it('returns default message for unknown error codes', () => {
+    expect(getChildRemovalErrorMessage('unknown-error')).toBe('Something went wrong. Please try again.')
+    expect(getChildRemovalErrorMessage('')).toBe('Something went wrong. Please try again.')
+    expect(getChildRemovalErrorMessage('random-code')).toBe('Something went wrong. Please try again.')
+  })
+
+  it('has all error messages at 6th-grade reading level', () => {
+    // All messages should be simple sentences
+    Object.values(CHILD_REMOVAL_ERROR_MESSAGES).forEach((message) => {
+      expect(message).toBeTruthy()
+      expect(message.length).toBeLessThan(100) // Short messages
+      expect(message.split(' ').length).toBeLessThan(15) // Few words
+    })
+  })
+})
+
+describe('removeChildConfirmationSchema adversarial tests', () => {
+  const validConfirmation = {
+    childId: 'child-id-123',
+    confirmationText: 'Emma',
+    reauthToken: 'fresh-token-abc-123',
+  }
+
+  it('rejects XSS attempts in childId', () => {
+    const input = {
+      ...validConfirmation,
+      childId: '<script>alert("xss")</script>',
+    }
+    // Forward slash is blocked by Firebase ID regex
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow()
+  })
+
+  it('rejects path traversal in childId', () => {
+    const input = {
+      ...validConfirmation,
+      childId: '../../../etc/passwd',
+    }
+    expect(() => removeChildConfirmationSchema.parse(input)).toThrow()
+  })
+
+  it('accepts confirmationText with apostrophes (valid names like O\'Connor)', () => {
+    // Note: Confirmation text doesn't have XSS protection since it's only
+    // compared against the child's name, not stored or rendered
+    const input = {
+      ...validConfirmation,
+      confirmationText: "O'Connor",
+    }
+    expect(() => removeChildConfirmationSchema.parse(input)).not.toThrow()
+  })
+
+  it('rejects whitespace-only inputs', () => {
+    expect(() =>
+      removeChildConfirmationSchema.parse({
+        ...validConfirmation,
+        confirmationText: '   ',
+      })
+    ).toThrow()
+  })
+
+  it('handles unicode characters in confirmationText', () => {
+    const input = {
+      ...validConfirmation,
+      confirmationText: 'Éloïse',
+    }
+    const result = removeChildConfirmationSchema.parse(input)
+    expect(result.confirmationText).toBe('Éloïse')
+  })
+
+  it('handles very long reauthToken (JWT tokens can be long)', () => {
+    const input = {
+      ...validConfirmation,
+      reauthToken: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.' + 'a'.repeat(2000),
+    }
+    // Should accept long tokens as JWTs can be quite long
+    expect(() => removeChildConfirmationSchema.parse(input)).not.toThrow()
   })
 })

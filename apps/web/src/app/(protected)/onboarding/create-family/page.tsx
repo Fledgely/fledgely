@@ -192,7 +192,7 @@ export default function CreateFamilyPage() {
             Terms
           </a>
           <span>&middot;</span>
-          <SafetyResourcesLink source="create-family-page" />
+          <SafetyResourcesLink source="onboarding-page" />
         </div>
       </footer>
     </div>

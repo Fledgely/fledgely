@@ -447,3 +447,112 @@ export function hasCustodyDeclaration(child: ChildProfile): boolean {
 export function canStartMonitoring(child: ChildProfile): boolean {
   return hasCustodyDeclaration(child)
 }
+
+// ============================================================================
+// STORY 2.6: Remove Child from Family
+// ============================================================================
+
+/**
+ * Input schema for removing a child from family
+ * Requires user to type child's name as confirmation (destructive operation)
+ *
+ * Story 2.6: Remove Child from Family
+ */
+export const removeChildConfirmationSchema = z.object({
+  /** ID of the child to remove */
+  childId: z
+    .string()
+    .min(1, 'Child ID is required')
+    .max(MAX_FIREBASE_ID_LENGTH, 'Invalid child ID')
+    .refine((val) => FIREBASE_ID_REGEX.test(val), 'Invalid child ID format'),
+
+  /** User must type child's first name to confirm deletion */
+  confirmationText: z
+    .string()
+    .min(1, 'Please type the child\'s name to confirm')
+    .max(50, 'Confirmation text is too long')
+    .trim()
+    .refine((val) => val.length > 0, 'Please type the child\'s name to confirm'),
+
+  /** Fresh re-authentication token from Google Sign-In */
+  reauthToken: z.string().min(1, 'Please sign in again to confirm this action'),
+})
+
+export type RemoveChildConfirmation = z.infer<typeof removeChildConfirmationSchema>
+
+/**
+ * Metadata stored in audit log when a child is removed
+ *
+ * Story 2.6: Remove Child from Family
+ */
+export const childRemovalAuditMetadataSchema = z.object({
+  /** Child's first name (preserved for historical reference) */
+  childName: z.string().min(1),
+
+  /** Child's full name (preserved for historical reference) */
+  childFullName: z.string().min(1),
+
+  /** Whether child had associated devices */
+  hadDevices: z.boolean().default(false),
+
+  /** Number of devices unenrolled (if any) */
+  devicesUnenrolled: z.number().int().min(0).default(0),
+
+  /** Whether child had screenshots (future-proofing) */
+  hadScreenshots: z.boolean().default(false),
+
+  /** Number of screenshots deleted (if any) */
+  screenshotsDeleted: z.number().int().min(0).default(0),
+})
+
+export type ChildRemovalAuditMetadata = z.infer<typeof childRemovalAuditMetadataSchema>
+
+/**
+ * Error messages for child removal at 6th-grade reading level (NFR65)
+ */
+export const CHILD_REMOVAL_ERROR_MESSAGES: Record<string, string> = {
+  'child-not-found': 'We could not find this child.',
+  'permission-denied': 'You do not have permission to remove this child.',
+  'reauth-required': 'Please sign in again to confirm this action.',
+  'reauth-expired': 'Your sign-in has expired. Please try again.',
+  'reauth-cancelled': 'Sign-in was cancelled. Please try again.',
+  'confirmation-mismatch': 'The name you typed does not match. Please try again.',
+  'removal-failed': 'Could not remove the child. Please try again.',
+  'removal-in-progress': 'Removal is already in progress. Please wait.',
+  'network-error': 'Connection problem. Please check your internet and try again.',
+  default: 'Something went wrong. Please try again.',
+}
+
+/**
+ * Get user-friendly error message for child removal errors
+ */
+export function getChildRemovalErrorMessage(code: string): string {
+  return CHILD_REMOVAL_ERROR_MESSAGES[code] || CHILD_REMOVAL_ERROR_MESSAGES.default
+}
+
+/**
+ * Validate remove child confirmation input
+ */
+export function validateRemoveChildConfirmation(input: unknown): RemoveChildConfirmation {
+  return removeChildConfirmationSchema.parse(input)
+}
+
+/**
+ * Safely parse remove child confirmation, returning null if invalid
+ */
+export function safeParseRemoveChildConfirmation(
+  input: unknown
+): RemoveChildConfirmation | null {
+  const result = removeChildConfirmationSchema.safeParse(input)
+  return result.success ? result.data : null
+}
+
+/**
+ * Check if confirmation text matches child's first name (case-insensitive)
+ */
+export function isConfirmationTextValid(
+  confirmationText: string,
+  childFirstName: string
+): boolean {
+  return confirmationText.trim().toLowerCase() === childFirstName.trim().toLowerCase()
+}
