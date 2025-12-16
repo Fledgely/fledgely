@@ -101,3 +101,11 @@ export {
   getTemplatesByAgeGroupFn,
   searchTemplatesFn,
 } from './callable/getTemplateLibrary'
+
+// Callable Functions - Co-Creation Session Management (Story 5.1)
+export { createCoCreationSession } from './callable/createCoCreationSession'
+export { pauseCoCreationSession } from './callable/pauseCoCreationSession'
+export { resumeCoCreationSession } from './callable/resumeCoCreationSession'
+export { recordSessionContribution } from './callable/recordSessionContribution'
+export { getCoCreationSession } from './callable/getCoCreationSession'
+export { completeCoCreationSession } from './callable/completeCoCreationSession'

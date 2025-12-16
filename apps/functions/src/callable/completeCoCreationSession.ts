@@ -1,0 +1,69 @@
+/**
+ * Callable Cloud Function: completeCoCreationSession
+ *
+ * Story 5.1: Co-Creation Session Initiation
+ *
+ * Completes a co-creation session, marking the agreement as ready
+ * for signing (Epic 6).
+ *
+ * Security invariants:
+ * 1. Caller MUST be authenticated
+ * 2. Caller MUST be a guardian of the child
+ * 3. Session must be in 'active' status
+ * 4. Session must have at least one accepted term
+ */
+
+import { onCall, HttpsError } from 'firebase-functions/v2/https'
+import { z } from 'zod'
+import { completeSession } from '../services/coCreationService'
+
+// Input schema for completing a session
+const completeSessionInputSchema = z.object({
+  sessionId: z.string().uuid('Invalid session ID'),
+  familyId: z.string().min(1, 'Family ID is required'),
+})
+
+export const completeCoCreationSession = onCall(
+  {
+    enforceAppCheck: true,
+  },
+  async (request) => {
+    // Require authentication
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required')
+    }
+
+    const callerUid = request.auth.uid
+
+    // Validate input
+    const parseResult = completeSessionInputSchema.safeParse(request.data)
+    if (!parseResult.success) {
+      throw new HttpsError('invalid-argument', 'Invalid input', parseResult.error.flatten())
+    }
+
+    const { sessionId, familyId } = parseResult.data
+
+    // Call service function
+    const result = await completeSession(sessionId, familyId, callerUid)
+
+    if (!result.success) {
+      const errorCode = result.error?.code as
+        | 'permission-denied'
+        | 'not-found'
+        | 'failed-precondition'
+        | 'internal'
+
+      throw new HttpsError(
+        errorCode || 'internal',
+        result.error?.message || 'Failed to complete session',
+        result.error?.details
+      )
+    }
+
+    return {
+      success: true,
+      session: result.data,
+      message: 'Agreement completed! Ready for signing.',
+    }
+  }
+)
