@@ -94,3 +94,10 @@ export { onScreenshotViewLogged } from './triggers/onScreenshotViewLogged'
 export { attemptGuardianRemoval } from './callable/attemptGuardianRemoval'
 export { attemptGuardianRoleChange } from './callable/attemptGuardianRoleChange'
 export { attemptGuardianPermissionChange } from './callable/attemptGuardianPermissionChange'
+
+// Callable Functions - Template Library (Story 4.1)
+export {
+  getTemplateLibrary,
+  getTemplatesByAgeGroupFn,
+  searchTemplatesFn,
+} from './callable/getTemplateLibrary'
