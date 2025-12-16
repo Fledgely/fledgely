@@ -101,14 +101,14 @@ development_status:
   epic-3a-retrospective: completed
 
   # Epic 4: Agreement Templates & Quick Start
-  epic-4: in-progress
+  epic-4: done
   4-1-template-library-structure: done
-  4-2-age-appropriate-template-content: backlog
-  4-3-template-preview-selection: backlog
-  4-4-quick-start-wizard: backlog
-  4-5-template-customization-preview: backlog
-  4-6-template-accessibility: backlog
-  epic-4-retrospective: optional
+  4-2-age-appropriate-template-content: done
+  4-3-template-preview-selection: done
+  4-4-quick-start-wizard: done
+  4-5-template-customization-preview: done
+  4-6-template-accessibility: done
+  epic-4-retrospective: pending
 
   # Epic 5: Basic Agreement Co-Creation
   epic-5: backlog
