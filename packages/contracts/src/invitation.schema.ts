@@ -261,3 +261,94 @@ export class InvitationError extends Error {
     this.name = 'InvitationError'
   }
 }
+
+// ============================================================================
+// Story 3.2: Invitation Delivery - Email Tracking
+// ============================================================================
+
+/**
+ * Extended invitation schema with email tracking fields
+ * Story 3.2: Invitation Delivery
+ */
+export const invitationWithEmailSchema = invitationSchema.extend({
+  /** Masked email address (for audit display, e.g., "ja***@example.com") */
+  emailSentTo: z.string().nullable().optional(),
+
+  /** When invitation email was last sent */
+  emailSentAt: z.date().nullable().optional(),
+
+  /** Number of times email was sent (for rate limiting, max 3/hour) */
+  emailSendCount: z.number().int().nonnegative().default(0),
+})
+
+export type InvitationWithEmail = z.infer<typeof invitationWithEmailSchema>
+
+/**
+ * Input schema for sending invitation email
+ */
+export const sendInvitationEmailInputSchema = z.object({
+  invitationId: z.string().min(1, 'Invitation ID is required'),
+  email: z.string().email('Please enter a valid email address.'),
+})
+
+export type SendInvitationEmailInput = z.infer<typeof sendInvitationEmailInputSchema>
+
+/**
+ * Email-related error messages at 6th-grade reading level (NFR65)
+ */
+export const EMAIL_ERROR_MESSAGES: Record<string, string> = {
+  'invalid-email': 'Please enter a valid email address.',
+  'email-send-failed': 'Could not send email. Please try again or copy the link.',
+  'rate-limited': 'Please wait a moment before sending again.',
+  'invitation-expired': 'This invitation has expired. Create a new one.',
+  'invitation-not-found': 'Could not find this invitation.',
+  'not-authorized': 'You can only send emails for your own invitations.',
+  default: 'Something went wrong. Please try again.',
+}
+
+/**
+ * Get email error message by code at 6th-grade reading level
+ */
+export function getEmailErrorMessage(code: string): string {
+  return EMAIL_ERROR_MESSAGES[code] || EMAIL_ERROR_MESSAGES.default
+}
+
+/**
+ * Mask email address for audit storage (privacy)
+ * Example: "jane@example.com" -> "ja***@example.com"
+ */
+export function maskEmail(email: string): string {
+  const atIndex = email.indexOf('@')
+  if (atIndex <= 0) return '***@' + email
+
+  const localPart = email.substring(0, atIndex)
+  const domain = email.substring(atIndex)
+
+  // Show first 2 characters (or less if local part is short)
+  const visibleChars = Math.min(2, localPart.length)
+  const masked = localPart.substring(0, visibleChars) + '***'
+
+  return masked + domain
+}
+
+/**
+ * Rate limit constant: maximum emails per hour per invitation
+ */
+export const MAX_EMAILS_PER_HOUR = 3
+
+/**
+ * Check if email sending is rate limited
+ * Returns true if rate limited (should NOT send)
+ */
+export function isEmailRateLimited(
+  emailSendCount: number,
+  emailSentAt: Date | null | undefined
+): boolean {
+  if (!emailSentAt) return false
+
+  // Reset counter if last send was more than an hour ago
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+  if (emailSentAt < hourAgo) return false
+
+  return emailSendCount >= MAX_EMAILS_PER_HOUR
+}

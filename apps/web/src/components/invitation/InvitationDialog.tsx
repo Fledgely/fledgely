@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/select'
 import { useInvitation } from '@/hooks/useInvitation'
 import { InvitationLink } from './InvitationLink'
+import { SendInvitationEmail } from './SendInvitationEmail'
 import {
   getTimeUntilExpiry,
   type InvitationExpiryDays,
   type Invitation,
 } from '@fledgely/contracts'
-import { Loader2, UserPlus, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { Loader2, UserPlus, AlertCircle, CheckCircle, Clock, Mail } from 'lucide-react'
 
 /**
  * Props for the InvitationDialog component
@@ -104,6 +105,14 @@ export function InvitationDialog({
     revokeInvitation,
     clearError,
     resetInvitation,
+    // Story 3.2: Email delivery
+    emailSending,
+    emailSent,
+    emailError,
+    emailInfo,
+    sendEmail,
+    clearEmailState,
+    canSendEmail,
   } = useInvitation()
 
   // Check for existing invitation when dialog opens
@@ -126,8 +135,9 @@ export function InvitationDialog({
       setExpiryDays('7')
       clearError()
       resetInvitation()
+      clearEmailState()
     }
-  }, [open, clearError, resetInvitation])
+  }, [open, clearError, resetInvitation, clearEmailState])
 
   /**
    * Handle creating a new invitation
@@ -173,6 +183,23 @@ export function InvitationDialog({
     clearError()
     setStep('configure')
   }, [clearError])
+
+  /**
+   * Handle sending invitation email
+   * Story 3.2: Invitation Delivery
+   */
+  const handleSendEmail = useCallback(
+    async (email: string) => {
+      if (!invitation) return
+
+      await sendEmail(
+        invitation.invitation.id,
+        email,
+        invitation.invitationLink
+      )
+    },
+    [invitation, sendEmail]
+  )
 
   /**
    * Close the dialog safely (prevent closing during processing)
@@ -279,6 +306,7 @@ export function InvitationDialog({
 
   /**
    * Render the success step
+   * Story 3.2: Updated to include email delivery option
    */
   const renderSuccessStep = () => (
     <>
@@ -288,16 +316,35 @@ export function InvitationDialog({
           Invitation Created!
         </DialogTitle>
         <DialogDescription>
-          Share this link with the person you want to invite. They can use it to join your family.
+          Share this link with the person you want to invite, or send it by email.
         </DialogDescription>
       </DialogHeader>
 
-      <div className="py-4" role="status" aria-live="polite">
+      <div className="py-4 space-y-6" role="status" aria-live="polite">
         {invitation && (
-          <InvitationLink
-            invitationLink={invitation.invitationLink}
-            expiresAt={invitation.invitation.expiresAt}
-          />
+          <>
+            {/* Invitation link section */}
+            <InvitationLink
+              invitationLink={invitation.invitationLink}
+              expiresAt={invitation.invitation.expiresAt}
+            />
+
+            {/* Story 3.2: Email delivery section */}
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <span className="text-sm font-medium">Or send by email</span>
+              </div>
+              <SendInvitationEmail
+                onSendEmail={handleSendEmail}
+                sending={emailSending}
+                sent={emailSent}
+                error={emailError}
+                canSend={canSendEmail()}
+                lastSentTo={emailInfo?.emailSentTo}
+              />
+            </div>
+          </>
         )}
       </div>
 

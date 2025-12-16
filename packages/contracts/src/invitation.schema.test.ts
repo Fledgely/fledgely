@@ -6,6 +6,9 @@ import {
   invitationSchema,
   invitationFirestoreSchema,
   createInvitationInputSchema,
+  // Story 3.2: Email schemas
+  invitationWithEmailSchema,
+  sendInvitationEmailInputSchema,
   // Helper functions
   getInvitationErrorMessage,
   isInvitationExpired,
@@ -19,20 +22,31 @@ import {
   buildInvitationLink,
   calculateExpiryDate,
   getTimeUntilExpiry,
+  // Story 3.2: Email helper functions
+  getEmailErrorMessage,
+  maskEmail,
+  isEmailRateLimited,
   // Classes
   InvitationError,
   // Constants
   INVITATION_ERROR_MESSAGES,
+  // Story 3.2: Email constants
+  EMAIL_ERROR_MESSAGES,
+  MAX_EMAILS_PER_HOUR,
   // Types
   type Invitation,
   type InvitationFirestore,
   type CreateInvitationInput,
+  // Story 3.2: Email types
+  type InvitationWithEmail,
+  type SendInvitationEmailInput,
 } from './invitation.schema'
 
 /**
  * Invitation Schema Tests
  *
  * Story 3.1: Co-Parent Invitation Generation
+ * Story 3.2: Invitation Delivery (Email tracking)
  *
  * Tests verify:
  * - Schema validation for invitation status and expiry options
@@ -41,6 +55,7 @@ import {
  * - Error message helpers at 6th-grade reading level
  * - Firestore conversion functions
  * - Helper functions for invitation state checks
+ * - Email masking and rate limiting (Story 3.2)
  */
 
 describe('invitation.schema', () => {
@@ -735,6 +750,242 @@ describe('invitation.schema', () => {
     it('should use default message for unknown codes', () => {
       const error = new InvitationError('unknown-code')
       expect(error.message).toBe('Something went wrong. Please try again.')
+    })
+  })
+
+  // ============================================================================
+  // Story 3.2: Invitation With Email Schema Tests
+  // ============================================================================
+
+  describe('invitationWithEmailSchema', () => {
+    const baseInvitation: Invitation = {
+      id: 'inv-123',
+      familyId: 'family-456',
+      familyName: 'Smith Family',
+      invitedBy: 'user-789',
+      invitedByName: 'Jane Smith',
+      tokenHash: 'abc123hash',
+      status: 'pending',
+      createdAt: new Date('2024-01-15T10:00:00Z'),
+      expiresAt: new Date('2024-01-22T10:00:00Z'),
+      acceptedAt: null,
+      acceptedBy: null,
+    }
+
+    it('should accept invitation with email tracking fields', () => {
+      const invitationWithEmail: InvitationWithEmail = {
+        ...baseInvitation,
+        emailSentTo: 'ja***@example.com',
+        emailSentAt: new Date('2024-01-15T11:00:00Z'),
+        emailSendCount: 1,
+      }
+
+      const result = invitationWithEmailSchema.parse(invitationWithEmail)
+      expect(result.emailSentTo).toBe('ja***@example.com')
+      expect(result.emailSentAt).toEqual(new Date('2024-01-15T11:00:00Z'))
+      expect(result.emailSendCount).toBe(1)
+    })
+
+    it('should accept invitation without email fields (optional)', () => {
+      const result = invitationWithEmailSchema.parse(baseInvitation)
+      expect(result.emailSentTo).toBeUndefined()
+      expect(result.emailSentAt).toBeUndefined()
+      expect(result.emailSendCount).toBe(0) // default value
+    })
+
+    it('should accept null emailSentTo and emailSentAt', () => {
+      const invitationWithEmail = {
+        ...baseInvitation,
+        emailSentTo: null,
+        emailSentAt: null,
+        emailSendCount: 0,
+      }
+
+      const result = invitationWithEmailSchema.parse(invitationWithEmail)
+      expect(result.emailSentTo).toBeNull()
+      expect(result.emailSentAt).toBeNull()
+    })
+
+    it('should reject negative emailSendCount', () => {
+      const invalid = {
+        ...baseInvitation,
+        emailSendCount: -1,
+      }
+
+      expect(() => invitationWithEmailSchema.parse(invalid)).toThrow()
+    })
+
+    it('should reject non-integer emailSendCount', () => {
+      const invalid = {
+        ...baseInvitation,
+        emailSendCount: 1.5,
+      }
+
+      expect(() => invitationWithEmailSchema.parse(invalid)).toThrow()
+    })
+  })
+
+  // ============================================================================
+  // Story 3.2: Send Invitation Email Input Schema Tests
+  // ============================================================================
+
+  describe('sendInvitationEmailInputSchema', () => {
+    it('should accept valid email input', () => {
+      const input: SendInvitationEmailInput = {
+        invitationId: 'inv-123',
+        email: 'jane@example.com',
+      }
+
+      const result = sendInvitationEmailInputSchema.parse(input)
+      expect(result.invitationId).toBe('inv-123')
+      expect(result.email).toBe('jane@example.com')
+    })
+
+    it('should reject empty invitationId', () => {
+      expect(() =>
+        sendInvitationEmailInputSchema.parse({ invitationId: '', email: 'jane@example.com' })
+      ).toThrow()
+    })
+
+    it('should reject invalid email format', () => {
+      expect(() =>
+        sendInvitationEmailInputSchema.parse({ invitationId: 'inv-123', email: 'not-an-email' })
+      ).toThrow()
+      expect(() =>
+        sendInvitationEmailInputSchema.parse({ invitationId: 'inv-123', email: '@example.com' })
+      ).toThrow()
+      expect(() =>
+        sendInvitationEmailInputSchema.parse({ invitationId: 'inv-123', email: 'jane@' })
+      ).toThrow()
+    })
+
+    it('should accept various valid email formats', () => {
+      const validEmails = [
+        'simple@example.com',
+        'very.common@example.com',
+        'user+tag@example.com',
+        'user123@example.co.uk',
+      ]
+
+      validEmails.forEach((email) => {
+        const result = sendInvitationEmailInputSchema.parse({ invitationId: 'inv-123', email })
+        expect(result.email).toBe(email)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 3.2: Email Error Message Tests
+  // ============================================================================
+
+  describe('getEmailErrorMessage', () => {
+    it('should return correct message for known email error codes', () => {
+      expect(getEmailErrorMessage('invalid-email')).toBe('Please enter a valid email address.')
+      expect(getEmailErrorMessage('email-send-failed')).toBe(
+        'Could not send email. Please try again or copy the link.'
+      )
+      expect(getEmailErrorMessage('rate-limited')).toBe(
+        'Please wait a moment before sending again.'
+      )
+      expect(getEmailErrorMessage('invitation-expired')).toBe(
+        'This invitation has expired. Create a new one.'
+      )
+      expect(getEmailErrorMessage('invitation-not-found')).toBe('Could not find this invitation.')
+      expect(getEmailErrorMessage('not-authorized')).toBe(
+        'You can only send emails for your own invitations.'
+      )
+    })
+
+    it('should return default message for unknown error codes', () => {
+      expect(getEmailErrorMessage('unknown-code')).toBe('Something went wrong. Please try again.')
+    })
+
+    it('email error messages should be at 6th-grade reading level', () => {
+      Object.values(EMAIL_ERROR_MESSAGES).forEach((message) => {
+        // Messages should be short
+        expect(message.length).toBeLessThan(100)
+        // Messages should not contain technical jargon
+        expect(message).not.toMatch(/unauthorized|forbidden|exception|null|undefined/)
+        // Messages should end with proper punctuation
+        expect(message).toMatch(/[.!?]$/)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 3.2: Email Masking Tests
+  // ============================================================================
+
+  describe('maskEmail', () => {
+    it('should mask standard email addresses', () => {
+      expect(maskEmail('jane@example.com')).toBe('ja***@example.com')
+      expect(maskEmail('john.doe@company.org')).toBe('jo***@company.org')
+    })
+
+    it('should handle short local parts', () => {
+      expect(maskEmail('a@example.com')).toBe('a***@example.com')
+      expect(maskEmail('ab@example.com')).toBe('ab***@example.com')
+    })
+
+    it('should handle emails with subdomains', () => {
+      expect(maskEmail('user@mail.example.co.uk')).toBe('us***@mail.example.co.uk')
+    })
+
+    it('should handle edge case with no @ symbol', () => {
+      expect(maskEmail('noemail')).toBe('***@noemail')
+    })
+
+    it('should handle edge case with @ at start', () => {
+      expect(maskEmail('@example.com')).toBe('***@@example.com')
+    })
+
+    it('should preserve domain completely', () => {
+      const masked = maskEmail('testuser@verylongdomain.example.com')
+      expect(masked).toBe('te***@verylongdomain.example.com')
+    })
+  })
+
+  // ============================================================================
+  // Story 3.2: Email Rate Limiting Tests
+  // ============================================================================
+
+  describe('isEmailRateLimited', () => {
+    it('should return false when no emails have been sent', () => {
+      expect(isEmailRateLimited(0, null)).toBe(false)
+      expect(isEmailRateLimited(0, undefined)).toBe(false)
+    })
+
+    it('should return false when email was sent more than an hour ago', () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+      expect(isEmailRateLimited(3, twoHoursAgo)).toBe(false)
+    })
+
+    it('should return false when under the limit within an hour', () => {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+      expect(isEmailRateLimited(0, thirtyMinutesAgo)).toBe(false)
+      expect(isEmailRateLimited(1, thirtyMinutesAgo)).toBe(false)
+      expect(isEmailRateLimited(2, thirtyMinutesAgo)).toBe(false)
+    })
+
+    it('should return true when at or over the limit within an hour', () => {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000)
+      expect(isEmailRateLimited(3, thirtyMinutesAgo)).toBe(true)
+      expect(isEmailRateLimited(5, thirtyMinutesAgo)).toBe(true)
+    })
+
+    it('should use MAX_EMAILS_PER_HOUR constant', () => {
+      expect(MAX_EMAILS_PER_HOUR).toBe(3)
+    })
+
+    it('should reset rate limit after one hour', () => {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      const sixtyOneMinutesAgo = new Date(Date.now() - 61 * 60 * 1000)
+
+      // Should be rate limited (within hour, at limit)
+      expect(isEmailRateLimited(3, fiveMinutesAgo)).toBe(true)
+
+      // Should NOT be rate limited (past hour, counter should reset)
+      expect(isEmailRateLimited(3, sixtyOneMinutesAgo)).toBe(false)
     })
   })
 })

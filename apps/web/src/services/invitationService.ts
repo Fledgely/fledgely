@@ -19,6 +19,8 @@ import {
   calculateExpiryDate,
   buildInvitationLink,
   InvitationError,
+  maskEmail,
+  isEmailRateLimited,
   type Invitation,
   type CreateInvitationInput,
   type InvitationFirestore,
@@ -84,18 +86,6 @@ export interface ExistingInvitationResult {
   invitation: Invitation | null
 }
 
-/**
- * Custom error class for invitation service errors
- */
-export class InvitationServiceError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string
-  ) {
-    super(message)
-    this.name = 'InvitationServiceError'
-  }
-}
 
 /**
  * Generate SHA-256 hash of a token
@@ -564,5 +554,342 @@ export async function verifyInvitationToken(
   } catch (error) {
     console.error('[invitationService.verifyInvitationToken]', error)
     return { valid: false, invitation: null, errorCode: 'not-found' }
+  }
+}
+
+// ============================================================================
+// Story 3.2: Invitation Delivery - Email Service Functions
+// ============================================================================
+
+/**
+ * Result of sending an invitation email
+ */
+export interface SendEmailResult {
+  /** Whether the email was sent successfully */
+  success: boolean
+  /** Error code if failed */
+  errorCode?:
+    | 'rate-limited'
+    | 'invitation-not-found'
+    | 'invitation-expired'
+    | 'not-authorized'
+    | 'email-send-failed'
+  /** Masked email address (for display) */
+  maskedEmail?: string
+}
+
+/**
+ * Send invitation email
+ *
+ * Story 3.2: Invitation Delivery
+ *
+ * Rate limiting: Maximum 3 emails per hour per invitation
+ *
+ * @param invitationId - Invitation document ID
+ * @param email - Recipient email address
+ * @param userId - User ID sending the email
+ * @param invitationLink - Full invitation link to include in email
+ * @returns SendEmailResult with success status and masked email
+ */
+export async function sendInvitationEmail(
+  invitationId: string,
+  email: string,
+  userId: string,
+  invitationLink: string
+): Promise<SendEmailResult> {
+  try {
+    // 0. Normalize email (trim and lowercase for consistency)
+    const normalizedEmail = email.trim().toLowerCase()
+
+    // Validate email format after normalization
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(normalizedEmail) || normalizedEmail.length > 254) {
+      return { success: false, errorCode: 'invalid-email' }
+    }
+
+    // 1. Get invitation
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, invitationId)
+    const invitationSnapshot = await getDoc(invitationRef)
+
+    if (!invitationSnapshot.exists()) {
+      return { success: false, errorCode: 'invitation-not-found' }
+    }
+
+    const invitationData = invitationSnapshot.data()
+
+    // 2. Verify user is the inviter
+    if (invitationData.invitedBy !== userId) {
+      return { success: false, errorCode: 'not-authorized' }
+    }
+
+    // 3. Check if expired
+    const expiresAt =
+      invitationData.expiresAt instanceof Date
+        ? invitationData.expiresAt
+        : (invitationData.expiresAt as Timestamp)?.toDate()
+
+    if (new Date() > expiresAt) {
+      return { success: false, errorCode: 'invitation-expired' }
+    }
+
+    // 4. Check rate limit
+    const emailSendCount = invitationData.emailSendCount || 0
+    const emailSentAt = invitationData.emailSentAt
+      ? (invitationData.emailSentAt as Timestamp)?.toDate()
+      : null
+
+    if (isEmailRateLimited(emailSendCount, emailSentAt)) {
+      return { success: false, errorCode: 'rate-limited' }
+    }
+
+    // 5. Mask email for storage
+    const maskedEmail = maskEmail(normalizedEmail)
+
+    // 6. Calculate new send count (reset if past hour)
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const newEmailSendCount =
+      emailSentAt && emailSentAt > hourAgo ? emailSendCount + 1 : 1
+
+    // 7. Prepare email via Firebase Extension (Trigger Email)
+    // Using the 'mail' collection pattern for Firebase Extensions
+    const mailRef = doc(collection(db, 'mail'))
+    const emailData = {
+      to: normalizedEmail,
+      // Include invitationId for Firestore security rules verification
+      invitationId,
+      message: {
+        subject: `Join ${invitationData.familyName} on fledgely`,
+        html: generateInvitationEmailHtml({
+          familyName: invitationData.familyName,
+          inviterName: invitationData.invitedByName,
+          invitationLink,
+          expiresAt,
+        }),
+        text: generateInvitationEmailText({
+          familyName: invitationData.familyName,
+          inviterName: invitationData.invitedByName,
+          invitationLink,
+          expiresAt,
+        }),
+      },
+    }
+
+    // 8. Execute batch operation
+    // CRITICAL ORDER: Update tracking FIRST, then audit, then email
+    // This ensures rate limit counter is accurate even if extension fails
+    const batch = writeBatch(db)
+
+    // Update invitation with email tracking FIRST
+    batch.update(invitationRef, {
+      emailSentTo: maskedEmail,
+      emailSentAt: serverTimestamp(),
+      emailSendCount: newEmailSendCount,
+    })
+
+    // Create audit entry SECOND
+    const auditRef = doc(
+      collection(
+        db,
+        FAMILIES_COLLECTION,
+        invitationData.familyId,
+        AUDIT_LOG_SUBCOLLECTION
+      )
+    )
+    batch.set(auditRef, {
+      id: auditRef.id,
+      action: 'invitation_email_sent',
+      entityType: 'invitation',
+      entityId: invitationId,
+      performedBy: userId,
+      performedAt: serverTimestamp(),
+      metadata: {
+        emailSentTo: maskedEmail,
+        sendCount: newEmailSendCount,
+      },
+    })
+
+    // Add email to mail collection LAST (triggers Firebase extension)
+    // If batch fails, email won't be sent
+    // If batch succeeds but extension fails, tracking is still accurate
+    batch.set(mailRef, emailData)
+
+    await batch.commit()
+
+    return { success: true, maskedEmail }
+  } catch (error) {
+    console.error('[invitationService.sendInvitationEmail]', error)
+    return { success: false, errorCode: 'email-send-failed' }
+  }
+}
+
+/**
+ * Escape HTML special characters to prevent injection
+ * Used for user-provided values in email templates
+ */
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+/**
+ * Generate HTML email content for invitation
+ *
+ * Content is at 6th-grade reading level (NFR65)
+ */
+function generateInvitationEmailHtml(params: {
+  familyName: string
+  inviterName: string
+  invitationLink: string
+  expiresAt: Date
+}): string {
+  const { familyName, inviterName, invitationLink, expiresAt } = params
+
+  // Sanitize user-provided values to prevent HTML injection
+  const safeFamilyName = escapeHtml(familyName)
+  const safeInviterName = escapeHtml(inviterName)
+  const safeInvitationLink = escapeHtml(invitationLink)
+
+  const expiryDate = expiresAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <title>Join ${safeFamilyName} on fledgely</title>
+</head>
+<body role="article" aria-label="Family invitation email" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <header style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">You're Invited!</h1>
+  </header>
+
+  <main style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Hi there!
+    </p>
+
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      <strong>${safeInviterName}</strong> has invited you to join <strong>${safeFamilyName}</strong> on fledgely.
+    </p>
+
+    <p style="font-size: 16px; margin-bottom: 20px;">
+      Fledgely helps parents work together to keep their children safe online. When you join, you'll be able to:
+    </p>
+
+    <ul style="font-size: 16px; margin-bottom: 25px; padding-left: 20px;">
+      <li style="margin-bottom: 10px;">See and help manage family agreements</li>
+      <li style="margin-bottom: 10px;">View your children's online activity</li>
+      <li style="margin-bottom: 10px;">Make decisions together as co-parents</li>
+    </ul>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${safeInvitationLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-size: 18px; font-weight: bold;">
+        Join Family
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; margin-top: 20px;">
+      Or copy and paste this link into your browser:<br>
+      <a href="${safeInvitationLink}" style="color: #667eea; word-break: break-all;">${safeInvitationLink}</a>
+    </p>
+
+    <p style="font-size: 14px; color: #888; margin-top: 20px; font-style: italic;">
+      This invitation expires on ${expiryDate}.
+    </p>
+
+    <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+    <p style="font-size: 12px; color: #999; text-align: center;">
+      If you weren't expecting this invitation, you can safely ignore this email.
+    </p>
+  </main>
+</body>
+</html>
+  `.trim()
+}
+
+/**
+ * Generate plain text email content for invitation
+ *
+ * Content is at 6th-grade reading level (NFR65)
+ */
+function generateInvitationEmailText(params: {
+  familyName: string
+  inviterName: string
+  invitationLink: string
+  expiresAt: Date
+}): string {
+  const { familyName, inviterName, invitationLink, expiresAt } = params
+  const expiryDate = expiresAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  return `
+You're Invited!
+
+Hi there!
+
+${inviterName} has invited you to join ${familyName} on fledgely.
+
+Fledgely helps parents work together to keep their children safe online. When you join, you'll be able to:
+
+- See and help manage family agreements
+- View your children's online activity
+- Make decisions together as co-parents
+
+Click here to join: ${invitationLink}
+
+This invitation expires on ${expiryDate}.
+
+---
+
+If you weren't expecting this invitation, you can safely ignore this email.
+  `.trim()
+}
+
+/**
+ * Get email tracking info for an invitation
+ *
+ * @param invitationId - Invitation document ID
+ * @returns Email tracking info or null if invitation not found
+ */
+export async function getInvitationEmailInfo(
+  invitationId: string
+): Promise<{
+  emailSentTo: string | null
+  emailSentAt: Date | null
+  emailSendCount: number
+} | null> {
+  try {
+    const invitationRef = doc(db, INVITATIONS_COLLECTION, invitationId)
+    const snapshot = await getDoc(invitationRef)
+
+    if (!snapshot.exists()) {
+      return null
+    }
+
+    const data = snapshot.data()
+    return {
+      emailSentTo: data.emailSentTo || null,
+      emailSentAt: data.emailSentAt
+        ? (data.emailSentAt as Timestamp)?.toDate()
+        : null,
+      emailSendCount: data.emailSendCount || 0,
+    }
+  } catch (error) {
+    console.error('[invitationService.getInvitationEmailInfo]', error)
+    return null
   }
 }

@@ -739,6 +739,84 @@ service cloud.firestore {
     }
 
     // ============================================
+    // MAIL COLLECTION (Story 3.2: Invitation Email Delivery)
+    // ============================================
+    // Used by Firebase Trigger Email extension to send emails
+    //
+    // Security invariants:
+    // 1. Only authenticated users can create mail documents
+    // 2. User must be guardian with full permissions in the invitation's family
+    // 3. User must be the one who created the invitation (invitedBy)
+    // 4. Invitation must be pending (not expired/revoked/accepted)
+    // 5. Subject must be for invitation emails (prevents abuse)
+    // 6. No read/update/delete allowed (extension handles processing)
+    //
+    // Note: Rate limiting is enforced in the service layer (max 3 emails/hour)
+    // because Firestore rules cannot atomically read and increment counters
+    // ============================================
+
+    match /mail/{mailId} {
+      // Helper function to verify user can send invitation email
+      // Checks: user is the inviter and has full permissions in the family
+      function canSendInvitationEmail(invitationId) {
+        let invitation = get(/databases/$(database)/documents/invitations/$(invitationId));
+        let familyId = invitation.data.familyId;
+        let familyDoc = get(/databases/$(database)/documents/families/$(familyId));
+        let guardians = familyDoc.data.guardians;
+        let uid = request.auth.uid;
+
+        return request.auth != null &&
+          invitation != null &&
+          familyDoc != null &&
+          // User must be the one who created the invitation
+          invitation.data.invitedBy == uid &&
+          // Invitation must be pending (not expired/revoked/accepted)
+          invitation.data.status == 'pending' &&
+          // User must be guardian with full permissions
+          guardians is list &&
+          guardians.size() >= 1 &&
+          guardians.size() <= 10 &&
+          (
+            (guardians.size() >= 1 && guardians[0].uid == uid && guardians[0].permissions == 'full') ||
+            (guardians.size() >= 2 && guardians[1].uid == uid && guardians[1].permissions == 'full') ||
+            (guardians.size() >= 3 && guardians[2].uid == uid && guardians[2].permissions == 'full') ||
+            (guardians.size() >= 4 && guardians[3].uid == uid && guardians[3].permissions == 'full') ||
+            (guardians.size() >= 5 && guardians[4].uid == uid && guardians[4].permissions == 'full') ||
+            (guardians.size() >= 6 && guardians[5].uid == uid && guardians[5].permissions == 'full') ||
+            (guardians.size() >= 7 && guardians[6].uid == uid && guardians[6].permissions == 'full') ||
+            (guardians.size() >= 8 && guardians[7].uid == uid && guardians[7].permissions == 'full') ||
+            (guardians.size() >= 9 && guardians[8].uid == uid && guardians[8].permissions == 'full') ||
+            (guardians.size() >= 10 && guardians[9].uid == uid && guardians[9].permissions == 'full')
+          );
+      }
+
+      // Allow mail creation only for invitation emails
+      // Validates structure and authorization
+      allow create: if request.auth != null &&
+        // Must have valid email structure
+        request.resource.data.to is string &&
+        request.resource.data.to.matches('^[^@]+@[^@]+\\.[^@]+$') &&
+        request.resource.data.message is map &&
+        request.resource.data.message.subject is string &&
+        request.resource.data.message.html is string &&
+        request.resource.data.message.text is string &&
+        // Subject must be for invitation (prevents abuse for other emails)
+        request.resource.data.message.subject.matches('.*Join .* on fledgely') &&
+        // Must have valid invitationId for authorization check
+        request.resource.data.invitationId is string &&
+        canSendInvitationEmail(request.resource.data.invitationId);
+
+      // No read access (extension processes emails)
+      allow read: if false;
+
+      // No updates (mail documents are immutable)
+      allow update: if false;
+
+      // No deletes (mail processing is handled by extension)
+      allow delete: if false;
+    }
+
+    // ============================================
     // ADMIN AUDIT LOG COLLECTION
     // ============================================
     // Separate audit log for admin/support actions

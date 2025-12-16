@@ -70,6 +70,14 @@ describe('InvitationDialog', () => {
     revokeInvitation: vi.fn().mockResolvedValue(undefined),
     clearError: vi.fn(),
     resetInvitation: vi.fn(),
+    // Story 3.2: Email delivery
+    emailSending: false,
+    emailSent: false,
+    emailError: null,
+    emailInfo: null,
+    sendEmail: vi.fn().mockResolvedValue({ success: true }),
+    clearEmailState: vi.fn(),
+    canSendEmail: vi.fn().mockReturnValue(true),
   })
 
   let defaultHookReturn: ReturnType<typeof createDefaultHookReturn>

@@ -245,7 +245,7 @@ export {
   type SelfRemovalResultFirestore,
 } from './selfRemoval.schema'
 
-// Invitation Schemas (Story 3.1)
+// Invitation Schemas (Story 3.1, 3.2)
 export {
   // Schemas
   invitationStatusSchema,
@@ -253,6 +253,9 @@ export {
   invitationSchema,
   invitationFirestoreSchema,
   createInvitationInputSchema,
+  // Story 3.2: Email tracking schemas
+  invitationWithEmailSchema,
+  sendInvitationEmailInputSchema,
   // Helper functions
   getInvitationErrorMessage,
   isInvitationExpired,
@@ -266,16 +269,26 @@ export {
   buildInvitationLink,
   calculateExpiryDate,
   getTimeUntilExpiry,
+  // Story 3.2: Email helper functions
+  getEmailErrorMessage,
+  maskEmail,
+  isEmailRateLimited,
   // Classes
   InvitationError,
   // Constants
   INVITATION_ERROR_MESSAGES,
+  // Story 3.2: Email constants
+  EMAIL_ERROR_MESSAGES,
+  MAX_EMAILS_PER_HOUR,
   // Types
   type InvitationStatus,
   type InvitationExpiryDays,
   type Invitation,
   type InvitationFirestore,
   type CreateInvitationInput,
+  // Story 3.2: Email types
+  type InvitationWithEmail,
+  type SendInvitationEmailInput,
 } from './invitation.schema'
 
 // Safety Document Schemas (Story 0.5.2)

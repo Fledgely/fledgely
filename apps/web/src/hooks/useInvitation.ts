@@ -6,14 +6,31 @@ import {
   createCoParentInvitation,
   getExistingPendingInvitation,
   revokeInvitation as revokeInvitationService,
+  sendInvitationEmail as sendInvitationEmailService,
+  getInvitationEmailInfo,
   type CreateInvitationResult,
   type ExistingInvitationResult,
+  type SendEmailResult,
 } from '@/services/invitationService'
 import {
   getInvitationErrorMessage,
+  getEmailErrorMessage,
+  isEmailRateLimited,
   type Invitation,
   type InvitationExpiryDays,
 } from '@fledgely/contracts'
+
+/**
+ * Email info tracking state
+ */
+export interface EmailInfo {
+  /** Masked email address (e.g., "ja***@example.com") */
+  emailSentTo: string | null
+  /** When the email was last sent */
+  emailSentAt: Date | null
+  /** Number of emails sent in the current hour */
+  emailSendCount: number
+}
 
 /**
  * Hook return type for useInvitation
@@ -39,18 +56,37 @@ export interface UseInvitationReturn {
   clearError: () => void
   /** Reset invitation state (clear created invitation) */
   resetInvitation: () => void
+
+  // Story 3.2: Email delivery
+  /** Whether email is being sent */
+  emailSending: boolean
+  /** Whether email was successfully sent */
+  emailSent: boolean
+  /** Email-specific error */
+  emailError: string | null
+  /** Email tracking info (masked address, send count, last sent time) */
+  emailInfo: EmailInfo | null
+  /** Send invitation email */
+  sendEmail: (invitationId: string, email: string, invitationLink: string) => Promise<SendEmailResult>
+  /** Clear email state for a new email attempt */
+  clearEmailState: () => void
+  /** Check if email can be sent (not rate limited) */
+  canSendEmail: () => boolean
 }
 
 /**
  * useInvitation Hook - Manages co-parent invitation state
  *
  * Story 3.1: Co-Parent Invitation Generation
+ * Story 3.2: Invitation Delivery (Email)
  *
  * Provides:
  * - createInvitation: Create a new invitation (returns token once)
  * - checkExistingInvitation: Check if pending invitation exists
  * - revokeInvitation: Cancel a pending invitation
- * - Idempotency guard to prevent double-click issues
+ * - sendEmail: Send invitation via email (Story 3.2)
+ * - Idempotency guards to prevent double-click issues
+ * - Rate limiting for email sends (max 3/hour)
  *
  * SECURITY NOTE: The invitation token is ONLY available in the
  * CreateInvitationResult immediately after creation. It is NOT
@@ -65,6 +101,12 @@ export interface UseInvitationReturn {
  *   error,
  *   createInvitation,
  *   checkExistingInvitation,
+ *   // Story 3.2: Email
+ *   emailSending,
+ *   emailSent,
+ *   emailError,
+ *   sendEmail,
+ *   canSendEmail,
  * } = useInvitation()
  *
  * // Check for existing invitation on mount
@@ -79,6 +121,13 @@ export interface UseInvitationReturn {
  *   const result = await createInvitation(familyId, '7')
  *   // result.invitationLink contains the sharable link
  * }
+ *
+ * // Send invitation via email (Story 3.2)
+ * const handleSendEmail = async (email: string) => {
+ *   if (invitation && canSendEmail()) {
+ *     await sendEmail(invitation.invitation.id, email, invitation.invitationLink)
+ *   }
+ * }
  * ```
  */
 export function useInvitation(): UseInvitationReturn {
@@ -89,6 +138,12 @@ export function useInvitation(): UseInvitationReturn {
   const [loading, setLoading] = useState(false)
   const [checkingExisting, setCheckingExisting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Story 3.2: Email state
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
+  const [emailInfo, setEmailInfo] = useState<EmailInfo | null>(null)
 
   // Track mounted state to prevent memory leaks
   const mountedRef = useRef(true)
@@ -103,6 +158,9 @@ export function useInvitation(): UseInvitationReturn {
 
   // Idempotency guard - prevent double-click
   const creatingRef = useRef(false)
+
+  // Story 3.2: Idempotency guard for email sending
+  const sendingEmailRef = useRef(false)
 
   /**
    * Clear error state
@@ -271,6 +329,152 @@ export function useInvitation(): UseInvitationReturn {
     [authUser]
   )
 
+  // ============================================================================
+  // Story 3.2: Email Delivery Functions
+  // ============================================================================
+
+  /**
+   * Clear email state for a new email attempt
+   */
+  const clearEmailState = useCallback(() => {
+    if (mountedRef.current) {
+      setEmailSending(false)
+      setEmailSent(false)
+      setEmailError(null)
+    }
+  }, [])
+
+  /**
+   * Check if email can be sent (not rate limited)
+   */
+  const canSendEmail = useCallback((): boolean => {
+    if (!emailInfo) return true
+
+    return !isEmailRateLimited(emailInfo.emailSendCount, emailInfo.emailSentAt)
+  }, [emailInfo])
+
+  /**
+   * Fetch email info for an invitation
+   */
+  const fetchEmailInfo = useCallback(async (invitationId: string) => {
+    try {
+      const info = await getInvitationEmailInfo(invitationId)
+      if (info && mountedRef.current) {
+        setEmailInfo({
+          emailSentTo: info.emailSentTo,
+          emailSentAt: info.emailSentAt,
+          emailSendCount: info.emailSendCount,
+        })
+      }
+    } catch {
+      // Silently fail - email info is optional
+    }
+  }, [])
+
+  /**
+   * Send invitation via email
+   *
+   * Story 3.2: Invitation Delivery
+   *
+   * @param invitationId - The invitation document ID
+   * @param email - Recipient email address
+   * @param invitationLink - The full invitation link URL
+   * @returns SendEmailResult with success status
+   */
+  const sendEmail = useCallback(
+    async (
+      invitationId: string,
+      email: string,
+      invitationLink: string
+    ): Promise<SendEmailResult> => {
+      if (!authUser) {
+        const errorMessage = getEmailErrorMessage('not-authorized')
+        if (mountedRef.current) {
+          setEmailError(errorMessage)
+        }
+        return { success: false, errorCode: 'not-authorized' }
+      }
+
+      // Idempotency guard - prevent double-click
+      if (sendingEmailRef.current) {
+        return { success: false, errorCode: 'rate-limited' }
+      }
+
+      // Check rate limiting
+      if (!canSendEmail()) {
+        const errorMessage = getEmailErrorMessage('rate-limited')
+        if (mountedRef.current) {
+          setEmailError(errorMessage)
+        }
+        return { success: false, errorCode: 'rate-limited' }
+      }
+
+      sendingEmailRef.current = true
+
+      if (mountedRef.current) {
+        setEmailSending(true)
+        setEmailSent(false)
+        setEmailError(null)
+      }
+
+      try {
+        const result = await sendInvitationEmailService(
+          invitationId,
+          email,
+          authUser.uid,
+          invitationLink
+        )
+
+        if (mountedRef.current) {
+          if (result.success) {
+            setEmailSent(true)
+            // Update email info with new masked email
+            if (result.maskedEmail) {
+              setEmailInfo((prev) => ({
+                emailSentTo: result.maskedEmail || null,
+                emailSentAt: new Date(),
+                emailSendCount: (prev?.emailSendCount ?? 0) + 1,
+              }))
+            }
+          } else {
+            const errorMessage = getEmailErrorMessage(result.errorCode || 'email-send-failed')
+            setEmailError(errorMessage)
+          }
+        }
+
+        return result
+      } catch (err) {
+        const errorCode =
+          err instanceof Error
+            ? (err as { code?: string }).code || 'email-send-failed'
+            : 'email-send-failed'
+        const errorMessage = getEmailErrorMessage(errorCode)
+
+        if (mountedRef.current) {
+          setEmailError(errorMessage)
+        }
+
+        return { success: false, errorCode: 'email-send-failed' }
+      } finally {
+        sendingEmailRef.current = false
+
+        if (mountedRef.current) {
+          setEmailSending(false)
+        }
+      }
+    },
+    [authUser, canSendEmail]
+  )
+
+  // Fetch email info when invitation changes
+  useEffect(() => {
+    if (invitation?.invitation.id) {
+      fetchEmailInfo(invitation.invitation.id)
+    } else if (existingInvitation?.id) {
+      fetchEmailInfo(existingInvitation.id)
+    }
+  }, [invitation?.invitation.id, existingInvitation?.id, fetchEmailInfo])
+
   return {
     invitation,
     existingInvitation,
@@ -282,5 +486,14 @@ export function useInvitation(): UseInvitationReturn {
     revokeInvitation,
     clearError,
     resetInvitation,
+
+    // Story 3.2: Email delivery
+    emailSending,
+    emailSent,
+    emailError,
+    emailInfo,
+    sendEmail,
+    clearEmailState,
+    canSendEmail,
   }
 }
