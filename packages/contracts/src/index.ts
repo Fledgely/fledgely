@@ -1145,3 +1145,37 @@ export {
   type ReportSyncStatusResponse,
   type GetAllSyncStatusesResponse,
 } from './allowlistSync.schema'
+
+// Privacy Gaps Schemas (Story 7.8)
+export {
+  // Constants
+  PRIVACY_GAPS_CONSTANTS,
+  DEFAULT_PRIVACY_GAP_CONFIG,
+  // Schemas
+  privacyGapConfigSchema,
+  scheduledGapSchema,
+  privacyGapScheduleSchema,
+  privacyGapScheduleFirestoreSchema,
+  gapTypeSchema,
+  privacyGapEventSchema,
+  childPrivacyGapsConfigSchema,
+  // Helper functions
+  isPrivacyGapsEnabled,
+  validatePrivacyGapConfig,
+  safeParsePrivacyGapConfig,
+  safeParsePrivacyGapSchedule,
+  safeParsePrivacyGapEvent,
+  isGapDurationValid,
+  isGapCountValid,
+  isWithinWakingHours,
+  getEffectivePrivacyGapConfig,
+  convertFirestoreToPrivacyGapSchedule,
+  // Types
+  type PrivacyGapConfig,
+  type ScheduledGap,
+  type PrivacyGapSchedule,
+  type PrivacyGapScheduleFirestore,
+  type GapType,
+  type PrivacyGapEvent,
+  type ChildPrivacyGapsConfig,
+} from './privacyGaps.schema'

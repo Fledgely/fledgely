@@ -142,7 +142,7 @@ development_status:
   7-5-fuzzy-domain-matching: done
   7-6-crisis-search-redirection: done
   7-7-allowlist-distribution-sync: done
-  7-8-privacy-gaps-injection: backlog
+  7-8-privacy-gaps-injection: in-progress
   7-9-cross-platform-allowlist-testing: backlog
   epic-7-retrospective: optional
 

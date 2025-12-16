@@ -177,3 +177,42 @@ export {
   // Factory function
   createChromeExtensionAdapter,
 } from './adapters/chromeExtensionAdapter'
+
+// Story 7.8: Privacy Gap Scheduler Service
+export {
+  // Types
+  type GapScheduleResult,
+  // Functions
+  generateDailyGapSchedule,
+  createSeededRandom,
+  generateSeed,
+  randomIntFromSeed,
+  getWakingHoursRange,
+  distributeGapsWithSpacing,
+  isTimestampInScheduledGap,
+  getCurrentGap,
+  getTimeUntilNextGap,
+} from './services/privacyGapScheduler'
+
+// Story 7.8: Privacy Gap Detector Service
+export {
+  // Types
+  type PrivacyGapDetectorConfig,
+  type CaptureSuppressResult,
+  type PrivacyGapDetector,
+  // Factory function
+  createPrivacyGapDetector,
+  // Utilities
+  createInMemoryScheduleStore,
+  createDefaultDetectorConfig,
+} from './services/privacyGapDetector'
+
+// Story 7.8: Web Capture Adapter (for platform integrations)
+export {
+  // Types
+  type CaptureDecision,
+  type WebCaptureAdapterConfig,
+  type WebCaptureAdapter,
+  // Factory function
+  createWebCaptureAdapter,
+} from './adapters/webCaptureAdapter'
