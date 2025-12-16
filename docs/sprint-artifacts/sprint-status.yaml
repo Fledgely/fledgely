@@ -81,13 +81,13 @@ development_status:
   epic-2-retrospective: completed
 
   # Epic 3: Co-Parent Invitation & Family Sharing
-  epic-3: in-progress
+  epic-3: done
   3-1-co-parent-invitation-generation: done
   3-2-invitation-delivery: done
   3-3-co-parent-invitation-acceptance: done
   3-4-equal-access-verification: done
   3-5-invitation-management: done
-  3-6-legal-parent-petition-for-access: in-progress
+  3-6-legal-parent-petition-for-access: done
   epic-3-retrospective: optional
 
   # Epic 3A: Shared Custody Safeguards
