@@ -380,3 +380,36 @@ export {
   type CheckPetitionStatusInput,
   type UpdatePetitionStatusInput,
 } from './legal-petition.schema'
+
+// Data Symmetry Schemas (Story 3A.1)
+export {
+  // Constants
+  DATA_VIEW_TYPE_LABELS,
+  SYMMETRY_ERROR_MESSAGES,
+  AUDIT_FIELD_LIMITS,
+  // Schemas
+  dataViewTypeSchema,
+  dataViewAuditEntrySchema,
+  dataViewAuditEntryFirestoreSchema,
+  logDataViewInputSchema,
+  guardianAccessStatusSchema,
+  symmetryStatusSchema,
+  symmetryViolationTypeSchema,
+  symmetryViolationSchema,
+  // Helper functions
+  convertFirestoreToDataViewAuditEntry,
+  safeParseDataViewAuditEntry,
+  getDataViewTypeLabel,
+  requiresSymmetryEnforcement,
+  checkGuardianAccessSymmetry,
+  getSymmetryErrorMessage,
+  // Types
+  type DataViewType,
+  type DataViewAuditEntry,
+  type DataViewAuditEntryFirestore,
+  type LogDataViewInput,
+  type GuardianAccessStatus,
+  type SymmetryStatus,
+  type SymmetryViolationType,
+  type SymmetryViolation,
+} from './data-symmetry.schema'

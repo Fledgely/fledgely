@@ -62,3 +62,6 @@ export {
   processLegalPetitionNotificationOnCreate,
   processLegalPetitionNotificationOnUpdate,
 } from './triggers/processLegalPetitionNotifications'
+
+// Callable Functions - Data Symmetry (Story 3A.1)
+export { logDataView, getViewAuditLog } from './callable/logDataView'

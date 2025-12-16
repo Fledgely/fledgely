@@ -611,6 +611,44 @@ service cloud.firestore {
       // - removeChildFromFamily creates audit entry BEFORE deletion
       // - Device documents are deleted via separate service call
       allow delete: if hasFullChildPermissions();
+
+      // ============================================
+      // VIEW AUDIT LOG SUBCOLLECTION (Story 3A.1: Data Symmetry)
+      // ============================================
+      // Stores audit entries for when guardians view child data.
+      // CRITICAL: Implements data symmetry enforcement - both co-parents
+      // must see identical audit trails. This ensures transparency
+      // in shared custody situations.
+      //
+      // Security invariants:
+      // 1. ALL guardians can read the full audit trail (symmetry requirement)
+      // 2. Guardians can only create entries for themselves (viewedBy = auth.uid)
+      // 3. Audit entries are immutable - no updates or deletes
+      // 4. Both parents see identical data with identical timestamps
+      // ============================================
+      match /viewAuditLog/{logId} {
+        // ALL guardians can read the full audit trail
+        // SYMMETRY ENFORCEMENT: Both co-parents must see identical viewing history
+        // This prevents information asymmetry in shared custody situations
+        allow read: if isChildGuardian();
+
+        // Guardians can create audit entries for their own views
+        // Validates: viewedBy matches authenticated user
+        allow create: if isChildGuardian() &&
+          request.resource.data.viewedBy == request.auth.uid &&
+          request.resource.data.id == logId &&
+          request.resource.data.childId == childId &&
+          request.resource.data.dataType is string &&
+          request.resource.data.dataType.size() > 0;
+
+        // Audit entries are immutable - no updates
+        // This ensures the audit trail cannot be tampered with
+        allow update: if false;
+
+        // Audit entries cannot be deleted
+        // Compliance requirement for custody situations
+        allow delete: if false;
+      }
     }
 
     // ============================================
