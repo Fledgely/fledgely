@@ -84,7 +84,7 @@ development_status:
   epic-3: in-progress
   3-1-co-parent-invitation-generation: done
   3-2-invitation-delivery: done
-  3-3-co-parent-invitation-acceptance: backlog
+  3-3-co-parent-invitation-acceptance: done
   3-4-equal-access-verification: backlog
   3-5-invitation-management: backlog
   3-6-legal-parent-petition-for-access: backlog
