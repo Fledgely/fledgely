@@ -7,6 +7,7 @@ import {
   collection,
   query,
   where,
+  orderBy,
   serverTimestamp,
   writeBatch,
   arrayUnion,
@@ -409,6 +410,48 @@ export async function getInvitation(
 }
 
 /**
+ * Get all invitations for a family
+ *
+ * Story 3.5: Invitation Management
+ *
+ * Returns all invitations (pending, accepted, revoked, expired) for a family,
+ * sorted by createdAt descending (newest first).
+ *
+ * SECURITY: Verifies user is a guardian of the family before returning data
+ *
+ * @param familyId - Family ID to fetch invitations for
+ * @param userId - User ID requesting the invitations (for authorization)
+ * @returns Array of invitations sorted by createdAt desc
+ * @throws InvitationError if user is not authorized
+ */
+export async function getFamilyInvitations(
+  familyId: string,
+  userId: string
+): Promise<Invitation[]> {
+  try {
+    // SECURITY: Verify user is a guardian of this family
+    const { isAuthorized } = await verifyGuardianPermissions(familyId, userId)
+    if (!isAuthorized) {
+      throw new InvitationError('not-authorized')
+    }
+
+    const invitationsQuery = query(
+      collection(db, INVITATIONS_COLLECTION),
+      where('familyId', '==', familyId),
+      orderBy('createdAt', 'desc')
+    )
+    const snapshot = await getDocs(invitationsQuery)
+
+    return snapshot.docs.map((doc) =>
+      convertFirestoreInvitation(doc.data(), doc.id)
+    )
+  } catch (error) {
+    console.error('[invitationService.getFamilyInvitations]', error)
+    throw error
+  }
+}
+
+/**
  * Revoke a pending invitation
  *
  * @param invitationId - Invitation document ID
@@ -576,6 +619,7 @@ export interface SendEmailResult {
     | 'invitation-expired'
     | 'not-authorized'
     | 'email-send-failed'
+    | 'invalid-email'
   /** Masked email address (for display) */
   maskedEmail?: string
 }

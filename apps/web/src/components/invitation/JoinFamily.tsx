@@ -92,7 +92,7 @@ export function JoinFamily({
   // Error state (with invitation data or standalone error)
   if (error) {
     const isExpiredError = error.includes('expired')
-    const isCanceledError = error.includes('canceled')
+    const isCanceledError = error.includes('canceled') || error.includes('no longer valid')
     const isUsedError = error.includes('already been used')
 
     return (

@@ -74,13 +74,16 @@ export default function JoinFamilyPage() {
         }
 
         // Check for non-pending states
+        // AC4: Revoked Invitation Link Message - friendly message suggesting contacting inviter
         if (preview.status === 'accepted') {
           setError('This invitation has already been used.')
         } else if (preview.status === 'revoked') {
-          setError('This invitation was canceled.')
+          setError(
+            `This invitation is no longer valid. Please contact ${preview.invitedByName} for a new invitation.`
+          )
         } else if (preview.isExpired) {
           setError(
-            'This invitation has expired. Please ask the person who invited you to send a new one.'
+            `This invitation has expired. Please ask ${preview.invitedByName} to send a new one.`
           )
         }
 

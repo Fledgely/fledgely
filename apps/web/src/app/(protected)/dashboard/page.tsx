@@ -6,6 +6,7 @@ import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
 import { useChild } from '@/hooks/useChild'
 import { useOtherGuardians } from '@/hooks/useOtherGuardians'
+import { useInvitationList } from '@/hooks/useInvitationList'
 import { useAuthContext } from '@/components/providers/AuthProvider'
 import { Button } from '@/components/ui/button'
 import { SafetyResourcesLink } from '@/components/safety'
@@ -14,7 +15,7 @@ import { InvitationDialog } from '@/components/invitation'
 import { CoManagedIndicator } from '@/components/family'
 import { calculateAge } from '@fledgely/contracts'
 import type { ChildProfile } from '@fledgely/contracts'
-import { Trash2, UserPlus, CheckCircle2, X } from 'lucide-react'
+import { Trash2, UserPlus, CheckCircle2, X, Mail, Clock } from 'lucide-react'
 
 /**
  * Dashboard Page - Main landing page after onboarding
@@ -42,6 +43,12 @@ export default function DashboardPage() {
   // Fetch other guardian names for co-managed indicator (Story 3.4)
   const { otherGuardianNames, isLoading: guardiansLoading } = useOtherGuardians(
     family?.guardians ?? null,
+    user?.uid ?? null
+  )
+
+  // Fetch invitation list for pending indicator (Story 3.5)
+  const { pendingInvitation, invitations, loading: invitationsLoading } = useInvitationList(
+    family?.id ?? null,
     user?.uid ?? null
   )
 
@@ -225,16 +232,45 @@ export default function DashboardPage() {
                     />
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setInvitationDialogOpen(true)}
-                  className="min-h-[44px] gap-2"
-                  aria-label="Invite a co-parent to join your family"
-                >
-                  <UserPlus className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Invite Co-Parent</span>
-                  <span className="sm:hidden">Invite</span>
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Manage Invitations link - Story 3.5: AC6 */}
+                  {!invitationsLoading && invitations.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => router.push('/settings/invitations')}
+                      className="min-h-[44px] gap-2"
+                      aria-label="Manage family invitations"
+                    >
+                      {pendingInvitation ? (
+                        <>
+                          <div className="relative">
+                            <Mail className="h-4 w-4" aria-hidden="true" />
+                            <span className="absolute -right-1 -top-1 flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+                            </span>
+                          </div>
+                          <span className="hidden sm:inline">Pending Invite</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="h-4 w-4" aria-hidden="true" />
+                          <span className="hidden sm:inline">Invitations</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    onClick={() => setInvitationDialogOpen(true)}
+                    className="min-h-[44px] gap-2"
+                    aria-label="Invite a co-parent to join your family"
+                  >
+                    <UserPlus className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Invite Co-Parent</span>
+                    <span className="sm:hidden">Invite</span>
+                  </Button>
+                </div>
               </div>
             </section>
           )}
