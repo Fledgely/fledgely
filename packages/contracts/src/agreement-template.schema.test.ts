@@ -44,6 +44,22 @@ import {
   getDefaultMonitoringLevel,
   getRecommendedScreenTimeRange,
   getTemplateErrorMessage,
+  // Screen time validation (Story 4.2)
+  screenTimeRangeSchema,
+  parseScreenTimeText,
+  validateScreenTimeForAge,
+  validateScreenTimeTextForAge,
+  getScreenTimeRangeText,
+  // Monitoring validation (Story 4.2)
+  MONITORING_INTENSITY_VALUES,
+  getAllowedMonitoringLevels,
+  validateMonitoringLevelForAge,
+  isMonitoringProgressionValid,
+  // Age-relevant examples (Story 4.2)
+  AGE_RELEVANT_EXAMPLES,
+  getAgeRelevantExamples,
+  getExamplesByCategory,
+  formatExampleList,
   // Types
   type AgeGroup,
   type TemplateVariation,
@@ -1043,6 +1059,635 @@ describe('agreement-template.schema', () => {
       expect(TEMPLATE_ARRAY_LIMITS.maxSections).toBe(20)
       expect(TEMPLATE_ARRAY_LIMITS.maxKeyRules).toBe(5)
       expect(TEMPLATE_ARRAY_LIMITS.maxConcerns).toBe(5)
+    })
+  })
+
+  // ============================================
+  // SCREEN TIME VALIDATION TESTS (Story 4.2 - Task 4)
+  // ============================================
+
+  describe('screenTimeRangeSchema', () => {
+    it('accepts valid screen time range with minutes', () => {
+      const result = screenTimeRangeSchema.safeParse({
+        minMinutes: 30,
+        maxMinutes: 60,
+        unit: 'minutes',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts valid screen time range with hours', () => {
+      const result = screenTimeRangeSchema.safeParse({
+        minMinutes: 120,
+        maxMinutes: 180,
+        unit: 'hours',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('defaults unit to minutes', () => {
+      const result = screenTimeRangeSchema.parse({
+        minMinutes: 30,
+        maxMinutes: 60,
+      })
+      expect(result.unit).toBe('minutes')
+    })
+
+    it('rejects negative minutes', () => {
+      const result = screenTimeRangeSchema.safeParse({
+        minMinutes: -10,
+        maxMinutes: 60,
+      })
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects minutes over 480', () => {
+      const result = screenTimeRangeSchema.safeParse({
+        minMinutes: 30,
+        maxMinutes: 500,
+      })
+      expect(result.success).toBe(false)
+    })
+  })
+
+  describe('parseScreenTimeText', () => {
+    it('parses "30 minutes"', () => {
+      expect(parseScreenTimeText('30 minutes')).toBe(30)
+    })
+
+    it('parses "45 min"', () => {
+      expect(parseScreenTimeText('45 min')).toBe(45)
+    })
+
+    it('parses "1 hour"', () => {
+      expect(parseScreenTimeText('1 hour')).toBe(60)
+    })
+
+    it('parses "2 hours"', () => {
+      expect(parseScreenTimeText('2 hours')).toBe(120)
+    })
+
+    it('parses "1.5 hours"', () => {
+      expect(parseScreenTimeText('1.5 hours')).toBe(90)
+    })
+
+    it('parses "2.5 hrs"', () => {
+      expect(parseScreenTimeText('2.5 hrs')).toBe(150)
+    })
+
+    it('parses text with context like "1 hour on school days"', () => {
+      expect(parseScreenTimeText('1 hour on school days')).toBe(60)
+    })
+
+    it('parses "30 minutes after homework"', () => {
+      expect(parseScreenTimeText('30 minutes after homework')).toBe(30)
+    })
+
+    it('returns null for unparseable text', () => {
+      expect(parseScreenTimeText('unlimited')).toBeNull()
+    })
+
+    it('returns null for empty text', () => {
+      expect(parseScreenTimeText('')).toBeNull()
+    })
+
+    it('is case insensitive for "HOUR"', () => {
+      expect(parseScreenTimeText('2 HOURS')).toBe(120)
+    })
+
+    it('is case insensitive for "MINUTE"', () => {
+      expect(parseScreenTimeText('30 MINUTES')).toBe(30)
+    })
+  })
+
+  describe('validateScreenTimeForAge', () => {
+    describe('ages 5-7 (30-60 min range)', () => {
+      it('passes for 30 minutes', () => {
+        const result = validateScreenTimeForAge(30, '5-7')
+        expect(result.isWithinRange).toBe(true)
+        expect(result.warning).toBe('')
+      })
+
+      it('passes for 45 minutes', () => {
+        const result = validateScreenTimeForAge(45, '5-7')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 60 minutes', () => {
+        const result = validateScreenTimeForAge(60, '5-7')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('warns for 20 minutes (below minimum)', () => {
+        const result = validateScreenTimeForAge(20, '5-7')
+        expect(result.isWithinRange).toBe(false)
+        expect(result.warning).toContain('below')
+        expect(result.warning).toContain('30 minutes')
+      })
+
+      it('warns for 90 minutes (above maximum)', () => {
+        const result = validateScreenTimeForAge(90, '5-7')
+        expect(result.isWithinRange).toBe(false)
+        expect(result.warning).toContain('exceeds')
+        expect(result.warning).toContain('60 minutes')
+      })
+    })
+
+    describe('ages 8-10 (60-120 min range)', () => {
+      it('passes for 60 minutes', () => {
+        const result = validateScreenTimeForAge(60, '8-10')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 90 minutes', () => {
+        const result = validateScreenTimeForAge(90, '8-10')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 120 minutes', () => {
+        const result = validateScreenTimeForAge(120, '8-10')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('warns for 150 minutes (above maximum)', () => {
+        const result = validateScreenTimeForAge(150, '8-10')
+        expect(result.isWithinRange).toBe(false)
+        expect(result.warning).toContain('exceeds')
+      })
+    })
+
+    describe('ages 11-13 (120-180 min range)', () => {
+      it('passes for 120 minutes', () => {
+        const result = validateScreenTimeForAge(120, '11-13')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 150 minutes', () => {
+        const result = validateScreenTimeForAge(150, '11-13')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('warns for 200 minutes (above maximum)', () => {
+        const result = validateScreenTimeForAge(200, '11-13')
+        expect(result.isWithinRange).toBe(false)
+        expect(result.warning).toContain('180 minutes')
+      })
+    })
+
+    describe('ages 14-16 (180-240 min range)', () => {
+      it('passes for 180 minutes', () => {
+        const result = validateScreenTimeForAge(180, '14-16')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 210 minutes', () => {
+        const result = validateScreenTimeForAge(210, '14-16')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('passes for 240 minutes', () => {
+        const result = validateScreenTimeForAge(240, '14-16')
+        expect(result.isWithinRange).toBe(true)
+      })
+
+      it('warns for 300 minutes (above maximum)', () => {
+        const result = validateScreenTimeForAge(300, '14-16')
+        expect(result.isWithinRange).toBe(false)
+        expect(result.warning).toContain('exceeds')
+        expect(result.warning).toContain('240 minutes')
+      })
+    })
+
+    it('includes correct range values in result', () => {
+      const result = validateScreenTimeForAge(90, '8-10')
+      expect(result.valueMinutes).toBe(90)
+      expect(result.recommendedMin).toBe(60)
+      expect(result.recommendedMax).toBe(120)
+    })
+  })
+
+  describe('validateScreenTimeTextForAge', () => {
+    it('validates "30 minutes" for 5-7 as passing', () => {
+      const result = validateScreenTimeTextForAge('30 minutes', '5-7')
+      expect(result).not.toBeNull()
+      expect(result?.isWithinRange).toBe(true)
+    })
+
+    it('validates "2 hours" for 8-10 as passing', () => {
+      const result = validateScreenTimeTextForAge('2 hours', '8-10')
+      expect(result).not.toBeNull()
+      expect(result?.isWithinRange).toBe(true)
+    })
+
+    it('validates "3 hours" for 11-13 as passing', () => {
+      const result = validateScreenTimeTextForAge('3 hours', '11-13')
+      expect(result).not.toBeNull()
+      expect(result?.isWithinRange).toBe(true)
+    })
+
+    it('returns null for unparseable text', () => {
+      const result = validateScreenTimeTextForAge('unlimited screen time', '5-7')
+      expect(result).toBeNull()
+    })
+
+    it('validates "1 hour on school days" context text', () => {
+      const result = validateScreenTimeTextForAge('1 hour on school days', '8-10')
+      expect(result).not.toBeNull()
+      expect(result?.isWithinRange).toBe(true)
+    })
+  })
+
+  describe('getScreenTimeRangeText', () => {
+    it('returns "30-60 minutes" for ages 5-7', () => {
+      expect(getScreenTimeRangeText('5-7')).toContain('30')
+      expect(getScreenTimeRangeText('5-7')).toContain('60')
+    })
+
+    it('returns hours format for ages 8-10', () => {
+      const text = getScreenTimeRangeText('8-10')
+      expect(text).toContain('1')
+      expect(text).toContain('2')
+      expect(text).toContain('hour')
+    })
+
+    it('returns hours format for ages 11-13', () => {
+      const text = getScreenTimeRangeText('11-13')
+      expect(text).toContain('2')
+      expect(text).toContain('3')
+      expect(text).toContain('hour')
+    })
+
+    it('returns hours format for ages 14-16', () => {
+      const text = getScreenTimeRangeText('14-16')
+      expect(text).toContain('3')
+      expect(text).toContain('4')
+      expect(text).toContain('hour')
+    })
+  })
+
+  describe('screen time progression by age', () => {
+    it('recommended max increases with age', () => {
+      const range57 = getRecommendedScreenTimeRange('5-7')
+      const range810 = getRecommendedScreenTimeRange('8-10')
+      const range1113 = getRecommendedScreenTimeRange('11-13')
+      const range1416 = getRecommendedScreenTimeRange('14-16')
+
+      expect(range57.max).toBeLessThan(range810.max)
+      expect(range810.max).toBeLessThan(range1113.max)
+      expect(range1113.max).toBeLessThan(range1416.max)
+    })
+
+    it('recommended min increases with age', () => {
+      const range57 = getRecommendedScreenTimeRange('5-7')
+      const range810 = getRecommendedScreenTimeRange('8-10')
+      const range1113 = getRecommendedScreenTimeRange('11-13')
+      const range1416 = getRecommendedScreenTimeRange('14-16')
+
+      expect(range57.min).toBeLessThan(range810.min)
+      expect(range810.min).toBeLessThan(range1113.min)
+      expect(range1113.min).toBeLessThan(range1416.min)
+    })
+
+    it('younger age groups have narrower ranges', () => {
+      const range57 = getRecommendedScreenTimeRange('5-7')
+      const range1416 = getRecommendedScreenTimeRange('14-16')
+
+      const range57Width = range57.max - range57.min
+      const range1416Width = range1416.max - range1416.min
+
+      expect(range57Width).toBeLessThanOrEqual(range1416Width)
+    })
+  })
+
+  // ============================================
+  // MONITORING VALIDATION TESTS (Story 4.2 - Task 5)
+  // ============================================
+
+  describe('MONITORING_INTENSITY_VALUES', () => {
+    it('assigns correct intensity values', () => {
+      expect(MONITORING_INTENSITY_VALUES.light).toBe(1)
+      expect(MONITORING_INTENSITY_VALUES.moderate).toBe(2)
+      expect(MONITORING_INTENSITY_VALUES.comprehensive).toBe(3)
+    })
+
+    it('comprehensive is more intensive than moderate', () => {
+      expect(MONITORING_INTENSITY_VALUES.comprehensive).toBeGreaterThan(
+        MONITORING_INTENSITY_VALUES.moderate
+      )
+    })
+
+    it('moderate is more intensive than light', () => {
+      expect(MONITORING_INTENSITY_VALUES.moderate).toBeGreaterThan(MONITORING_INTENSITY_VALUES.light)
+    })
+  })
+
+  describe('getAllowedMonitoringLevels', () => {
+    it('returns comprehensive only for ages 5-7', () => {
+      expect(getAllowedMonitoringLevels('5-7')).toEqual(['comprehensive'])
+    })
+
+    it('returns comprehensive and moderate for ages 8-10', () => {
+      const levels = getAllowedMonitoringLevels('8-10')
+      expect(levels).toContain('comprehensive')
+      expect(levels).toContain('moderate')
+      expect(levels).not.toContain('light')
+    })
+
+    it('returns moderate and light for ages 11-13', () => {
+      const levels = getAllowedMonitoringLevels('11-13')
+      expect(levels).toContain('moderate')
+      expect(levels).toContain('light')
+      expect(levels).not.toContain('comprehensive')
+    })
+
+    it('returns light and moderate for ages 14-16', () => {
+      const levels = getAllowedMonitoringLevels('14-16')
+      expect(levels).toContain('light')
+      expect(levels).toContain('moderate')
+      expect(levels).not.toContain('comprehensive')
+    })
+  })
+
+  describe('validateMonitoringLevelForAge', () => {
+    describe('ages 5-7', () => {
+      it('approves comprehensive monitoring', () => {
+        const result = validateMonitoringLevelForAge('comprehensive', '5-7')
+        expect(result.isAppropriate).toBe(true)
+        expect(result.warning).toBe('')
+      })
+
+      it('warns for moderate monitoring (too light)', () => {
+        const result = validateMonitoringLevelForAge('moderate', '5-7')
+        expect(result.isAppropriate).toBe(false)
+        expect(result.warning).toContain('may not provide enough oversight')
+      })
+
+      it('warns for light monitoring (too light)', () => {
+        const result = validateMonitoringLevelForAge('light', '5-7')
+        expect(result.isAppropriate).toBe(false)
+        expect(result.warning).toContain('may not provide enough oversight')
+      })
+    })
+
+    describe('ages 8-10', () => {
+      it('approves comprehensive monitoring', () => {
+        const result = validateMonitoringLevelForAge('comprehensive', '8-10')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('approves moderate monitoring', () => {
+        const result = validateMonitoringLevelForAge('moderate', '8-10')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('warns for light monitoring', () => {
+        const result = validateMonitoringLevelForAge('light', '8-10')
+        expect(result.isAppropriate).toBe(false)
+        expect(result.warning).toContain('may not provide enough oversight')
+      })
+    })
+
+    describe('ages 11-13', () => {
+      it('approves moderate monitoring', () => {
+        const result = validateMonitoringLevelForAge('moderate', '11-13')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('approves light monitoring', () => {
+        const result = validateMonitoringLevelForAge('light', '11-13')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('warns for comprehensive monitoring (too restrictive)', () => {
+        const result = validateMonitoringLevelForAge('comprehensive', '11-13')
+        expect(result.isAppropriate).toBe(false)
+        expect(result.warning).toContain('too restrictive')
+      })
+    })
+
+    describe('ages 14-16', () => {
+      it('approves light monitoring', () => {
+        const result = validateMonitoringLevelForAge('light', '14-16')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('approves moderate monitoring', () => {
+        const result = validateMonitoringLevelForAge('moderate', '14-16')
+        expect(result.isAppropriate).toBe(true)
+      })
+
+      it('warns for comprehensive monitoring (too restrictive)', () => {
+        const result = validateMonitoringLevelForAge('comprehensive', '14-16')
+        expect(result.isAppropriate).toBe(false)
+        expect(result.warning).toContain('too restrictive')
+      })
+    })
+
+    it('includes correct values in result', () => {
+      const result = validateMonitoringLevelForAge('moderate', '8-10')
+      expect(result.level).toBe('moderate')
+      expect(result.recommendedLevel).toBe('comprehensive')
+      expect(result.allowedLevels).toContain('moderate')
+    })
+  })
+
+  describe('isMonitoringProgressionValid', () => {
+    it('returns true when older has same level as younger', () => {
+      expect(isMonitoringProgressionValid('comprehensive', 'comprehensive')).toBe(true)
+      expect(isMonitoringProgressionValid('moderate', 'moderate')).toBe(true)
+      expect(isMonitoringProgressionValid('light', 'light')).toBe(true)
+    })
+
+    it('returns true when older has less intensive monitoring', () => {
+      expect(isMonitoringProgressionValid('comprehensive', 'moderate')).toBe(true)
+      expect(isMonitoringProgressionValid('comprehensive', 'light')).toBe(true)
+      expect(isMonitoringProgressionValid('moderate', 'light')).toBe(true)
+    })
+
+    it('returns false when older has more intensive monitoring', () => {
+      expect(isMonitoringProgressionValid('light', 'moderate')).toBe(false)
+      expect(isMonitoringProgressionValid('light', 'comprehensive')).toBe(false)
+      expect(isMonitoringProgressionValid('moderate', 'comprehensive')).toBe(false)
+    })
+  })
+
+  describe('monitoring progression by age', () => {
+    it('default monitoring decreases with age', () => {
+      const level57 = getDefaultMonitoringLevel('5-7')
+      const level810 = getDefaultMonitoringLevel('8-10')
+      const level1113 = getDefaultMonitoringLevel('11-13')
+      const level1416 = getDefaultMonitoringLevel('14-16')
+
+      const intensity57 = MONITORING_INTENSITY_VALUES[level57]
+      const intensity810 = MONITORING_INTENSITY_VALUES[level810]
+      const intensity1113 = MONITORING_INTENSITY_VALUES[level1113]
+      const intensity1416 = MONITORING_INTENSITY_VALUES[level1416]
+
+      expect(intensity57).toBeGreaterThanOrEqual(intensity810)
+      expect(intensity810).toBeGreaterThanOrEqual(intensity1113)
+      expect(intensity1113).toBeGreaterThanOrEqual(intensity1416)
+    })
+
+    it('allowed levels expand as children age', () => {
+      const levels57 = getAllowedMonitoringLevels('5-7')
+      const levels810 = getAllowedMonitoringLevels('8-10')
+      const levels1113 = getAllowedMonitoringLevels('11-13')
+      const levels1416 = getAllowedMonitoringLevels('14-16')
+
+      // 5-7 only allows comprehensive
+      expect(levels57.length).toBe(1)
+      // 8-10 allows more options
+      expect(levels810.length).toBeGreaterThanOrEqual(levels57.length)
+      // Older groups have more choices
+      expect(levels1113.length).toBeGreaterThanOrEqual(1)
+      expect(levels1416.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  // ============================================
+  // AGE-RELEVANT EXAMPLES TESTS (Story 4.2 - Task 6)
+  // ============================================
+
+  describe('AGE_RELEVANT_EXAMPLES', () => {
+    it('has examples for all age groups', () => {
+      expect(AGE_RELEVANT_EXAMPLES['5-7']).toBeDefined()
+      expect(AGE_RELEVANT_EXAMPLES['8-10']).toBeDefined()
+      expect(AGE_RELEVANT_EXAMPLES['11-13']).toBeDefined()
+      expect(AGE_RELEVANT_EXAMPLES['14-16']).toBeDefined()
+    })
+
+    it('has all required categories for each age group', () => {
+      const categories = ['activities', 'apps_games', 'content', 'social', 'safety', 'rewards']
+      const ageGroups: AgeGroup[] = ['5-7', '8-10', '11-13', '14-16']
+
+      for (const ageGroup of ageGroups) {
+        for (const category of categories) {
+          expect(AGE_RELEVANT_EXAMPLES[ageGroup]).toHaveProperty(category)
+          expect(Array.isArray(AGE_RELEVANT_EXAMPLES[ageGroup][category as keyof typeof AGE_RELEVANT_EXAMPLES['5-7']])).toBe(true)
+        }
+      }
+    })
+
+    it('5-7 examples include age-appropriate content', () => {
+      const examples = AGE_RELEVANT_EXAMPLES['5-7']
+      expect(examples.activities.some((a) => a.includes('cartoon') || a.includes('playground'))).toBe(true)
+      expect(examples.content.some((c) => c.includes('cartoon') || c.includes('bedtime'))).toBe(true)
+    })
+
+    it('8-10 examples include Minecraft and Roblox', () => {
+      const examples = AGE_RELEVANT_EXAMPLES['8-10']
+      expect(examples.apps_games.some((a) => a.includes('Minecraft'))).toBe(true)
+      expect(examples.apps_games.some((a) => a.includes('Roblox'))).toBe(true)
+    })
+
+    it('11-13 examples include social and streaming content', () => {
+      const examples = AGE_RELEVANT_EXAMPLES['11-13']
+      expect(examples.activities.some((a) => a.includes('streaming') || a.includes('group'))).toBe(true)
+      expect(examples.social.some((s) => s.includes('chat') || s.includes('gaming'))).toBe(true)
+    })
+
+    it('14-16 examples include career and social media content', () => {
+      const examples = AGE_RELEVANT_EXAMPLES['14-16']
+      expect(examples.activities.some((a) => a.includes('college') || a.includes('job'))).toBe(true)
+      expect(examples.apps_games.some((a) => a.includes('Instagram') || a.includes('LinkedIn'))).toBe(true)
+    })
+  })
+
+  describe('getAgeRelevantExamples', () => {
+    it('returns examples for 5-7', () => {
+      const examples = getAgeRelevantExamples('5-7')
+      expect(examples.activities.length).toBeGreaterThan(0)
+      expect(examples.apps_games.length).toBeGreaterThan(0)
+    })
+
+    it('returns examples for 8-10', () => {
+      const examples = getAgeRelevantExamples('8-10')
+      expect(examples.activities.length).toBeGreaterThan(0)
+    })
+
+    it('returns examples for 11-13', () => {
+      const examples = getAgeRelevantExamples('11-13')
+      expect(examples.activities.length).toBeGreaterThan(0)
+    })
+
+    it('returns examples for 14-16', () => {
+      const examples = getAgeRelevantExamples('14-16')
+      expect(examples.activities.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('getExamplesByCategory', () => {
+    it('returns activities for 5-7', () => {
+      const activities = getExamplesByCategory('5-7', 'activities')
+      expect(activities.length).toBeGreaterThan(0)
+      expect(activities.some((a) => a.includes('playground') || a.includes('cartoon'))).toBe(true)
+    })
+
+    it('returns apps_games for 8-10', () => {
+      const apps = getExamplesByCategory('8-10', 'apps_games')
+      expect(apps.some((a) => a.includes('Minecraft'))).toBe(true)
+    })
+
+    it('returns safety examples for 11-13', () => {
+      const safety = getExamplesByCategory('11-13', 'safety')
+      expect(safety.some((s) => s.includes('cyberbullying'))).toBe(true)
+    })
+
+    it('returns rewards for 14-16', () => {
+      const rewards = getExamplesByCategory('14-16', 'rewards')
+      expect(rewards.some((r) => r.includes('self-managed') || r.includes('private'))).toBe(true)
+    })
+  })
+
+  describe('formatExampleList', () => {
+    it('returns empty string for empty array', () => {
+      expect(formatExampleList([])).toBe('')
+    })
+
+    it('returns single item as-is', () => {
+      expect(formatExampleList(['Minecraft'])).toBe('Minecraft')
+    })
+
+    it('joins two items with "and"', () => {
+      expect(formatExampleList(['Minecraft', 'Roblox'])).toBe('Minecraft and Roblox')
+    })
+
+    it('joins three items with commas and "and"', () => {
+      expect(formatExampleList(['Minecraft', 'Roblox', 'YouTube'])).toBe(
+        'Minecraft, Roblox, and YouTube'
+      )
+    })
+
+    it('limits to maxExamples', () => {
+      const result = formatExampleList(['a', 'b', 'c', 'd', 'e'], 2)
+      expect(result).toBe('a and b')
+    })
+
+    it('handles maxExamples of 3 (default)', () => {
+      const result = formatExampleList(['a', 'b', 'c', 'd', 'e'])
+      expect(result).toBe('a, b, and c')
+    })
+  })
+
+  describe('example progression by age', () => {
+    it('examples become more mature with age', () => {
+      const young = getAgeRelevantExamples('5-7')
+      const teen = getAgeRelevantExamples('14-16')
+
+      // Young examples should have simple content
+      expect(young.content.some((c) => c.includes('cartoon') || c.includes('stories'))).toBe(true)
+      // Teen examples should have mature content
+      expect(teen.content.some((c) => c.includes('career') || c.includes('college'))).toBe(true)
+    })
+
+    it('social examples increase in complexity with age', () => {
+      const young = getAgeRelevantExamples('5-7')
+      const teen = getAgeRelevantExamples('14-16')
+
+      // Young: family-focused
+      expect(young.social.some((s) => s.includes('family') || s.includes('grandparents'))).toBe(true)
+      // Teen: networking-focused
+      expect(teen.social.some((s) => s.includes('networking') || s.includes('reputation'))).toBe(true)
     })
   })
 })

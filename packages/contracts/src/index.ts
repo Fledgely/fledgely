@@ -640,12 +640,17 @@ export {
   TEMPLATE_FIELD_LIMITS,
   TEMPLATE_ARRAY_LIMITS,
   TEMPLATE_ERROR_MESSAGES,
+  MAX_AUTONOMY_MILESTONES,
   // Schemas
   ageGroupSchema,
   templateVariationSchema,
   templateConcernSchema,
   monitoringLevelSchema,
   templateSummarySchema,
+  visualColorHintSchema,
+  visualElementsSchema,
+  autonomyMilestoneCriteriaSchema,
+  autonomyMilestoneSchema,
   templateSectionTypeSchema,
   templateSectionSchema,
   agreementTemplateSchema,
@@ -673,12 +678,37 @@ export {
   getDefaultMonitoringLevel,
   getRecommendedScreenTimeRange,
   getTemplateErrorMessage,
+  // Monitoring validation (Story 4.2 - Task 5)
+  MONITORING_INTENSITY_VALUES,
+  getAllowedMonitoringLevels,
+  validateMonitoringLevelForAge,
+  isMonitoringProgressionValid,
+  // Age-relevant examples (Story 4.2 - Task 6)
+  AGE_RELEVANT_EXAMPLES,
+  getAgeRelevantExamples,
+  getExamplesByCategory,
+  formatExampleList,
+  // Screen time validation (Story 4.2 - Task 4)
+  screenTimeRangeSchema,
+  parseScreenTimeText,
+  validateScreenTimeForAge,
+  validateScreenTimeTextForAge,
+  getScreenTimeRangeText,
   // Types
   type AgeGroup,
   type TemplateVariation,
   type TemplateConcern,
   type MonitoringLevel,
   type TemplateSummary,
+  type VisualColorHint,
+  type VisualElements,
+  type AutonomyMilestoneCriteria,
+  type AutonomyMilestone,
+  type ScreenTimeRange,
+  type ScreenTimeValidationResult,
+  type MonitoringValidationResult,
+  type ExampleCategory,
+  type AgeRelevantExamples,
   type TemplateSectionType,
   type TemplateSection,
   type AgreementTemplate,
@@ -709,3 +739,31 @@ export {
   getTemplateCountsByConcern,
   validateAllTemplates,
 } from './data/templates'
+
+// Readability Validation Utilities (Story 4.2 - Task 3)
+export {
+  // Constants
+  AGE_GROUP_MAX_GRADE_LEVELS,
+  SIMPLE_WORDS,
+  // Syllable and text analysis
+  countSyllables,
+  splitIntoSentences,
+  splitIntoWords,
+  analyzeText,
+  // Flesch-Kincaid calculations
+  calculateFleschKincaidGradeLevel,
+  calculateFleschReadingEase,
+  // Word complexity analysis
+  calculateSimpleWordRatio,
+  getComplexWords,
+  // Readability validation
+  validateTextReadability,
+  validateTemplateReadability,
+  validateTemplatesReadability,
+  getReadabilitySummary,
+  // Types
+  type TextStats,
+  type ReadabilityResult,
+  type SectionReadabilityResult,
+  type TemplateReadabilityResult,
+} from './utils/readabilityUtils'

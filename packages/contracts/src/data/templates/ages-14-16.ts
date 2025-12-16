@@ -2,6 +2,9 @@
  * Agreement Templates for Ages 14-16 (Late Adolescence)
  *
  * Story 4.1: Template Library Structure
+ * Story 4.2: Age-Appropriate Template Content
+ *   - AC #5: Ages 14-16 templates include earned autonomy milestones
+ *   - References Epic 52 Reverse Mode concepts (age 16 transition, trusted adults)
  *
  * Language level: 6th grade
  * Screen time default: 3-4 hrs/day
@@ -10,7 +13,167 @@
  * All content written at 6th-grade reading level (NFR65)
  */
 
-import type { AgreementTemplate } from '../../agreement-template.schema'
+import type { AgreementTemplate, AutonomyMilestone } from '../../agreement-template.schema'
+
+/**
+ * Autonomy milestones for strict variation
+ * Progressive path with higher thresholds reflecting need for more trust building
+ */
+const strictAutonomyMilestones: AutonomyMilestone[] = [
+  {
+    id: 'strict-milestone-1',
+    title: 'Trust Level 1: Extended Time',
+    description: 'Show you can follow rules well to earn more screen time.',
+    criteria: {
+      trustScoreThreshold: 70,
+      timeWithoutIncident: '1 month',
+      parentApproval: true,
+    },
+    unlocks: ['30 extra minutes on weekends', 'Later bedtime on Fridays by 30 minutes'],
+    order: 1,
+  },
+  {
+    id: 'strict-milestone-2',
+    title: 'Trust Level 2: More Privacy',
+    description: 'Keep earning trust to have less frequent device checks.',
+    criteria: {
+      trustScoreThreshold: 80,
+      timeWithoutIncident: '2 months',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Weekly check-ins instead of daily',
+      'Choose one new app to try',
+      'Control your own bedtime on weekends',
+    ],
+    order: 2,
+  },
+  {
+    id: 'strict-milestone-3',
+    title: 'Trust Level 3: Self-Managed Time',
+    description: 'Prove yourself ready to manage your own screen time.',
+    criteria: {
+      trustScoreThreshold: 85,
+      timeWithoutIncident: '3 months',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Self-managed weekend screen time',
+      'Monthly check-ins',
+      'Input on new app decisions',
+    ],
+    order: 3,
+  },
+  {
+    id: 'strict-milestone-4',
+    title: 'Trust Level 4: Preparing for Independence',
+    description: 'Show you are ready for near-adult independence.',
+    criteria: {
+      trustScoreThreshold: 90,
+      timeWithoutIncident: '6 months',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Full self-managed time (with basic boundaries)',
+      'Occasional check-ins only',
+      'Help set rules for younger family members',
+      'Preparation for age 16 transition',
+    ],
+    order: 4,
+  },
+]
+
+/**
+ * Autonomy milestones for balanced variation
+ * Moderate progression for teens building trust
+ */
+const balancedAutonomyMilestones: AutonomyMilestone[] = [
+  {
+    id: 'balanced-milestone-1',
+    title: 'Trust Level 1: Flexible Weekends',
+    description: 'Show responsible use to earn more weekend freedom.',
+    criteria: {
+      trustScoreThreshold: 65,
+      timeWithoutIncident: '3 weeks',
+      parentApproval: true,
+    },
+    unlocks: ['Self-managed weekend time', 'Later weekend bedtimes', 'Try one new platform'],
+    order: 1,
+  },
+  {
+    id: 'balanced-milestone-2',
+    title: 'Trust Level 2: Increased Privacy',
+    description: 'Keep being responsible to have more digital privacy.',
+    criteria: {
+      trustScoreThreshold: 75,
+      timeWithoutIncident: '6 weeks',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Bi-weekly check-ins instead of weekly',
+      'Private messaging without routine review',
+      'Control bedtime on school nights',
+    ],
+    order: 2,
+  },
+  {
+    id: 'balanced-milestone-3',
+    title: 'Trust Level 3: Near-Adult Freedom',
+    description: 'Prove you are ready for adult-like digital independence.',
+    criteria: {
+      trustScoreThreshold: 85,
+      timeWithoutIncident: '3 months',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Fully self-managed time',
+      'Monthly family conversations instead of check-ins',
+      'Input on all technology decisions',
+      'Trusted adult status for younger siblings',
+    ],
+    order: 3,
+  },
+]
+
+/**
+ * Autonomy milestones for permissive variation
+ * Faster progression for teens who have already demonstrated maturity
+ */
+const permissiveAutonomyMilestones: AutonomyMilestone[] = [
+  {
+    id: 'permissive-milestone-1',
+    title: 'Full Independence Track',
+    description: 'Continue showing maturity to keep your current freedom.',
+    criteria: {
+      trustScoreThreshold: 60,
+      timeWithoutIncident: '2 weeks',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Maintain current high level of freedom',
+      'Reduced check-ins',
+      'Input on family technology policies',
+    ],
+    order: 1,
+  },
+  {
+    id: 'permissive-milestone-2',
+    title: 'Trusted Adult Preparation',
+    description: 'Prepare for the transition to adult independence at age 16.',
+    criteria: {
+      trustScoreThreshold: 75,
+      timeWithoutIncident: '2 months',
+      parentApproval: true,
+    },
+    unlocks: [
+      'Full digital autonomy',
+      'Family advisor role for technology decisions',
+      'Help guide younger family members',
+      'Age 16 reverse mode transition eligibility',
+    ],
+    order: 2,
+  },
+]
 
 /**
  * Strict template for ages 14-16
@@ -117,6 +280,7 @@ export const ages14to16Strict: AgreementTemplate = {
       order: 7,
     },
   ],
+  autonomyMilestones: strictAutonomyMilestones,
   createdAt: '2024-01-15T00:00:00.000Z',
   updatedAt: '2024-01-15T00:00:00.000Z',
 }
@@ -226,6 +390,7 @@ export const ages14to16Balanced: AgreementTemplate = {
       order: 7,
     },
   ],
+  autonomyMilestones: balancedAutonomyMilestones,
   createdAt: '2024-01-15T00:00:00.000Z',
   updatedAt: '2024-01-15T00:00:00.000Z',
 }
@@ -335,6 +500,7 @@ export const ages14to16Permissive: AgreementTemplate = {
       order: 7,
     },
   ],
+  autonomyMilestones: permissiveAutonomyMilestones,
   createdAt: '2024-01-15T00:00:00.000Z',
   updatedAt: '2024-01-15T00:00:00.000Z',
 }
