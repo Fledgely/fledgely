@@ -128,9 +128,9 @@ development_status:
   6-2-parent-digital-signature: done
   6-3-agreement-activation: done
   6-4-signing-ceremony-celebration: done
-  6-5-device-consent-gate: backlog
-  6-6-consent-withdrawal-handling: backlog
-  6-7-signature-accessibility: backlog
+  6-5-device-consent-gate: blocked # Requires device enrollment (Epic 9+)
+  6-6-consent-withdrawal-handling: blocked # Requires device enrollment (Epic 9+)
+  6-7-signature-accessibility: done
   epic-6-retrospective: optional
 
   # Epic 7: Crisis Allowlist Foundation

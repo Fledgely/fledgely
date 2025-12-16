@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { type SignatureType, type SessionTerm, type AgreementSignature, isTypedSignatureValid, isDrawnSignatureValid } from '@fledgely/contracts'
 import { SignaturePad } from './SignaturePad'
+import { useStepAnnouncer } from '@/hooks/useStepAnnouncer'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -71,6 +72,43 @@ export function ChildSigningCeremony({
       ? isTypedSignatureValid(signatureValue)
       : isDrawnSignatureValid(signatureValue)
 
+  // Accessibility: Step announcer for screen readers (Story 6.7)
+  const { announceStep, announceMessage, AnnouncerRegion } = useStepAnnouncer()
+
+  // Track current step for announcements
+  const getCurrentStep = useCallback(() => {
+    if (!consentChecked) return 1 // Review and consent
+    if (!isSignatureValid) return 2 // Sign
+    return 3 // Ready to submit
+  }, [consentChecked, isSignatureValid])
+
+  // Refs for focus management
+  const headerRef = useRef<HTMLHeadingElement>(null)
+
+  // Announce initial step on mount
+  useEffect(() => {
+    announceStep(1, 3, 'Review your commitments and check the consent box')
+    // Auto-focus header for screen readers
+    headerRef.current?.focus()
+  }, [announceStep])
+
+  // Announce step changes
+  useEffect(() => {
+    const step = getCurrentStep()
+    if (step === 2 && consentChecked) {
+      announceStep(2, 3, 'Add your signature')
+    } else if (step === 3) {
+      announceStep(3, 3, 'Ready to sign. Press the Sign button to complete.')
+    }
+  }, [consentChecked, isSignatureValid, getCurrentStep, announceStep])
+
+  // Announce signature mode changes
+  const handleSignatureModeChange = useCallback((mode: SignatureType) => {
+    setSignatureMode(mode)
+    const modeLabel = mode === 'typed' ? 'type your name' : 'draw your signature'
+    announceMessage(`Signature mode changed to ${modeLabel}`)
+  }, [announceMessage])
+
   // Can submit when checkbox is checked and signature is valid
   const canSubmit = consentChecked && isSignatureValid && !isSubmitting && !isLoading
 
@@ -81,12 +119,18 @@ export function ChildSigningCeremony({
     setIsSubmitting(true)
 
     try {
+      // Sanitize typed signature to remove control characters and normalize (Story 6.7 security fix)
+      const sanitizedValue =
+        signatureMode === 'typed'
+          ? signatureValue.trim().replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control chars
+          : signatureValue // Canvas data URLs are already validated by browser
+
       const signature: AgreementSignature = {
         agreementId,
         signature: {
           id: uuidv4(),
           type: signatureMode,
-          value: signatureValue,
+          value: sanitizedValue,
           signedBy: 'child',
           signedAt: new Date().toISOString(),
         },
@@ -108,6 +152,9 @@ export function ChildSigningCeremony({
       data-testid="signing-ceremony"
       className="max-w-2xl mx-auto px-4 py-8"
     >
+      {/* Screen reader announcements (Story 6.7) */}
+      <AnnouncerRegion />
+
       {/* Header */}
       <header className="text-center mb-8">
         <div
@@ -129,12 +176,21 @@ export function ChildSigningCeremony({
           </svg>
         </div>
 
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+        <h1
+          ref={headerRef}
+          tabIndex={-1}
+          className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2 outline-none"
+        >
           Time to Sign, {childName}!
         </h1>
 
         <p className="text-lg text-gray-600 dark:text-gray-300">
           This is a big moment! You are making a promise to your family.
+        </p>
+
+        {/* Take your time guidance (Story 6.7 AC #5) */}
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 italic">
+          Take your time. There is no rush.
         </p>
       </header>
 
@@ -216,7 +272,7 @@ export function ChildSigningCeremony({
 
         <SignaturePad
           mode={signatureMode}
-          onModeChange={setSignatureMode}
+          onModeChange={handleSignatureModeChange}
           value={signatureValue}
           onChange={setSignatureValue}
           childName={childName}
