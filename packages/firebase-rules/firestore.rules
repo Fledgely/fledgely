@@ -127,7 +127,7 @@ service cloud.firestore {
     }
 
     // ============================================
-    // FAMILIES COLLECTION (Story 2.1)
+    // FAMILIES COLLECTION (Story 2.1, Story 2.7)
     // ============================================
     // Stores family documents with guardian and child references
     //
@@ -138,6 +138,13 @@ service cloud.firestore {
     // 4. Families cannot be deleted (for audit purposes)
     // 5. Guardian array must have valid structure (prevents injection)
     // 6. Maximum 10 guardians per family (prevents abuse)
+    //
+    // DISSOLUTION (Story 2.7):
+    // - dissolution field stores the dissolution request state
+    // - dissolution.status must be: 'pending_acknowledgment', 'cooling_period', 'cancelled', 'completed'
+    // - dissolution.dataHandlingOption must be: 'delete_all', 'export_first', 'retain_90_days'
+    // - Any guardian can initiate, acknowledge, or cancel dissolution
+    // - Audit entries are created in auditLog subcollection
     // ============================================
 
     match /families/{familyId} {
@@ -196,6 +203,27 @@ service cloud.firestore {
           guardian.permissions in ['full', 'readonly'];
       }
 
+      // Helper function to check if a guardian is ONLY updating the dissolution field (Story 2.7)
+      // This allows any guardian (not just full permissions) to acknowledge or cancel dissolution
+      // but prevents them from modifying other family data without full permissions
+      function isGuardianUpdatingDissolutionOnly() {
+        return isGuardian() &&
+          // All other fields must remain unchanged
+          request.resource.data.guardians == resource.data.guardians &&
+          request.resource.data.children == resource.data.children &&
+          request.resource.data.name == resource.data.name &&
+          // Only dissolution field can change
+          (
+            // Case 1: Adding dissolution field
+            (!('dissolution' in resource.data) && 'dissolution' in request.resource.data) ||
+            // Case 2: Updating existing dissolution field
+            ('dissolution' in resource.data && 'dissolution' in request.resource.data &&
+             request.resource.data.dissolution != resource.data.dissolution) ||
+            // Case 3: Removing dissolution field (after completion)
+            ('dissolution' in resource.data && !('dissolution' in request.resource.data))
+          );
+      }
+
       // Users can create a family if:
       // - They are authenticated
       // - They set themselves as the creator
@@ -219,7 +247,9 @@ service cloud.firestore {
 
       // Only guardians with full permissions can update
       // Additional validation: cannot remove all guardians, cannot exceed 10
-      allow update: if hasFullPermissions() &&
+      // NOTE: Any guardian (not just full permissions) can update dissolution field
+      // This allows all guardians to acknowledge or cancel dissolution
+      allow update: if (hasFullPermissions() || isGuardianUpdatingDissolutionOnly()) &&
         request.resource.data.guardians is list &&
         request.resource.data.guardians.size() >= 1 &&
         request.resource.data.guardians.size() <= 10 &&
@@ -227,7 +257,19 @@ service cloud.firestore {
         // Prevent changing createdBy (immutable)
         request.resource.data.createdBy == resource.data.createdBy &&
         // Prevent changing createdAt (immutable)
-        request.resource.data.createdAt == resource.data.createdAt;
+        request.resource.data.createdAt == resource.data.createdAt &&
+        // Dissolution field validation (Story 2.7)
+        (
+          // Case 1: No dissolution field
+          !('dissolution' in request.resource.data) ||
+          // Case 2: Dissolution field is null (cleared after completion)
+          request.resource.data.dissolution == null ||
+          // Case 3: Dissolution field has valid status
+          ('dissolution' in request.resource.data &&
+           request.resource.data.dissolution != null &&
+           request.resource.data.dissolution.status in ['pending_acknowledgment', 'cooling_period', 'cancelled', 'completed'] &&
+           request.resource.data.dissolution.dataHandlingOption in ['delete_all', 'export_first', 'retain_90_days'])
+        );
 
       // Families cannot be deleted (for audit purposes)
       allow delete: if false;

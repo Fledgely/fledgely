@@ -162,6 +162,56 @@ export {
   type CreateAuditEntryInput,
 } from './audit.schema'
 
+// Dissolution Schemas (Story 2.7)
+export {
+  // Schemas
+  dataHandlingOptionSchema,
+  dissolutionStatusSchema,
+  dissolutionAcknowledgmentSchema,
+  dissolutionAcknowledgmentFirestoreSchema,
+  familyDissolutionSchema,
+  familyDissolutionFirestoreSchema,
+  initiateDissolutionInputSchema,
+  acknowledgeDissolutionInputSchema,
+  cancelDissolutionInputSchema,
+  dissolutionAuditMetadataSchema,
+  // Helper functions
+  getDissolutionErrorMessage,
+  getDataHandlingOptionLabel,
+  getDataHandlingOptionDescription,
+  getDissolutionStatusLabel,
+  convertFirestoreToDissolution,
+  safeParseDissolution,
+  validateInitiateDissolutionInput,
+  safeParseInitiateDissolutionInput,
+  calculateScheduledDeletionDate,
+  calculateDaysRemaining,
+  canCancelDissolution,
+  needsAcknowledgment,
+  getPendingAcknowledgments,
+  allGuardiansAcknowledged,
+  // Constants
+  COOLING_PERIOD_DAYS,
+  EXTENDED_RETENTION_DAYS,
+  ACKNOWLEDGMENT_TIMEOUT_DAYS,
+  REMINDER_START_DAYS,
+  DISSOLUTION_ERROR_MESSAGES,
+  DATA_HANDLING_OPTION_LABELS,
+  DATA_HANDLING_OPTION_DESCRIPTIONS,
+  DISSOLUTION_STATUS_LABELS,
+  // Types
+  type DataHandlingOption,
+  type DissolutionStatus,
+  type DissolutionAcknowledgment,
+  type DissolutionAcknowledgmentFirestore,
+  type FamilyDissolution,
+  type FamilyDissolutionFirestore,
+  type InitiateDissolutionInput,
+  type AcknowledgeDissolutionInput,
+  type CancelDissolutionInput,
+  type DissolutionAuditMetadata,
+} from './dissolution.schema'
+
 // Safety Document Schemas (Story 0.5.2)
 export {
   // Constants

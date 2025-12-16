@@ -75,8 +75,8 @@ development_status:
   2-3-custody-arrangement-declaration: done
   2-4-child-profile-viewing-by-child: blocked # Requires child account system (not yet implemented)
   2-5-edit-child-profile: done
-  2-6-remove-child-from-family: in-progress
-  2-7-family-dissolution-initiation: backlog
+  2-6-remove-child-from-family: done
+  2-7-family-dissolution-initiation: done
   2-8-unilateral-self-removal-survivor-escape: backlog
   epic-2-retrospective: optional
 
