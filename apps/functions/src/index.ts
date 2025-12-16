@@ -89,3 +89,8 @@ export { expireStaleAgreementProposals } from './scheduled/expireStaleAgreementP
 
 // Triggers - Screenshot Viewing Rate Alert (Story 3A.5)
 export { onScreenshotViewLogged } from './triggers/onScreenshotViewLogged'
+
+// Callable Functions - Guardian Removal Prevention (Story 3A.6)
+export { attemptGuardianRemoval } from './callable/attemptGuardianRemoval'
+export { attemptGuardianRoleChange } from './callable/attemptGuardianRoleChange'
+export { attemptGuardianPermissionChange } from './callable/attemptGuardianPermissionChange'

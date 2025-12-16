@@ -553,3 +553,75 @@ export {
   type RespondToAgreementProposalInput,
   type SignAgreementChangeInput,
 } from './agreement-change-proposal.schema'
+
+// Guardian Removal Prevention Schemas (Story 3A.6)
+export {
+  // Constants
+  REMOVAL_AUDIT_FIELD_LIMITS,
+  BLOCKED_OPERATION_TYPES,
+  GUARDIAN_REMOVAL_PREVENTION_MESSAGES,
+  SHARED_CUSTODY_IMMUTABILITY_RULES,
+  // Schemas
+  blockedOperationTypeSchema,
+  targetGuardianRoleSchema,
+  guardianPermissionsSchema,
+  protectedCustodyTypeSchema,
+  guardianRemovalAttemptSchema,
+  guardianRemovalAttemptFirestoreSchema,
+  attemptGuardianRemovalInputSchema,
+  attemptRoleChangeInputSchema,
+  attemptPermissionChangeInputSchema,
+  removalBlockedResultSchema,
+  removalAllowedResultSchema,
+  guardianRemovalResultSchema,
+  // Helper functions
+  requiresRemovalProtection,
+  isRoleDowngrade,
+  isPermissionDowngrade,
+  createBlockedResult,
+  createAllowedResult,
+  getRemovalBlockedExplanation,
+  convertFirestoreToGuardianRemovalAttempt,
+  safeParseGuardianRemovalAttempt,
+  validateAttemptGuardianRemovalInput,
+  validateAttemptRoleChangeInput,
+  validateAttemptPermissionChangeInput,
+  // Types
+  type BlockedOperationType,
+  type TargetGuardianRole,
+  type GuardianPermissions,
+  type ProtectedCustodyType,
+  type GuardianRemovalAttempt,
+  type GuardianRemovalAttemptFirestore,
+  type AttemptGuardianRemovalInput,
+  type AttemptRoleChangeInput,
+  type AttemptPermissionChangeInput,
+  type RemovalBlockedResult,
+  type RemovalAllowedResult,
+  type GuardianRemovalResult,
+} from './guardian-removal-prevention.schema'
+
+// Admin Audit Schemas (Story 3A.6)
+export {
+  // Constants
+  ADMIN_AUDIT_FIELD_LIMITS,
+  ADMIN_AUDIT_ACTION_LABELS,
+  // Schemas
+  adminAuditActionTypeSchema,
+  adminAuditEntrySchema,
+  adminAuditEntryFirestoreSchema,
+  createAdminAuditEntryInputSchema,
+  guardianRemovalBlockedMetadataSchema,
+  // Helper functions
+  getAdminAuditActionLabel,
+  convertFirestoreToAdminAuditEntry,
+  safeParseAdminAuditEntry,
+  validateCreateAdminAuditEntryInput,
+  createGuardianRemovalBlockedAuditInput,
+  // Types
+  type AdminAuditActionType,
+  type AdminAuditEntry,
+  type AdminAuditEntryFirestore,
+  type CreateAdminAuditEntryInput,
+  type GuardianRemovalBlockedMetadata,
+} from './admin-audit.schema'
