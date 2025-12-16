@@ -515,6 +515,14 @@ export const coCreationSessionSchema = z.object({
   /** Source draft that started this session */
   sourceDraft: sourceDraftSchema,
 
+  /**
+   * Agreement mode (Story 5.6)
+   * - 'full': Full agreement with device monitoring capability
+   * - 'agreement_only': Agreement without device monitoring
+   * Defaults to 'full' for backwards compatibility
+   */
+  agreementMode: z.enum(['full', 'agreement_only']).default('full'),
+
   /** Terms/conditions being built (NFR60: max 100) */
   terms: z
     .array(sessionTermSchema)
@@ -549,6 +557,7 @@ export type CoCreationSession = z.infer<typeof coCreationSessionSchema>
 export const coCreationSessionFirestoreSchema = coCreationSessionSchema.extend({
   terms: z.array(sessionTermFirestoreSchema).max(SESSION_ARRAY_LIMITS.maxTerms),
   contributions: z.array(sessionContributionFirestoreSchema).max(SESSION_ARRAY_LIMITS.maxContributions),
+  agreementMode: z.enum(['full', 'agreement_only']).default('full'), // Story 5.6
   createdAt: z.any(), // Firestore Timestamp
   updatedAt: z.any(), // Firestore Timestamp
   lastActivityAt: z.any(), // Firestore Timestamp
@@ -580,6 +589,13 @@ export const createCoCreationSessionInputSchema = z.object({
 
   /** Source draft information */
   sourceDraft: sourceDraftSchema,
+
+  /**
+   * Agreement mode (Story 5.6)
+   * - 'full': Full agreement with device monitoring capability
+   * - 'agreement_only': Agreement without device monitoring
+   */
+  agreementMode: z.enum(['full', 'agreement_only']).default('full'),
 
   /** Initial terms from draft (optional) */
   initialTerms: z
@@ -1198,6 +1214,207 @@ export const DISCUSSION_ERROR_MESSAGES: Record<string, string> = {
  */
 export function getDiscussionErrorMessage(code: keyof typeof DISCUSSION_ERROR_MESSAGES | string): string {
   return DISCUSSION_ERROR_MESSAGES[code] || SESSION_ERROR_MESSAGES.unknown
+}
+
+// ============================================
+// AGREEMENT MODE SCHEMAS (Story 5.6)
+// ============================================
+
+/**
+ * Agreement mode determines what type of agreement the family is creating
+ * - 'full': Full agreement with device monitoring capability
+ * - 'agreement_only': Agreement without device monitoring (family commitments only)
+ */
+export const agreementModeSchema = z.enum(['full', 'agreement_only'])
+
+export type AgreementMode = z.infer<typeof agreementModeSchema>
+
+/**
+ * Human-readable labels for agreement modes
+ */
+export const AGREEMENT_MODE_LABELS: Record<AgreementMode, string> = {
+  full: 'Full Agreement',
+  agreement_only: 'Agreement Only',
+}
+
+/**
+ * Descriptions for agreement modes at 6th-grade reading level (NFR65)
+ */
+export const AGREEMENT_MODE_DESCRIPTIONS: Record<AgreementMode, string> = {
+  full: 'Create an agreement with the option to monitor device activity. You can see what your child does online.',
+  agreement_only: 'Create an agreement about digital expectations without any device monitoring. Based on trust and discussion.',
+}
+
+/**
+ * Features included in each agreement mode
+ */
+export const AGREEMENT_MODE_FEATURES: Record<AgreementMode, { included: string[]; excluded: string[] }> = {
+  full: {
+    included: [
+      'Screen time commitments',
+      'Bedtime schedules',
+      'Family rules',
+      'Device monitoring',
+      'Screenshot capture',
+      'Activity reports',
+    ],
+    excluded: [],
+  },
+  agreement_only: {
+    included: [
+      'Screen time commitments',
+      'Bedtime schedules',
+      'Family rules',
+      'Discussion-based accountability',
+    ],
+    excluded: [
+      'Device monitoring',
+      'Screenshot capture',
+      'Activity reports',
+    ],
+  },
+}
+
+/**
+ * Get label for agreement mode
+ */
+export function getAgreementModeLabel(mode: AgreementMode): string {
+  return AGREEMENT_MODE_LABELS[mode]
+}
+
+/**
+ * Get description for agreement mode
+ */
+export function getAgreementModeDescription(mode: AgreementMode): string {
+  return AGREEMENT_MODE_DESCRIPTIONS[mode]
+}
+
+/**
+ * Get features for agreement mode
+ */
+export function getAgreementModeFeatures(mode: AgreementMode): { included: string[]; excluded: string[] } {
+  return AGREEMENT_MODE_FEATURES[mode]
+}
+
+/**
+ * Term types that are monitoring-related and should be filtered in Agreement Only mode
+ */
+export const MONITORING_TERM_TYPES: SessionTermType[] = ['monitoring']
+
+/**
+ * Template section types that are monitoring-related (from agreement-template.schema.ts)
+ */
+export const MONITORING_SECTION_TYPES = ['monitoring_rules'] as const
+
+/**
+ * Check if a term type requires monitoring functionality
+ */
+export function isMonitoringTermType(type: SessionTermType): boolean {
+  return MONITORING_TERM_TYPES.includes(type)
+}
+
+/**
+ * Get all monitoring term types
+ */
+export function getMonitoringTermTypes(): SessionTermType[] {
+  return [...MONITORING_TERM_TYPES]
+}
+
+/**
+ * Filter terms based on agreement mode
+ * In 'agreement_only' mode, monitoring-related terms are excluded
+ */
+export function filterTermsForMode(
+  terms: SessionTerm[],
+  mode: AgreementMode
+): SessionTerm[] {
+  if (mode === 'full') return terms
+  return terms.filter(term => !isMonitoringTermType(term.type))
+}
+
+/**
+ * Check if a session can be upgraded to full monitoring (AC #5)
+ * Can upgrade if current mode is agreement_only and session is active
+ */
+export function canUpgradeToMonitoring(session: CoCreationSession): boolean {
+  const mode = session.agreementMode ?? 'full'
+  return (
+    mode === 'agreement_only' &&
+    session.status !== 'completed' &&
+    session.status !== 'abandoned'
+  )
+}
+
+/**
+ * Get the available term types for a given agreement mode
+ */
+export function getAvailableTermTypesForMode(mode: AgreementMode): SessionTermType[] {
+  const allTypes: SessionTermType[] = ['screen_time', 'bedtime', 'monitoring', 'rule', 'consequence', 'reward']
+  if (mode === 'full') return allTypes
+  return allTypes.filter(type => !isMonitoringTermType(type))
+}
+
+/**
+ * Check if a section type is monitoring-related (AC #2)
+ */
+export function isMonitoringSectionType(type: string): boolean {
+  return MONITORING_SECTION_TYPES.includes(type as typeof MONITORING_SECTION_TYPES[number])
+}
+
+/**
+ * Get section types that should be hidden for a given agreement mode
+ */
+export function getHiddenSectionTypesForMode(mode: AgreementMode): string[] {
+  if (mode === 'full') return []
+  return [...MONITORING_SECTION_TYPES]
+}
+
+/**
+ * Filter template sections based on agreement mode (AC #2)
+ * In 'agreement_only' mode, monitoring-related sections are excluded
+ *
+ * @param sections - Array of template sections
+ * @param mode - The agreement mode
+ * @returns Filtered sections appropriate for the mode
+ */
+export function filterSectionsForMode<T extends { type: string }>(
+  sections: T[],
+  mode: AgreementMode
+): T[] {
+  if (mode === 'full') return sections
+  return sections.filter(section => !isMonitoringSectionType(section.type))
+}
+
+/**
+ * Filter a template based on agreement mode (AC #2)
+ * In 'agreement_only' mode, monitoring-related sections are excluded
+ *
+ * @param template - The template object with sections array
+ * @param mode - The agreement mode
+ * @returns New template object with filtered sections
+ */
+export function filterTemplateForMode<T extends { sections: Array<{ type: string }> }>(
+  template: T,
+  mode: AgreementMode
+): T {
+  if (mode === 'full') return template
+  return {
+    ...template,
+    sections: filterSectionsForMode(template.sections, mode),
+  }
+}
+
+/**
+ * Check if a template has any monitoring-related sections
+ * Useful for determining if mode selection will have visible effect
+ *
+ * @param template - The template object with sections array
+ * @returns True if template has monitoring sections
+ */
+export function templateHasMonitoringSections<T extends { sections: Array<{ type: string }> }>(
+  template: T
+): boolean {
+  return template.sections.some(section => isMonitoringSectionType(section.type))
 }
 
 // ============================================

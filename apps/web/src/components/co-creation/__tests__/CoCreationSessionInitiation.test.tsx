@@ -2,12 +2,21 @@
  * Unit tests for CoCreationSessionInitiation Component
  *
  * Story 5.1: Co-Creation Session Initiation - Task 4.1
+ * Story 5.6: Agreement-Only Mode Selection - Task 4.7
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { CoCreationSessionInitiation } from '../CoCreationSessionInitiation'
 import type { WizardDraft, TemplateDraft } from '../CoCreationSessionInitiation'
+
+// Helper function to navigate through presence and mode selection steps
+const navigateToSummary = async () => {
+  // Confirm child presence
+  fireEvent.click(screen.getByText("We're Ready!"))
+  // Continue past mode selection (defaults to 'full')
+  fireEvent.click(screen.getByText('Continue'))
+}
 
 describe('CoCreationSessionInitiation', () => {
   const mockChild = {
@@ -104,11 +113,19 @@ describe('CoCreationSessionInitiation', () => {
     })
   })
 
-  describe('progression to draft summary step', () => {
-    it('shows draft summary after confirming child presence', () => {
+  describe('progression through mode selection to draft summary step', () => {
+    it('shows mode selection after confirming child presence', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
 
       fireEvent.click(screen.getByText("We're Ready!"))
+
+      expect(screen.getByText('Choose Your Agreement Type')).toBeInTheDocument()
+    })
+
+    it('shows draft summary after selecting mode', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+
+      navigateToSummary()
 
       expect(screen.getByText('Ready to Build Your Agreement')).toBeInTheDocument()
     })
@@ -116,25 +133,33 @@ describe('CoCreationSessionInitiation', () => {
     it('displays child name in summary header', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText(/with/)).toBeInTheDocument()
       expect(screen.getByText('Alex')).toBeInTheDocument()
     })
 
-    it('shows start button after confirming presence', () => {
+    it('shows start button after confirming presence and mode', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText('Start Building Together')).toBeInTheDocument()
+    })
+
+    it('shows selected mode badge in summary', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+
+      navigateToSummary()
+
+      expect(screen.getByText('Full Agreement')).toBeInTheDocument()
     })
   })
 
   describe('draft summary display', () => {
     it('displays wizard draft summary correctly', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText('Starting Point')).toBeInTheDocument()
       expect(screen.getByText('Daily Screen Time')).toBeInTheDocument()
@@ -152,7 +177,7 @@ describe('CoCreationSessionInitiation', () => {
           draftSource={{ type: 'template_customization', draft: mockTemplateDraft }}
         />
       )
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText('90 minutes')).toBeInTheDocument()
       expect(screen.getByText('20:30')).toBeInTheDocument()
@@ -166,7 +191,7 @@ describe('CoCreationSessionInitiation', () => {
           draftSource={{ type: 'blank' }}
         />
       )
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText('Starting Fresh')).toBeInTheDocument()
       expect(screen.getByText(/build your agreement together from scratch/)).toBeInTheDocument()
@@ -174,7 +199,7 @@ describe('CoCreationSessionInitiation', () => {
   })
 
   describe('session creation', () => {
-    it('calls createSession with correct input for wizard draft', async () => {
+    it('calls createSession with correct input for wizard draft (full mode)', async () => {
       const createSession = vi.fn().mockResolvedValue({
         success: true,
         session: { id: 'session-789' },
@@ -187,7 +212,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -204,11 +229,12 @@ describe('CoCreationSessionInitiation', () => {
             { type: 'bedtime', content: { time: '21:00' } },
             { type: 'monitoring', content: { level: 'moderate' } },
           ],
+          agreementMode: 'full',
         })
       })
     })
 
-    it('calls createSession with correct input for template draft', async () => {
+    it('calls createSession with correct input for template draft (full mode)', async () => {
       const createSession = vi.fn().mockResolvedValue({
         success: true,
         session: { id: 'session-789' },
@@ -222,7 +248,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -239,6 +265,7 @@ describe('CoCreationSessionInitiation', () => {
             { type: 'bedtime', content: { time: '20:30' } },
             { type: 'monitoring', content: { level: 'careful' } },
           ],
+          agreementMode: 'full',
         })
       })
     })
@@ -257,7 +284,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -270,6 +297,47 @@ describe('CoCreationSessionInitiation', () => {
             draftId: undefined,
           },
           initialTerms: undefined,
+          agreementMode: 'full',
+        })
+      })
+    })
+
+    it('excludes monitoring terms in agreement_only mode', async () => {
+      const createSession = vi.fn().mockResolvedValue({
+        success: true,
+        session: { id: 'session-789' },
+      })
+
+      render(
+        <CoCreationSessionInitiation
+          {...defaultProps}
+          createSession={createSession}
+        />
+      )
+
+      // Navigate through presence
+      fireEvent.click(screen.getByText("We're Ready!"))
+      // Select agreement_only mode
+      fireEvent.click(screen.getByTestId('mode-card-agreement_only'))
+      fireEvent.click(screen.getByText('Continue'))
+      // Start session
+      fireEvent.click(screen.getByText('Start Building Together'))
+
+      await waitFor(() => {
+        expect(createSession).toHaveBeenCalledWith({
+          familyId: 'family-456',
+          childId: 'child-123',
+          sourceDraft: {
+            type: 'wizard',
+            templateId: 'template-123',
+            draftId: undefined,
+          },
+          // Monitoring term should be excluded
+          initialTerms: [
+            { type: 'screen_time', content: { minutes: 120 } },
+            { type: 'bedtime', content: { time: '21:00' } },
+          ],
+          agreementMode: 'agreement_only',
         })
       })
     })
@@ -286,7 +354,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       expect(screen.getByText('Creating Session...')).toBeInTheDocument()
@@ -307,7 +375,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(
@@ -333,7 +401,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -354,7 +422,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -372,7 +440,7 @@ describe('CoCreationSessionInitiation', () => {
         />
       )
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Start Building Together'))
 
       await waitFor(() => {
@@ -384,7 +452,7 @@ describe('CoCreationSessionInitiation', () => {
   describe('back navigation from summary step', () => {
     it('shows go back link in summary step', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       expect(screen.getByText('Go back to draft')).toBeInTheDocument()
     })
@@ -393,17 +461,64 @@ describe('CoCreationSessionInitiation', () => {
       const onCancel = vi.fn()
       render(<CoCreationSessionInitiation {...defaultProps} onCancel={onCancel} />)
 
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
       fireEvent.click(screen.getByText('Go back to draft'))
 
       expect(onCancel).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows changing mode from summary', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+      navigateToSummary()
+
+      // Click change button next to mode badge
+      fireEvent.click(screen.getByText('Change'))
+
+      // Should be back on mode selection
+      expect(screen.getByText('Choose Your Agreement Type')).toBeInTheDocument()
+    })
+  })
+
+  describe('mode selection (Story 5.6)', () => {
+    it('shows both mode options', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+      fireEvent.click(screen.getByText("We're Ready!"))
+
+      expect(screen.getByTestId('mode-card-full')).toBeInTheDocument()
+      expect(screen.getByTestId('mode-card-agreement_only')).toBeInTheDocument()
+    })
+
+    it('defaults to full mode selected', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+      fireEvent.click(screen.getByText("We're Ready!"))
+
+      const fullCard = screen.getByTestId('mode-card-full')
+      expect(fullCard).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('allows selecting agreement_only mode', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+      fireEvent.click(screen.getByText("We're Ready!"))
+      fireEvent.click(screen.getByTestId('mode-card-agreement_only'))
+
+      const agreementOnlyCard = screen.getByTestId('mode-card-agreement_only')
+      expect(agreementOnlyCard).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('displays agreement_only badge in summary after selecting', () => {
+      render(<CoCreationSessionInitiation {...defaultProps} />)
+      fireEvent.click(screen.getByText("We're Ready!"))
+      fireEvent.click(screen.getByTestId('mode-card-agreement_only'))
+      fireEvent.click(screen.getByText('Continue'))
+
+      expect(screen.getByText('Agreement Only')).toBeInTheDocument()
     })
   })
 
   describe('accessibility', () => {
     it('uses heading hierarchy correctly', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       const headings = screen.getAllByRole('heading')
       expect(headings.length).toBeGreaterThan(0)
@@ -415,15 +530,15 @@ describe('CoCreationSessionInitiation', () => {
       const confirmButton = screen.getByText("We're Ready!")
       fireEvent.click(confirmButton)
 
-      // Verify new content is rendered
-      expect(screen.getByText('Ready to Build Your Agreement')).toBeInTheDocument()
+      // Verify new content is rendered (mode selection)
+      expect(screen.getByText('Choose Your Agreement Type')).toBeInTheDocument()
     })
   })
 
   describe('design for screen sharing (AC #5)', () => {
     it('uses large text sizes throughout', () => {
       render(<CoCreationSessionInitiation {...defaultProps} />)
-      fireEvent.click(screen.getByText("We're Ready!"))
+      navigateToSummary()
 
       const heading = screen.getByText('Ready to Build Your Agreement')
       expect(heading.className).toContain('text-2xl')

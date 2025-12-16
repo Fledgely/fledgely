@@ -435,11 +435,19 @@ describe('Co-Creation Accessibility Tests', () => {
         )
 
         // Initially shows child presence prompt
-        const confirmButton = screen.getByRole('button', { name: /Confirm.*present/i })
+        const confirmButton = screen.getByRole('button', { name: /Confirm.*present.*start/i })
         expect(confirmButton).toBeInTheDocument()
 
-        // Click to advance
+        // Click to advance to mode selection
         fireEvent.click(confirmButton)
+
+        // Should now show mode selection step
+        const modeHeading = await screen.findByText(/Choose Your Agreement Type/i)
+        expect(modeHeading).toBeInTheDocument()
+
+        // Continue past mode selection (defaults to 'full')
+        const continueButton = screen.getByRole('button', { name: /Continue/i })
+        fireEvent.click(continueButton)
 
         // Should now show draft summary step with start button
         const startButton = await screen.findByRole('button', { name: /Start Building Together/i })

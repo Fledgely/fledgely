@@ -3,10 +3,11 @@
 import { useRef } from 'react'
 import type {
   AgreementPreview as AgreementPreviewType,
+  AgreementMode,
   CoCreationSession,
   SessionContributor,
 } from '@fledgely/contracts'
-import { generateAgreementPreview, getContributionStats } from '@fledgely/contracts'
+import { generateAgreementPreview, getContributionStats, AGREEMENT_MODE_LABELS } from '@fledgely/contracts'
 import { AgreementSummary } from './AgreementSummary'
 import { ContributionAttribution } from './ContributionAttribution'
 import { ImpactSummary } from './ImpactSummary'
@@ -130,6 +131,9 @@ export function AgreementPreview({
   // Generate preview if not provided
   const preview = providedPreview ?? generateAgreementPreview(session)
 
+  // Get agreement mode from session (default to 'full' for backwards compatibility)
+  const agreementMode: AgreementMode = session.agreementMode ?? 'full'
+
   // Ref for scroll tracking container
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -198,9 +202,22 @@ export function AgreementPreview({
       <header className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Agreement Preview
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                Agreement Preview
+              </h1>
+              {/* Mode Badge */}
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  agreementMode === 'agreement_only'
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                    : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                }`}
+                data-testid="preview-mode-badge"
+              >
+                {AGREEMENT_MODE_LABELS[agreementMode]}
+              </span>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Review your family agreement before signing
             </p>
@@ -282,7 +299,8 @@ export function AgreementPreview({
               </h2>
               <ImpactSummary
                 impact={impact}
-                simplified={simplified}
+                agreementMode={agreementMode}
+                simplifiedMode={simplified}
                 data-testid="impact-summary"
               />
             </section>

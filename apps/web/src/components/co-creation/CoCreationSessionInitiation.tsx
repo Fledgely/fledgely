@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import type { AgreementTemplate } from '@fledgely/contracts'
+import type { AgreementTemplate, AgreementMode } from '@fledgely/contracts'
+import { AGREEMENT_MODE_LABELS } from '@fledgely/contracts'
 import { ChildPresencePrompt } from './ChildPresencePrompt'
 import { SessionStartButton } from './SessionStartButton'
+import { AgreementModeSelector } from './mode'
 
 /**
  * Source draft types from Epic 4
@@ -65,10 +67,13 @@ interface CoCreationSessionInitiationProps {
       draftId?: string
     }
     initialTerms?: Array<{ type: string; content: Record<string, unknown> }>
+    agreementMode?: AgreementMode
   }) => Promise<{ success: boolean; session?: { id: string }; error?: string }>
+  /** Default agreement mode (optional, defaults to 'full') */
+  defaultMode?: AgreementMode
 }
 
-type InitiationStep = 'child_presence' | 'draft_summary' | 'starting'
+type InitiationStep = 'child_presence' | 'mode_selection' | 'draft_summary' | 'starting'
 
 /**
  * Co-Creation Session Initiation Component
@@ -111,12 +116,14 @@ export function CoCreationSessionInitiation({
   onSessionStart,
   onCancel,
   createSession,
+  defaultMode = 'full',
 }: CoCreationSessionInitiationProps) {
   // State
   const [currentStep, setCurrentStep] = useState<InitiationStep>('child_presence')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buttonState, setButtonState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [agreementMode, setAgreementMode] = useState<AgreementMode>(defaultMode)
 
   // Derive draft summary info
   const draftSummary = useMemo(() => {
@@ -142,9 +149,19 @@ export function CoCreationSessionInitiation({
     return null
   }, [draftSource])
 
-  // Handle child presence confirmation
+  // Handle child presence confirmation - go to mode selection
   const handlePresenceConfirm = useCallback(() => {
+    setCurrentStep('mode_selection')
+  }, [])
+
+  // Handle mode selection confirmation - go to draft summary
+  const handleModeConfirm = useCallback(() => {
     setCurrentStep('draft_summary')
+  }, [])
+
+  // Handle going back to mode selection
+  const handleBackToModeSelection = useCallback(() => {
+    setCurrentStep('mode_selection')
   }, [])
 
   // Handle start session
@@ -170,6 +187,7 @@ export function CoCreationSessionInitiation({
       }
 
       // Transform draft to initial terms
+      // Skip monitoring terms if in agreement_only mode (Story 5.6 AC #1)
       const initialTerms: Array<{ type: string; content: Record<string, unknown> }> = []
 
       if (draftSource.type === 'wizard') {
@@ -186,7 +204,8 @@ export function CoCreationSessionInitiation({
             content: { time: draft.customizations.bedtimeCutoff },
           })
         }
-        if (draft.customizations.monitoringLevel) {
+        // Only add monitoring terms in 'full' mode
+        if (draft.customizations.monitoringLevel && agreementMode === 'full') {
           initialTerms.push({
             type: 'monitoring',
             content: { level: draft.customizations.monitoringLevel },
@@ -206,7 +225,8 @@ export function CoCreationSessionInitiation({
             content: { time: draft.customizations.bedtimeCutoff },
           })
         }
-        if (draft.customizations.monitoringLevel !== null) {
+        // Only add monitoring terms in 'full' mode
+        if (draft.customizations.monitoringLevel !== null && agreementMode === 'full') {
           initialTerms.push({
             type: 'monitoring',
             content: { level: draft.customizations.monitoringLevel },
@@ -219,6 +239,7 @@ export function CoCreationSessionInitiation({
         childId: child.id,
         sourceDraft,
         initialTerms: initialTerms.length > 0 ? initialTerms : undefined,
+        agreementMode,
       })
 
       if (result.success && result.session) {
@@ -239,7 +260,7 @@ export function CoCreationSessionInitiation({
     } finally {
       setIsLoading(false)
     }
-  }, [familyId, child.id, draftSource, createSession, onSessionStart])
+  }, [familyId, child.id, draftSource, createSession, onSessionStart, agreementMode])
 
   // Render child presence step
   if (currentStep === 'child_presence') {
@@ -250,6 +271,38 @@ export function CoCreationSessionInitiation({
         onCancel={onCancel}
         isLoading={false}
       />
+    )
+  }
+
+  // Render mode selection step (Story 5.6)
+  if (currentStep === 'mode_selection') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] px-6 py-8">
+        <AgreementModeSelector
+          selectedMode={agreementMode}
+          onModeChange={setAgreementMode}
+        />
+
+        {/* Continue Button */}
+        <div className="mt-8">
+          <button
+            type="button"
+            onClick={handleModeConfirm}
+            className="inline-flex items-center justify-center px-8 py-4 text-lg font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors min-w-[200px] min-h-[44px]"
+          >
+            Continue
+          </button>
+        </div>
+
+        {/* Back link */}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mt-4 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:underline"
+        >
+          Go back
+        </button>
+      </div>
     )
   }
 
@@ -264,6 +317,35 @@ export function CoCreationSessionInitiation({
         <p className="text-lg text-gray-600 dark:text-gray-300">
           with <span className="font-semibold">{child.name}</span>
         </p>
+        {/* Mode Badge (Story 5.6) */}
+        <div className="mt-4">
+          <span
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
+              agreementMode === 'full'
+                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+            }`}
+          >
+            {agreementMode === 'full' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+              </svg>
+            )}
+            {AGREEMENT_MODE_LABELS[agreementMode]}
+          </span>
+          <button
+            type="button"
+            onClick={handleBackToModeSelection}
+            className="ml-2 text-sm text-blue-600 dark:text-blue-400 hover:underline focus:outline-none focus:underline"
+            aria-label="Change agreement type"
+          >
+            Change
+          </button>
+        </div>
       </div>
 
       {/* Draft Summary */}

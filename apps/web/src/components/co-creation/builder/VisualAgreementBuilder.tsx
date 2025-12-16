@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import type { SessionTerm, SessionTermType, SessionTermStatus, SessionContributor } from '@fledgely/contracts'
+import type { SessionTerm, SessionTermType, SessionTermStatus, SessionContributor, AgreementMode } from '@fledgely/contracts'
+import { AGREEMENT_MODE_LABELS } from '@fledgely/contracts'
 import { TermDropZone } from './TermDropZone'
 import { TermCountIndicator, MAX_TERMS, useCanAddTerm } from './TermCountIndicator'
 import { getTermTypeLabel, getTermCategoryColors } from './termUtils'
+import { useAgreementModeTerms } from '../../../hooks/useAgreementModeTerms'
 
 /**
  * Category section for grouping terms
@@ -23,6 +25,8 @@ export interface VisualAgreementBuilderProps {
   terms: SessionTerm[]
   /** Current contributor (parent or child) */
   currentContributor: SessionContributor
+  /** Agreement mode - determines which term types are available */
+  agreementMode?: AgreementMode
   /** Callback when terms are reordered */
   onTermsReorder?: (terms: SessionTerm[]) => void
   /** Callback when a term reorder happens (for recording contribution) */
@@ -117,6 +121,7 @@ function groupTermsByCategory(terms: SessionTerm[]): TermCategory[] {
 export function VisualAgreementBuilder({
   terms,
   currentContributor,
+  agreementMode = 'full',
   onTermsReorder,
   onTermReorder,
   onTermSelect,
@@ -130,16 +135,25 @@ export function VisualAgreementBuilder({
   className = '',
   'data-testid': dataTestId,
 }: VisualAgreementBuilderProps) {
-  // Check if we can add more terms
-  const canAddTerm = useCanAddTerm(terms.length)
+  // Use agreement mode hook for term filtering
+  const {
+    visibleTerms,
+    canAddMonitoringTerm,
+    modeLabel,
+    isAgreementOnlyMode,
+    isTermTypeAllowed,
+  } = useAgreementModeTerms(terms, agreementMode)
 
-  // Group terms by category if enabled
+  // Check if we can add more terms
+  const canAddTerm = useCanAddTerm(visibleTerms.length)
+
+  // Group terms by category if enabled (using filtered terms)
   const categories = useMemo(() => {
     if (groupByCategory) {
-      return groupTermsByCategory(terms)
+      return groupTermsByCategory(visibleTerms)
     }
     return null
-  }, [terms, groupByCategory])
+  }, [visibleTerms, groupByCategory])
 
   // Handle term click
   const handleTermClick = useCallback(
@@ -152,11 +166,15 @@ export function VisualAgreementBuilder({
   // Handle add term button click
   const handleAddTermClick = useCallback(
     (type?: SessionTermType) => {
-      if (canAddTerm) {
-        onAddTerm?.(type)
-      }
+      // Don't allow adding if term limit reached
+      if (!canAddTerm) return
+
+      // If a specific type is requested, check if it's allowed in current mode
+      if (type && !isTermTypeAllowed(type)) return
+
+      onAddTerm?.(type)
     },
-    [canAddTerm, onAddTerm]
+    [canAddTerm, onAddTerm, isTermTypeAllowed]
   )
 
   // Handle keyboard shortcut for deselect
@@ -240,9 +258,32 @@ export function VisualAgreementBuilder({
       data-term-count={terms.length}
       onKeyDown={handleKeyDown}
     >
-      {/* Header with count and add button */}
+      {/* Header with mode badge, count and add button */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <TermCountIndicator count={terms.length} />
+        <div className="flex items-center gap-3">
+          {/* Mode badge */}
+          <span
+            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              isAgreementOnlyMode
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                : 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+            }`}
+            data-testid="agreement-mode-badge"
+          >
+            {isAgreementOnlyMode ? (
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            )}
+            {modeLabel}
+          </span>
+
+          <TermCountIndicator count={visibleTerms.length} />
+        </div>
 
         {!isReadOnly && (
           <button
@@ -291,14 +332,19 @@ export function VisualAgreementBuilder({
               onTermStatusChange={onTermStatusChange}
               onReorder={onTermsReorder}
               onTermReorder={onTermReorder}
-              onAddTerm={canAddTerm ? () => handleAddTermClick(category.type) : undefined}
+              // Only show Add button if term limit not reached AND term type is allowed in current mode
+              onAddTerm={
+                canAddTerm && isTermTypeAllowed(category.type)
+                  ? () => handleAddTermClick(category.type)
+                  : undefined
+              }
             />
           ))}
         </div>
       ) : (
         // Flat list
         <TermDropZone
-          terms={terms}
+          terms={visibleTerms}
           selectedTermId={selectedTermId}
           isDragDisabled={isReadOnly}
           onReorder={onTermsReorder}

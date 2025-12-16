@@ -93,6 +93,12 @@ import {
   RESOLUTION_STATUS_LABELS,
   DISCUSSION_LIMITS,
   DISCUSSION_ERROR_MESSAGES,
+  // Story 5.6: Agreement Mode Constants
+  AGREEMENT_MODE_LABELS,
+  AGREEMENT_MODE_DESCRIPTIONS,
+  AGREEMENT_MODE_FEATURES,
+  MONITORING_TERM_TYPES,
+  MONITORING_SECTION_TYPES,
   // Types
   type CoCreationSession,
   type SessionContribution,
@@ -104,6 +110,24 @@ import {
   type AgreementPreview,
   type ContributionSummary,
   type ImpactEstimate,
+  // Story 5.6 Types
+  type AgreementMode,
+  // Story 5.6 Schemas
+  agreementModeSchema,
+  // Story 5.6 Helper Functions
+  getAgreementModeLabel,
+  getAgreementModeDescription,
+  getAgreementModeFeatures,
+  isMonitoringTermType,
+  getMonitoringTermTypes,
+  filterTermsForMode,
+  canUpgradeToMonitoring,
+  getAvailableTermTypesForMode,
+  isMonitoringSectionType,
+  getHiddenSectionTypesForMode,
+  filterSectionsForMode,
+  filterTemplateForMode,
+  templateHasMonitoringSections,
 } from './co-creation-session.schema'
 
 /**
@@ -164,6 +188,7 @@ const createValidSession = (overrides?: Partial<CoCreationSession>): CoCreationS
   initiatedBy: 'parent-789',
   status: 'active',
   sourceDraft: { type: 'wizard', templateId: 'template-001' },
+  agreementMode: 'full',
   terms: [createValidTerm()],
   contributions: [createValidContribution()],
   createdAt: '2024-01-15T10:00:00.000Z',
@@ -411,14 +436,16 @@ describe('co-creation-session.schema', () => {
 
   describe('createCoCreationSessionInputSchema', () => {
     it('should accept valid create input', () => {
-      const input: CreateCoCreationSessionInput = {
+      // Note: agreementMode has .default('full'), so it's optional in input but required in output
+      const input = {
         familyId: 'family-123',
         childId: 'child-456',
-        sourceDraft: { type: 'wizard', templateId: 'template-001' },
+        sourceDraft: { type: 'wizard' as const, templateId: 'template-001' },
       }
       const result = createCoCreationSessionInputSchema.parse(input)
       expect(result.familyId).toBe('family-123')
       expect(result.childId).toBe('child-456')
+      expect(result.agreementMode).toBe('full') // Default value
     })
 
     it('should accept input with initial terms', () => {
@@ -1422,6 +1449,7 @@ describe('co-creation-session.schema', () => {
       initiatedBy: 'parent',
       status: 'active',
       sourceDraft: { type: 'wizard' },
+      agreementMode: 'full',
       terms: [validTerm],
       contributions: [validContribution],
       createdAt: '2025-01-01T00:00:00Z',
@@ -1982,6 +2010,7 @@ describe('co-creation-session.schema', () => {
           initiatedBy: 'parent',
           status: 'active',
           sourceDraft: { type: 'wizard' },
+          agreementMode: 'full',
           terms: [{
             id: '550e8400-e29b-41d4-a716-446655440001',
             type: 'screen_time',
@@ -2026,6 +2055,7 @@ describe('co-creation-session.schema', () => {
           initiatedBy: 'parent',
           status: 'active',
           sourceDraft: { type: 'wizard' },
+          agreementMode: 'full',
           terms: [
             {
               id: '550e8400-e29b-41d4-a716-446655440001',
@@ -2186,6 +2216,466 @@ describe('co-creation-session.schema', () => {
         const stats = getContributionStats(contributions)
         expect(stats.parentPercentage).toBe(100)
         expect(stats.childPercentage).toBe(0)
+      })
+    })
+  })
+
+  // ============================================================================
+  // Story 5.6: Agreement Mode Schema Tests
+  // ============================================================================
+
+  describe('Agreement Mode Schemas (Story 5.6)', () => {
+    describe('agreementModeSchema', () => {
+      it('should accept valid mode values', () => {
+        expect(agreementModeSchema.parse('full')).toBe('full')
+        expect(agreementModeSchema.parse('agreement_only')).toBe('agreement_only')
+      })
+
+      it('should reject invalid mode values', () => {
+        expect(() => agreementModeSchema.parse('invalid')).toThrow()
+        expect(() => agreementModeSchema.parse('')).toThrow()
+        expect(() => agreementModeSchema.parse(null)).toThrow()
+        expect(() => agreementModeSchema.parse(undefined)).toThrow()
+      })
+    })
+
+    describe('coCreationSessionSchema with agreementMode', () => {
+      it('should accept session with full mode', () => {
+        const session = createValidSession({ agreementMode: 'full' })
+        const result = coCreationSessionSchema.parse(session)
+        expect(result.agreementMode).toBe('full')
+      })
+
+      it('should accept session with agreement_only mode', () => {
+        const session = createValidSession({ agreementMode: 'agreement_only' })
+        const result = coCreationSessionSchema.parse(session)
+        expect(result.agreementMode).toBe('agreement_only')
+      })
+
+      it('should default to full mode when not specified', () => {
+        const session = createValidSession()
+        delete (session as any).agreementMode
+        const result = coCreationSessionSchema.parse(session)
+        expect(result.agreementMode).toBe('full')
+      })
+    })
+
+    describe('createCoCreationSessionInputSchema with agreementMode', () => {
+      it('should accept input with full mode', () => {
+        const input = {
+          familyId: 'family-123',
+          childId: 'child-456',
+          sourceDraft: { type: 'blank' },
+          agreementMode: 'full',
+        }
+        const result = createCoCreationSessionInputSchema.parse(input)
+        expect(result.agreementMode).toBe('full')
+      })
+
+      it('should accept input with agreement_only mode', () => {
+        const input = {
+          familyId: 'family-123',
+          childId: 'child-456',
+          sourceDraft: { type: 'blank' },
+          agreementMode: 'agreement_only',
+        }
+        const result = createCoCreationSessionInputSchema.parse(input)
+        expect(result.agreementMode).toBe('agreement_only')
+      })
+
+      it('should default agreementMode to full', () => {
+        const input = {
+          familyId: 'family-123',
+          childId: 'child-456',
+          sourceDraft: { type: 'blank' },
+        }
+        const result = createCoCreationSessionInputSchema.parse(input)
+        expect(result.agreementMode).toBe('full')
+      })
+    })
+
+    describe('AGREEMENT_MODE_LABELS', () => {
+      it('should have labels for all modes', () => {
+        expect(AGREEMENT_MODE_LABELS.full).toBe('Full Agreement')
+        expect(AGREEMENT_MODE_LABELS.agreement_only).toBe('Agreement Only')
+      })
+    })
+
+    describe('AGREEMENT_MODE_DESCRIPTIONS', () => {
+      it('should have 6th-grade level descriptions for all modes', () => {
+        expect(AGREEMENT_MODE_DESCRIPTIONS.full).toContain('monitor')
+        expect(AGREEMENT_MODE_DESCRIPTIONS.agreement_only).toContain('without')
+      })
+    })
+
+    describe('AGREEMENT_MODE_FEATURES', () => {
+      it('should have included features for full mode', () => {
+        expect(AGREEMENT_MODE_FEATURES.full.included).toContain('Device monitoring')
+        expect(AGREEMENT_MODE_FEATURES.full.excluded).toHaveLength(0)
+      })
+
+      it('should have excluded features for agreement_only mode', () => {
+        expect(AGREEMENT_MODE_FEATURES.agreement_only.excluded).toContain('Device monitoring')
+        expect(AGREEMENT_MODE_FEATURES.agreement_only.included).not.toContain('Device monitoring')
+      })
+    })
+
+    describe('MONITORING_TERM_TYPES', () => {
+      it('should include monitoring term type', () => {
+        expect(MONITORING_TERM_TYPES).toContain('monitoring')
+      })
+    })
+
+    describe('MONITORING_SECTION_TYPES', () => {
+      it('should include monitoring_rules section type', () => {
+        expect(MONITORING_SECTION_TYPES).toContain('monitoring_rules')
+      })
+    })
+
+    describe('getAgreementModeLabel', () => {
+      it('should return correct label for full mode', () => {
+        expect(getAgreementModeLabel('full')).toBe('Full Agreement')
+      })
+
+      it('should return correct label for agreement_only mode', () => {
+        expect(getAgreementModeLabel('agreement_only')).toBe('Agreement Only')
+      })
+    })
+
+    describe('getAgreementModeDescription', () => {
+      it('should return correct description for full mode', () => {
+        expect(getAgreementModeDescription('full')).toContain('monitor')
+      })
+
+      it('should return correct description for agreement_only mode', () => {
+        expect(getAgreementModeDescription('agreement_only')).toContain('without')
+      })
+    })
+
+    describe('getAgreementModeFeatures', () => {
+      it('should return features for full mode', () => {
+        const features = getAgreementModeFeatures('full')
+        expect(features.included.length).toBeGreaterThan(0)
+        expect(features.excluded.length).toBe(0)
+      })
+
+      it('should return features for agreement_only mode', () => {
+        const features = getAgreementModeFeatures('agreement_only')
+        expect(features.included.length).toBeGreaterThan(0)
+        expect(features.excluded.length).toBeGreaterThan(0)
+      })
+    })
+
+    describe('isMonitoringTermType', () => {
+      it('should return true for monitoring term type', () => {
+        expect(isMonitoringTermType('monitoring')).toBe(true)
+      })
+
+      it('should return false for non-monitoring term types', () => {
+        expect(isMonitoringTermType('screen_time')).toBe(false)
+        expect(isMonitoringTermType('bedtime')).toBe(false)
+        expect(isMonitoringTermType('rule')).toBe(false)
+        expect(isMonitoringTermType('consequence')).toBe(false)
+        expect(isMonitoringTermType('reward')).toBe(false)
+      })
+    })
+
+    describe('getMonitoringTermTypes', () => {
+      it('should return monitoring term types array', () => {
+        const types = getMonitoringTermTypes()
+        expect(types).toContain('monitoring')
+        expect(types.length).toBe(1)
+      })
+
+      it('should return a new array each time', () => {
+        const types1 = getMonitoringTermTypes()
+        const types2 = getMonitoringTermTypes()
+        expect(types1).not.toBe(types2)
+        expect(types1).toEqual(types2)
+      })
+    })
+
+    describe('filterTermsForMode', () => {
+      const termsWithMonitoring = [
+        createValidTerm({ type: 'screen_time' }),
+        createValidTerm({ id: '550e8400-e29b-41d4-a716-446655440010', type: 'bedtime' }),
+        createValidTerm({ id: '550e8400-e29b-41d4-a716-446655440011', type: 'monitoring' }),
+        createValidTerm({ id: '550e8400-e29b-41d4-a716-446655440012', type: 'rule' }),
+      ]
+
+      it('should return all terms for full mode', () => {
+        const filtered = filterTermsForMode(termsWithMonitoring, 'full')
+        expect(filtered).toHaveLength(4)
+        expect(filtered).toEqual(termsWithMonitoring)
+      })
+
+      it('should filter out monitoring terms for agreement_only mode (AC #1)', () => {
+        const filtered = filterTermsForMode(termsWithMonitoring, 'agreement_only')
+        expect(filtered).toHaveLength(3)
+        expect(filtered.every(t => t.type !== 'monitoring')).toBe(true)
+      })
+
+      it('should preserve non-monitoring terms for agreement_only mode (AC #2)', () => {
+        const filtered = filterTermsForMode(termsWithMonitoring, 'agreement_only')
+        expect(filtered.some(t => t.type === 'screen_time')).toBe(true)
+        expect(filtered.some(t => t.type === 'bedtime')).toBe(true)
+        expect(filtered.some(t => t.type === 'rule')).toBe(true)
+      })
+
+      it('should handle empty terms array', () => {
+        const filtered = filterTermsForMode([], 'agreement_only')
+        expect(filtered).toHaveLength(0)
+      })
+    })
+
+    describe('canUpgradeToMonitoring (AC #5)', () => {
+      it('should return true for agreement_only session with active status', () => {
+        const session = createValidSession({
+          agreementMode: 'agreement_only',
+          status: 'active',
+        })
+        expect(canUpgradeToMonitoring(session)).toBe(true)
+      })
+
+      it('should return true for agreement_only session with paused status', () => {
+        const session = createValidSession({
+          agreementMode: 'agreement_only',
+          status: 'paused',
+        })
+        expect(canUpgradeToMonitoring(session)).toBe(true)
+      })
+
+      it('should return false for agreement_only session with completed status', () => {
+        const session = createValidSession({
+          agreementMode: 'agreement_only',
+          status: 'completed',
+        })
+        expect(canUpgradeToMonitoring(session)).toBe(false)
+      })
+
+      it('should return false for agreement_only session with abandoned status', () => {
+        const session = createValidSession({
+          agreementMode: 'agreement_only',
+          status: 'abandoned',
+        })
+        expect(canUpgradeToMonitoring(session)).toBe(false)
+      })
+
+      it('should return false for full mode session', () => {
+        const session = createValidSession({
+          agreementMode: 'full',
+          status: 'active',
+        })
+        expect(canUpgradeToMonitoring(session)).toBe(false)
+      })
+
+      it('should default to full mode when agreementMode is not set', () => {
+        const session = createValidSession()
+        delete (session as any).agreementMode
+        // After parse, it defaults to 'full', so should return false
+        expect(canUpgradeToMonitoring(session)).toBe(false)
+      })
+    })
+
+    describe('getAvailableTermTypesForMode', () => {
+      it('should return all term types for full mode', () => {
+        const types = getAvailableTermTypesForMode('full')
+        expect(types).toContain('screen_time')
+        expect(types).toContain('bedtime')
+        expect(types).toContain('monitoring')
+        expect(types).toContain('rule')
+        expect(types).toContain('consequence')
+        expect(types).toContain('reward')
+        expect(types).toHaveLength(6)
+      })
+
+      it('should exclude monitoring for agreement_only mode', () => {
+        const types = getAvailableTermTypesForMode('agreement_only')
+        expect(types).toContain('screen_time')
+        expect(types).toContain('bedtime')
+        expect(types).not.toContain('monitoring')
+        expect(types).toContain('rule')
+        expect(types).toContain('consequence')
+        expect(types).toContain('reward')
+        expect(types).toHaveLength(5)
+      })
+    })
+
+    describe('isMonitoringSectionType', () => {
+      it('should return true for monitoring_rules section type', () => {
+        expect(isMonitoringSectionType('monitoring_rules')).toBe(true)
+      })
+
+      it('should return false for non-monitoring section types', () => {
+        expect(isMonitoringSectionType('screen_time')).toBe(false)
+        expect(isMonitoringSectionType('bedtime_schedule')).toBe(false)
+        expect(isMonitoringSectionType('terms')).toBe(false)
+        expect(isMonitoringSectionType('consequences')).toBe(false)
+        expect(isMonitoringSectionType('rewards')).toBe(false)
+      })
+
+      it('should return false for unknown section types', () => {
+        expect(isMonitoringSectionType('unknown')).toBe(false)
+        expect(isMonitoringSectionType('')).toBe(false)
+      })
+    })
+
+    describe('getHiddenSectionTypesForMode', () => {
+      it('should return empty array for full mode', () => {
+        const hidden = getHiddenSectionTypesForMode('full')
+        expect(hidden).toHaveLength(0)
+      })
+
+      it('should return monitoring_rules for agreement_only mode', () => {
+        const hidden = getHiddenSectionTypesForMode('agreement_only')
+        expect(hidden).toContain('monitoring_rules')
+        expect(hidden).toHaveLength(1)
+      })
+    })
+
+    describe('filterSectionsForMode', () => {
+      const mockSections = [
+        { id: '1', type: 'screen_time', title: 'Screen Time' },
+        { id: '2', type: 'monitoring_rules', title: 'Monitoring' },
+        { id: '3', type: 'bedtime_schedule', title: 'Bedtime' },
+        { id: '4', type: 'consequences', title: 'Consequences' },
+      ]
+
+      it('should return all sections for full mode', () => {
+        const filtered = filterSectionsForMode(mockSections, 'full')
+        expect(filtered).toHaveLength(4)
+        expect(filtered).toEqual(mockSections)
+      })
+
+      it('should filter out monitoring_rules for agreement_only mode', () => {
+        const filtered = filterSectionsForMode(mockSections, 'agreement_only')
+        expect(filtered).toHaveLength(3)
+        expect(filtered.find(s => s.type === 'monitoring_rules')).toBeUndefined()
+      })
+
+      it('should preserve non-monitoring sections in agreement_only mode', () => {
+        const filtered = filterSectionsForMode(mockSections, 'agreement_only')
+        expect(filtered.find(s => s.type === 'screen_time')).toBeDefined()
+        expect(filtered.find(s => s.type === 'bedtime_schedule')).toBeDefined()
+        expect(filtered.find(s => s.type === 'consequences')).toBeDefined()
+      })
+
+      it('should handle empty sections array', () => {
+        const filtered = filterSectionsForMode([], 'agreement_only')
+        expect(filtered).toHaveLength(0)
+      })
+
+      it('should handle sections with no monitoring_rules', () => {
+        const noMonitoringSections = [
+          { id: '1', type: 'screen_time', title: 'Screen Time' },
+          { id: '2', type: 'bedtime_schedule', title: 'Bedtime' },
+        ]
+        const filtered = filterSectionsForMode(noMonitoringSections, 'agreement_only')
+        expect(filtered).toHaveLength(2)
+      })
+
+      it('should work with objects that only have type property', () => {
+        const simpleSections = [
+          { type: 'screen_time' },
+          { type: 'monitoring_rules' },
+        ]
+        const filtered = filterSectionsForMode(simpleSections, 'agreement_only')
+        expect(filtered).toHaveLength(1)
+        expect(filtered[0].type).toBe('screen_time')
+      })
+    })
+
+    describe('filterTemplateForMode', () => {
+      const mockTemplate = {
+        id: 'template-1',
+        name: 'Test Template',
+        sections: [
+          { id: '1', type: 'screen_time', title: 'Screen Time' },
+          { id: '2', type: 'monitoring_rules', title: 'Monitoring' },
+          { id: '3', type: 'bedtime_schedule', title: 'Bedtime' },
+          { id: '4', type: 'consequences', title: 'Consequences' },
+        ],
+      }
+
+      it('should return template unchanged for full mode', () => {
+        const filtered = filterTemplateForMode(mockTemplate, 'full')
+        expect(filtered).toBe(mockTemplate)
+        expect(filtered.sections).toHaveLength(4)
+      })
+
+      it('should filter out monitoring_rules sections for agreement_only mode', () => {
+        const filtered = filterTemplateForMode(mockTemplate, 'agreement_only')
+        expect(filtered.sections).toHaveLength(3)
+        expect(filtered.sections.find(s => s.type === 'monitoring_rules')).toBeUndefined()
+      })
+
+      it('should preserve template id and name in filtered result', () => {
+        const filtered = filterTemplateForMode(mockTemplate, 'agreement_only')
+        expect(filtered.id).toBe('template-1')
+        expect(filtered.name).toBe('Test Template')
+      })
+
+      it('should not modify the original template', () => {
+        const originalSectionCount = mockTemplate.sections.length
+        filterTemplateForMode(mockTemplate, 'agreement_only')
+        expect(mockTemplate.sections).toHaveLength(originalSectionCount)
+      })
+
+      it('should handle template with no monitoring sections', () => {
+        const noMonitoringTemplate = {
+          id: 'template-2',
+          name: 'No Monitoring',
+          sections: [
+            { id: '1', type: 'screen_time', title: 'Screen Time' },
+            { id: '2', type: 'bedtime_schedule', title: 'Bedtime' },
+          ],
+        }
+        const filtered = filterTemplateForMode(noMonitoringTemplate, 'agreement_only')
+        expect(filtered.sections).toHaveLength(2)
+      })
+
+      it('should handle empty sections array', () => {
+        const emptyTemplate = { id: 't1', name: 'Empty', sections: [] }
+        const filtered = filterTemplateForMode(emptyTemplate, 'agreement_only')
+        expect(filtered.sections).toHaveLength(0)
+      })
+    })
+
+    describe('templateHasMonitoringSections', () => {
+      it('should return true for template with monitoring_rules section', () => {
+        const template = {
+          id: 't1',
+          sections: [
+            { type: 'screen_time' },
+            { type: 'monitoring_rules' },
+          ],
+        }
+        expect(templateHasMonitoringSections(template)).toBe(true)
+      })
+
+      it('should return false for template without monitoring sections', () => {
+        const template = {
+          id: 't1',
+          sections: [
+            { type: 'screen_time' },
+            { type: 'bedtime_schedule' },
+            { type: 'consequences' },
+          ],
+        }
+        expect(templateHasMonitoringSections(template)).toBe(false)
+      })
+
+      it('should return false for empty sections array', () => {
+        const template = { id: 't1', sections: [] }
+        expect(templateHasMonitoringSections(template)).toBe(false)
+      })
+
+      it('should return true when only section is monitoring', () => {
+        const template = {
+          id: 't1',
+          sections: [{ type: 'monitoring_rules' }],
+        }
+        expect(templateHasMonitoringSections(template)).toBe(true)
       })
     })
   })

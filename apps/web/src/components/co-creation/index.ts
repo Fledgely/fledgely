@@ -90,3 +90,6 @@ export type {
   ExportButtonProps,
   AgreementPreviewProps,
 } from './preview'
+
+// Story 5.6: Agreement Mode Selection Components
+export { AgreementModeSelector } from './mode'

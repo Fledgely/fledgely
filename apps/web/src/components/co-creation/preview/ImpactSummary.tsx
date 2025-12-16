@@ -1,6 +1,6 @@
 'use client'
 
-import type { ImpactEstimate } from '@fledgely/contracts'
+import type { ImpactEstimate, AgreementMode } from '@fledgely/contracts'
 
 /**
  * Props for the ImpactSummary component
@@ -8,6 +8,8 @@ import type { ImpactEstimate } from '@fledgely/contracts'
 export interface ImpactSummaryProps {
   /** The impact estimate data */
   impact: ImpactEstimate
+  /** Agreement mode - hides monitoring impact in agreement_only mode */
+  agreementMode?: AgreementMode
   /** Whether to use simplified language for younger children */
   simplifiedMode?: boolean
   /** Additional CSS classes */
@@ -257,13 +259,17 @@ function MonitoringCard({ monitoring, simplified }: MonitoringCardProps) {
  */
 export function ImpactSummary({
   impact,
+  agreementMode = 'full',
   simplifiedMode = false,
   className = '',
   'data-testid': dataTestId = 'impact-summary',
 }: ImpactSummaryProps) {
+  // Don't show monitoring in agreement_only mode
+  const showMonitoring = agreementMode !== 'agreement_only'
+
   const hasScreenTime = !!impact.screenTime
   const hasBedtime = !!impact.bedtime
-  const hasMonitoring = !!impact.monitoring
+  const hasMonitoring = !!impact.monitoring && showMonitoring
   const hasAnyImpact = hasScreenTime || hasBedtime || hasMonitoring
 
   if (!hasAnyImpact) {

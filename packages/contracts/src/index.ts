@@ -875,6 +875,29 @@ export {
   canProceedFromPreview,
   getScrollCompletionMessage,
   getContributionStats,
+  // Story 5.6 Agreement Mode Schemas and Types
+  agreementModeSchema,
+  type AgreementMode,
+  // Story 5.6 Agreement Mode Constants
+  AGREEMENT_MODE_LABELS,
+  AGREEMENT_MODE_DESCRIPTIONS,
+  AGREEMENT_MODE_FEATURES,
+  MONITORING_TERM_TYPES,
+  MONITORING_SECTION_TYPES,
+  // Story 5.6 Agreement Mode Helper Functions
+  getAgreementModeLabel,
+  getAgreementModeDescription,
+  getAgreementModeFeatures,
+  isMonitoringTermType,
+  getMonitoringTermTypes,
+  filterTermsForMode,
+  canUpgradeToMonitoring,
+  getAvailableTermTypesForMode,
+  isMonitoringSectionType,
+  getHiddenSectionTypesForMode,
+  filterSectionsForMode,
+  filterTemplateForMode,
+  templateHasMonitoringSections,
 } from './co-creation-session.schema'
 
 // Readability Validation Utilities (Story 4.2 - Task 3)
