@@ -111,8 +111,8 @@ development_status:
   epic-4-retrospective: completed
 
   # Epic 5: Basic Agreement Co-Creation
-  epic-5: backlog
-  5-1-co-creation-session-initiation: backlog
+  epic-5: in-progress
+  5-1-co-creation-session-initiation: ready-for-dev
   5-2-visual-agreement-builder: backlog
   5-3-child-contribution-capture: backlog
   5-4-negotiation-discussion-support: backlog
