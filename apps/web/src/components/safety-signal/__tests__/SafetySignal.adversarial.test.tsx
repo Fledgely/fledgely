@@ -43,7 +43,8 @@ function TestConsumer() {
     <div>
       <span data-testid="signal-triggered">{ctx.signalTriggered ? 'yes' : 'no'}</span>
       <span data-testid="enabled">{ctx.enabled ? 'yes' : 'no'}</span>
-      <span data-testid="in-progress">{ctx.isGestureInProgress ? 'yes' : 'no'}</span>
+      {/* INV-002: Gesture progress is intentionally NOT exposed to context */}
+      {/* This verifies observers cannot track partial gesture completion */}
     </div>
   )
 }

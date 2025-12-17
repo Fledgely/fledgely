@@ -137,7 +137,8 @@ describe('SafetySignalConfirmation', () => {
   describe('Content', () => {
     it('should show default confirmation message', () => {
       renderAndTrigger()
-      expect(screen.getByText(DEFAULT_CONFIRMATION_CONTENT.message)).toBeInTheDocument()
+      // Use heading role to avoid matching ARIA live region
+      expect(screen.getByRole('heading', { name: DEFAULT_CONFIRMATION_CONTENT.message })).toBeInTheDocument()
     })
 
     it('should show secondary message', () => {
@@ -157,7 +158,8 @@ describe('SafetySignalConfirmation', () => {
         secondaryMessage: 'Stay safe',
       }
       renderAndTrigger({ content: customContent })
-      expect(screen.getByText('Help is coming')).toBeInTheDocument()
+      // Use heading role to avoid matching ARIA live region
+      expect(screen.getByRole('heading', { name: 'Help is coming' })).toBeInTheDocument()
       expect(screen.getByText('Stay safe')).toBeInTheDocument()
     })
 
@@ -174,7 +176,8 @@ describe('SafetySignalConfirmation', () => {
   describe('Offline State', () => {
     it('should show offline message when signal is queued', () => {
       renderAndTrigger({}, true)
-      expect(screen.getByText(DEFAULT_CONFIRMATION_CONTENT.offlineMessage)).toBeInTheDocument()
+      // Use heading role to avoid matching ARIA live region
+      expect(screen.getByRole('heading', { name: DEFAULT_CONFIRMATION_CONTENT.offlineMessage })).toBeInTheDocument()
     })
 
     it('should show offline secondary message', () => {
@@ -186,7 +189,8 @@ describe('SafetySignalConfirmation', () => {
 
     it('should not show offline message when online', () => {
       renderAndTrigger({}, false)
-      expect(screen.queryByText(DEFAULT_CONFIRMATION_CONTENT.offlineMessage)).not.toBeInTheDocument()
+      // When online, the heading should show the online message instead
+      expect(screen.queryByRole('heading', { name: DEFAULT_CONFIRMATION_CONTENT.offlineMessage })).not.toBeInTheDocument()
     })
 
     it('should use isOffline prop as fallback when context isOffline is undefined', () => {
@@ -197,7 +201,8 @@ describe('SafetySignalConfirmation', () => {
       mockContextValue.signalTriggered = true
       rerender(<SafetySignalConfirmation isOffline={true} />)
       // Component should use prop value as fallback
-      expect(screen.getByText(DEFAULT_CONFIRMATION_CONTENT.offlineMessage)).toBeInTheDocument()
+      // Use heading role to avoid matching ARIA live region
+      expect(screen.getByRole('heading', { name: DEFAULT_CONFIRMATION_CONTENT.offlineMessage })).toBeInTheDocument()
     })
   })
 

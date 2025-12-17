@@ -244,14 +244,25 @@ export function SafetySignalConfirmation({
   const [userInteracted, setUserInteracted] = useState(false)
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const dismissingRef = useRef(false)
 
   // Dismiss handler - must be defined before resetTimeout
+  // Prevents multiple simultaneous dismissals (race condition fix)
   const handleDismiss = useCallback(() => {
+    if (dismissingRef.current) {
+      return
+    }
+    dismissingRef.current = true
     setFading(true)
     setTimeout(() => {
       setVisible(false)
       setFading(false)
       setUserInteracted(false)
+      dismissingRef.current = false
+      // Restore focus to previous element
+      previousFocusRef.current?.focus()
       onDismiss?.()
     }, SIGNAL_CONFIRMATION_CONSTANTS.FADE_OUT_MS)
   }, [onDismiss])
@@ -326,6 +337,47 @@ export function SafetySignalConfirmation({
     }
   }, [safetySignal?.signalTriggered, safetySignal?.isOffline, isOfflineProp, resetTimeout])
 
+  // Focus management - trap focus in dialog when visible (accessibility)
+  useEffect(() => {
+    if (visible && dialogRef.current) {
+      // Save current focus to restore later
+      previousFocusRef.current = document.activeElement as HTMLElement
+
+      // Focus first interactive element
+      const firstFocusable = dialogRef.current.querySelector<HTMLElement>(
+        'a[href], button:not([disabled])'
+      )
+      firstFocusable?.focus()
+
+      // Trap focus within dialog
+      const handleTabKey = (e: KeyboardEvent) => {
+        if (e.key !== 'Tab') return
+
+        const focusableElements = dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled])'
+        )
+        if (!focusableElements?.length) return
+
+        const firstElement = focusableElements[0]
+        const lastElement = focusableElements[focusableElements.length - 1]
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement.focus()
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement.focus()
+        }
+      }
+
+      document.addEventListener('keydown', handleTabKey)
+
+      return () => {
+        document.removeEventListener('keydown', handleTabKey)
+      }
+    }
+  }, [visible])
+
   // Listen for ESC key
   useEffect(() => {
     if (visible) {
@@ -369,6 +421,7 @@ export function SafetySignalConfirmation({
 
       {/* Confirmation panel */}
       <div
+        ref={dialogRef}
         data-testid={testId}
         className={className}
         role="dialog"
@@ -453,6 +506,24 @@ export function SafetySignalConfirmation({
         >
           {content.dismissInstruction}
         </p>
+
+        {/* Screen reader announcements (visually hidden) */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            position: 'absolute',
+            left: '-10000px',
+            width: '1px',
+            height: '1px',
+            overflow: 'hidden',
+          }}
+        >
+          {isOffline
+            ? `${content.offlineMessage}. ${content.offlineSecondaryMessage}`
+            : content.message}
+        </div>
       </div>
     </>
   )
