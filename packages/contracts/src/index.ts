@@ -1228,3 +1228,93 @@ export {
   type TriggerSafetySignalResponse,
   type GestureConfig,
 } from './safetySignal.schema'
+
+// External Signal Routing Schemas (Story 7.5.2)
+export {
+  // Constants
+  EXTERNAL_ROUTING_CONSTANTS,
+  PARTNER_STATUS_LABELS,
+  ROUTING_STATUS_LABELS,
+  BLACKOUT_STATUS_LABELS,
+  // Schemas
+  externalSignalPayloadSchema,
+  partnerStatusSchema,
+  crisisPartnerConfigSchema,
+  partnerRegistrySchema,
+  routingStatusSchema,
+  signalRoutingRecordSchema,
+  blackoutStatusSchema,
+  signalBlackoutSchema,
+  checkBlackoutInputSchema,
+  checkBlackoutResponseSchema,
+  encryptedSignalPackageSchema,
+  partnerWebhookPayloadSchema,
+  partnerWebhookResponseSchema,
+  routeSignalInputSchema,
+  routeSignalResponseSchema,
+  // Helper functions
+  validatePayloadExclusions,
+  getPartnerStatusLabel,
+  getRoutingStatusLabel,
+  getBlackoutStatusLabel,
+  safeParseExternalSignalPayload,
+  validateExternalSignalPayload,
+  safeParseCrisisPartnerConfig,
+  safeParseSignalRoutingRecord,
+  safeParseSignalBlackout,
+  isBlackoutActive,
+  getRemainingBlackoutMs,
+  createBlackout,
+  createExternalPayload,
+  generateSignalRef,
+  isPartnerKeyExpiringSoon,
+  isPartnerAvailable,
+  findPartnerForJurisdiction,
+  // Types
+  type ExternalSignalPayload,
+  type PartnerStatus,
+  type CrisisPartnerConfig,
+  type PartnerRegistry,
+  type RoutingStatus,
+  type SignalRoutingRecord,
+  type BlackoutStatus,
+  type SignalBlackout,
+  type CheckBlackoutInput,
+  type CheckBlackoutResponse,
+  type EncryptedSignalPackage,
+  type PartnerWebhookPayload,
+  type PartnerWebhookResponse,
+  type RouteSignalInput,
+  type RouteSignalResponse,
+} from './externalSignalRouting.schema'
+
+// Signal Confirmation Schemas (Story 7.5.3)
+export {
+  // Constants
+  SIGNAL_CONFIRMATION_CONSTANTS,
+  CRISIS_RESOURCE_TYPES,
+  DEFAULT_CRISIS_RESOURCES,
+  DEFAULT_CONFIRMATION_CONTENT,
+  // Schemas
+  crisisResourceTypeSchema,
+  crisisResourceSchema,
+  crisisResourceListSchema,
+  signalConfirmationContentSchema,
+  confirmationStateSchema,
+  // Helper functions
+  getResourcesForJurisdiction,
+  getResourceHref,
+  createInitialConfirmationState,
+  createVisibleConfirmationState,
+  safeParseCrisisResource,
+  safeParseSignalConfirmationContent,
+  isChildAppropriateText,
+  estimateReadingLevel,
+  validateConfirmationReadingLevel,
+  // Types
+  type CrisisResourceType,
+  type CrisisResource,
+  type CrisisResourceList,
+  type SignalConfirmationContent,
+  type ConfirmationState,
+} from './signalConfirmation.schema'

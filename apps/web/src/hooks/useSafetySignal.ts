@@ -58,13 +58,19 @@ export interface UseSafetySignalReturn {
    * Register a callback for when a signal is triggered
    * Callback receives the queue ID (NOT the server signal ID)
    */
-  onSignalTriggered: (callback: SignalTriggeredCallback) => void
+  onSignalTriggered: (callback: SignalTriggeredCallback) => () => void
 
   /**
    * Whether a signal was recently triggered (for discrete confirmation)
    * Auto-resets after CONFIRMATION_DISPLAY_MS
    */
   signalTriggered: boolean
+
+  /**
+   * Whether the last triggered signal was queued for offline delivery
+   * True when signal was queued but not sent immediately
+   */
+  isOffline: boolean
 
   /**
    * Whether the gesture sequence is in progress
@@ -191,6 +197,9 @@ export function useSafetySignal(options: UseSafetySignalOptions): UseSafetySigna
   // Signal triggered state (for confirmation display)
   const [signalTriggered, setSignalTriggered] = useState(false)
 
+  // Offline state (whether signal was queued for offline delivery)
+  const [isOffline, setIsOffline] = useState(false)
+
   // Callbacks ref for signal triggered events
   const callbacksRef = useRef<SignalTriggeredCallback[]>([])
 
@@ -252,6 +261,9 @@ export function useSafetySignal(options: UseSafetySignalOptions): UseSafetySigna
         if (mountedRef.current) {
           // Set triggered state for confirmation (AC3 - discrete)
           setSignalTriggered(true)
+
+          // Track offline state (queued but not sent immediately)
+          setIsOffline(response.queued && response.queueId !== null)
 
           // Notify callbacks
           for (const callback of callbacksRef.current) {
@@ -388,6 +400,7 @@ export function useSafetySignal(options: UseSafetySignalOptions): UseSafetySigna
     onKeyboardShortcut,
     onSignalTriggered,
     signalTriggered,
+    isOffline,
     gestureInProgress,
     gestureProgress,
     resetGesture,

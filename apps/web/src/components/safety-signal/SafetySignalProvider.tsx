@@ -46,6 +46,12 @@ interface SafetySignalContextValue {
   signalTriggered: boolean
 
   /**
+   * Whether the signal was queued offline
+   * Used to show appropriate confirmation message
+   */
+  isOffline: boolean
+
+  /**
    * Register callback for signal events
    */
   onSignalTriggered: (callback: SignalTriggeredCallback) => () => void
@@ -120,6 +126,7 @@ export function SafetySignalProvider({
     onKeyboardShortcut,
     onSignalTriggered,
     signalTriggered,
+    isOffline,
   }: UseSafetySignalReturn = useSafetySignal({
     childId,
     deviceType: 'web',
@@ -145,10 +152,11 @@ export function SafetySignalProvider({
     () => ({
       onLogoTap: onTap,
       signalTriggered,
+      isOffline,
       onSignalTriggered,
       enabled,
     }),
-    [onTap, signalTriggered, onSignalTriggered, enabled]
+    [onTap, signalTriggered, isOffline, onSignalTriggered, enabled]
   )
 
   return (

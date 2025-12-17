@@ -340,11 +340,25 @@ describe('SafetySignalConfirmation', () => {
     expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
   })
 
-  it('displays custom message', async () => {
+  it('displays custom message via content prop', async () => {
+    const customContent = {
+      message: 'Custom Message',
+      secondaryMessage: 'Custom secondary',
+      offlineMessage: 'Custom offline',
+      offlineSecondaryMessage: 'Custom offline secondary',
+      emergencyMessage: 'Emergency',
+      emergencyContact: '911',
+      resources: [],
+      dismissTimeout: 10000,
+      extendOnInteraction: false,
+      extendedTimeout: 30000,
+      dismissInstruction: 'Tap to close',
+    }
+
     render(
       <SafetySignalProvider childId="child-123">
         <SafetySignalLogo />
-        <SafetySignalConfirmation message="Done" />
+        <SafetySignalConfirmation content={customContent} />
       </SafetySignalProvider>
     )
 
@@ -363,7 +377,8 @@ describe('SafetySignalConfirmation', () => {
       await Promise.resolve()
     })
 
-    expect(screen.getByText('Done')).toBeInTheDocument()
+    // Since mock returns queued:true, it shows offline message
+    expect(screen.getByText('Custom offline')).toBeInTheDocument()
   })
 
   it('hides after confirmation display time', async () => {
@@ -391,9 +406,14 @@ describe('SafetySignalConfirmation', () => {
 
     expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
 
-    // Advance past confirmation display time
+    // Story 7.5.3: Component uses SIGNAL_CONFIRMATION_CONSTANTS.DEFAULT_DISPLAY_MS (10s)
+    // plus SIGNAL_CONFIRMATION_CONSTANTS.FADE_OUT_MS (200ms) for the fade animation
+    // Import: The content.dismissTimeout is 10000ms
     act(() => {
-      vi.advanceTimersByTime(SAFETY_SIGNAL_CONSTANTS.CONFIRMATION_DISPLAY_MS + 100)
+      vi.advanceTimersByTime(10000) // dismissTimeout
+    })
+    act(() => {
+      vi.advanceTimersByTime(200) // FADE_OUT_MS
     })
 
     expect(screen.queryByTestId('safety-signal-confirmation')).not.toBeInTheDocument()
@@ -423,8 +443,9 @@ describe('SafetySignalConfirmation', () => {
     })
 
     const confirmation = screen.getByTestId('safety-signal-confirmation')
-    expect(confirmation).toHaveAttribute('role', 'status')
-    expect(confirmation).toHaveAttribute('aria-live', 'polite')
+    // Story 7.5.3: Now uses dialog role since it has interactive crisis resources
+    expect(confirmation).toHaveAttribute('role', 'dialog')
+    expect(confirmation).toHaveAttribute('aria-modal', 'true')
   })
 })
 
@@ -450,14 +471,14 @@ describe('Safety Signal Integration', () => {
         <SafetySignalLogo>
           <img src="/logo.png" alt="Logo" />
         </SafetySignalLogo>
-        <SafetySignalConfirmation message="Saved" />
+        <SafetySignalConfirmation />
       </SafetySignalProvider>
     )
 
     const logo = screen.getByTestId('safety-signal-logo')
 
     // Confirmation should not be visible initially
-    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('safety-signal-confirmation')).not.toBeInTheDocument()
 
     // Tap 5 times within window
     for (let i = 0; i < 5; i++) {
@@ -483,8 +504,10 @@ describe('Safety Signal Integration', () => {
       })
     )
 
-    // Confirmation should be visible
-    expect(screen.getByText('Saved')).toBeInTheDocument()
+    // Confirmation should be visible - shows offline message since signal is queued
+    expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
+    // The mock returns queued: true, so it shows offline message
+    expect(screen.getByText('Saved for later')).toBeInTheDocument()
   })
 
   it('no visual change during partial gesture', async () => {

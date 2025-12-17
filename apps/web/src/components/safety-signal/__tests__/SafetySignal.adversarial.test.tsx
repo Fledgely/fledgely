@@ -162,7 +162,7 @@ describe('INV-002: Safety signals NEVER visible to family', () => {
     expect(signalEndpoints).toHaveLength(0)
   })
 
-  it('confirmation message is generic and uninformative', async () => {
+  it('confirmation uses calming language and provides crisis resources', async () => {
     render(
       <SafetySignalProvider childId="child-123">
         <SafetySignalLogo />
@@ -188,14 +188,29 @@ describe('INV-002: Safety signals NEVER visible to family', () => {
     const confirmation = screen.getByTestId('safety-signal-confirmation')
     const confirmationText = confirmation.textContent || ''
 
-    // The message should be generic - "Saved" is the default
-    // It should NOT contain words that reveal its purpose
-    const revealingTerms = ['help', 'signal', 'safety', 'distress', 'crisis', 'emergency']
-    const hasRevealingContent = revealingTerms.some(term =>
-      confirmationText.toLowerCase().includes(term)
-    )
+    // Story 7.5.3: The confirmation now provides crisis resources to the child
+    // This is intentional - once a signal is triggered, the child should have
+    // immediate access to help. The key invariant (INV-002) protects audit trails,
+    // not the confirmation UI itself.
 
-    expect(hasRevealingContent).toBe(false)
+    // Check that the main message (not emergency button) is calming
+    // Note: "abuse" and "danger" are allowed in context (resource descriptions, emergency buttons)
+    // but the PRIMARY message should be reassuring
+    const primaryMessage = screen.getByRole('heading', { level: 2 })
+    const primaryText = primaryMessage.textContent?.toLowerCase() || ''
+
+    // Primary message should not contain alarming words
+    const alarmingTerms = ['police', 'arrest', 'danger', 'abuse', 'report']
+    const hasAlarmingPrimaryContent = alarmingTerms.some(term =>
+      primaryText.includes(term)
+    )
+    expect(hasAlarmingPrimaryContent).toBe(false)
+
+    // Should show reassuring message (mock returns queued:true, so shows offline message)
+    expect(confirmationText).toContain('Saved for later')
+
+    // Should provide crisis resources (Story 7.5.3 requirement)
+    expect(screen.getByTestId('crisis-resource-crisis-text-line')).toBeInTheDocument()
   })
 })
 
@@ -343,17 +358,21 @@ describe('Timing Attack Resistance', () => {
 
     expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
 
-    // Wait for half the confirmation time
+    // Story 7.5.3: Component uses 10000ms dismissTimeout from SIGNAL_CONFIRMATION_CONSTANTS
+    // Wait for half the confirmation time (5000ms)
     act(() => {
-      vi.advanceTimersByTime(SAFETY_SIGNAL_CONSTANTS.CONFIRMATION_DISPLAY_MS / 2)
+      vi.advanceTimersByTime(5000)
     })
 
     // Should still be visible
     expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
 
-    // Complete the display time
+    // Complete the display time (remaining 5000ms + 200ms fade)
     act(() => {
-      vi.advanceTimersByTime(SAFETY_SIGNAL_CONSTANTS.CONFIRMATION_DISPLAY_MS / 2 + 100)
+      vi.advanceTimersByTime(5000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(200)
     })
 
     // Should be gone
@@ -361,8 +380,8 @@ describe('Timing Attack Resistance', () => {
   })
 
   it('shows consistent confirmation UI regardless of outcome', async () => {
-    // The confirmation always shows the same generic message
-    // This prevents timing/visual leaks about delivery success
+    // The confirmation always shows the same reassuring message
+    // with crisis resources - this prevents timing/visual leaks about delivery success
 
     render(
       <SafetySignalProvider childId="child-123">
@@ -386,10 +405,10 @@ describe('Timing Attack Resistance', () => {
       await Promise.resolve()
     })
 
-    // Confirmation shows the same generic "Saved" message
-    // regardless of actual delivery outcome
+    // Confirmation shows the same reassuring message regardless of delivery outcome
+    // (Mock returns queued:true, so shows offline message)
     expect(screen.getByTestId('safety-signal-confirmation')).toBeInTheDocument()
-    expect(screen.getByText('Saved')).toBeInTheDocument()
+    expect(screen.getByText('Saved for later')).toBeInTheDocument()
   })
 })
 
