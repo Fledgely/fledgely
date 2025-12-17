@@ -1215,6 +1215,44 @@ service cloud.firestore {
     }
 
     // ============================================
+    // SAFE ADULT NOTIFICATION LOG COLLECTION (Story 7.5.4)
+    // ============================================
+    // CRITICAL LIFE-SAFETY FEATURE: Rate limiting for safe adult notifications
+    //
+    // This collection tracks notification counts per signalId to prevent
+    // spam/abuse of the safe adult notification feature. It stores only
+    // metadata (count, timestamps) - NEVER the actual contact information.
+    //
+    // CRITICAL INVARIANT (INV-002): Safe adult data NEVER visible to family.
+    // - Notification logs stored in separate collection (NOT under /families)
+    // - Contact info is NEVER written to this collection
+    // - Only Cloud Functions can read/write (for rate limiting)
+    // - No Firestore Security Rule allows family member access
+    //
+    // Security invariants:
+    // 1. NO family member can EVER read/write - absolute prohibition
+    // 2. Only Cloud Functions can read/write (for rate limiting)
+    // 3. NEVER delete - compliance and legal requirement
+    // 4. Contains NO contact information - only metadata
+    // ============================================
+
+    match /safeAdultNotificationLog/{signalId} {
+      // ABSOLUTE PROHIBITION: No client access to notification logs
+      // All read/write operations happen via Cloud Functions only
+      // This prevents any client-side inspection of notification patterns
+
+      // No client reads
+      allow read: if false;
+
+      // No client writes
+      allow create: if false;
+      allow update: if false;
+
+      // NEVER allow deletion - compliance requirement
+      allow delete: if false;
+    }
+
+    // ============================================
     // SAFETY SIGNAL QUEUE COLLECTION (Story 7.5.1)
     // ============================================
     // Client-side queue for offline safety signals

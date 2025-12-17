@@ -5,9 +5,11 @@
  *
  * Story 7.5.1: Hidden Safety Signal Access - Task 4
  * Story 7.5.3: Signal Confirmation & Resources - Enhanced
+ * Story 7.5.4: Safe Adult Designation - Task 4
  *
  * Discrete confirmation component that shows after a safety signal
  * is triggered. Shows crisis resources and emergency contact info.
+ * Now includes optional "Notify someone you trust" section.
  *
  * CRITICAL SAFETY REQUIREMENTS:
  * - Must be discrete - should not draw observer attention (AC3)
@@ -26,12 +28,25 @@ import {
   DEFAULT_CONFIRMATION_CONTENT,
   type CrisisResource,
   type SignalConfirmationContent,
+  type ContactType,
   getResourceHref,
+  validateContact,
+  maskContact,
 } from '@fledgely/contracts'
 
 // ============================================================================
 // Types
 // ============================================================================
+
+/**
+ * Saved safe adult contact (pre-configured)
+ */
+interface SavedSafeAdultContact {
+  /** Contact type */
+  type: ContactType
+  /** Masked display value (e.g., "***-***-1234") */
+  maskedValue: string
+}
 
 /**
  * SafetySignalConfirmation props
@@ -53,6 +68,14 @@ interface SafetySignalConfirmationProps {
   onResourceClick?: (resource: CrisisResource) => void
   /** Callback when emergency (911) is clicked */
   onEmergencyClick?: () => void
+  /** Whether to show safe adult section (Story 7.5.4) */
+  showSafeAdultSection?: boolean
+  /** Pre-configured safe adult contact (if exists) */
+  savedSafeAdult?: SavedSafeAdultContact
+  /** Callback when safe adult notification is requested */
+  onNotifySafeAdult?: (contact: { type: ContactType; value: string }) => void
+  /** Callback when user skips safe adult notification */
+  onSkipSafeAdult?: () => void
 }
 
 // ============================================================================
@@ -162,6 +185,273 @@ function EmergencyCallButton({
   )
 }
 
+/**
+ * SafeAdultSection - Optional section to notify a trusted adult
+ *
+ * Story 7.5.4: Safe Adult Designation
+ *
+ * Child-friendly, calming design with large touch targets.
+ * Allows entering a phone/email or using pre-configured contact.
+ */
+function SafeAdultSection({
+  savedContact,
+  onNotify,
+  onSkip,
+  testId = 'safe-adult-section',
+}: {
+  savedContact?: SavedSafeAdultContact
+  onNotify?: (contact: { type: ContactType; value: string }) => void
+  onSkip?: () => void
+  testId?: string
+}) {
+  const [contactType, setContactType] = useState<ContactType>(savedContact?.type ?? 'phone')
+  const [contactValue, setContactValue] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [usingSaved, setUsingSaved] = useState(!!savedContact)
+  const [sending, setSending] = useState(false)
+
+  // Validate and submit
+  const handleNotify = () => {
+    if (usingSaved && savedContact) {
+      setSending(true)
+      // Use the saved contact (actual value will be decrypted server-side)
+      onNotify?.({ type: savedContact.type, value: '__SAVED__' })
+      return
+    }
+
+    // Validate entered contact
+    const validationError = validateContact(contactType, contactValue)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setError(null)
+    setSending(true)
+    onNotify?.({ type: contactType, value: contactValue })
+  }
+
+  // Handle skip
+  const handleSkip = () => {
+    onSkip?.()
+  }
+
+  // Handle typing (clear error)
+  const handleValueChange = (value: string) => {
+    setContactValue(value)
+    setUsingSaved(false)
+    if (error) setError(null)
+  }
+
+  return (
+    <div
+      data-testid={testId}
+      style={{
+        marginTop: '16px',
+        padding: '12px',
+        backgroundColor: 'rgba(79, 70, 229, 0.15)', // Soft indigo, calming
+        borderRadius: '8px',
+      }}
+    >
+      {/* Section header - child-friendly language */}
+      <p
+        style={{
+          fontSize: '0.9rem',
+          fontWeight: 500,
+          margin: 0,
+          marginBottom: '10px',
+          color: '#fff',
+        }}
+      >
+        Want to tell someone you trust?
+      </p>
+
+      {/* Saved contact indicator */}
+      {savedContact && usingSaved && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '6px',
+            marginBottom: '8px',
+          }}
+        >
+          <span style={{ fontSize: '1rem' }}>{savedContact.type === 'phone' ? '📞' : '✉️'}</span>
+          <span style={{ flex: 1, fontSize: '0.9rem' }}>{savedContact.maskedValue}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setUsingSaved(false)
+              setContactValue('')
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
+            data-testid={`${testId}-change-contact`}
+          >
+            Change
+          </button>
+        </div>
+      )}
+
+      {/* Contact input (if not using saved) */}
+      {!usingSaved && (
+        <div style={{ marginBottom: '8px' }}>
+          {/* Type toggle */}
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '8px',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setContactType('phone')}
+              style={{
+                flex: 1,
+                padding: '8px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor:
+                  contactType === 'phone' ? 'rgba(79, 70, 229, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                color: '#fff',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                minHeight: '44px', // Large touch target
+              }}
+              data-testid={`${testId}-type-phone`}
+            >
+              📞 Phone
+            </button>
+            <button
+              type="button"
+              onClick={() => setContactType('email')}
+              style={{
+                flex: 1,
+                padding: '8px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor:
+                  contactType === 'email' ? 'rgba(79, 70, 229, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                color: '#fff',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                minHeight: '44px', // Large touch target
+              }}
+              data-testid={`${testId}-type-email`}
+            >
+              ✉️ Email
+            </button>
+          </div>
+
+          {/* Input field */}
+          <input
+            type={contactType === 'phone' ? 'tel' : 'email'}
+            value={contactValue}
+            onChange={(e) => handleValueChange(e.target.value)}
+            placeholder={contactType === 'phone' ? 'Phone number' : 'Email address'}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '6px',
+              border: error ? '2px solid #ef4444' : '2px solid transparent',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              color: '#1f2937',
+              fontSize: '1rem',
+              minHeight: '44px', // Large touch target
+              boxSizing: 'border-box',
+            }}
+            autoComplete={contactType === 'phone' ? 'tel' : 'email'}
+            data-testid={`${testId}-input`}
+          />
+
+          {/* Error message - child-friendly */}
+          {error && (
+            <p
+              style={{
+                color: '#fca5a5',
+                fontSize: '0.8rem',
+                margin: '4px 0 0 0',
+              }}
+              role="alert"
+              data-testid={`${testId}-error`}
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          marginTop: '8px',
+        }}
+      >
+        {/* Skip button - equally prominent */}
+        <button
+          type="button"
+          onClick={handleSkip}
+          disabled={sending}
+          style={{
+            flex: 1,
+            padding: '10px',
+            borderRadius: '6px',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            backgroundColor: 'transparent',
+            color: '#fff',
+            fontSize: '0.9rem',
+            cursor: sending ? 'not-allowed' : 'pointer',
+            opacity: sending ? 0.5 : 1,
+            minHeight: '44px', // Large touch target
+          }}
+          data-testid={`${testId}-skip`}
+        >
+          Skip
+        </button>
+
+        {/* Notify button */}
+        <button
+          type="button"
+          onClick={handleNotify}
+          disabled={sending || (!usingSaved && !contactValue.trim())}
+          style={{
+            flex: 1,
+            padding: '10px',
+            borderRadius: '6px',
+            border: 'none',
+            backgroundColor:
+              !usingSaved && !contactValue.trim()
+                ? 'rgba(79, 70, 229, 0.3)'
+                : 'rgba(79, 70, 229, 0.8)',
+            color: '#fff',
+            fontSize: '0.9rem',
+            fontWeight: 500,
+            cursor:
+              sending || (!usingSaved && !contactValue.trim()) ? 'not-allowed' : 'pointer',
+            opacity: sending ? 0.5 : 1,
+            minHeight: '44px', // Large touch target
+          }}
+          data-testid={`${testId}-notify`}
+        >
+          {sending ? 'Sending...' : 'Send'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -236,6 +526,10 @@ export function SafetySignalConfirmation({
   onDismiss,
   onResourceClick,
   onEmergencyClick,
+  showSafeAdultSection = false,
+  savedSafeAdult,
+  onNotifySafeAdult,
+  onSkipSafeAdult,
 }: SafetySignalConfirmationProps) {
   const safetySignal = useSafetySignalContextOptional()
   const [visible, setVisible] = useState(false)
@@ -494,6 +788,16 @@ export function SafetySignalConfirmation({
           onClick={handleEmergencyClick}
         />
 
+        {/* Safe Adult Section (Story 7.5.4) */}
+        {showSafeAdultSection && (
+          <SafeAdultSection
+            savedContact={savedSafeAdult}
+            onNotify={onNotifySafeAdult}
+            onSkip={onSkipSafeAdult}
+            testId={`${testId}-safe-adult`}
+          />
+        )}
+
         {/* Dismiss instruction */}
         <p
           style={{
@@ -533,4 +837,5 @@ export function SafetySignalConfirmation({
 // Export
 // ============================================================================
 
+export type { SavedSafeAdultContact }
 export default SafetySignalConfirmation

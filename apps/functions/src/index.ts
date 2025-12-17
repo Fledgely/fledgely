@@ -125,3 +125,9 @@ export { logFuzzyMatchEndpoint } from './http/logFuzzyMatch'
 // Callable Functions - Fuzzy Match Admin (Story 7.5)
 export { getFuzzyMatchStatsFn as getFuzzyMatchStats } from './callable/getFuzzyMatchStats'
 export { getRecentFuzzyMatchLogsFn as getRecentFuzzyMatchLogs } from './callable/getRecentFuzzyMatchLogs'
+
+// Callable Functions - External Signal Routing (Story 7.5.2)
+export { routeSafetySignal } from './callable/routeSafetySignal'
+
+// Callable Functions - Safe Adult Notification (Story 7.5.4)
+export { notifySafeAdult } from './callable/notifySafeAdult'

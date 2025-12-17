@@ -1318,3 +1318,56 @@ export {
   type SignalConfirmationContent,
   type ConfirmationState,
 } from './signalConfirmation.schema'
+
+// Safe Adult Schemas (Story 7.5.4)
+export {
+  // Constants
+  SAFE_ADULT_CONSTANTS,
+  CONTACT_TYPE_LABELS,
+  VALIDATION_ERROR_MESSAGES,
+  // Schemas
+  contactTypeSchema,
+  phoneNumberSchema,
+  emailAddressSchema,
+  safeAdultContactSchema,
+  safeAdultContactInputSchema,
+  safeAdultDesignationSchema,
+  safeAdultDesignationInputSchema,
+  safeAdultNotificationRequestSchema,
+  safeAdultNotificationResponseSchema,
+  // Phone validation
+  extractPhoneDigits,
+  validatePhoneNumber,
+  isValidPhoneNumber,
+  // Email validation
+  validateEmailAddress,
+  isValidEmailAddress,
+  // Contact validation
+  validateContact,
+  isValidContact,
+  // Masking
+  maskPhoneNumber,
+  maskEmailAddress,
+  maskContact,
+  // Helper functions
+  getContactTypeLabel,
+  formatNotificationMessage,
+  getSmsNotificationMessage,
+  getEmailNotificationSubject,
+  getEmailNotificationBody,
+  safeParseSafeAdultContact,
+  safeParseSafeAdultDesignation,
+  safeParseSafeAdultNotificationRequest,
+  createSafeAdultContactInput,
+  normalizePhoneNumber,
+  normalizeEmailAddress,
+  normalizeContact,
+  // Types
+  type ContactType,
+  type SafeAdultContact,
+  type SafeAdultContactInput,
+  type SafeAdultDesignation,
+  type SafeAdultDesignationInput,
+  type SafeAdultNotificationRequest,
+  type SafeAdultNotificationResponse,
+} from './safeAdult.schema'

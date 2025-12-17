@@ -2,12 +2,13 @@
  * SafetySignalHelp Tests
  *
  * Story 7.5.1: Hidden Safety Signal Access - Task 5
+ * Updated Story 7.5.4: Safe Adult Designation - Task 7
  *
  * Tests for the child-accessible help documentation component.
  */
 
-import { describe, it, expect } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SafetySignalHelp } from '../SafetySignalHelp'
 
 describe('SafetySignalHelp', () => {
@@ -94,7 +95,7 @@ describe('SafetySignalHelp', () => {
   it('displays what happens next section', () => {
     render(<SafetySignalHelp defaultExpanded={true} />)
 
-    expect(screen.getByText(/A safe adult will be quietly told/)).toBeInTheDocument()
+    expect(screen.getByText(/You can choose to tell a trusted adult/)).toBeInTheDocument()
     expect(screen.getByText(/No one else in your family will know/)).toBeInTheDocument()
     expect(screen.getByText(/It works even if the internet is slow/)).toBeInTheDocument()
   })
@@ -151,6 +152,51 @@ describe('SafetySignalHelp Accessibility', () => {
   })
 })
 
+describe('SafetySignalHelp Safe Adult Section (Story 7.5.4)', () => {
+  it('displays safe adult section heading', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    expect(screen.getByText('Tell Someone You Trust (Optional)')).toBeInTheDocument()
+  })
+
+  it('explains the optional nature of safe adult notification', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    expect(screen.getByText(/your choice/i)).toBeInTheDocument()
+    expect(screen.getByText(/you don't have to do this/i)).toBeInTheDocument()
+  })
+
+  it('describes how to contact a safe adult', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    expect(screen.getByText('How it works')).toBeInTheDocument()
+    expect(screen.getByText(/phone number or email/)).toBeInTheDocument()
+  })
+
+  it('explains what the safe adult will see', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    expect(screen.getByText("What they'll see")).toBeInTheDocument()
+    expect(screen.getByText(/doesn't mention this app/i)).toBeInTheDocument()
+    expect(screen.getByText(/Nothing about this app/)).toBeInTheDocument()
+  })
+
+  it('mentions saved contact feature', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    expect(screen.getByText('Save for next time')).toBeInTheDocument()
+    expect(screen.getByText(/remember it \(privately!\)/)).toBeInTheDocument()
+  })
+
+  it('uses child-friendly language for safe adult section', () => {
+    render(<SafetySignalHelp defaultExpanded={true} />)
+
+    // Check for simple terms instead of technical ones
+    expect(screen.getByText(/teacher, coach, relative/)).toBeInTheDocument()
+    expect(screen.getByText(/simple message/)).toBeInTheDocument()
+  })
+})
+
 describe('SafetySignalHelp Readability', () => {
   it('uses simple language', () => {
     render(<SafetySignalHelp defaultExpanded={true} />)
@@ -173,5 +219,475 @@ describe('SafetySignalHelp Readability', () => {
     expect(content.includes('queue')).toBe(false)
     expect(content.includes('API')).toBe(false)
     expect(content.includes('authentication')).toBe(false)
+  })
+})
+
+describe('SafetySignalHelp Pre-Configuration Form (AC4)', () => {
+  const mockOnSave = vi.fn()
+  const mockOnRemove = vi.fn()
+  const mockOnLoad = vi.fn()
+
+  const defaultCallbacks = {
+    onSave: mockOnSave,
+    onRemove: mockOnRemove,
+    onLoad: mockOnLoad,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockOnLoad.mockResolvedValue(null)
+  })
+
+  it('shows setup button when callbacks and childId are provided', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Set up a trusted adult now/)).toBeInTheDocument()
+  })
+
+  it('does not show setup section without childId', () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+      />
+    )
+
+    expect(screen.queryByTestId('safety-signal-help-safe-adult-setup')).not.toBeInTheDocument()
+  })
+
+  it('does not show setup section without callbacks', () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        childId="child-123"
+      />
+    )
+
+    expect(screen.queryByTestId('safety-signal-help-safe-adult-setup')).not.toBeInTheDocument()
+  })
+
+  it('opens form when setup button is clicked', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    expect(screen.getByTestId('safety-signal-help-safe-adult-form')).toBeInTheDocument()
+    expect(screen.getByText('Enter their contact info')).toBeInTheDocument()
+  })
+
+  it('toggles between phone and email contact types', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Phone is selected by default
+    const phoneBtn = screen.getByTestId('safety-signal-help-safe-adult-type-phone')
+    const emailBtn = screen.getByTestId('safety-signal-help-safe-adult-type-email')
+
+    expect(phoneBtn).toHaveClass('bg-indigo-600')
+    expect(emailBtn).not.toHaveClass('bg-indigo-600')
+
+    // Switch to email
+    fireEvent.click(emailBtn)
+    expect(emailBtn).toHaveClass('bg-indigo-600')
+    expect(phoneBtn).not.toHaveClass('bg-indigo-600')
+
+    // Switch back to phone
+    fireEvent.click(phoneBtn)
+    expect(phoneBtn).toHaveClass('bg-indigo-600')
+    expect(emailBtn).not.toHaveClass('bg-indigo-600')
+  })
+
+  it('shows validation error for invalid contact', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Enter invalid phone number
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: '123' } })
+
+    // Try to save
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-save'))
+
+    // Should show error
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-error')).toBeInTheDocument()
+    })
+    expect(mockOnSave).not.toHaveBeenCalled()
+  })
+
+  it('calls onSave with valid phone contact', async () => {
+    mockOnSave.mockResolvedValue(undefined)
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Enter valid phone number
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: '5551234567' } })
+
+    // Save
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-save'))
+
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith({
+        type: 'phone',
+        value: '5551234567',
+      })
+    })
+  })
+
+  it('calls onSave with valid email contact', async () => {
+    mockOnSave.mockResolvedValue(undefined)
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Switch to email
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-type-email'))
+
+    // Enter valid email
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: 'teacher@school.edu' } })
+
+    // Save
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-save'))
+
+    await waitFor(() => {
+      expect(mockOnSave).toHaveBeenCalledWith({
+        type: 'email',
+        value: 'teacher@school.edu',
+      })
+    })
+  })
+
+  it('shows saved contact with masked value', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'phone' as const,
+      maskedValue: '***-***-4567',
+    })
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Saved contact')).toBeInTheDocument()
+    })
+    expect(screen.getByText('***-***-4567')).toBeInTheDocument()
+  })
+
+  it('shows change and remove buttons for saved contact', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'phone' as const,
+      maskedValue: '***-***-4567',
+    })
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-change')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('safety-signal-help-safe-adult-remove')).toBeInTheDocument()
+  })
+
+  it('opens form when change button is clicked', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'email' as const,
+      maskedValue: 't***@school.edu',
+    })
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-change')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-change'))
+
+    // Form should open with email type selected
+    expect(screen.getByTestId('safety-signal-help-safe-adult-form')).toBeInTheDocument()
+    expect(screen.getByTestId('safety-signal-help-safe-adult-type-email')).toHaveClass('bg-indigo-600')
+  })
+
+  it('calls onRemove when remove button is clicked', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'phone' as const,
+      maskedValue: '***-***-4567',
+    })
+    mockOnRemove.mockResolvedValue(undefined)
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-remove')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-remove'))
+
+    await waitFor(() => {
+      expect(mockOnRemove).toHaveBeenCalled()
+    })
+  })
+
+  it('closes form when cancel is clicked', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+    expect(screen.getByTestId('safety-signal-help-safe-adult-form')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-cancel'))
+
+    expect(screen.queryByTestId('safety-signal-help-safe-adult-form')).not.toBeInTheDocument()
+    expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+  })
+
+  it('has 44px minimum touch targets for accessibility', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Check style attributes
+    const phoneBtn = screen.getByTestId('safety-signal-help-safe-adult-type-phone')
+    const emailBtn = screen.getByTestId('safety-signal-help-safe-adult-type-email')
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    const cancelBtn = screen.getByTestId('safety-signal-help-safe-adult-cancel')
+    const saveBtn = screen.getByTestId('safety-signal-help-safe-adult-save')
+
+    expect(phoneBtn).toHaveStyle({ minHeight: '44px' })
+    expect(emailBtn).toHaveStyle({ minHeight: '44px' })
+    expect(input).toHaveStyle({ minHeight: '44px' })
+    expect(cancelBtn).toHaveStyle({ minHeight: '44px' })
+    expect(saveBtn).toHaveStyle({ minHeight: '44px' })
+  })
+
+  it('clears error when input changes', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Enter invalid phone number
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: '123' } })
+
+    // Try to save to get error
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-save'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-error')).toBeInTheDocument()
+    })
+
+    // Change input
+    fireEvent.change(input, { target: { value: '1234' } })
+
+    // Error should be cleared
+    expect(screen.queryByTestId('safety-signal-help-safe-adult-error')).not.toBeInTheDocument()
+  })
+
+  it('disables save button when input is empty', async () => {
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    const saveBtn = screen.getByTestId('safety-signal-help-safe-adult-save')
+    expect(saveBtn).toBeDisabled()
+
+    // Enter some text
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: '555' } })
+
+    expect(saveBtn).not.toBeDisabled()
+  })
+
+  it('handles save error gracefully', async () => {
+    mockOnSave.mockRejectedValue(new Error('Network error'))
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-setup-btn')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-setup-btn'))
+
+    // Enter valid phone
+    const input = screen.getByTestId('safety-signal-help-safe-adult-input')
+    fireEvent.change(input, { target: { value: '5551234567' } })
+
+    // Try to save
+    fireEvent.click(screen.getByTestId('safety-signal-help-safe-adult-save'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('safety-signal-help-safe-adult-error')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Something went wrong/)).toBeInTheDocument()
+  })
+
+  it('shows phone icon for saved phone contact', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'phone' as const,
+      maskedValue: '***-***-4567',
+    })
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('📞')).toBeInTheDocument()
+    })
+  })
+
+  it('shows email icon for saved email contact', async () => {
+    mockOnLoad.mockResolvedValue({
+      type: 'email' as const,
+      maskedValue: 't***@school.edu',
+    })
+
+    render(
+      <SafetySignalHelp
+        defaultExpanded={true}
+        safeAdultCallbacks={defaultCallbacks}
+        childId="child-123"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('✉️')).toBeInTheDocument()
+    })
   })
 })
