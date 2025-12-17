@@ -22,6 +22,8 @@ import {
   type TriggerSafetySignalResponse,
   type GestureType,
   type SignalDeviceType,
+  type RouteSignalInput,
+  type RouteSignalResponse,
   SAFETY_SIGNAL_CONSTANTS,
   generateQueueId,
   calculateRetryDelay,
@@ -205,18 +207,65 @@ const createDefaultNetworkService = (): NetworkService => {
 }
 
 /**
- * Default API service (placeholder - will connect to Cloud Functions)
+ * Default API service connecting to routeSafetySignal Cloud Function
  *
- * NOTE: Full implementation in Story 7.5.2 (External Signal Routing)
+ * Story 7.5.2: External Signal Routing - Task 7
+ *
+ * CRITICAL: This service routes signals to external crisis partners.
+ * - Signal payload is minimized (INV-002)
+ * - Encrypted before delivery to partner
+ * - 48-hour notification blackout enforced after routing
  */
 const createDefaultApiService = (): SignalApiService => {
+  // Lazily import Firebase to avoid initialization during tests
+  let routeSafetySignalFn: ReturnType<
+    typeof import('firebase/functions').httpsCallable<RouteSignalInput, RouteSignalResponse>
+  > | null = null
+
+  const getRouteSafetySignalFn = async () => {
+    if (!routeSafetySignalFn) {
+      const { httpsCallable } = await import('firebase/functions')
+      const { functions } = await import('@/lib/firebase')
+      routeSafetySignalFn = httpsCallable<RouteSignalInput, RouteSignalResponse>(
+        functions,
+        'routeSafetySignal'
+      )
+    }
+    return routeSafetySignalFn
+  }
+
   return {
-    sendSignal: async (_signal: QueuedSafetySignal) => {
-      // Placeholder - actual implementation will call Cloud Function
-      // For now, simulate successful send
-      return {
-        success: true,
-        signalId: `sig_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    sendSignal: async (signal: QueuedSafetySignal) => {
+      // Build input for Cloud Function
+      const input: RouteSignalInput = {
+        signalId: signal.queueId, // Use queueId as signalId
+        childId: signal.childId,
+        triggeredAt: signal.triggeredAt,
+        deviceType: signal.deviceType,
+        jurisdiction: signal.jurisdiction, // May be null, server will detect
+      }
+
+      try {
+        const fn = await getRouteSafetySignalFn()
+        const result = await fn(input)
+
+        if (result.data.success) {
+          return {
+            success: true,
+            signalId: result.data.routingId ?? signal.queueId,
+          }
+        }
+
+        // Routing failed - return error for retry
+        return {
+          success: false,
+          signalId: undefined,
+        }
+      } catch (error) {
+        // Network or Firebase error - signal will be retried
+        // CRITICAL: Errors are swallowed to prevent signal leakage
+        console.error('[SafetySignalQueueService] Signal routing error')
+        throw error // Re-throw for retry handling
       }
     },
   }

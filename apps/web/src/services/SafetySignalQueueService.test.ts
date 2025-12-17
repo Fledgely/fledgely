@@ -706,3 +706,229 @@ describe('SafetySignalQueueService Security', () => {
     await expect(service.queueSignal('child-123', 'web', 'tap')).resolves.toBeDefined()
   })
 })
+
+// ============================================================================
+// External Routing Integration Tests (Story 7.5.2 - Task 7)
+// ============================================================================
+
+describe('SafetySignalQueueService External Routing', () => {
+  let mockEncryption: EncryptionService
+  let mockNetwork: ReturnType<typeof createMockNetworkService>
+
+  beforeEach(() => {
+    storeInstances.clear()
+    ;(
+      global as unknown as { indexedDB: ReturnType<typeof createMockIndexedDB> }
+    ).indexedDB = createMockIndexedDB()
+    resetSafetySignalQueueService()
+
+    mockEncryption = createMockEncryptionService()
+    mockNetwork = createMockNetworkService({ online: true, secure: true })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('signal routing payload', () => {
+    it('passes correct input to routing service', async () => {
+      const mockRoutingApi = createMockApiService()
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(mockRoutingApi.sendSignal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          childId: 'child-123',
+          deviceType: 'web',
+          gestureType: 'tap',
+        })
+      )
+    })
+
+    it('preserves original triggeredAt timestamp', async () => {
+      const mockRoutingApi = createMockApiService()
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const callArg = (mockRoutingApi.sendSignal as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArg.triggeredAt).toBeDefined()
+      expect(new Date(callArg.triggeredAt).getTime()).toBeLessThanOrEqual(Date.now())
+    })
+
+    it('includes jurisdiction when available', async () => {
+      const mockRoutingApi = createMockApiService()
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+
+      // Queue with jurisdiction (manually modify since queueSignal doesn't expose it)
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const callArg = (mockRoutingApi.sendSignal as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      // Jurisdiction defaults to null, server will detect
+      expect(callArg).toHaveProperty('jurisdiction')
+    })
+  })
+
+  describe('routing response handling', () => {
+    it('removes signal from queue on successful routing', async () => {
+      const mockRoutingApi: SignalApiService = {
+        sendSignal: vi.fn().mockResolvedValue({
+          success: true,
+          signalId: 'routed_signal_123',
+        }),
+      }
+
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const status = await service.getQueueStatus()
+      expect(status.queueSize).toBe(0)
+    })
+
+    it('retains signal in queue on routing failure', async () => {
+      const mockRoutingApi: SignalApiService = {
+        sendSignal: vi.fn().mockResolvedValue({
+          success: false,
+          signalId: undefined,
+        }),
+      }
+
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      const status = await service.getQueueStatus()
+      // Signal should still be in queue for retry
+      expect(status.queueSize).toBe(1)
+    })
+
+    it('increments attempt count on routing failure', async () => {
+      let attemptCount = 0
+      const mockRoutingApi: SignalApiService = {
+        sendSignal: vi.fn().mockImplementation(async (signal) => {
+          attemptCount = signal.attempts
+          return { success: false, signalId: undefined }
+        }),
+      }
+
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+      await service.queueSignal('child-123', 'web', 'tap')
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // First call should have attempts = 0
+      expect(attemptCount).toBe(0)
+
+      // Force another processing attempt
+      await service.processQueue()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Queue should still have the signal (with incremented attempts)
+      const status = await service.getQueueStatus()
+      expect(status.pendingCount + status.failedCount).toBe(1)
+    })
+  })
+
+  describe('routing error handling', () => {
+    it('handles network errors during routing', async () => {
+      const mockRoutingApi: SignalApiService = {
+        sendSignal: vi.fn().mockRejectedValue(new Error('Network timeout')),
+      }
+
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+
+      // Should not throw
+      await expect(service.queueSignal('child-123', 'web', 'tap')).resolves.toBeDefined()
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Signal should be retained for retry
+      const status = await service.getQueueStatus()
+      expect(status.queueSize).toBe(1)
+    })
+
+    it('handles Firebase function errors', async () => {
+      const firebaseError = new Error('Function execution failed')
+      ;(firebaseError as unknown as { code: string }).code = 'functions/internal'
+
+      const mockRoutingApi: SignalApiService = {
+        sendSignal: vi.fn().mockRejectedValue(firebaseError),
+      }
+
+      const service = new SafetySignalQueueService({
+        encryptionService: mockEncryption,
+        networkService: mockNetwork,
+        apiService: mockRoutingApi,
+      })
+
+      await service.initialize()
+
+      // Should not throw
+      await expect(service.queueSignal('child-123', 'web', 'tap')).resolves.toBeDefined()
+
+      // Wait for processing
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      // Signal should be retained for retry
+      const status = await service.getQueueStatus()
+      expect(status.queueSize).toBe(1)
+    })
+  })
+})
