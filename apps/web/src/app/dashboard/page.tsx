@@ -12,9 +12,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamily } from '../../contexts/FamilyContext'
-import { calculateAge } from '../../services/childService'
+import { calculateAge, deleteChild } from '../../services/childService'
 import { hasCustodyDeclaration } from '../../services/custodyService'
 import CustodyStatusBadge from '../../components/CustodyStatusBadge'
+import RemoveChildModal from '../../components/RemoveChildModal'
+import type { ChildProfile } from '@fledgely/shared/contracts'
 
 const styles = {
   main: {
@@ -126,9 +128,10 @@ const styles = {
 
 export default function DashboardPage() {
   const { firebaseUser, userProfile, loading, isNewUser, profileError, signOut } = useAuth()
-  const { family, children, loading: familyLoading } = useFamily()
+  const { family, children, loading: familyLoading, refreshChildren } = useFamily()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [childToRemove, setChildToRemove] = useState<ChildProfile | null>(null)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -221,6 +224,14 @@ export default function DashboardPage() {
           }
           .edit-child-link:hover {
             background-color: #e5e7eb;
+          }
+          .remove-child-button:focus {
+            outline: 2px solid #dc2626;
+            outline-offset: 2px;
+          }
+          .remove-child-button:hover {
+            background-color: #fef2f2;
+            border-color: #fca5a5;
           }
           .child-item {
             display: flex;
@@ -401,6 +412,29 @@ export default function DashboardPage() {
                             >
                               Edit
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => setChildToRemove(child)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minHeight: '44px',
+                                minWidth: '44px',
+                                padding: '8px 12px',
+                                backgroundColor: '#ffffff',
+                                color: '#dc2626',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                borderRadius: '6px',
+                                border: '1px solid #fecaca',
+                                cursor: 'pointer',
+                              }}
+                              className="remove-child-button"
+                              aria-label={`Remove ${child.name} from family`}
+                            >
+                              Remove
+                            </button>
                             {needsCustody && (
                               <a
                                 href={`/family/children/${child.id}/custody`}
@@ -482,6 +516,20 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Remove Child Modal */}
+      {childToRemove && firebaseUser && (
+        <RemoveChildModal
+          child={childToRemove}
+          isOpen={true}
+          onClose={() => setChildToRemove(null)}
+          onConfirm={async () => {
+            await deleteChild(childToRemove.id, firebaseUser.uid)
+            await refreshChildren()
+            setChildToRemove(null)
+          }}
+        />
+      )}
     </main>
   )
 }

@@ -79,8 +79,8 @@ service cloud.firestore {
       // Update: only existing guardians can update
       allow update: if isChildGuardian();
 
-      // Delete: not allowed (handled by remove child story)
-      allow delete: if false;
+      // Delete: only existing guardians can delete
+      allow delete: if isChildGuardian();
     }
 
     // Deny all other access by default

@@ -11,6 +11,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   collection,
   query,
   where,
@@ -310,6 +311,55 @@ export async function updateChild(
     if (err instanceof FirestoreError) {
       console.error(`Firestore error updating child ${childId}:`, err.code, err.message)
       throw new Error(`Failed to update child: ${err.message}`)
+    }
+    throw err
+  }
+}
+
+/**
+ * Delete a child from a family.
+ *
+ * This permanently deletes the child document. In the future, this will
+ * also handle: device unenrollment, screenshot deletion, activity log deletion,
+ * and child account conversion.
+ *
+ * @param childId - The child document ID
+ * @param guardianUid - The UID of the guardian requesting deletion
+ * @throws If deletion fails, authorization fails, or Firestore error
+ */
+export async function deleteChild(childId: string, guardianUid: string): Promise<void> {
+  try {
+    const db = getFirestoreDb()
+    const childRef = doc(db, 'children', childId)
+
+    // Verify child exists
+    const existingDoc = await getDoc(childRef)
+    if (!existingDoc.exists()) {
+      throw new Error('Child not found')
+    }
+
+    // Verify authorization - must be a guardian of the child
+    const existingData = existingDoc.data()
+    const convertedExisting = convertChildTimestamps(existingData)
+    const existingChild = childProfileSchema.parse(convertedExisting)
+
+    if (!isChildGuardian(existingChild, guardianUid)) {
+      throw new Error('Not authorized to delete this child')
+    }
+
+    // Delete the child document
+    await deleteDoc(childRef)
+
+    // TODO: Future enhancements (when features exist):
+    // - Unenroll all devices associated with this child
+    // - Delete all screenshots for this child
+    // - Delete all activity logs for this child
+    // - Convert child account to standalone if exists
+    // - Log deletion to family audit trail
+  } catch (err) {
+    if (err instanceof FirestoreError) {
+      console.error(`Firestore error deleting child ${childId}:`, err.code, err.message)
+      throw new Error(`Failed to delete child: ${err.message}`)
     }
     throw err
   }
