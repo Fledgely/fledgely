@@ -19,6 +19,11 @@ export const placeholderSchema = z.object({
 export type Placeholder = z.infer<typeof placeholderSchema>
 
 /**
+ * Session expiry configuration.
+ */
+export const SESSION_EXPIRY_DAYS = 30
+
+/**
  * User profile schema.
  *
  * Represents a user's profile stored in Firestore at /users/{uid}.
@@ -31,6 +36,7 @@ export const userSchema = z.object({
   photoURL: z.string().url().nullable(),
   createdAt: z.date(),
   lastLoginAt: z.date(),
+  lastActivityAt: z.date(), // For 30-day session expiry tracking
 })
 
 export type User = z.infer<typeof userSchema>

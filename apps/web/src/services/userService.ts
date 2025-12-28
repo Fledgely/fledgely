@@ -8,7 +8,7 @@
 
 import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { User as FirebaseUser } from 'firebase/auth'
-import { userSchema, type User } from '@fledgely/shared/contracts'
+import { userSchema, type User, SESSION_EXPIRY_DAYS } from '@fledgely/shared/contracts'
 import { getFirestoreDb } from '../lib/firebase'
 
 /**
@@ -22,7 +22,23 @@ function convertTimestamps(data: Record<string, unknown>): Record<string, unknow
   if (result.lastLoginAt instanceof Timestamp) {
     result.lastLoginAt = result.lastLoginAt.toDate()
   }
+  if (result.lastActivityAt instanceof Timestamp) {
+    result.lastActivityAt = result.lastActivityAt.toDate()
+  }
   return result
+}
+
+/**
+ * Check if a session has expired based on lastActivityAt timestamp.
+ *
+ * @param lastActivityAt - The timestamp of last activity
+ * @returns true if session has expired (older than SESSION_EXPIRY_DAYS)
+ */
+export function isSessionExpired(lastActivityAt: Date): boolean {
+  const now = new Date()
+  const expiryMs = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+  const ageMs = now.getTime() - lastActivityAt.getTime()
+  return ageMs > expiryMs
 }
 
 /**
@@ -52,7 +68,7 @@ export async function getUserProfile(uid: string): Promise<User | null> {
  * Create a new user profile in Firestore.
  *
  * Extracts profile data from Firebase Auth user object.
- * Sets both createdAt and lastLoginAt to current server time.
+ * Sets createdAt, lastLoginAt, and lastActivityAt to current server time.
  *
  * @param firebaseUser - The Firebase Auth user object
  * @returns The created user profile
@@ -75,6 +91,7 @@ export async function createUserProfile(firebaseUser: FirebaseUser): Promise<Use
     ...userData,
     createdAt: serverTimestamp(),
     lastLoginAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp(),
   })
 
   // Read back the document to get server-generated timestamps
@@ -90,7 +107,7 @@ export async function createUserProfile(firebaseUser: FirebaseUser): Promise<Use
 }
 
 /**
- * Update the lastLoginAt timestamp for an existing user.
+ * Update the lastLoginAt and lastActivityAt timestamps for an existing user.
  *
  * @param uid - The user's Firebase Auth UID
  * @throws If the update fails
@@ -101,30 +118,41 @@ export async function updateLastLogin(uid: string): Promise<void> {
 
   await updateDoc(userRef, {
     lastLoginAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp(),
   })
 }
 
 /**
  * Ensure a user profile exists, creating one if necessary.
  *
- * For new users: creates profile and returns { user, isNewUser: true }
- * For existing users: updates lastLoginAt and returns { user, isNewUser: false }
+ * For new users: creates profile and returns { user, isNewUser: true, sessionExpired: false }
+ * For existing users: checks session expiry, updates timestamps if valid
  *
  * @param firebaseUser - The Firebase Auth user object
- * @returns Object containing the user profile and whether they're new
+ * @returns Object containing the user profile, new user flag, and session expiry status
  */
 export async function ensureUserProfile(
   firebaseUser: FirebaseUser
-): Promise<{ user: User; isNewUser: boolean }> {
+): Promise<{ user: User | null; isNewUser: boolean; sessionExpired: boolean }> {
   const existingUser = await getUserProfile(firebaseUser.uid)
 
   if (existingUser) {
-    // Existing user - update last login and re-fetch to get server timestamp
+    // Check if session has expired
+    if (isSessionExpired(existingUser.lastActivityAt)) {
+      return {
+        user: null,
+        isNewUser: false,
+        sessionExpired: true,
+      }
+    }
+
+    // Existing user with valid session - update timestamps and re-fetch
     await updateLastLogin(firebaseUser.uid)
     const updatedUser = await getUserProfile(firebaseUser.uid)
     return {
       user: updatedUser ?? existingUser,
       isNewUser: false,
+      sessionExpired: false,
     }
   }
 
@@ -133,5 +161,6 @@ export async function ensureUserProfile(
   return {
     user: newUser,
     isNewUser: true,
+    sessionExpired: false,
   }
 }

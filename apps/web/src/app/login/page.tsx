@@ -4,6 +4,7 @@
  * Login page with Google Sign-In.
  *
  * Redirects authenticated users to dashboard.
+ * Shows session expiry message when returning after 30+ days.
  */
 
 import { useEffect, useState } from 'react'
@@ -54,6 +55,16 @@ const styles = {
     fontSize: '14px',
     textAlign: 'left' as const,
   },
+  info: {
+    backgroundColor: '#eff6ff',
+    border: '1px solid #bfdbfe',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '24px',
+    color: '#1e40af',
+    fontSize: '14px',
+    textAlign: 'left' as const,
+  },
   backLink: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -66,25 +77,31 @@ const styles = {
     borderRadius: '4px',
     padding: '0 8px',
   },
+  loadingText: {
+    color: '#1f2937',
+  },
 }
 
 export default function LoginPage() {
-  const { firebaseUser, loading, isNewUser } = useAuth()
+  const { firebaseUser, loading, isNewUser, sessionExpired, clearSessionExpiredFlag } = useAuth()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
   // Redirect authenticated users appropriately
   useEffect(() => {
     if (!loading && firebaseUser) {
+      clearSessionExpiredFlag()
       if (isNewUser) {
         router.push('/onboarding')
       } else {
         router.push('/dashboard')
       }
     }
-  }, [firebaseUser, loading, isNewUser, router])
+  }, [firebaseUser, loading, isNewUser, router, clearSessionExpiredFlag])
 
   const handleSignInSuccess = () => {
+    // Clear any session expired flag on successful sign-in
+    clearSessionExpiredFlag()
     // Redirect handled by auth state change effect
   }
 
@@ -117,7 +134,7 @@ export default function LoginPage() {
     return (
       <main style={styles.main} role="main">
         <div style={styles.card}>
-          <p>Loading...</p>
+          <p style={styles.loadingText}>Loading...</p>
         </div>
       </main>
     )
@@ -144,6 +161,12 @@ export default function LoginPage() {
       <div style={styles.card}>
         <h1 style={styles.logo}>Fledgely</h1>
         <p style={styles.tagline}>Sign in to your account</p>
+
+        {sessionExpired && (
+          <div style={styles.info} role="status" aria-live="polite">
+            Your session has ended. Please sign in again to continue.
+          </div>
+        )}
 
         {error && (
           <div style={styles.error} role="alert">
