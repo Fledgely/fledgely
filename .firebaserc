@@ -1,5 +1,14 @@
 {
   "projects": {
-    "default": "fledgely"
+    "default": "fledgely",
+    "staging": "fledgely",
+    "production": "fledgely"
+  },
+  "targets": {
+    "fledgely": {
+      "hosting": {
+        "web": ["fledgely"]
+      }
+    }
   }
 }

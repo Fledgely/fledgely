@@ -1,0 +1,114 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Build all packages
+        run: yarn build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/web/.next
+          retention-days: 1
+
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.details_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: apps/web/.next
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy to Firebase Preview Channel
+        id: deploy
+        run: |
+          CHANNEL_ID="pr-${{ github.event.pull_request.number }}"
+          firebase hosting:channel:deploy $CHANNEL_ID \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --expires 7d \
+            --json > deploy-result.json
+
+          # Extract preview URL
+          PREVIEW_URL=$(cat deploy-result.json | jq -r '.result["web"].url // empty')
+          echo "preview_url=$PREVIEW_URL" >> $GITHUB_OUTPUT
+          echo "Preview URL: $PREVIEW_URL"
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## 🚀 Preview Deployment Ready
+
+            | Environment | URL |
+            |-------------|-----|
+            | Preview | ${{ steps.deploy.outputs.preview_url }} |
+
+            This preview will be available for 7 days.
+
+            ---
+            *Deployed with commit ${{ github.sha }}*
+
+  cleanup:
+    name: Cleanup Preview
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Delete Preview Channel
+        run: |
+          firebase hosting:channel:delete "pr-${{ github.event.pull_request.number }}" \
+            --project ${{ secrets.GCP_PROJECT_ID }} \
+            --force || true

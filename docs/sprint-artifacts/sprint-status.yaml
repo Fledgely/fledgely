@@ -62,7 +62,7 @@ development_status:
   epic-1: in-progress
   # Sprint 0 Infrastructure Stories (NEW)
   1-0-1-project-scaffolding-ci-pipeline: done
-  1-0-2-deployable-web-shell: backlog
+  1-0-2-deployable-web-shell: done
   1-0-3-firebase-project-setup: backlog
   # Feature Stories
   1-1-google-sign-in-button-flow: backlog
