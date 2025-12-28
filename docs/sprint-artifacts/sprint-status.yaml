@@ -42,6 +42,22 @@ story_location: docs/sprint-artifacts/stories
 
 development_status:
   # ============================================
+  # BLOCKER: Sprint Infrastructure (Must complete before feature work)
+  # ============================================
+
+  # Epic 0: Sprint Infrastructure - Deployment & Demonstration
+  # Added 2025-12-28 via Sprint Change Proposal
+  epic-0: in-progress
+  0-1-local-development-environment: backlog
+  0-2-firebase-staging-deployment: in-progress  # PRIORITY 1
+  0-3-ci-cd-pipeline: backlog
+  0-4-chromeos-chrome-extension-dev-environment: backlog
+  0-5-android-emulator-environment: backlog
+  0-6-retrospective-demo-artifacts: backlog
+  0-7-show-and-tell-process: backlog
+  epic-0-retrospective: optional
+
+  # ============================================
   # Phase 1: Core Foundation (Epics 0.5-8.5)
   # ============================================
 

@@ -24,8 +24,6 @@
   },
   "packageManager": "npm@10.9.3",
   "devDependencies": {
-    "jsdom": "^27.3.0",
-    "next": "^15.0.3",
-    "turbo": "^2.3.3"
+    "jsdom": "^27.3.0"
   }
 }
