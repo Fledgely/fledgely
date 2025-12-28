@@ -2,6 +2,7 @@
  * Unit tests for Agreement Template schemas.
  *
  * Story 4.1: Template Library Structure - AC1, AC2, AC3
+ * Story 4.2: Age-Appropriate Template Content - AC5, AC6
  */
 
 import { describe, it, expect } from 'vitest'
@@ -12,6 +13,8 @@ import {
   monitoringLevelSchema,
   screenTimeLimitsSchema,
   agreementTemplateSchema,
+  autonomyMilestoneSchema,
+  simpleRuleSchema,
 } from './index'
 
 describe('ageGroupSchema', () => {
@@ -252,5 +255,192 @@ describe('agreementTemplateSchema', () => {
       const result = agreementTemplateSchema.safeParse(template)
       expect(result.success).toBe(true)
     })
+  })
+
+  // Story 4.2: Age-appropriate content tests
+  it('validates template with autonomy milestones (for 14-16)', () => {
+    const template = {
+      ...validTemplate,
+      ageGroup: '14-16',
+      autonomyMilestones: [
+        {
+          milestone: 'Maintain grades above B average for one semester',
+          reward: 'Extended screen time on weekends',
+          description: 'Demonstrates responsibility with school work',
+        },
+        {
+          milestone: 'No concerning flags for 3 months',
+          reward: 'Reduced monitoring frequency',
+        },
+      ],
+    }
+    const result = agreementTemplateSchema.safeParse(template)
+    expect(result.success).toBe(true)
+  })
+
+  it('validates template with simple rules (for 5-7)', () => {
+    const template = {
+      ...validTemplate,
+      ageGroup: '5-7',
+      simpleRules: [
+        { text: 'Use tablet in living room', isAllowed: true },
+        { text: 'Stay on approved apps', isAllowed: true },
+        { text: 'Download new apps without asking', isAllowed: false },
+      ],
+    }
+    const result = agreementTemplateSchema.safeParse(template)
+    expect(result.success).toBe(true)
+  })
+
+  it('validates template with rule examples', () => {
+    const template = {
+      ...validTemplate,
+      ruleExamples: {
+        '0': 'Like how you play with toys in the living room with Mom and Dad',
+        '1': 'Ask before you open any new games on your tablet',
+      },
+    }
+    const result = agreementTemplateSchema.safeParse(template)
+    expect(result.success).toBe(true)
+  })
+
+  it('validates template with all optional age-appropriate fields', () => {
+    const template = {
+      ...validTemplate,
+      ageGroup: '14-16',
+      autonomyMilestones: [{ milestone: 'Complete driving practice', reward: 'Later curfew' }],
+      simpleRules: [], // Empty is allowed
+      ruleExamples: { '0': 'Example for first rule' },
+    }
+    const result = agreementTemplateSchema.safeParse(template)
+    expect(result.success).toBe(true)
+  })
+
+  it('validates template without any optional age-appropriate fields', () => {
+    // Original template without new fields should still work
+    const result = agreementTemplateSchema.safeParse(validTemplate)
+    expect(result.success).toBe(true)
+  })
+})
+
+describe('autonomyMilestoneSchema (Story 4.2)', () => {
+  it('accepts valid milestone with all fields', () => {
+    const milestone = {
+      milestone: 'Maintain grades above B average',
+      reward: 'Extended screen time',
+      description: 'Shows academic responsibility',
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts valid milestone without optional description', () => {
+    const milestone = {
+      milestone: 'No concerning flags for 3 months',
+      reward: 'Reduced monitoring frequency',
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects milestone with empty milestone text', () => {
+    const milestone = {
+      milestone: '',
+      reward: 'Some reward',
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects milestone with empty reward text', () => {
+    const milestone = {
+      milestone: 'Some milestone',
+      reward: '',
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects milestone with milestone text over 100 chars', () => {
+    const milestone = {
+      milestone: 'x'.repeat(101),
+      reward: 'Some reward',
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects milestone with reward text over 200 chars', () => {
+    const milestone = {
+      milestone: 'Some milestone',
+      reward: 'x'.repeat(201),
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects milestone with description over 300 chars', () => {
+    const milestone = {
+      milestone: 'Some milestone',
+      reward: 'Some reward',
+      description: 'x'.repeat(301),
+    }
+    const result = autonomyMilestoneSchema.safeParse(milestone)
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('simpleRuleSchema (Story 4.2)', () => {
+  it('accepts valid simple rule with isAllowed true', () => {
+    const rule = {
+      text: 'Use tablet in living room',
+      isAllowed: true,
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts valid simple rule with isAllowed false', () => {
+    const rule = {
+      text: 'Download apps without asking',
+      isAllowed: false,
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects simple rule with empty text', () => {
+    const rule = {
+      text: '',
+      isAllowed: true,
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects simple rule with text over 100 chars', () => {
+    const rule = {
+      text: 'x'.repeat(101),
+      isAllowed: true,
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects simple rule with missing isAllowed', () => {
+    const rule = {
+      text: 'Some rule',
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects simple rule with non-boolean isAllowed', () => {
+    const rule = {
+      text: 'Some rule',
+      isAllowed: 'yes',
+    }
+    const result = simpleRuleSchema.safeParse(rule)
+    expect(result.success).toBe(false)
   })
 })

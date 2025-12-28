@@ -235,4 +235,86 @@ describe('TemplateCard', () => {
       expect(screen.getByText(label)).toBeInTheDocument()
     })
   })
+
+  // Story 4.2: Age-specific indicators
+  describe('age-specific indicators (Story 4.2)', () => {
+    it('shows simple rules indicator for 5-7 with simpleRules', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '5-7' as const,
+        simpleRules: [
+          { text: 'Play in living room', isAllowed: true },
+          { text: 'Download apps alone', isAllowed: false },
+        ],
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.getByText('Simple Yes/No Rules')).toBeInTheDocument()
+    })
+
+    it('does not show simple rules indicator for 5-7 without simpleRules', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '5-7' as const,
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.queryByText('Simple Yes/No Rules')).not.toBeInTheDocument()
+    })
+
+    it('does not show simple rules indicator for other age groups with simpleRules', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '8-10' as const,
+        simpleRules: [{ text: 'Some rule', isAllowed: true }],
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.queryByText('Simple Yes/No Rules')).not.toBeInTheDocument()
+    })
+
+    it('shows autonomy path indicator for 14-16 with autonomyMilestones', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '14-16' as const,
+        autonomyMilestones: [{ milestone: 'Get license', reward: 'No location sharing' }],
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.getByText('Includes Autonomy Path')).toBeInTheDocument()
+    })
+
+    it('does not show autonomy path indicator for 14-16 without milestones', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '14-16' as const,
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.queryByText('Includes Autonomy Path')).not.toBeInTheDocument()
+    })
+
+    it('does not show autonomy path indicator for other age groups with milestones', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '11-13' as const,
+        autonomyMilestones: [{ milestone: 'Some milestone', reward: 'Some reward' }],
+      }
+      render(<TemplateCard template={template} />)
+
+      expect(screen.queryByText('Includes Autonomy Path')).not.toBeInTheDocument()
+    })
+
+    it('marks indicator icons as aria-hidden', () => {
+      const template = {
+        ...mockTemplate,
+        ageGroup: '5-7' as const,
+        simpleRules: [{ text: 'Test', isAllowed: true }],
+      }
+      const { container } = render(<TemplateCard template={template} />)
+
+      const hiddenIcons = container.querySelectorAll('[aria-hidden="true"]')
+      expect(hiddenIcons.length).toBeGreaterThan(0)
+    })
+  })
 })

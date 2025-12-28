@@ -341,12 +341,38 @@ export const screenTimeLimitsSchema = z.object({
 export type ScreenTimeLimits = z.infer<typeof screenTimeLimitsSchema>
 
 /**
+ * Autonomy milestone for teen templates.
+ *
+ * Story 4.2: Age-Appropriate Template Content - AC5
+ * Defines earned autonomy progression for 14-16 age group.
+ */
+export const autonomyMilestoneSchema = z.object({
+  milestone: z.string().min(1).max(100),
+  reward: z.string().min(1).max(200),
+  description: z.string().max(300).optional(),
+})
+export type AutonomyMilestone = z.infer<typeof autonomyMilestoneSchema>
+
+/**
+ * Simple rule format for young children.
+ *
+ * Story 4.2: Age-Appropriate Template Content - AC6
+ * Simple yes/no rules for 5-7 age group.
+ */
+export const simpleRuleSchema = z.object({
+  text: z.string().min(1).max(100),
+  isAllowed: z.boolean(), // true = "You CAN", false = "Not yet"
+})
+export type SimpleRule = z.infer<typeof simpleRuleSchema>
+
+/**
  * Agreement template schema.
  *
  * Represents a pre-built agreement template for families.
  * Templates are organized by age group and variation.
  *
  * Story 4.1: Template Library Structure - AC1, AC2, AC3
+ * Story 4.2: Age-Appropriate Template Content - AC4, AC5, AC6
  */
 export const agreementTemplateSchema = z.object({
   id: z.string(),
@@ -359,5 +385,9 @@ export const agreementTemplateSchema = z.object({
   monitoringLevel: monitoringLevelSchema,
   keyRules: z.array(z.string()).min(1).max(10),
   createdAt: z.date(),
+  // Story 4.2: Age-appropriate content additions
+  autonomyMilestones: z.array(autonomyMilestoneSchema).optional(), // For 14-16 age group
+  simpleRules: z.array(simpleRuleSchema).optional(), // For 5-7 age group
+  ruleExamples: z.record(z.string(), z.string()).optional(), // ruleIndex -> age-relevant example
 })
 export type AgreementTemplate = z.infer<typeof agreementTemplateSchema>

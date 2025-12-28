@@ -2,15 +2,35 @@
  * Template Card Component.
  *
  * Story 4.1: Template Library Structure - AC3, AC5
+ * Story 4.2: Age-Appropriate Template Content - AC5, AC6
  *
  * Displays a template preview with key information at a glance.
  * Includes screen time summary, monitoring level, and key rules count.
+ * Shows age-specific indicators (simple rules for 5-7, autonomy path for 14-16).
  */
 
 'use client'
 
 import type { AgreementTemplate } from '@fledgely/shared/contracts'
 import { AGE_GROUP_LABELS, VARIATION_LABELS, MONITORING_LEVEL_LABELS } from '../../data/templates'
+
+/**
+ * Check if template has simple rules (for 5-7 age group indicator).
+ */
+function hasSimpleRules(template: AgreementTemplate): boolean {
+  return template.ageGroup === '5-7' && !!template.simpleRules && template.simpleRules.length > 0
+}
+
+/**
+ * Check if template has autonomy milestones (for 14-16 age group indicator).
+ */
+function hasAutonomyMilestones(template: AgreementTemplate): boolean {
+  return (
+    template.ageGroup === '14-16' &&
+    !!template.autonomyMilestones &&
+    template.autonomyMilestones.length > 0
+  )
+}
 
 interface TemplateCardProps {
   template: AgreementTemplate
@@ -155,6 +175,24 @@ export function TemplateCard({ template, onSelect, isSelected = false }: Templat
         {/* Key rules count */}
         <span className="text-xs text-gray-500">{template.keyRules.length} core rules</span>
       </div>
+
+      {/* Age-specific indicators (Story 4.2) */}
+      {(hasSimpleRules(template) || hasAutonomyMilestones(template)) && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          {hasSimpleRules(template) && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+              <span aria-hidden="true">✓</span>
+              Simple Yes/No Rules
+            </span>
+          )}
+          {hasAutonomyMilestones(template) && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span aria-hidden="true">🎯</span>
+              Includes Autonomy Path
+            </span>
+          )}
+        </div>
+      )}
     </button>
   )
 }
