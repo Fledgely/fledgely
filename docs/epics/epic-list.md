@@ -192,8 +192,90 @@ So that **I have immediate access to safety planning help**.
 
 **User Outcome:** Parent has a secure account with Google authentication.
 
+**Demo:** CI pipeline green; web app deployed to staging; Firebase emulator runs locally.
+
 **FRs Covered:** FR1, FR101 (accessibility)
 **NFRs:** NFR10, NFR11, NFR42 (WCAG 2.1 AA)
+
+### Story 1.0.1: Project Scaffolding & CI Pipeline
+
+As a **development team**,
+I want **a working build pipeline before writing any features**,
+So that **we catch infrastructure issues immediately, not after 20 stories**.
+
+**Acceptance Criteria:**
+
+**Given** the project repository is initialized
+**When** we run the build commands
+**Then** Nx monorepo is initialized from Next.js + Firebase starter template
+**And** GitHub Actions workflow is configured for lint, type-check, and test
+**And** Firebase Emulator Suite is configured for local development
+**And** `yarn build` passes successfully
+**And** CI pipeline shows green on main branch
+**And** all team members can clone and build locally
+
+**Technical Notes:**
+- Use ADR-009 (Nx Monorepo) configuration
+- Follow ADR-014 (CI/CD Pipeline) patterns
+- No Nx Cloud initially - add when needed
+
+**FR Coverage:** Infrastructure (no specific FR)
+**NFR Coverage:** NFR50 (linting), NFR51 (IaC)
+
+---
+
+### Story 1.0.2: Deployable Web Shell
+
+As a **stakeholder**,
+I want **to see a deployed website before feature development begins**,
+So that **we know the deployment pipeline works**.
+
+**Acceptance Criteria:**
+
+**Given** the CI pipeline is green
+**When** code is merged to main
+**Then** placeholder Next.js app deploys to Firebase Hosting
+**And** preview deployments are configured for pull requests
+**And** staging URL is accessible and shows "Fledgely - Coming Soon" page
+**And** deployment completes in < 5 minutes
+**And** preview URLs are posted as PR comments
+
+**Technical Notes:**
+- Use `firebase init hosting` with Next.js support
+- Configure GitHub Actions deploy workflow
+- Use Workload Identity Federation (no static keys per ADR-014)
+
+**FR Coverage:** Infrastructure (no specific FR)
+**NFR Coverage:** NFR77 (automated rollback capability)
+
+---
+
+### Story 1.0.3: Firebase Project Setup
+
+As a **developer**,
+I want **Firebase services configured and working locally**,
+So that **I can develop features with emulator without cloud costs**.
+
+**Acceptance Criteria:**
+
+**Given** the project structure is in place
+**When** I run the Firebase emulator
+**Then** Firestore, Auth, Storage, and Functions all start
+**And** baseline security rules are deployed (deny all by default)
+**And** I can create a test user in Auth emulator
+**And** I can write a document to Firestore emulator
+**And** Cloud project mirrors emulator configuration
+**And** `firebase emulators:start` completes in < 30 seconds
+
+**Technical Notes:**
+- Follow SA1 (Security Rules as Code) from architecture
+- Security rules in `packages/firebase-rules/`
+- Use emulator for all local development
+
+**FR Coverage:** Infrastructure (no specific FR)
+**NFR Coverage:** NFR13 (Security Rules), NFR51 (IaC)
+
+---
 
 ### Story 1.1: Google Sign-In Button & Flow
 
@@ -1735,6 +1817,66 @@ So that **my child understands what monitoring looks like before agreeing**.
 **And** demo can be viewed on child's device during explanation
 
 **UX Benefit:** Reduces "buyer's remorse" when real monitoring starts - parent already knows what to expect.
+
+---
+
+### Story 8.5.7: Android APK Build Verification
+
+As a **development team**,
+I want **to prove the Android toolchain works before Epic 14**,
+So that **we don't discover build issues 40 stories into the project**.
+
+**Acceptance Criteria:**
+
+**Given** Epic 8.5 is in progress
+**When** we set up the Android project
+**Then** Android project structure is created in `fledgely-android` repository
+**And** Gradle is configured with Firebase SDK dependencies (stubs)
+**And** Debug APK builds successfully with `./gradlew assembleDebug`
+**And** APK installs on Android 10+ device or emulator
+**And** App launches and displays "Fledgely Agent - Connecting..." placeholder
+**And** Build completes in < 5 minutes on CI
+
+**Technical Notes:**
+- Separate repository per ADR-006 (Hybrid Repository Architecture)
+- Minimal app - just proves toolchain works
+- Target API 29+ (Android 10+) per NFR37
+- Use Kotlin per architecture decision
+
+**FR Coverage:** Infrastructure validation
+**NFR Coverage:** NFR37 (Android 10+ support)
+
+**Demo:** Install APK on test device; show app launches with placeholder UI.
+
+---
+
+### Story 8.5.8: Chrome Extension Build Verification
+
+As a **development team**,
+I want **to prove the Chrome extension build works before Epic 9**,
+So that **we validate the MV3 extension architecture early**.
+
+**Acceptance Criteria:**
+
+**Given** Epic 8.5 is in progress
+**When** we create the extension scaffold
+**Then** Extension manifest (MV3) is created in `apps/extension/`
+**And** Extension builds with `yarn build:extension`
+**And** Extension loads in Chrome developer mode without errors
+**And** Browser action icon is visible in toolbar
+**And** Popup shows "Fledgely - Not Connected" placeholder
+**And** Extension passes Chrome Web Store lint checks
+
+**Technical Notes:**
+- Use Manifest V3 per Chrome MV3 5-minute limit constraint
+- Minimal extension - just proves build works
+- Part of main monorepo (TypeScript)
+- Alarms API configured but not active
+
+**FR Coverage:** Infrastructure validation
+**NFR Coverage:** NFR36 (ChromeOS 100+ support)
+
+**Demo:** Load extension in Chrome; show icon and popup working.
 
 ---
 

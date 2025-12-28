@@ -11,6 +11,39 @@
 
 **Total: 52 base epics + 10 sub-epics (0.5, 3A, 7.5, 8.5, 19A-D, 27.5, 34.5) = 62 epics covering all 161 Functional Requirements + safety extensions**
 
+---
+
+## Demonstration Milestones
+
+Each phase ends with a **Show+Tell** milestone - a working demonstration of user value.
+
+| Phase | Demo Epic | Demo Milestone | What We Show |
+|-------|-----------|----------------|--------------|
+| Phase 1 | Epic 8.5 | **Build Pipeline Works** | CI green, web deploys, extension loads, APK installs |
+| Phase 2 | Epic 19 | **Screenshot Capture** | Parent sees child's screenshot in dashboard |
+| Phase 3 | Epic 28 | **AI Flag Review** | Parent reviews AI-flagged content with child annotation |
+| Phase 4 | Epic 38 | **Trust Progression** | Child earns reduced monitoring through demonstrated trust |
+| Phase 5 | Epic 45 | **Multi-Platform Family** | Family with iOS, Android, Fire TV all visible in one dashboard |
+| Phase 6 | Epic 52 | **Self-Hosted Complete** | Full self-hosted deployment working on user's GCP |
+
+### Sprint 0 Infrastructure Validation
+
+Before feature development begins, these must pass:
+
+| Story | Validates | Success Criteria |
+|-------|-----------|------------------|
+| 1.0.1 | Build Pipeline | `yarn build` passes, CI green |
+| 1.0.2 | Web Deployment | Staging URL accessible |
+| 1.0.3 | Firebase Setup | Emulator runs all services |
+| 8.5.7 | Android Build | APK installs and launches |
+| 8.5.8 | Extension Build | Extension loads in Chrome |
+
+### Epic-Level Demo Checkpoints
+
+Each epic goal includes demo criteria - what can be shown to stakeholders when complete.
+
+---
+
 ## Focus Group Changes Applied:
 - ✅ **Epic 3A** - Shared custody safeguards moved to Phase 1 (protections before features)
 - ✅ **Epic 19A** - Quick status view added (green/yellow/red for parents & caregivers)
