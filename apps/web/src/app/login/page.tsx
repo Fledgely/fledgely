@@ -83,7 +83,15 @@ const styles = {
 }
 
 export default function LoginPage() {
-  const { firebaseUser, loading, isNewUser, sessionExpired, clearSessionExpiredFlag } = useAuth()
+  const {
+    firebaseUser,
+    loading,
+    isNewUser,
+    sessionExpired,
+    justLoggedOut,
+    clearSessionExpiredFlag,
+    clearJustLoggedOutFlag,
+  } = useAuth()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
@@ -91,17 +99,19 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loading && firebaseUser) {
       clearSessionExpiredFlag()
+      clearJustLoggedOutFlag()
       if (isNewUser) {
         router.push('/onboarding')
       } else {
         router.push('/dashboard')
       }
     }
-  }, [firebaseUser, loading, isNewUser, router, clearSessionExpiredFlag])
+  }, [firebaseUser, loading, isNewUser, router, clearSessionExpiredFlag, clearJustLoggedOutFlag])
 
   const handleSignInSuccess = () => {
-    // Clear any session expired flag on successful sign-in
+    // Clear any status flags on successful sign-in
     clearSessionExpiredFlag()
+    clearJustLoggedOutFlag()
     // Redirect handled by auth state change effect
   }
 
@@ -161,6 +171,12 @@ export default function LoginPage() {
       <div style={styles.card}>
         <h1 style={styles.logo}>Fledgely</h1>
         <p style={styles.tagline}>Sign in to your account</p>
+
+        {justLoggedOut && !sessionExpired && (
+          <div style={styles.info} role="status" aria-live="polite">
+            You have been logged out.
+          </div>
+        )}
 
         {sessionExpired && (
           <div style={styles.info} role="status" aria-live="polite">

@@ -143,7 +143,8 @@ export default function DashboardPage() {
     setLoggingOut(true)
     try {
       await signOut()
-      router.push('/')
+      // Redirect to login page where "logged out" message will be shown
+      router.push('/login')
     } catch (error) {
       console.error('Logout failed:', error)
       setLoggingOut(false)
@@ -174,6 +175,22 @@ export default function DashboardPage() {
 
   return (
     <main style={styles.main}>
+      <style>
+        {`
+          .logout-button:focus {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+          }
+          .logout-button:hover:not(:disabled) {
+            background-color: #f9fafb;
+            border-color: #9ca3af;
+          }
+          .logout-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+          }
+        `}
+      </style>
       <header style={styles.header}>
         <a href="/" style={styles.logo}>
           Fledgely
@@ -189,7 +206,9 @@ export default function DashboardPage() {
             onClick={handleLogout}
             disabled={loggingOut}
             style={styles.logoutButton}
-            aria-label="Sign out"
+            className="logout-button"
+            aria-label="Sign out of your account"
+            aria-busy={loggingOut}
           >
             {loggingOut ? 'Signing out...' : 'Sign out'}
           </button>

@@ -34,6 +34,8 @@ interface AuthContextType {
   isNewUser: boolean
   /** Whether session expired due to inactivity */
   sessionExpired: boolean
+  /** Whether user just logged out (for showing confirmation) */
+  justLoggedOut: boolean
   /** Error from profile operations */
   profileError: Error | null
   /** Sign in with Google */
@@ -46,6 +48,8 @@ interface AuthContextType {
   clearNewUserFlag: () => void
   /** Clear session expired flag after user sees message */
   clearSessionExpiredFlag: () => void
+  /** Clear just logged out flag after user sees message */
+  clearJustLoggedOutFlag: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -61,6 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [signingIn, setSigningIn] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [justLoggedOut, setJustLoggedOut] = useState(false)
   const [profileError, setProfileError] = useState<Error | null>(null)
 
   useEffect(() => {
@@ -128,7 +133,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const signOut = useCallback(async () => {
-    await firebaseSignOut(getFirebaseAuth())
+    // Set justLoggedOut before signing out so login page can show message
+    setJustLoggedOut(true)
+    try {
+      await firebaseSignOut(getFirebaseAuth())
+    } catch {
+      // Even if Firebase signOut fails (e.g., offline), clear local state
+      // Firebase will sync when back online
+    }
     setUserProfile(null)
     setIsNewUser(false)
     setSessionExpired(false)
@@ -149,6 +161,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSessionExpired(false)
   }, [])
 
+  const clearJustLoggedOutFlag = useCallback(() => {
+    setJustLoggedOut(false)
+  }, [])
+
   const value: AuthContextType = {
     firebaseUser,
     userProfile,
@@ -156,12 +172,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signingIn,
     isNewUser,
     sessionExpired,
+    justLoggedOut,
     profileError,
     signInWithGoogle,
     signOut,
     signOutDueToExpiry,
     clearNewUserFlag,
     clearSessionExpiredFlag,
+    clearJustLoggedOutFlag,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
