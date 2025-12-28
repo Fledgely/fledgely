@@ -139,3 +139,36 @@ export const childProfileSchema = z.object({
   updatedAt: z.date(),
 })
 export type ChildProfile = z.infer<typeof childProfileSchema>
+
+/**
+ * Invitation status for co-parent invitations.
+ * - pending: Invitation sent, awaiting acceptance
+ * - accepted: Co-parent accepted the invitation
+ * - expired: Invitation exceeded its expiry period
+ * - revoked: Inviting parent canceled the invitation
+ */
+export const invitationStatusSchema = z.enum(['pending', 'accepted', 'expired', 'revoked'])
+export type InvitationStatus = z.infer<typeof invitationStatusSchema>
+
+/**
+ * Co-parent invitation schema.
+ *
+ * Represents an invitation stored in Firestore at /invitations/{invitationId}.
+ * Invitations allow guardians to invite co-parents to join their family.
+ *
+ * Note: For MVP, invitations are BLOCKED by checkEpic3ASafeguards() until
+ * Epic 3A (Shared Custody Safeguards) is complete.
+ */
+export const invitationSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  inviterUid: z.string(),
+  inviterName: z.string(),
+  familyName: z.string(),
+  token: z.string(), // Secure UUID token for invitation link
+  status: invitationStatusSchema,
+  expiresAt: z.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type Invitation = z.infer<typeof invitationSchema>

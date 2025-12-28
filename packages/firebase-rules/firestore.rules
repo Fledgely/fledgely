@@ -84,6 +84,36 @@ service cloud.firestore {
       allow delete: if isChildGuardian();
     }
 
+    // Invitation documents: for co-parent invitations
+    match /invitations/{invitationId} {
+      // Helper to check if user is the inviter
+      function isInviter() {
+        return request.auth != null &&
+          request.auth.uid == resource.data.inviterUid;
+      }
+
+      // Helper to check if user is a guardian of the invitation's family
+      function isFamilyGuardian() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Read: inviter, family guardians, or any authenticated user (for acceptance flow)
+      // Note: Token validation happens in application layer for acceptance
+      allow read: if request.auth != null;
+
+      // Create: authenticated users can create if they're set as inviter
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.inviterUid;
+
+      // Update: only inviter can update (for revoking, marking expired)
+      allow update: if isInviter();
+
+      // Delete: not allowed (use status: revoked instead)
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

@@ -18,6 +18,7 @@ import { hasCustodyDeclaration } from '../../services/custodyService'
 import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
+import InviteCoParentModal from '../../components/InviteCoParentModal'
 import type { ChildProfile } from '@fledgely/shared/contracts'
 
 const styles = {
@@ -135,6 +136,7 @@ export default function DashboardPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [childToRemove, setChildToRemove] = useState<ChildProfile | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -244,6 +246,14 @@ export default function DashboardPage() {
             background-color: #fef2f2;
             border-color: #fca5a5;
           }
+          .invite-coparent-button:focus {
+            outline: 2px solid #7c3aed;
+            outline-offset: 2px;
+          }
+          .invite-coparent-button:hover {
+            background-color: #f5f3ff;
+            border-color: #c4b5fd;
+          }
           .child-item {
             display: flex;
             align-items: center;
@@ -324,28 +334,55 @@ export default function DashboardPage() {
               </div>
               <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
                 <span style={styles.infoLabel}>Actions</span>
-                <button
-                  type="button"
-                  onClick={() => setShowDissolveModal(true)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: '44px',
-                    padding: '8px 16px',
-                    backgroundColor: '#ffffff',
-                    color: '#dc2626',
-                    fontSize: '13px',
-                    fontWeight: 500,
-                    borderRadius: '6px',
-                    border: '1px solid #fecaca',
-                    cursor: 'pointer',
-                  }}
-                  className="dissolve-family-button"
-                  aria-label="Dissolve this family"
-                >
-                  Dissolve Family
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {/* AC1: Only show Invite Co-Parent when family has at least one child */}
+                  {children.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowInviteModal(true)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: '44px',
+                        padding: '8px 16px',
+                        backgroundColor: '#ffffff',
+                        color: '#7c3aed',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        borderRadius: '6px',
+                        border: '1px solid #ddd6fe',
+                        cursor: 'pointer',
+                      }}
+                      className="invite-coparent-button"
+                      aria-label="Invite a co-parent to this family"
+                    >
+                      Invite Co-Parent
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowDissolveModal(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '44px',
+                      padding: '8px 16px',
+                      backgroundColor: '#ffffff',
+                      color: '#dc2626',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                      border: '1px solid #fecaca',
+                      cursor: 'pointer',
+                    }}
+                    className="dissolve-family-button"
+                    aria-label="Dissolve this family"
+                  >
+                    Dissolve Family
+                  </button>
+                </div>
               </div>
 
               {/* Children Section */}
@@ -579,6 +616,16 @@ export default function DashboardPage() {
             await refreshFamily()
             setShowDissolveModal(false)
           }}
+        />
+      )}
+
+      {/* Invite Co-Parent Modal */}
+      {family && firebaseUser && (
+        <InviteCoParentModal
+          family={family}
+          isOpen={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          currentUserUid={firebaseUser.uid}
         />
       )}
     </main>
