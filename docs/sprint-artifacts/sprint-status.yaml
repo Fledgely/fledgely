@@ -63,7 +63,7 @@ development_status:
   # Sprint 0 Infrastructure Stories (NEW)
   1-0-1-project-scaffolding-ci-pipeline: done
   1-0-2-deployable-web-shell: done
-  1-0-3-firebase-project-setup: backlog
+  1-0-3-firebase-project-setup: done
   # Feature Stories
   1-1-google-sign-in-button-flow: backlog
   1-2-user-profile-creation-on-first-sign-in: backlog

@@ -20,7 +20,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "prepare": "husky",
     "emulators": "firebase emulators:start",
-    "emulators:export": "firebase emulators:export ./emulator-data"
+    "emulators:export": "firebase emulators:export ./emulator-data",
+    "emulators:import": "firebase emulators:start --import=./emulator-data"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
