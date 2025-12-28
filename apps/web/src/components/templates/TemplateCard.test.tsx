@@ -317,4 +317,112 @@ describe('TemplateCard', () => {
       expect(hiddenIcons.length).toBeGreaterThan(0)
     })
   })
+
+  // Story 4.3: Compare mode functionality
+  describe('compare mode (Story 4.3)', () => {
+    it('does not show compare button by default', () => {
+      render(<TemplateCard template={mockTemplate} />)
+      expect(screen.queryByLabelText(/Add to comparison/)).not.toBeInTheDocument()
+    })
+
+    it('shows compare button when showCompare is true', () => {
+      render(<TemplateCard template={mockTemplate} showCompare />)
+      expect(screen.getByLabelText('Add to comparison')).toBeInTheDocument()
+    })
+
+    it('shows checked state when isInComparison is true', () => {
+      render(<TemplateCard template={mockTemplate} showCompare isInComparison />)
+      const button = screen.getByLabelText('Remove from comparison')
+      expect(button).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('shows unchecked state when isInComparison is false', () => {
+      render(<TemplateCard template={mockTemplate} showCompare isInComparison={false} />)
+      const button = screen.getByLabelText('Add to comparison')
+      expect(button).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('calls onCompareToggle when compare button is clicked', () => {
+      const onCompareToggle = vi.fn()
+      render(<TemplateCard template={mockTemplate} showCompare onCompareToggle={onCompareToggle} />)
+
+      fireEvent.click(screen.getByLabelText('Add to comparison'))
+
+      expect(onCompareToggle).toHaveBeenCalledWith(mockTemplate)
+    })
+
+    it('does not call onSelect when compare button is clicked', () => {
+      const onSelect = vi.fn()
+      const onCompareToggle = vi.fn()
+      render(
+        <TemplateCard
+          template={mockTemplate}
+          showCompare
+          onSelect={onSelect}
+          onCompareToggle={onCompareToggle}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText('Add to comparison'))
+
+      expect(onCompareToggle).toHaveBeenCalled()
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
+    it('disables compare button when canAddToComparison is false and not in comparison', () => {
+      render(
+        <TemplateCard
+          template={mockTemplate}
+          showCompare
+          isInComparison={false}
+          canAddToComparison={false}
+        />
+      )
+
+      const button = screen.getByLabelText('Add to comparison')
+      expect(button).toBeDisabled()
+    })
+
+    it('does not disable compare button when already in comparison even if canAddToComparison is false', () => {
+      render(
+        <TemplateCard
+          template={mockTemplate}
+          showCompare
+          isInComparison={true}
+          canAddToComparison={false}
+        />
+      )
+
+      const button = screen.getByLabelText('Remove from comparison')
+      expect(button).not.toBeDisabled()
+    })
+
+    it('compare button has minimum 44px touch target', () => {
+      render(<TemplateCard template={mockTemplate} showCompare />)
+
+      const button = screen.getByLabelText('Add to comparison')
+      expect(button).toHaveClass('min-h-[44px]')
+      expect(button).toHaveClass('min-w-[44px]')
+    })
+
+    it('responds to Enter key on compare button', () => {
+      const onCompareToggle = vi.fn()
+      render(<TemplateCard template={mockTemplate} showCompare onCompareToggle={onCompareToggle} />)
+
+      const button = screen.getByLabelText('Add to comparison')
+      fireEvent.keyDown(button, { key: 'Enter' })
+
+      expect(onCompareToggle).toHaveBeenCalledWith(mockTemplate)
+    })
+
+    it('responds to Space key on compare button', () => {
+      const onCompareToggle = vi.fn()
+      render(<TemplateCard template={mockTemplate} showCompare onCompareToggle={onCompareToggle} />)
+
+      const button = screen.getByLabelText('Add to comparison')
+      fireEvent.keyDown(button, { key: ' ' })
+
+      expect(onCompareToggle).toHaveBeenCalledWith(mockTemplate)
+    })
+  })
 })

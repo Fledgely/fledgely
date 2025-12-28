@@ -333,11 +333,26 @@ describe('TemplateLibrary', () => {
   })
 
   describe('template selection', () => {
-    it('calls onSelectTemplate when a template card is clicked', () => {
+    // Story 4.3: Now clicking opens preview modal, use "Use This Template" to select
+    it('opens preview modal when a template card is clicked', () => {
+      render(<TemplateLibrary onSelectTemplate={vi.fn()} />)
+
+      fireEvent.click(screen.getByText('Supervised Explorer').closest('button')!)
+
+      // Preview modal should open
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByText('Use This Template')).toBeInTheDocument()
+    })
+
+    it('calls onSelectTemplate when "Use This Template" is clicked in preview', () => {
       const onSelectTemplate = vi.fn()
       render(<TemplateLibrary onSelectTemplate={onSelectTemplate} />)
 
+      // Open preview
       fireEvent.click(screen.getByText('Supervised Explorer').closest('button')!)
+
+      // Click "Use This Template"
+      fireEvent.click(screen.getByText('Use This Template'))
 
       expect(onSelectTemplate).toHaveBeenCalledWith(mockTemplates[0])
     })

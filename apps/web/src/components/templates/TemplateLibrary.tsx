@@ -2,9 +2,11 @@
  * Template Library Component.
  *
  * Story 4.1: Template Library Structure - AC1, AC2, AC4, AC5
+ * Story 4.3: Template Preview & Selection - AC1, AC3, AC4
  *
  * Displays browsable template collection organized by age group.
  * Includes filtering by categories and search functionality.
+ * Supports preview modal and comparison mode.
  */
 
 'use client'
@@ -12,6 +14,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import type { AgreementTemplate, AgeGroup, TemplateCategory } from '@fledgely/shared/contracts'
 import { useTemplateLibrary, type TemplateLibraryFilters } from '../../hooks/useTemplates'
+import { useTemplateComparison } from '../../hooks/useTemplateSelection'
 import {
   AGE_GROUPS,
   AGE_GROUP_LABELS,
@@ -19,6 +22,8 @@ import {
   CATEGORY_LABELS,
 } from '../../data/templates'
 import { TemplateCard } from './TemplateCard'
+import { TemplatePreviewModal } from './TemplatePreviewModal'
+import { TemplateComparison } from './TemplateComparison'
 
 interface TemplateLibraryProps {
   onSelectTemplate?: (template: AgreementTemplate) => void
@@ -54,6 +59,22 @@ export function TemplateLibrary({
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<AgeGroup | null>(initialAgeGroup ?? null)
   const [selectedCategories, setSelectedCategories] = useState<TemplateCategory[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Story 4.3: Preview modal state
+  const [previewTemplate, setPreviewTemplate] = useState<AgreementTemplate | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+
+  // Story 4.3: Comparison mode state
+  const [showCompareMode, setShowCompareMode] = useState(false)
+  const [showComparison, setShowComparison] = useState(false)
+  const {
+    comparisonTemplates,
+    toggleComparison,
+    clearComparison,
+    isInComparison,
+    canAddMore,
+    canCompare,
+  } = useTemplateComparison()
 
   // Debounce search to avoid excessive queries
   const debouncedSearch = useDebounce(searchQuery, 300)
@@ -97,6 +118,48 @@ export function TemplateLibrary({
 
   // Check if any filters are active
   const hasActiveFilters = selectedAgeGroup || selectedCategories.length > 0 || searchQuery
+
+  // Story 4.3: Handle opening preview modal
+  const handleOpenPreview = useCallback((template: AgreementTemplate) => {
+    setPreviewTemplate(template)
+    setIsPreviewOpen(true)
+  }, [])
+
+  // Story 4.3: Handle closing preview modal
+  const handleClosePreview = useCallback(() => {
+    setIsPreviewOpen(false)
+    setPreviewTemplate(null)
+  }, [])
+
+  // Story 4.3: Handle template selection from preview
+  const handleSelectFromPreview = useCallback(
+    (template: AgreementTemplate) => {
+      onSelectTemplate?.(template)
+    },
+    [onSelectTemplate]
+  )
+
+  // Story 4.3: Toggle compare mode
+  const handleToggleCompareMode = useCallback(() => {
+    setShowCompareMode((prev) => {
+      if (prev) {
+        clearComparison()
+      }
+      return !prev
+    })
+  }, [clearComparison])
+
+  // Story 4.3: Open comparison view
+  const handleOpenComparison = useCallback(() => {
+    if (canCompare) {
+      setShowComparison(true)
+    }
+  }, [canCompare])
+
+  // Story 4.3: Close comparison view
+  const handleCloseComparison = useCallback(() => {
+    setShowComparison(false)
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -203,39 +266,111 @@ export function TemplateLibrary({
         </div>
       </div>
 
-      {/* Category filters */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-        {TEMPLATE_CATEGORIES.map((category) => (
-          <button
-            key={category}
-            type="button"
-            onClick={() => handleCategoryToggle(category)}
-            aria-pressed={selectedCategories.includes(category)}
-            className={`
-              px-3 py-1.5 text-sm font-medium rounded-full border transition-colors
-              focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
-              min-h-[44px]
-              ${
-                selectedCategories.includes(category)
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
-              }
-            `}
-          >
-            {CATEGORY_LABELS[category]}
-          </button>
-        ))}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 underline min-h-[44px]"
-            aria-label="Clear all filters"
-          >
-            Clear filters
-          </button>
-        )}
+      {/* Category filters and compare mode toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+          {TEMPLATE_CATEGORIES.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => handleCategoryToggle(category)}
+              aria-pressed={selectedCategories.includes(category)}
+              className={`
+                px-3 py-1.5 text-sm font-medium rounded-full border transition-colors
+                focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+                min-h-[44px]
+                ${
+                  selectedCategories.includes(category)
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                }
+              `}
+            >
+              {CATEGORY_LABELS[category]}
+            </button>
+          ))}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 underline min-h-[44px]"
+              aria-label="Clear all filters"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {/* Story 4.3: Compare mode toggle */}
+        <button
+          type="button"
+          onClick={handleToggleCompareMode}
+          aria-pressed={showCompareMode}
+          className={`
+            px-4 py-2 text-sm font-medium rounded-lg border transition-colors
+            focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+            min-h-[44px]
+            ${
+              showCompareMode
+                ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+            }
+          `}
+        >
+          <span className="flex items-center gap-2">
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+              />
+            </svg>
+            {showCompareMode ? 'Exit Compare' : 'Compare Templates'}
+          </span>
+        </button>
       </div>
+
+      {/* Story 4.3: Compare selected button */}
+      {showCompareMode && comparisonTemplates.length > 0 && (
+        <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+          <span className="text-sm text-indigo-700">
+            {comparisonTemplates.length} template{comparisonTemplates.length === 1 ? '' : 's'}{' '}
+            selected
+            {!canAddMore && ' (maximum 3)'}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearComparison}
+              className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 min-h-[44px]"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenComparison}
+              disabled={!canCompare}
+              className={`
+                px-4 py-2 text-sm font-medium rounded-lg transition-colors min-h-[44px]
+                ${
+                  canCompare
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }
+              `}
+            >
+              Compare Selected
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Loading state */}
       {isLoading && (
@@ -324,13 +459,34 @@ export function TemplateLibrary({
               <div key={template.id} role="listitem">
                 <TemplateCard
                   template={template}
-                  onSelect={onSelectTemplate}
+                  onSelect={handleOpenPreview}
                   isSelected={selectedTemplateId === template.id}
+                  showCompare={showCompareMode}
+                  isInComparison={isInComparison(template.id)}
+                  onCompareToggle={toggleComparison}
+                  canAddToComparison={canAddMore}
                 />
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Story 4.3: Preview Modal */}
+      <TemplatePreviewModal
+        template={previewTemplate}
+        isOpen={isPreviewOpen}
+        onClose={handleClosePreview}
+        onSelect={handleSelectFromPreview}
+      />
+
+      {/* Story 4.3: Comparison View */}
+      {showComparison && (
+        <TemplateComparison
+          templates={comparisonTemplates}
+          onClose={handleCloseComparison}
+          onSelect={handleSelectFromPreview}
+        />
       )}
     </div>
   )
