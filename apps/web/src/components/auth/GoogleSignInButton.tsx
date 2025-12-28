@@ -101,11 +101,15 @@ function Spinner() {
 }
 
 interface GoogleSignInButtonProps {
+  /** Called when sign-in attempt starts */
+  onStart?: () => void
+  /** Called on successful sign-in */
   onSuccess?: () => void
+  /** Called on sign-in error */
   onError?: (error: Error) => void
 }
 
-export function GoogleSignInButton({ onSuccess, onError }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ onStart, onSuccess, onError }: GoogleSignInButtonProps) {
   const { signInWithGoogle } = useAuth()
   const [loading, setLoading] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -114,6 +118,7 @@ export function GoogleSignInButton({ onSuccess, onError }: GoogleSignInButtonPro
   const handleClick = async () => {
     if (loading) return
 
+    onStart?.()
     setLoading(true)
     try {
       await signInWithGoogle()

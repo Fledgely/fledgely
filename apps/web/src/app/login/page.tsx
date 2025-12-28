@@ -108,6 +108,11 @@ export default function LoginPage() {
     }
   }, [firebaseUser, loading, isNewUser, router, clearSessionExpiredFlag, clearJustLoggedOutFlag])
 
+  const handleSignInStart = () => {
+    // Clear previous error when starting a new sign-in attempt
+    setError(null)
+  }
+
   const handleSignInSuccess = () => {
     // Clear any status flags on successful sign-in
     clearSessionExpiredFlag()
@@ -116,27 +121,54 @@ export default function LoginPage() {
   }
 
   const handleSignInError = (err: Error) => {
-    // Handle common Firebase auth errors with user-friendly messages
-    const errorCode = (err as { code?: string }).code || ''
+    // Handle Firebase auth errors with user-friendly messages (6th-grade reading level)
+    const errorCode = (err as { code?: string }).code || 'unknown'
 
+    // Log error for monitoring (no PII - only error code)
+    console.error('[Auth Error]', { code: errorCode, type: categorizeAuthError(errorCode) })
+
+    // Set user-friendly message based on error code
     switch (errorCode) {
       case 'auth/popup-closed-by-user':
-        setError('Sign-in was cancelled. Please try again.')
+      case 'auth/cancelled-popup-request':
+        setError('Sign-in was cancelled. Click the button to try again.')
         break
       case 'auth/popup-blocked':
         setError(
-          'Pop-up was blocked by your browser. Please allow pop-ups for this site and try again.'
+          'Your browser blocked the sign-in window. Please allow pop-ups for this site, then try again.'
         )
         break
       case 'auth/network-request-failed':
-        setError('Network error. Please check your internet connection and try again.')
+        setError('Could not connect to the internet. Please check your connection and try again.')
         break
       case 'auth/too-many-requests':
-        setError('Too many sign-in attempts. Please wait a moment and try again.')
+        setError('Too many tries. Please wait a minute and try again.')
+        break
+      case 'auth/user-disabled':
+        setError('This account has been disabled. Please contact support for help.')
+        break
+      case 'auth/operation-not-allowed':
+        setError('Sign-in is not available right now. Please try again later.')
+        break
+      case 'auth/internal-error':
+        setError('Something went wrong on our end. Please try again in a moment.')
         break
       default:
         setError('Unable to sign in. Please try again.')
     }
+  }
+
+  /**
+   * Categorize auth errors for monitoring/analytics.
+   * Returns a category string without any PII.
+   */
+  function categorizeAuthError(errorCode: string): string {
+    if (errorCode.includes('popup')) return 'popup'
+    if (errorCode.includes('network')) return 'network'
+    if (errorCode.includes('disabled')) return 'account'
+    if (errorCode.includes('too-many')) return 'rate-limit'
+    if (errorCode.includes('internal')) return 'server'
+    return 'other'
   }
 
   // Show loading state while checking auth
@@ -190,7 +222,11 @@ export default function LoginPage() {
           </div>
         )}
 
-        <GoogleSignInButton onSuccess={handleSignInSuccess} onError={handleSignInError} />
+        <GoogleSignInButton
+          onStart={handleSignInStart}
+          onSuccess={handleSignInSuccess}
+          onError={handleSignInError}
+        />
 
         <a href="/" style={styles.backLink} className="back-link">
           &larr; Back to home
