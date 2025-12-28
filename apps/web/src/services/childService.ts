@@ -46,6 +46,17 @@ function convertChildTimestamps(data: Record<string, unknown>): Record<string, u
       addedAt: g.addedAt instanceof Timestamp ? g.addedAt.toDate() : g.addedAt,
     }))
   }
+  // Convert custody timestamps if present
+  if (result.custody && typeof result.custody === 'object') {
+    const custody = result.custody as Record<string, unknown>
+    result.custody = {
+      ...custody,
+      declaredAt:
+        custody.declaredAt instanceof Timestamp ? custody.declaredAt.toDate() : custody.declaredAt,
+      updatedAt:
+        custody.updatedAt instanceof Timestamp ? custody.updatedAt.toDate() : custody.updatedAt,
+    }
+  }
   return result
 }
 
@@ -178,6 +189,7 @@ export async function addChild(
           addedAt: serverTimestamp(),
         },
       ],
+      custody: null, // Custody must be declared separately
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })

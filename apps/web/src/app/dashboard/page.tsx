@@ -13,6 +13,8 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamily } from '../../contexts/FamilyContext'
 import { calculateAge } from '../../services/childService'
+import { hasCustodyDeclaration } from '../../services/custodyService'
+import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 
 const styles = {
   main: {
@@ -206,6 +208,13 @@ export default function DashboardPage() {
           .add-child-link:hover {
             background-color: #4338CA;
           }
+          .declare-custody-link:focus {
+            outline: 2px solid #dc2626;
+            outline-offset: 2px;
+          }
+          .declare-custody-link:hover {
+            background-color: #b91c1c;
+          }
           .child-item {
             display: flex;
             align-items: center;
@@ -336,6 +345,7 @@ export default function DashboardPage() {
                     {children.map((child) => {
                       const age = calculateAge(child.birthdate)
                       const initial = child.name.charAt(0).toUpperCase()
+                      const needsCustody = !hasCustodyDeclaration(child)
                       return (
                         <div key={child.id} className="child-item">
                           {child.photoURL ? (
@@ -352,12 +362,37 @@ export default function DashboardPage() {
                           ) : (
                             <div className="child-avatar">{initial}</div>
                           )}
-                          <div>
+                          <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 500, color: '#1f2937' }}>{child.name}</div>
                             <div style={{ fontSize: '13px', color: '#6b7280' }}>
                               {age} year{age !== 1 ? 's' : ''} old
                             </div>
+                            <div style={{ marginTop: '4px' }}>
+                              <CustodyStatusBadge custody={child.custody} />
+                            </div>
                           </div>
+                          {needsCustody && (
+                            <a
+                              href={`/family/children/${child.id}/custody`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minHeight: '44px',
+                                padding: '8px 12px',
+                                backgroundColor: '#dc2626',
+                                color: '#ffffff',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                textDecoration: 'none',
+                                borderRadius: '6px',
+                              }}
+                              className="declare-custody-link"
+                              aria-label={`Declare custody for ${child.name}`}
+                            >
+                              Declare Custody
+                            </a>
+                          )}
                         </div>
                       )
                     })}

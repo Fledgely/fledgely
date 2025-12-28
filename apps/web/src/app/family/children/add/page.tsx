@@ -4,7 +4,7 @@
  * Add child page.
  *
  * Allows authenticated parents to add a child to their family.
- * Redirects to dashboard after successful creation.
+ * Redirects to custody declaration after successful creation.
  */
 
 import { useEffect, useState } from 'react'
@@ -192,15 +192,15 @@ export default function AddChildPage() {
     setError(null)
 
     try {
-      await addChild(
+      const child = await addChild(
         family.id,
         firebaseUser.uid,
         name.trim(),
         birthdateDate,
         photoURL.trim() || null
       )
-      // Redirect to dashboard after successful creation
-      router.push('/dashboard')
+      // Redirect to custody declaration after creating child
+      router.push(`/family/children/${child.id}/custody`)
     } catch (err) {
       console.error('Failed to add child:', err)
       setError('Unable to add child. Please try again.')

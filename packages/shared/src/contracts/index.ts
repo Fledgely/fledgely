@@ -85,6 +85,43 @@ export const childGuardianSchema = z.object({
 export type ChildGuardian = z.infer<typeof childGuardianSchema>
 
 /**
+ * Custody type for a child.
+ * - sole: One parent has full custody
+ * - shared: Both parents share custody (triggers Epic 3A safeguards)
+ * - complex: Blended family or other arrangements (requires explanation)
+ */
+export const custodyTypeSchema = z.enum(['sole', 'shared', 'complex'])
+export type CustodyType = z.infer<typeof custodyTypeSchema>
+
+/**
+ * Custody arrangement declaration.
+ * Stored on child document to indicate custody situation.
+ */
+export const custodyArrangementSchema = z
+  .object({
+    type: custodyTypeSchema,
+    explanation: z.string().max(1000).nullable(), // Required for 'complex' type
+    declaredBy: z.string(), // UID of guardian who declared
+    declaredAt: z.date(),
+    updatedAt: z.date().nullable(), // Set on updates
+    updatedBy: z.string().nullable(), // UID of guardian who updated
+  })
+  .refine(
+    (data) => {
+      // If type is complex, explanation must be non-null and non-empty
+      if (data.type === 'complex') {
+        return data.explanation !== null && data.explanation.trim().length > 0
+      }
+      return true
+    },
+    {
+      message: 'Explanation is required for complex custody arrangements',
+      path: ['explanation'],
+    }
+  )
+export type CustodyArrangement = z.infer<typeof custodyArrangementSchema>
+
+/**
  * Child profile schema.
  *
  * Represents a child stored in Firestore at /children/{childId}.
@@ -97,6 +134,7 @@ export const childProfileSchema = z.object({
   birthdate: z.date(),
   photoURL: z.string().url().nullable(),
   guardians: z.array(childGuardianSchema).min(1),
+  custody: custodyArrangementSchema.nullable(), // Optional custody declaration
   createdAt: z.date(),
   updatedAt: z.date(),
 })
