@@ -23,6 +23,8 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "jsdom": "^27.3.0"
+    "jsdom": "^27.3.0",
+    "next": "^15.0.3",
+    "turbo": "^2.3.3"
   }
 }
