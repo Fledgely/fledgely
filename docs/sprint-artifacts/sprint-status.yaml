@@ -90,7 +90,7 @@ development_status:
   3-1-co-parent-invitation-generation: done
   3-2-invitation-delivery: done
   3-3-co-parent-invitation-acceptance: done
-  3-4-equal-access-verification: backlog
+  3-4-equal-access-verification: done
   3-5-invitation-management: backlog
   3-6-legal-parent-petition-for-access: backlog
   epic-3-retrospective: optional

@@ -43,7 +43,10 @@ service cloud.firestore {
       allow create: if request.auth != null && isCreatingAsGuardian();
 
       // Update: only existing guardians can update family
-      allow update: if isGuardian();
+      // Story 3.4 AC6: Prevent guardian removal in co-managed families
+      // Guardians array can only grow or stay same size - no removals allowed
+      allow update: if isGuardian() &&
+        request.resource.data.guardians.size() >= resource.data.guardians.size();
 
       // Delete: only guardians can delete their family (single-guardian only)
       // Multi-guardian families require support intervention

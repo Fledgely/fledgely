@@ -19,6 +19,7 @@ import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
+import GuardianBadge from '../../components/GuardianBadge'
 import type { ChildProfile } from '@fledgely/shared/contracts'
 
 const styles = {
@@ -328,19 +329,8 @@ export default function DashboardPage() {
                 <span style={styles.infoLabel}>Guardians</span>
                 <span style={styles.infoValue}>
                   {family.guardians.length}
-                  {family.guardians.length > 1 && (
-                    <span
-                      style={{
-                        marginLeft: '8px',
-                        fontSize: '12px',
-                        backgroundColor: '#ddd6fe',
-                        color: '#7c3aed',
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                      }}
-                    >
-                      Co-managed
-                    </span>
+                  {firebaseUser && (
+                    <GuardianBadge guardians={family.guardians} currentUserUid={firebaseUser.uid} />
                   )}
                 </span>
               </div>
