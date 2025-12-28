@@ -1,14 +1,8 @@
 # Firebase App Hosting configuration for Fledgely web app
+# Firebase config is automatically injected by App Hosting
 runConfig:
   cpu: 1
   memoryMiB: 512
   minInstances: 0
   maxInstances: 10
   concurrency: 80
-
-env:
-  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: ${FIREBASE_API_KEY}
-    availability:
-      - BUILD
-      - RUNTIME
