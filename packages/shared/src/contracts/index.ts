@@ -169,6 +169,8 @@ export const invitationSchema = z.object({
   status: invitationStatusSchema,
   recipientEmail: z.string().email().nullable(), // Email address invitation was sent to (Story 3.2)
   emailSentAt: z.date().nullable(), // When invitation email was sent (Story 3.2)
+  acceptedAt: z.date().nullable(), // When invitation was accepted (Story 3.3)
+  acceptedByUid: z.string().nullable(), // UID of user who accepted (Story 3.3)
   expiresAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -184,3 +186,12 @@ export const sendInvitationEmailSchema = z.object({
   recipientEmail: z.string().email(),
 })
 export type SendInvitationEmailInput = z.infer<typeof sendInvitationEmailSchema>
+
+/**
+ * Schema for accepting an invitation.
+ * Used to validate input to the acceptInvitation Cloud Function.
+ */
+export const acceptInvitationInputSchema = z.object({
+  token: z.string().min(1),
+})
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationInputSchema>

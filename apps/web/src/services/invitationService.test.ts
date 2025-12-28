@@ -7,10 +7,16 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { checkEpic3ASafeguards, isValidEmail, getInvitationLink } from './invitationService'
+import {
+  checkEpic3ASafeguards,
+  isValidEmail,
+  getInvitationLink,
+  type InvitationErrorReason,
+} from './invitationService'
 import {
   invitationSchema,
   invitationStatusSchema,
+  acceptInvitationInputSchema,
   type Invitation,
 } from '@fledgely/shared/contracts'
 
@@ -35,6 +41,8 @@ describe('invitationSchema', () => {
       status: 'pending' as const,
       recipientEmail: null, // Story 3.2 field
       emailSentAt: null, // Story 3.2 field
+      acceptedAt: null, // Story 3.3 field
+      acceptedByUid: null, // Story 3.3 field
       expiresAt: new Date('2025-01-05'),
       createdAt: new Date('2024-12-28'),
       updatedAt: new Date('2024-12-28'),
@@ -140,6 +148,8 @@ describe('getInvitationLink', () => {
       status: 'pending',
       recipientEmail: null,
       emailSentAt: null,
+      acceptedAt: null,
+      acceptedByUid: null,
       expiresAt: new Date('2025-01-05'),
       createdAt: new Date('2024-12-28'),
       updatedAt: new Date('2024-12-28'),
@@ -162,6 +172,8 @@ describe('invitationSchema with new fields', () => {
       status: 'pending' as const,
       recipientEmail: 'coparent@example.com',
       emailSentAt: new Date('2024-12-28T12:00:00Z'),
+      acceptedAt: null,
+      acceptedByUid: null,
       expiresAt: new Date('2025-01-05'),
       createdAt: new Date('2024-12-28'),
       updatedAt: new Date('2024-12-28'),
@@ -182,6 +194,8 @@ describe('invitationSchema with new fields', () => {
       status: 'pending' as const,
       recipientEmail: null,
       emailSentAt: null,
+      acceptedAt: null,
+      acceptedByUid: null,
       expiresAt: new Date('2025-01-05'),
       createdAt: new Date('2024-12-28'),
       updatedAt: new Date('2024-12-28'),
@@ -202,6 +216,8 @@ describe('invitationSchema with new fields', () => {
       status: 'pending' as const,
       recipientEmail: 'invalid-email',
       emailSentAt: null,
+      acceptedAt: null,
+      acceptedByUid: null,
       expiresAt: new Date('2025-01-05'),
       createdAt: new Date('2024-12-28'),
       updatedAt: new Date('2024-12-28'),
@@ -209,5 +225,63 @@ describe('invitationSchema with new fields', () => {
 
     const result = invitationSchema.safeParse(invitation)
     expect(result.success).toBe(false)
+  })
+
+  it('validates accepted invitation with acceptedAt and acceptedByUid', () => {
+    const invitation = {
+      id: 'inv-123',
+      familyId: 'fam-456',
+      inviterUid: 'user-789',
+      inviterName: 'John Doe',
+      familyName: 'Doe Family',
+      token: 'abc-def-ghi',
+      status: 'accepted' as const,
+      recipientEmail: 'coparent@example.com',
+      emailSentAt: new Date('2024-12-28T12:00:00Z'),
+      acceptedAt: new Date('2024-12-29T10:00:00Z'),
+      acceptedByUid: 'accepting-user-123',
+      expiresAt: new Date('2025-01-05'),
+      createdAt: new Date('2024-12-28'),
+      updatedAt: new Date('2024-12-29'),
+    }
+
+    const result = invitationSchema.safeParse(invitation)
+    expect(result.success).toBe(true)
+  })
+})
+
+describe('acceptInvitationInputSchema', () => {
+  it('validates token input', () => {
+    const validInput = { token: 'abc123-token' }
+    const result = acceptInvitationInputSchema.safeParse(validInput)
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects empty token', () => {
+    const invalidInput = { token: '' }
+    const result = acceptInvitationInputSchema.safeParse(invalidInput)
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing token', () => {
+    const invalidInput = {}
+    const result = acceptInvitationInputSchema.safeParse(invalidInput)
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('InvitationErrorReason type', () => {
+  it('includes expected error reasons', () => {
+    const validReasons: InvitationErrorReason[] = [
+      'not-found',
+      'expired',
+      'accepted',
+      'revoked',
+      'invalid',
+      'unknown',
+    ]
+
+    // Type check passes if this compiles
+    expect(validReasons).toHaveLength(6)
   })
 })

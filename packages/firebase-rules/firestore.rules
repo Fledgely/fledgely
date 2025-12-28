@@ -99,9 +99,11 @@ service cloud.firestore {
           request.auth.uid in family.data.guardians[].uid;
       }
 
-      // Read: inviter, family guardians, or any authenticated user (for acceptance flow)
-      // Note: Token validation happens in application layer for acceptance
-      allow read: if request.auth != null;
+      // Read: Allow public read for pending invitations (Story 3.3 - AC1)
+      // This allows invitees to see invitation details BEFORE signing in.
+      // Security: Token is unguessable UUID, and only pending invitations are readable.
+      // Authenticated users can read any invitation (for guardians managing invitations).
+      allow read: if resource.data.status == 'pending' || request.auth != null;
 
       // Create: authenticated users can create if they're set as inviter
       allow create: if request.auth != null &&

@@ -16,6 +16,7 @@ initializeApp()
 
 // Export callable functions here as they are implemented
 export { sendInvitation } from './callable/sendInvitation'
+export { acceptInvitation } from './callable/acceptInvitation'
 // export { flagContent } from './callable/flagContent'
 
 // Export triggers here as they are implemented

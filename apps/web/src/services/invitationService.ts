@@ -66,12 +66,21 @@ function convertInvitationTimestamps(data: Record<string, unknown>): Record<stri
   if (result.emailSentAt instanceof Timestamp) {
     result.emailSentAt = result.emailSentAt.toDate()
   }
+  if (result.acceptedAt instanceof Timestamp) {
+    result.acceptedAt = result.acceptedAt.toDate()
+  }
   // Ensure nullable fields have null if not present
   if (!('recipientEmail' in result)) {
     result.recipientEmail = null
   }
   if (!('emailSentAt' in result)) {
     result.emailSentAt = null
+  }
+  if (!('acceptedAt' in result)) {
+    result.acceptedAt = null
+  }
+  if (!('acceptedByUid' in result)) {
+    result.acceptedByUid = null
   }
   return result
 }
@@ -361,4 +370,182 @@ export function isValidEmail(email: string): boolean {
 export function getInvitationLink(invitation: Invitation): string {
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://fledgely.com'
   return `${baseUrl}/invite/accept?token=${invitation.token}`
+}
+
+/**
+ * Error reason for invalid invitations.
+ */
+export type InvitationErrorReason =
+  | 'not-found'
+  | 'expired'
+  | 'accepted'
+  | 'revoked'
+  | 'invalid'
+  | 'unknown'
+
+/**
+ * Result of invitation lookup by token.
+ */
+export interface GetInvitationByTokenResult {
+  invitation: Invitation | null
+  error: InvitationErrorReason | null
+  errorMessage: string | null
+}
+
+/**
+ * Get invitation by token for acceptance page.
+ *
+ * This function allows unauthenticated users to view pending invitation
+ * details before signing in to accept.
+ *
+ * @param token - The secure token from the invitation link
+ * @returns The invitation if valid, or error details
+ */
+export async function getInvitationByToken(token: string): Promise<GetInvitationByTokenResult> {
+  if (!token) {
+    return {
+      invitation: null,
+      error: 'invalid',
+      errorMessage: 'No invitation token provided',
+    }
+  }
+
+  try {
+    const db = getFirestoreDb()
+    const invitationsRef = collection(db, 'invitations')
+    const tokenQuery = query(invitationsRef, where('token', '==', token))
+    const snapshot = await getDocs(tokenQuery)
+
+    if (snapshot.empty) {
+      return {
+        invitation: null,
+        error: 'not-found',
+        errorMessage: 'Invitation not found. It may have been revoked or never existed.',
+      }
+    }
+
+    const docSnap = snapshot.docs[0]
+    const data = docSnap.data()
+    const convertedData = convertInvitationTimestamps(data)
+    const invitation = invitationSchema.parse(convertedData)
+
+    // Check invitation status
+    if (invitation.status === 'accepted') {
+      return {
+        invitation: null,
+        error: 'accepted',
+        errorMessage: 'This invitation has already been used.',
+      }
+    }
+
+    if (invitation.status === 'revoked') {
+      return {
+        invitation: null,
+        error: 'revoked',
+        errorMessage: 'This invitation has been revoked.',
+      }
+    }
+
+    if (invitation.status === 'expired' || invitation.expiresAt < new Date()) {
+      return {
+        invitation: null,
+        error: 'expired',
+        errorMessage: 'This invitation has expired. Please ask the inviter to send a new one.',
+      }
+    }
+
+    if (invitation.status !== 'pending') {
+      return {
+        invitation: null,
+        error: 'invalid',
+        errorMessage: 'This invitation is no longer valid.',
+      }
+    }
+
+    return {
+      invitation,
+      error: null,
+      errorMessage: null,
+    }
+  } catch (err) {
+    if (err instanceof FirestoreError) {
+      console.error('Firestore error fetching invitation by token:', err.code, err.message)
+      if (err.code === 'unavailable') {
+        return {
+          invitation: null,
+          error: 'unknown',
+          errorMessage: 'Unable to connect to the server. Please try again.',
+        }
+      }
+    }
+    console.error('Error fetching invitation by token:', err)
+    return {
+      invitation: null,
+      error: 'unknown',
+      errorMessage: 'An unexpected error occurred. Please try again.',
+    }
+  }
+}
+
+/**
+ * Result of accepting an invitation.
+ */
+export interface AcceptInvitationResult {
+  success: boolean
+  familyId?: string
+  message: string
+}
+
+/**
+ * Accept an invitation via Cloud Function.
+ *
+ * This function calls the acceptInvitation Cloud Function which:
+ * - Verifies the invitation is valid and pending
+ * - Adds the accepting user as guardian to the family and all children
+ * - Updates the user's profile with the familyId
+ * - Marks the invitation as accepted
+ *
+ * @param token - The invitation token
+ * @returns Result with success status and familyId
+ */
+export async function acceptInvitation(token: string): Promise<AcceptInvitationResult> {
+  try {
+    const functions = getFirebaseFunctions()
+    const acceptInvitationFn = httpsCallable<
+      { token: string },
+      { success: boolean; familyId: string; message: string }
+    >(functions, 'acceptInvitation')
+
+    const result = await acceptInvitationFn({ token })
+    return result.data
+  } catch (err) {
+    // Handle Firebase Functions errors
+    const error = err as { code?: string; message?: string }
+    console.error('Error accepting invitation:', error.message)
+
+    // Return user-friendly error messages
+    if (error.code === 'functions/unauthenticated') {
+      return {
+        success: false,
+        message: 'Please sign in to accept this invitation.',
+      }
+    }
+    if (error.code === 'functions/not-found') {
+      return {
+        success: false,
+        message: 'Invitation not found or has expired.',
+      }
+    }
+    if (error.code === 'functions/failed-precondition') {
+      return {
+        success: false,
+        message: 'This invitation is no longer valid.',
+      }
+    }
+
+    return {
+      success: false,
+      message: 'Unable to accept invitation. Please try again.',
+    }
+  }
 }
