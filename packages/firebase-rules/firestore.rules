@@ -168,6 +168,70 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Safety setting change proposals: two-parent approval workflow
+    //
+    // Story 3A.2: Safety Settings Two-Parent Approval
+    // In shared custody families, safety-related setting changes require
+    // both guardians to approve before taking effect.
+    //
+    // Key rules:
+    // - Only guardians can propose changes for their family
+    // - Only the OTHER guardian (not the proposer) can approve/decline
+    // - Proposals cannot be self-approved (prevents single-parent override)
+    // - Approved/declined/expired changes are immutable (audit trail)
+    //
+    match /safetySettingChanges/{changeId} {
+      // Helper: Check if user is a guardian of the family for new proposals
+      function isFamilyGuardianForCreate() {
+        let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Helper: Check if user is a guardian of the family for existing changes
+      function isFamilyGuardian() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Helper: Check if user is the OTHER guardian (not the proposer)
+      // CRITICAL: This prevents self-approval
+      function isOtherGuardian() {
+        return isFamilyGuardian() &&
+          request.auth.uid != resource.data.proposedByUid;
+      }
+
+      // Read: Family guardians can read all proposals for their family
+      // DATA SYMMETRY: Both co-parents see all pending, approved, and declined changes
+      allow read: if isFamilyGuardian();
+
+      // Create: Guardians can propose changes for their family
+      // Must set themselves as proposer (prevent impersonation)
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.proposedByUid &&
+        isFamilyGuardianForCreate() &&
+        request.resource.data.status == 'pending_approval';
+
+      // Update: Only the OTHER guardian can approve/decline
+      // - Must be pending_approval to be updated
+      // - Can only transition to approved or declined (not back to pending)
+      // - Cannot modify proposal details, only status and resolution fields
+      allow update: if isOtherGuardian() &&
+        resource.data.status == 'pending_approval' &&
+        request.resource.data.status in ['approved', 'declined'] &&
+        // Preserve original proposal data (immutability of proposal content)
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.settingType == resource.data.settingType &&
+        request.resource.data.currentValue == resource.data.currentValue &&
+        request.resource.data.proposedValue == resource.data.proposedValue &&
+        request.resource.data.proposedByUid == resource.data.proposedByUid;
+
+      // Delete: Not allowed (keep audit trail)
+      // Expired proposals remain for historical reference
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

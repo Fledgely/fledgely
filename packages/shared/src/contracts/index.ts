@@ -231,3 +231,56 @@ export const dataViewAuditSchema = z.object({
   sessionId: z.string().nullable(), // Optional session correlation
 })
 export type DataViewAudit = z.infer<typeof dataViewAuditSchema>
+
+/**
+ * Safety setting types that require two-parent approval.
+ *
+ * Story 3A.2: Safety Settings Two-Parent Approval
+ * These settings affect child protection and require both guardians to agree.
+ */
+export const safetySettingTypeSchema = z.enum([
+  'monitoring_interval', // Screenshot capture frequency
+  'retention_period', // How long screenshots are kept
+  'time_limits', // Daily screen time limits
+  'age_restrictions', // Age-based content restrictions
+])
+export type SafetySettingType = z.infer<typeof safetySettingTypeSchema>
+
+/**
+ * Status of a safety setting change proposal.
+ *
+ * Story 3A.2: Safety Settings Two-Parent Approval - AC1
+ */
+export const settingChangeStatusSchema = z.enum([
+  'pending_approval', // Awaiting other guardian's approval
+  'approved', // Change approved and applied
+  'declined', // Change rejected by other guardian
+  'expired', // 72-hour approval window passed
+])
+export type SettingChangeStatus = z.infer<typeof settingChangeStatusSchema>
+
+/**
+ * Safety setting change proposal schema.
+ *
+ * Represents a proposed safety setting change stored in Firestore at /safetySettingChanges/{changeId}.
+ * In shared custody families, safety changes require both parents to approve.
+ *
+ * Story 3A.2: Safety Settings Two-Parent Approval
+ */
+export const safetySettingChangeSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  settingType: safetySettingTypeSchema,
+  currentValue: z.unknown(), // JSON value - type varies by setting
+  proposedValue: z.unknown(), // JSON value - type varies by setting
+  proposedByUid: z.string(), // UID of guardian proposing the change
+  approverUid: z.string().nullable(), // UID of other guardian (null until resolved)
+  status: settingChangeStatusSchema,
+  declineReason: z.string().nullable(), // Optional message when declined
+  isEmergencyIncrease: z.boolean(), // True if more restrictive (takes effect immediately)
+  reviewExpiresAt: z.date().nullable(), // 48-hour review for emergency increases
+  createdAt: z.date(),
+  expiresAt: z.date(), // 72 hours from creation
+  resolvedAt: z.date().nullable(), // When approved/declined/expired
+})
+export type SafetySettingChange = z.infer<typeof safetySettingChangeSchema>

@@ -22,9 +22,15 @@ import InviteCoParentModal from '../../components/InviteCoParentModal'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
-import type { ChildProfile, Invitation } from '@fledgely/shared/contracts'
+import type { ChildProfile, Invitation, SafetySettingChange } from '@fledgely/shared/contracts'
 import { getPendingInvitation } from '../../services/invitationService'
 import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
+import {
+  getPendingSafetySettingChanges,
+  approveSafetySettingChange,
+  declineSafetySettingChange,
+} from '../../services/safetySettingService'
+import SafetySettingProposalCard from '../../components/SafetySettingProposalCard'
 
 const styles = {
   main: {
@@ -144,6 +150,8 @@ export default function DashboardPage() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [pendingInvitation, setPendingInvitation] = useState<Invitation | null>(null)
   const [invitationRefreshTrigger, setInvitationRefreshTrigger] = useState(0)
+  const [pendingSafetyChanges, setPendingSafetyChanges] = useState<SafetySettingChange[]>([])
+  const [safetyChangesRefreshTrigger, setSafetyChangesRefreshTrigger] = useState(0)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -185,6 +193,20 @@ export default function DashboardPage() {
       })
     }
   }, [family?.id, firebaseUser?.uid])
+
+  // Load pending safety setting changes (Story 3A.2)
+  // Displays proposals requiring two-parent approval for safety settings
+  useEffect(() => {
+    if (family?.id) {
+      getPendingSafetySettingChanges(family.id)
+        .then(setPendingSafetyChanges)
+        .catch((err) => {
+          console.error('Error loading pending safety changes:', err)
+        })
+    } else {
+      setPendingSafetyChanges([])
+    }
+  }, [family?.id, safetyChangesRefreshTrigger])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -423,6 +445,52 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Pending Safety Setting Changes (Story 3A.2) */}
+              {firebaseUser && pendingSafetyChanges.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <h3
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    Pending Safety Setting Changes
+                  </h3>
+                  {pendingSafetyChanges.map((change) => (
+                    <SafetySettingProposalCard
+                      key={change.id}
+                      proposal={change}
+                      currentUserUid={firebaseUser.uid}
+                      onApprove={async () => {
+                        await approveSafetySettingChange({
+                          changeId: change.id,
+                          approverUid: firebaseUser.uid,
+                        })
+                        setSafetyChangesRefreshTrigger((t) => t + 1)
+                        // AC2: Notification placeholder (Story 41)
+                        console.log(
+                          `[Notification] Safety setting change approved: ${change.settingType}`
+                        )
+                      }}
+                      onDecline={async (reason) => {
+                        await declineSafetySettingChange({
+                          changeId: change.id,
+                          declinerUid: firebaseUser.uid,
+                          reason,
+                        })
+                        setSafetyChangesRefreshTrigger((t) => t + 1)
+                        // AC2: Notification placeholder (Story 41)
+                        console.log(
+                          `[Notification] Safety setting change declined: ${change.settingType}`
+                        )
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Pending Invitation Status Card (Story 3.5 AC1) */}
               {firebaseUser && pendingInvitation && (
