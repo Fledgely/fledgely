@@ -20,7 +20,10 @@ import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
 import GuardianBadge from '../../components/GuardianBadge'
-import type { ChildProfile } from '@fledgely/shared/contracts'
+import InvitationStatusCard from '../../components/InvitationStatusCard'
+import InvitationHistoryList from '../../components/InvitationHistoryList'
+import type { ChildProfile, Invitation } from '@fledgely/shared/contracts'
+import { getPendingInvitation } from '../../services/invitationService'
 
 const styles = {
   main: {
@@ -138,6 +141,8 @@ export default function DashboardPage() {
   const [childToRemove, setChildToRemove] = useState<ChildProfile | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [pendingInvitation, setPendingInvitation] = useState<Invitation | null>(null)
+  const [invitationRefreshTrigger, setInvitationRefreshTrigger] = useState(0)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -152,6 +157,19 @@ export default function DashboardPage() {
       router.push('/onboarding')
     }
   }, [firebaseUser, loading, isNewUser, router])
+
+  // Load pending invitation for the family (Story 3.5)
+  useEffect(() => {
+    if (family?.id) {
+      getPendingInvitation(family.id)
+        .then(setPendingInvitation)
+        .catch((err) => {
+          console.error('Error loading pending invitation:', err)
+        })
+    } else {
+      setPendingInvitation(null)
+    }
+  }, [family?.id, invitationRefreshTrigger])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -390,6 +408,27 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Pending Invitation Status Card (Story 3.5 AC1) */}
+              {firebaseUser && pendingInvitation && (
+                <div style={{ marginTop: '16px' }}>
+                  <InvitationStatusCard
+                    invitation={pendingInvitation}
+                    currentUserUid={firebaseUser.uid}
+                    onRevoked={() => {
+                      setPendingInvitation(null)
+                      setInvitationRefreshTrigger((t) => t + 1)
+                    }}
+                    onResent={() => setInvitationRefreshTrigger((t) => t + 1)}
+                  />
+                </div>
+              )}
+
+              {/* Invitation History (Story 3.5 AC5) */}
+              <InvitationHistoryList
+                familyId={family.id}
+                refreshTrigger={invitationRefreshTrigger}
+              />
 
               {/* Children Section */}
               <div style={{ marginTop: '24px' }}>

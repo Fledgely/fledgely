@@ -497,6 +497,71 @@ export interface AcceptInvitationResult {
 }
 
 /**
+ * Get all invitations for a family.
+ *
+ * Returns all invitations regardless of status, ordered by creation date (newest first).
+ * Used for invitation history display.
+ *
+ * @param familyId - The family ID to get invitations for
+ * @returns Array of all invitations for the family
+ *
+ * Story 3.5: Invitation Management - AC5
+ */
+export async function getInvitationsByFamily(familyId: string): Promise<Invitation[]> {
+  try {
+    const db = getFirestoreDb()
+    const invitationsRef = collection(db, 'invitations')
+    const familyQuery = query(invitationsRef, where('familyId', '==', familyId))
+
+    const snapshot = await getDocs(familyQuery)
+
+    if (snapshot.empty) {
+      return []
+    }
+
+    const invitations: Invitation[] = []
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data()
+      const convertedData = convertInvitationTimestamps(data)
+      invitations.push(invitationSchema.parse(convertedData))
+    }
+
+    // Sort by createdAt descending (newest first)
+    return invitations.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  } catch (err) {
+    if (err instanceof FirestoreError) {
+      console.error('Firestore error fetching family invitations:', err.code, err.message)
+      if (err.code === 'permission-denied') {
+        throw new Error('You do not have permission to view invitations')
+      }
+    }
+    console.error('Error fetching family invitations:', err)
+    throw new Error('Unable to load invitation history. Please try again.')
+  }
+}
+
+/**
+ * Resend an invitation email.
+ *
+ * Updates the emailSentAt timestamp and re-sends the email.
+ * Does NOT generate a new token - the same link remains valid.
+ *
+ * @param invitationId - The invitation ID to resend
+ * @param recipientEmail - The email address to send to
+ * @returns Result with success status and message
+ *
+ * Story 3.5: Invitation Management - AC2
+ */
+export async function resendInvitationEmail(
+  invitationId: string,
+  recipientEmail: string
+): Promise<SendInvitationEmailResult> {
+  // Resend uses the same sendInvitationEmail function
+  // The Cloud Function will update emailSentAt
+  return sendInvitationEmail(invitationId, recipientEmail)
+}
+
+/**
  * Accept an invitation via Cloud Function.
  *
  * This function calls the acceptInvitation Cloud Function which:
