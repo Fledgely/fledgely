@@ -1,5 +1,5 @@
 {
-  "name": "fledgely",
+  "name": "@fledgely/root",
   "version": "0.0.1",
   "private": true,
   "description": "Fledgely - Family safety monitoring platform",

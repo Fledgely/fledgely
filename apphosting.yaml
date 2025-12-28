@@ -10,6 +10,6 @@ runConfig:
 # Configure build for monorepo - specify Next.js app location
 env:
   - variable: GOOGLE_BUILDABLE
-    value: "@fledgely/web"
+    value: fledgely
     availability:
       - BUILD
