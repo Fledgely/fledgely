@@ -6,7 +6,20 @@
  * Validates data with Zod schemas from @fledgely/shared/contracts.
  */
 
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  Timestamp,
+  FirestoreError,
+  writeBatch,
+} from 'firebase/firestore'
 import { User as FirebaseUser } from 'firebase/auth'
 import { familySchema, type Family, type FamilyGuardian } from '@fledgely/shared/contracts'
 import { getFirestoreDb } from '../lib/firebase'
@@ -166,4 +179,88 @@ export async function updateFamilyName(familyId: string, newName: string): Promi
     name: newName.trim(),
     updatedAt: serverTimestamp(),
   })
+}
+
+/**
+ * Delete a family and all its children.
+ *
+ * Note: Currently only supports single-guardian families. Multi-guardian
+ * dissolution requires additional workflow (notifications, acknowledgment,
+ * cooling period) which will be implemented in future stories.
+ *
+ * @param familyId - The family document ID
+ * @param guardianUid - The UID of the guardian requesting deletion
+ * @throws If deletion fails, authorization fails, or multi-guardian family
+ */
+export async function deleteFamily(familyId: string, guardianUid: string): Promise<void> {
+  try {
+    const db = getFirestoreDb()
+    const familyRef = doc(db, 'families', familyId)
+
+    // Verify family exists
+    const familyDoc = await getDoc(familyRef)
+    if (!familyDoc.exists()) {
+      throw new Error('Family not found')
+    }
+
+    // Verify authorization and get family data
+    const familyData = familyDoc.data()
+    const convertedData = convertFamilyTimestamps(familyData)
+    const family = familySchema.parse(convertedData)
+
+    if (!isUserGuardian(family, guardianUid)) {
+      throw new Error('Not authorized to delete this family')
+    }
+
+    // Check guardian count - block multi-guardian families for now
+    if (family.guardians.length > 1) {
+      throw new Error(
+        'Multi-guardian family dissolution requires all guardians to acknowledge. ' +
+          'Please contact support for assistance with this process.'
+      )
+    }
+
+    // Use batch write for atomic deletion
+    const batch = writeBatch(db)
+
+    // Get all children in this family
+    const childrenRef = collection(db, 'children')
+    const childrenQuery = query(childrenRef, where('familyId', '==', familyId))
+    const childrenSnapshot = await getDocs(childrenQuery)
+
+    // Add all child deletes to batch
+    for (const childDoc of childrenSnapshot.docs) {
+      batch.delete(childDoc.ref)
+    }
+
+    // Clear the user's familyId reference
+    const userRef = doc(db, 'users', guardianUid)
+    batch.update(userRef, { familyId: null })
+
+    // Delete the family document
+    batch.delete(familyRef)
+
+    // Commit all operations atomically
+    await batch.commit()
+
+    // TODO: Future enhancements:
+    // - Send notifications to all guardians
+    // - Implement 30-day cooling period
+    // - Add data export option before deletion
+    // - Log to sealed audit trail
+  } catch (err) {
+    if (err instanceof FirestoreError) {
+      console.error(`Firestore error deleting family ${familyId}:`, err.code, err.message)
+      // Map Firebase errors to user-friendly messages
+      if (err.code === 'permission-denied') {
+        throw new Error('You do not have permission to delete this family')
+      } else if (err.code === 'not-found') {
+        throw new Error('This family has already been deleted')
+      } else if (err.code === 'unavailable') {
+        throw new Error('Unable to connect to the server. Please try again.')
+      }
+      throw new Error('Unable to delete family. Please try again.')
+    }
+    throw err
+  }
 }

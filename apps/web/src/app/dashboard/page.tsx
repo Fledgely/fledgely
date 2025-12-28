@@ -13,9 +13,11 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamily } from '../../contexts/FamilyContext'
 import { calculateAge, deleteChild } from '../../services/childService'
+import { deleteFamily } from '../../services/familyService'
 import { hasCustodyDeclaration } from '../../services/custodyService'
 import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 import RemoveChildModal from '../../components/RemoveChildModal'
+import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import type { ChildProfile } from '@fledgely/shared/contracts'
 
 const styles = {
@@ -128,10 +130,11 @@ const styles = {
 
 export default function DashboardPage() {
   const { firebaseUser, userProfile, loading, isNewUser, profileError, signOut } = useAuth()
-  const { family, children, loading: familyLoading, refreshChildren } = useFamily()
+  const { family, children, loading: familyLoading, refreshChildren, refreshFamily } = useFamily()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
   const [childToRemove, setChildToRemove] = useState<ChildProfile | null>(null)
+  const [showDissolveModal, setShowDissolveModal] = useState(false)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -233,6 +236,14 @@ export default function DashboardPage() {
             background-color: #fef2f2;
             border-color: #fca5a5;
           }
+          .dissolve-family-button:focus {
+            outline: 2px solid #dc2626;
+            outline-offset: 2px;
+          }
+          .dissolve-family-button:hover {
+            background-color: #fef2f2;
+            border-color: #fca5a5;
+          }
           .child-item {
             display: flex;
             align-items: center;
@@ -310,6 +321,31 @@ export default function DashboardPage() {
               <div style={styles.infoRow}>
                 <span style={styles.infoLabel}>Created</span>
                 <span style={styles.infoValue}>{family.createdAt.toLocaleDateString()}</span>
+              </div>
+              <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+                <span style={styles.infoLabel}>Actions</span>
+                <button
+                  type="button"
+                  onClick={() => setShowDissolveModal(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: '44px',
+                    padding: '8px 16px',
+                    backgroundColor: '#ffffff',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    borderRadius: '6px',
+                    border: '1px solid #fecaca',
+                    cursor: 'pointer',
+                  }}
+                  className="dissolve-family-button"
+                  aria-label="Dissolve this family"
+                >
+                  Dissolve Family
+                </button>
               </div>
 
               {/* Children Section */}
@@ -527,6 +563,21 @@ export default function DashboardPage() {
             await deleteChild(childToRemove.id, firebaseUser.uid)
             await refreshChildren()
             setChildToRemove(null)
+          }}
+        />
+      )}
+
+      {/* Dissolve Family Modal */}
+      {family && firebaseUser && (
+        <DissolveFamilyModal
+          family={family}
+          childrenCount={children.length}
+          isOpen={showDissolveModal}
+          onClose={() => setShowDissolveModal(false)}
+          onConfirm={async () => {
+            await deleteFamily(family.id, firebaseUser.uid)
+            await refreshFamily()
+            setShowDissolveModal(false)
           }}
         />
       )}

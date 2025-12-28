@@ -45,8 +45,9 @@ service cloud.firestore {
       // Update: only existing guardians can update family
       allow update: if isGuardian();
 
-      // Delete: not allowed (handled by support/admin functions)
-      allow delete: if false;
+      // Delete: only guardians can delete their family (single-guardian only)
+      // Multi-guardian families require support intervention
+      allow delete: if isGuardian() && resource.data.guardians.size() == 1;
     }
 
     // Child documents: guardians can access children in their family
