@@ -49,6 +49,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Child documents: guardians can access children in their family
+    match /children/{childId} {
+      // Helper function to check if user is a guardian of this child
+      function isChildGuardian() {
+        return request.auth != null &&
+          request.auth.uid in resource.data.guardians[].uid;
+      }
+
+      // Helper function to check if user is creating themselves as guardian
+      function isCreatingAsGuardian() {
+        return request.auth != null &&
+          request.auth.uid in request.resource.data.guardians[].uid;
+      }
+
+      // Helper function to verify user is guardian of the family
+      function isFamilyGuardian() {
+        let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
+        return request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Read: only child guardians can read
+      allow read: if isChildGuardian();
+
+      // Create: authenticated user who is guardian of the family
+      allow create: if request.auth != null &&
+        isCreatingAsGuardian() && isFamilyGuardian();
+
+      // Update: only existing guardians can update
+      allow update: if isChildGuardian();
+
+      // Delete: not allowed (handled by remove child story)
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

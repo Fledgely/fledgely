@@ -72,3 +72,32 @@ export const familySchema = z.object({
   updatedAt: z.date(),
 })
 export type Family = z.infer<typeof familySchema>
+
+/**
+ * Guardian entry in a child document.
+ * Links a guardian (parent) to a specific child with their role.
+ */
+export const childGuardianSchema = z.object({
+  uid: z.string(),
+  role: guardianRoleSchema,
+  addedAt: z.date(),
+})
+export type ChildGuardian = z.infer<typeof childGuardianSchema>
+
+/**
+ * Child profile schema.
+ *
+ * Represents a child stored in Firestore at /children/{childId}.
+ * Children are linked to families via familyId and have guardians assigned.
+ */
+export const childProfileSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  name: z.string().min(1).max(100),
+  birthdate: z.date(),
+  photoURL: z.string().url().nullable(),
+  guardians: z.array(childGuardianSchema).min(1),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type ChildProfile = z.infer<typeof childProfileSchema>

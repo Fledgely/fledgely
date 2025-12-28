@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
 import { useFamily } from '../../contexts/FamilyContext'
+import { calculateAge } from '../../services/childService'
 
 const styles = {
   main: {
@@ -123,7 +124,7 @@ const styles = {
 
 export default function DashboardPage() {
   const { firebaseUser, userProfile, loading, isNewUser, profileError, signOut } = useAuth()
-  const { family, loading: familyLoading } = useFamily()
+  const { family, children, loading: familyLoading } = useFamily()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -198,6 +199,33 @@ export default function DashboardPage() {
           .create-family-link:hover {
             background-color: #4338CA;
           }
+          .add-child-link:focus {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+          }
+          .add-child-link:hover {
+            background-color: #4338CA;
+          }
+          .child-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background-color: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 8px;
+          }
+          .child-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #e5e7eb;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #6b7280;
+          }
         `}
       </style>
       <header style={styles.header}>
@@ -252,9 +280,89 @@ export default function DashboardPage() {
                 <span style={styles.infoLabel}>Guardians</span>
                 <span style={styles.infoValue}>{family.guardians.length}</span>
               </div>
-              <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+              <div style={styles.infoRow}>
                 <span style={styles.infoLabel}>Created</span>
                 <span style={styles.infoValue}>{family.createdAt.toLocaleDateString()}</span>
+              </div>
+
+              {/* Children Section */}
+              <div style={{ marginTop: '24px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      margin: 0,
+                    }}
+                  >
+                    Children ({children.length})
+                  </h3>
+                  <a
+                    href="/family/children/add"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '44px',
+                      padding: '8px 16px',
+                      backgroundColor: '#4F46E5',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      borderRadius: '6px',
+                    }}
+                    className="add-child-link"
+                    aria-label="Add a child to your family"
+                  >
+                    + Add Child
+                  </a>
+                </div>
+
+                {children.length === 0 ? (
+                  <p style={{ color: '#6b7280', fontSize: '14px', textAlign: 'center' as const }}>
+                    No children added yet. Add your first child to get started.
+                  </p>
+                ) : (
+                  <div>
+                    {children.map((child) => {
+                      const age = calculateAge(child.birthdate)
+                      const initial = child.name.charAt(0).toUpperCase()
+                      return (
+                        <div key={child.id} className="child-item">
+                          {child.photoURL ? (
+                            <img
+                              src={child.photoURL}
+                              alt=""
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                marginRight: '12px',
+                              }}
+                            />
+                          ) : (
+                            <div className="child-avatar">{initial}</div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 500, color: '#1f2937' }}>{child.name}</div>
+                            <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                              {age} year{age !== 1 ? 's' : ''} old
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </>
           ) : (
