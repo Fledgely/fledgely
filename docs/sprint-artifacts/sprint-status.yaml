@@ -71,7 +71,7 @@ development_status:
   1-4-logout-functionality: done
   1-5-authentication-error-handling: done
   1-6-accessible-authentication-flow: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # Epic 2: Family Creation & Child Profiles
   epic-2: backlog
