@@ -252,6 +252,27 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Agreement Templates: public read for authenticated users
+    //
+    // Story 4.1: Template Library Structure - AC7
+    //
+    // Templates are shared resources that all authenticated users can browse.
+    // They provide starting points for family agreements.
+    //
+    // Key rules:
+    // - Any authenticated user can read templates
+    // - Write access is denied (templates are managed via admin tools/deployment)
+    // - No user-generated content in templates (prevents abuse)
+    //
+    match /agreementTemplates/{templateId} {
+      // Read: Any authenticated user can browse templates
+      allow read: if request.auth != null;
+
+      // Write: Not allowed through client SDK
+      // Templates are seeded/managed through admin tools or CI/CD
+      allow write: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

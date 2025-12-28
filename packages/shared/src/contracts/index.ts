@@ -291,3 +291,73 @@ export const safetySettingChangeSchema = z.object({
   cancelledByUid: z.string().nullable(), // Story 3A.4: UID of guardian who cancelled during cooling
 })
 export type SafetySettingChange = z.infer<typeof safetySettingChangeSchema>
+
+/**
+ * Age groups for agreement templates.
+ *
+ * Story 4.1: Template Library Structure - AC1
+ * Templates are organized by developmental age groups.
+ */
+export const ageGroupSchema = z.enum(['5-7', '8-10', '11-13', '14-16'])
+export type AgeGroup = z.infer<typeof ageGroupSchema>
+
+/**
+ * Template variation types.
+ *
+ * Story 4.1: Template Library Structure - AC2
+ * Each age group has 2-3 variations with different monitoring philosophies.
+ */
+export const templateVariationSchema = z.enum(['strict', 'balanced', 'permissive'])
+export type TemplateVariation = z.infer<typeof templateVariationSchema>
+
+/**
+ * Template category types for filtering.
+ *
+ * Story 4.1: Template Library Structure - AC4
+ * Templates can be filtered by specific concerns.
+ */
+export const templateCategorySchema = z.enum(['gaming', 'social_media', 'homework', 'general'])
+export type TemplateCategory = z.infer<typeof templateCategorySchema>
+
+/**
+ * Monitoring level for templates.
+ *
+ * Story 4.1: Template Library Structure - AC3
+ * Indicates the intensity of monitoring for a template.
+ */
+export const monitoringLevelSchema = z.enum(['high', 'medium', 'low'])
+export type MonitoringLevel = z.infer<typeof monitoringLevelSchema>
+
+/**
+ * Screen time limits configuration.
+ *
+ * Story 4.1: Template Library Structure - AC3
+ * Defines daily screen time limits in minutes.
+ */
+export const screenTimeLimitsSchema = z.object({
+  weekday: z.number().min(0).max(480), // minutes (0-8 hours)
+  weekend: z.number().min(0).max(480), // minutes (0-8 hours)
+})
+export type ScreenTimeLimits = z.infer<typeof screenTimeLimitsSchema>
+
+/**
+ * Agreement template schema.
+ *
+ * Represents a pre-built agreement template for families.
+ * Templates are organized by age group and variation.
+ *
+ * Story 4.1: Template Library Structure - AC1, AC2, AC3
+ */
+export const agreementTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100),
+  description: z.string().max(500),
+  ageGroup: ageGroupSchema,
+  variation: templateVariationSchema,
+  categories: z.array(templateCategorySchema).min(1),
+  screenTimeLimits: screenTimeLimitsSchema,
+  monitoringLevel: monitoringLevelSchema,
+  keyRules: z.array(z.string()).min(1).max(10),
+  createdAt: z.date(),
+})
+export type AgreementTemplate = z.infer<typeof agreementTemplateSchema>

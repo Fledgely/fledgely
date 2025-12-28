@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { AuthProvider } from '../contexts/AuthContext'
 import { FamilyProvider } from '../contexts/FamilyContext'
+import { QueryProvider } from '../providers/QueryProvider'
 
 export const metadata: Metadata = {
   title: 'Fledgely - Family Digital Safety',
@@ -78,9 +79,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main-content" className="skip-link" style={skipLinkStyles}>
           Skip to main content
         </a>
-        <AuthProvider>
-          <FamilyProvider>{children}</FamilyProvider>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <FamilyProvider>{children}</FamilyProvider>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   )
