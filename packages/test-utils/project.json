@@ -1,0 +1,23 @@
+{
+  "name": "test-utils",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/test-utils/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:test"],
+  "targets": {
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint src --ext .ts",
+        "cwd": "packages/test-utils"
+      }
+    },
+    "type-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit",
+        "cwd": "packages/test-utils"
+      }
+    }
+  }
+}

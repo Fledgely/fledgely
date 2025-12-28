@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "composite": true
+  },
+  "references": [
+    { "path": "./apps/web" },
+    { "path": "./apps/functions" },
+    { "path": "./apps/extension" },
+    { "path": "./packages/shared" },
+    { "path": "./packages/test-utils" }
+  ],
+  "include": [],
+  "exclude": ["node_modules", "dist", ".next", "coverage"]
+}

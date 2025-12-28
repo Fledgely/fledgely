@@ -1,0 +1,23 @@
+rules_version = '2';
+
+/**
+ * Fledgely Storage Security Rules
+ *
+ * Default: Deny all access
+ * Individual rules will be added as features are implemented.
+ *
+ * Security principles:
+ * - Deny by default
+ * - Path-based access control
+ * - File type validation
+ * - Size limits
+ */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Deny all access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "functions",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/functions/src",
+  "projectType": "application",
+  "tags": ["type:app", "scope:functions"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc",
+        "cwd": "apps/functions"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "eslint src --ext .ts",
+        "cwd": "apps/functions"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "apps/functions"
+      }
+    },
+    "type-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit",
+        "cwd": "apps/functions"
+      }
+    }
+  }
+}

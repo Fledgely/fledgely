@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@fledgely/contracts": ["../../packages/shared/src/contracts/index.ts"],
+      "@fledgely/firestore": ["../../packages/shared/src/firestore/index.ts"],
+      "@fledgely/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

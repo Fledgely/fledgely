@@ -1,0 +1,24 @@
+rules_version = '2';
+
+/**
+ * Fledgely Firestore Security Rules
+ *
+ * Default: Deny all access
+ * Individual rules will be added as features are implemented.
+ *
+ * Security principles:
+ * - Deny by default
+ * - Least privilege
+ * - Users can only access their own data
+ * - Guardians can access children they're authorized for
+ * - No data leakage across families
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Deny all access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

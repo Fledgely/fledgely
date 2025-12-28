@@ -59,9 +59,9 @@ development_status:
   epic-0-5-retrospective: optional
 
   # Epic 1: Parent Account Creation & Authentication
-  epic-1: backlog
+  epic-1: in-progress
   # Sprint 0 Infrastructure Stories (NEW)
-  1-0-1-project-scaffolding-ci-pipeline: backlog
+  1-0-1-project-scaffolding-ci-pipeline: done
   1-0-2-deployable-web-shell: backlog
   1-0-3-firebase-project-setup: backlog
   # Feature Stories

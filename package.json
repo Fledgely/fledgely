@@ -1,0 +1,58 @@
+{
+  "name": "@fledgely/root",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "nx run-many --target=build --all",
+    "build:affected": "nx affected --target=build",
+    "test": "nx run-many --target=test --all",
+    "test:affected": "nx affected --target=test",
+    "lint": "nx run-many --target=lint --all",
+    "lint:affected": "nx affected --target=lint",
+    "type-check": "nx run-many --target=type-check --all",
+    "type-check:affected": "nx affected --target=type-check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "prepare": "husky",
+    "emulators": "firebase emulators:start",
+    "emulators:export": "firebase emulators:export ./emulator-data"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "firebase-tools": "^13.0.0",
+    "husky": "^9.0.0",
+    "jsdom": "^24.0.0",
+    "lint-staged": "^15.2.0",
+    "nx": "^20.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "yarn@1.22.22",
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
+  }
+}
