@@ -99,9 +99,9 @@ development_status:
   epic-3a: in-progress
   3a-1-data-symmetry-enforcement: done
   3a-2-safety-settings-two-parent-approval: done
-  3a-3-agreement-changes-two-parent-approval: backlog
-  3a-4-safety-rule-48-hour-cooling-period: backlog
-  3a-5-screenshot-viewing-rate-alert: backlog
+  3a-3-agreement-changes-two-parent-approval: backlog # Blocked: depends on Epic 5/6 (agreements)
+  3a-4-safety-rule-48-hour-cooling-period: done
+  3a-5-screenshot-viewing-rate-alert: backlog # Blocked: depends on Epic 10/15 (screenshots)
   3a-6-co-parent-removal-prevention: backlog
   epic-3a-retrospective: optional
 

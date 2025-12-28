@@ -4,13 +4,16 @@
  * SafetySettingProposalCard Component
  *
  * Story 3A.2: Safety Settings Two-Parent Approval - AC2, AC3
- * Displays a pending safety setting change for review and action.
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC2, AC3
+ * Displays a safety setting change for review and action.
  *
  * Features:
  * - Shows current vs proposed values with visual diff
  * - Approve/decline buttons with loading states
  * - Optional message field for decline reason
- * - Expiration countdown
+ * - Expiration countdown for pending proposals
+ * - Cooling period countdown for protection reductions (Story 3A.4)
+ * - Cancel button during cooling period (Story 3A.4)
  * - 44px minimum touch targets (NFR49)
  * - Keyboard accessible (NFR43)
  */
@@ -53,6 +56,18 @@ const styles = {
   emergencyBadge: {
     backgroundColor: '#fee2e2',
     color: '#991b1b',
+  },
+  coolingBadge: {
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
+  },
+  activatedBadge: {
+    backgroundColor: '#d1fae5',
+    color: '#047857',
+  },
+  cancelledBadge: {
+    backgroundColor: '#f3f4f6',
+    color: '#6b7280',
   },
   diffContainer: {
     backgroundColor: '#f9fafb',
@@ -164,6 +179,44 @@ const styles = {
     color: '#047857',
     fontSize: '14px',
   },
+  cancelButton: {
+    minHeight: '44px',
+    padding: '12px 24px',
+    backgroundColor: '#ffffff',
+    color: '#f59e0b',
+    fontSize: '14px',
+    fontWeight: 500,
+    border: '1px solid #f59e0b',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    width: '100%',
+  },
+  coolingPeriodInfo: {
+    backgroundColor: '#eff6ff',
+    border: '1px solid #bfdbfe',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+  },
+  coolingPeriodText: {
+    fontSize: '14px',
+    color: '#1e40af',
+    margin: 0,
+  },
+  countdownText: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1e40af',
+    marginTop: '8px',
+  },
+  resolvedMessage: {
+    backgroundColor: '#f3f4f6',
+    border: '1px solid #e5e7eb',
+    borderRadius: '8px',
+    padding: '12px',
+    color: '#374151',
+    fontSize: '14px',
+  },
 }
 
 /**
@@ -246,6 +299,8 @@ export interface SafetySettingProposalCardProps {
   onApprove: () => Promise<void>
   /** Callback when proposal is declined */
   onDecline: (reason?: string) => Promise<void>
+  /** Callback when change is cancelled during cooling period (Story 3A.4) */
+  onCancel?: () => Promise<void>
 }
 
 export function SafetySettingProposalCard({
@@ -254,15 +309,18 @@ export function SafetySettingProposalCard({
   proposerName,
   onApprove,
   onDecline,
+  onCancel,
 }: SafetySettingProposalCardProps) {
   const [isApproving, setIsApproving] = useState(false)
   const [isDeclining, setIsDeclining] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
   const [showDeclineReason, setShowDeclineReason] = useState(false)
   const [declineReason, setDeclineReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const isProposer = proposal.proposedByUid === currentUserUid
   const isExpired = new Date() > proposal.expiresAt
+  const isInCoolingPeriod = proposal.status === 'cooling_period'
 
   const handleApprove = async () => {
     setError(null)
@@ -296,6 +354,61 @@ export function SafetySettingProposalCard({
     }
   }
 
+  const handleCancel = async () => {
+    if (!onCancel) return
+    setError(null)
+    setIsCancelling(true)
+    try {
+      await onCancel()
+      // Story 3A.4 AC2: Notification placeholder
+      console.log('[Notification] Safety setting change cancelled by guardian:', currentUserUid)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel change')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  /**
+   * Get badge style based on proposal status.
+   */
+  const getBadgeStyle = () => {
+    switch (proposal.status) {
+      case 'cooling_period':
+        return styles.coolingBadge
+      case 'activated':
+        return styles.activatedBadge
+      case 'cancelled':
+        return styles.cancelledBadge
+      case 'pending_approval':
+        return proposal.isEmergencyIncrease ? styles.emergencyBadge : styles.pendingBadge
+      default:
+        return styles.pendingBadge
+    }
+  }
+
+  /**
+   * Get badge text based on proposal status.
+   */
+  const getBadgeText = () => {
+    switch (proposal.status) {
+      case 'cooling_period':
+        return '48-Hour Cooling Period'
+      case 'activated':
+        return 'Activated'
+      case 'cancelled':
+        return 'Cancelled'
+      case 'declined':
+        return 'Declined'
+      case 'expired':
+        return 'Expired'
+      case 'pending_approval':
+        return proposal.isEmergencyIncrease ? 'Emergency Increase' : 'Pending Approval'
+      default:
+        return proposal.status
+    }
+  }
+
   return (
     <div style={styles.card} role="article" aria-label="Safety setting change proposal">
       <style>
@@ -320,10 +433,10 @@ export function SafetySettingProposalCard({
         <span
           style={{
             ...styles.badge,
-            ...(proposal.isEmergencyIncrease ? styles.emergencyBadge : styles.pendingBadge),
+            ...getBadgeStyle(),
           }}
         >
-          {proposal.isEmergencyIncrease ? 'Emergency Increase' : 'Pending Approval'}
+          {getBadgeText()}
         </span>
       </div>
 
@@ -346,23 +459,91 @@ export function SafetySettingProposalCard({
         Proposed by: {proposerName || 'Co-parent'} {isProposer && <span>(You)</span>}
       </p>
 
-      <p style={styles.expirationText}>
-        {isExpired ? (
-          <strong>This proposal has expired</strong>
-        ) : (
-          <>{getTimeRemaining(proposal.expiresAt)} to respond</>
-        )}
-      </p>
+      {/* Story 3A.4: Cooling Period Info */}
+      {isInCoolingPeriod && proposal.effectiveAt && (
+        <div style={styles.coolingPeriodInfo}>
+          <p style={styles.coolingPeriodText}>
+            This safety change has been approved but is in a 48-hour cooling period to protect
+            against impulsive decisions.
+          </p>
+          <p style={styles.countdownText}>{getTimeRemaining(proposal.effectiveAt)} until active</p>
+        </div>
+      )}
 
-      {isProposer ? (
+      {/* Expiration text for pending proposals */}
+      {proposal.status === 'pending_approval' && (
+        <p style={styles.expirationText}>
+          {isExpired ? (
+            <strong>This proposal has expired</strong>
+          ) : (
+            <>{getTimeRemaining(proposal.expiresAt)} to respond</>
+          )}
+        </p>
+      )}
+
+      {/* Resolved status messages */}
+      {proposal.status === 'activated' && (
+        <div style={styles.resolvedMessage}>
+          This change has been activated and is now in effect.
+        </div>
+      )}
+
+      {proposal.status === 'cancelled' && (
+        <div style={styles.resolvedMessage}>
+          This change was cancelled during the cooling period.
+        </div>
+      )}
+
+      {proposal.status === 'declined' && (
+        <div style={styles.resolvedMessage}>
+          This change was declined.
+          {proposal.declineReason && <> Reason: {proposal.declineReason}</>}
+        </div>
+      )}
+
+      {proposal.status === 'approved' && !isInCoolingPeriod && (
+        <div style={styles.viewOnlyMessage}>
+          This change has been approved and is now in effect.
+        </div>
+      )}
+
+      {/* Story 3A.4: Cancel button during cooling period */}
+      {isInCoolingPeriod && onCancel && (
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={isCancelling}
+          style={{
+            ...styles.cancelButton,
+            ...(isCancelling ? styles.disabledButton : {}),
+          }}
+          className="proposal-btn"
+          aria-busy={isCancelling}
+        >
+          {isCancelling ? 'Cancelling...' : 'Cancel Change'}
+        </button>
+      )}
+
+      {/* Pending approval actions */}
+      {proposal.status === 'pending_approval' && isProposer && !isExpired && (
         <div style={styles.viewOnlyMessage}>
           You proposed this change. Waiting for your co-parent to review.
         </div>
-      ) : isExpired ? (
+      )}
+
+      {proposal.status === 'pending_approval' && isProposer && isExpired && (
         <div style={styles.errorMessage}>
           This proposal has expired and can no longer be acted upon.
         </div>
-      ) : (
+      )}
+
+      {proposal.status === 'pending_approval' && !isProposer && isExpired && (
+        <div style={styles.errorMessage}>
+          This proposal has expired and can no longer be acted upon.
+        </div>
+      )}
+
+      {proposal.status === 'pending_approval' && !isProposer && !isExpired && (
         <>
           <div style={styles.buttonGroup}>
             <button

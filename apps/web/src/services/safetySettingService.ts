@@ -2,6 +2,8 @@
  * Safety Setting Service
  *
  * Story 3A.2: Safety Settings Two-Parent Approval
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period
+ *
  * Manages safety setting change proposals requiring two-parent approval.
  *
  * This supports:
@@ -9,6 +11,8 @@
  * - Approval/decline workflow (AC3)
  * - Automatic expiration after 72 hours (AC4)
  * - Emergency increases taking effect immediately (AC6)
+ * - 48-hour cooling period for protection reductions (3A.4 AC1)
+ * - Cooling period cancellation by either guardian (3A.4 AC3)
  */
 
 import {
@@ -35,6 +39,9 @@ const EMERGENCY_REVIEW_MS = 48 * 60 * 60 * 1000
 
 /** 7 days in milliseconds for decline cooldown */
 const DECLINE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
+
+/** 48 hours in milliseconds for cooling period (Story 3A.4) */
+const COOLING_PERIOD_MS = 48 * 60 * 60 * 1000
 
 /**
  * Parameters for proposing a safety setting change.
@@ -75,6 +82,17 @@ export interface DeclineSafetySettingParams {
 }
 
 /**
+ * Parameters for cancelling a safety setting change during cooling period.
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC3
+ */
+export interface CancelSafetySettingParams {
+  /** ID of the change proposal */
+  changeId: string
+  /** UID of the guardian cancelling */
+  cancellerUid: string
+}
+
+/**
  * Determine if a proposed change is more restrictive (emergency increase).
  *
  * More restrictive changes take effect immediately:
@@ -100,6 +118,28 @@ export function isEmergencySafetyIncrease(
 
   // For other settings: lower value = more restrictive
   return proposed < current
+}
+
+/**
+ * Determine if a proposed change is less restrictive (protection reduction).
+ *
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC1
+ * Less restrictive changes require 48-hour cooling period:
+ * - monitoring_interval: Longer interval = less restrictive
+ * - retention_period: Longer retention = less restrictive
+ * - time_limits: More time allowed = less restrictive
+ * - age_restrictions: Lower age = less restrictive
+ *
+ * This is the inverse of isEmergencySafetyIncrease.
+ */
+export function isProtectionReduction(
+  settingType: SafetySettingType,
+  currentValue: unknown,
+  proposedValue: unknown
+): boolean {
+  // Protection reduction is the inverse of emergency increase
+  // If it's NOT an emergency increase (not more restrictive), it's a reduction
+  return !isEmergencySafetyIncrease(settingType, currentValue, proposedValue)
 }
 
 /**
@@ -167,6 +207,8 @@ export async function proposeSafetySettingChange(
     createdAt: Timestamp.now(),
     expiresAt: Timestamp.fromDate(expiresAt),
     resolvedAt: null,
+    effectiveAt: null, // Story 3A.4: Set when entering cooling period
+    cancelledByUid: null, // Story 3A.4: Set when cancelled during cooling
   })
 
   return docRef.id
@@ -176,6 +218,9 @@ export async function proposeSafetySettingChange(
  * Approve a safety setting change.
  *
  * Only the OTHER guardian (not the proposer) can approve.
+ *
+ * Story 3A.4: For protection reductions, enters 48-hour cooling period.
+ * For protection increases (emergency), takes effect immediately.
  *
  * @param params - The approval parameters
  * @throws Error if change not found, already resolved, or proposer tries to self-approve
@@ -218,11 +263,30 @@ export async function approveSafetySettingChange(
     throw new Error('Cannot approve expired change')
   }
 
-  await updateDoc(changeRef, {
-    status: 'approved',
-    approverUid,
-    resolvedAt: Timestamp.now(),
-  })
+  // Story 3A.4: Check if this is a protection reduction (needs cooling period)
+  const isReduction = isProtectionReduction(data.settingType, data.currentValue, data.proposedValue)
+
+  if (isReduction) {
+    // Protection reduction: Enter 48-hour cooling period (AC1)
+    const effectiveAt = new Date(Date.now() + COOLING_PERIOD_MS)
+    await updateDoc(changeRef, {
+      status: 'cooling_period',
+      approverUid,
+      resolvedAt: Timestamp.now(),
+      effectiveAt: Timestamp.fromDate(effectiveAt),
+    })
+    // AC2: Notification placeholder for Story 41
+    console.log(
+      `[Notification] Safety setting change entering 48-hour cooling period. Takes effect: ${effectiveAt.toLocaleString()}`
+    )
+  } else {
+    // Protection increase: Takes effect immediately
+    await updateDoc(changeRef, {
+      status: 'approved',
+      approverUid,
+      resolvedAt: Timestamp.now(),
+    })
+  }
 }
 
 /**
@@ -274,12 +338,69 @@ export async function declineSafetySettingChange(
 }
 
 /**
- * Get pending safety setting changes for a family.
+ * Cancel a safety setting change during the cooling period.
  *
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC3
+ * Either guardian can cancel during the 48-hour cooling period.
+ *
+ * @param params - The cancellation parameters
+ * @throws Error if change not found, not in cooling period, or already resolved
+ */
+export async function cancelSafetySettingChange(params: CancelSafetySettingParams): Promise<void> {
+  const { changeId, cancellerUid } = params
+
+  if (!changeId) {
+    throw new Error('changeId is required')
+  }
+  if (!cancellerUid) {
+    throw new Error('cancellerUid is required')
+  }
+
+  const db = getFirestoreDb()
+  const changeRef = doc(db, 'safetySettingChanges', changeId)
+  const changeSnap = await getDoc(changeRef)
+
+  if (!changeSnap.exists()) {
+    throw new Error('Safety setting change not found')
+  }
+
+  const data = changeSnap.data()
+
+  // Check if in cooling period
+  if (data.status !== 'cooling_period') {
+    throw new Error(
+      `Cannot cancel change with status: ${data.status}. Only changes in cooling period can be cancelled.`
+    )
+  }
+
+  // Check if cooling period has ended (effectiveAt has passed)
+  if (data.effectiveAt) {
+    const effectiveAt = data.effectiveAt.toDate()
+    if (new Date() > effectiveAt) {
+      throw new Error('Cooling period has ended. Change has already taken effect.')
+    }
+  }
+
+  await updateDoc(changeRef, {
+    status: 'cancelled',
+    cancelledByUid: cancellerUid,
+    resolvedAt: Timestamp.now(),
+  })
+
+  // AC3: Notification placeholder for Story 41
+  console.log(
+    `[Notification] Safety setting change cancelled during cooling period by guardian: ${cancellerUid}`
+  )
+}
+
+/**
+ * Get pending and cooling period safety setting changes for a family.
+ *
+ * Story 3A.4: Now includes changes in cooling_period status.
  * Returns all pending changes that haven't expired yet.
  *
  * @param familyId - The family ID
- * @returns Array of pending safety setting changes
+ * @returns Array of pending and cooling period safety setting changes
  */
 export async function getPendingSafetySettingChanges(
   familyId: string
@@ -291,37 +412,63 @@ export async function getPendingSafetySettingChanges(
   const db = getFirestoreDb()
   const changesRef = collection(db, 'safetySettingChanges')
 
-  const q = query(
+  // Query for pending_approval status
+  const pendingQuery = query(
     changesRef,
     where('familyId', '==', familyId),
     where('status', '==', 'pending_approval'),
     orderBy('createdAt', 'desc')
   )
 
-  const snapshot = await getDocs(q)
+  // Query for cooling_period status (Story 3A.4)
+  const coolingQuery = query(
+    changesRef,
+    where('familyId', '==', familyId),
+    where('status', '==', 'cooling_period'),
+    orderBy('createdAt', 'desc')
+  )
+
+  const [pendingSnapshot, coolingSnapshot] = await Promise.all([
+    getDocs(pendingQuery),
+    getDocs(coolingQuery),
+  ])
+
   const now = new Date()
 
-  return snapshot.docs
-    .map((docSnap) => {
-      const data = docSnap.data()
-      return {
-        id: docSnap.id,
-        familyId: data.familyId,
-        settingType: data.settingType,
-        currentValue: data.currentValue,
-        proposedValue: data.proposedValue,
-        proposedByUid: data.proposedByUid,
-        approverUid: data.approverUid,
-        status: data.status,
-        declineReason: data.declineReason,
-        isEmergencyIncrease: data.isEmergencyIncrease,
-        reviewExpiresAt: data.reviewExpiresAt?.toDate() ?? null,
-        createdAt: data.createdAt.toDate(),
-        expiresAt: data.expiresAt.toDate(),
-        resolvedAt: data.resolvedAt?.toDate() ?? null,
-      } as SafetySettingChange
-    })
-    .filter((change) => new Date(change.expiresAt) > now) // Filter expired
+  const mapDocToChange = (docSnap: { id: string; data: () => Record<string, unknown> }) => {
+    const data = docSnap.data()
+    return {
+      id: docSnap.id,
+      familyId: data.familyId as string,
+      settingType: data.settingType,
+      currentValue: data.currentValue,
+      proposedValue: data.proposedValue,
+      proposedByUid: data.proposedByUid as string,
+      approverUid: (data.approverUid as string) ?? null,
+      status: data.status,
+      declineReason: (data.declineReason as string) ?? null,
+      isEmergencyIncrease: data.isEmergencyIncrease as boolean,
+      reviewExpiresAt: (data.reviewExpiresAt as { toDate: () => Date })?.toDate() ?? null,
+      createdAt: (data.createdAt as { toDate: () => Date }).toDate(),
+      expiresAt: (data.expiresAt as { toDate: () => Date }).toDate(),
+      resolvedAt: (data.resolvedAt as { toDate: () => Date })?.toDate() ?? null,
+      effectiveAt: (data.effectiveAt as { toDate: () => Date })?.toDate() ?? null,
+      cancelledByUid: (data.cancelledByUid as string) ?? null,
+    } as SafetySettingChange
+  }
+
+  const pendingChanges = pendingSnapshot.docs
+    .map(mapDocToChange)
+    .filter((change) => new Date(change.expiresAt) > now)
+
+  const coolingChanges = coolingSnapshot.docs
+    .map(mapDocToChange)
+    .filter((change) => change.effectiveAt && new Date(change.effectiveAt) > now)
+
+  // Combine and sort by createdAt descending
+  return [...pendingChanges, ...coolingChanges].sort(
+    (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+  )
 }
 
 /**

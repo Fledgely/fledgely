@@ -171,6 +171,8 @@ service cloud.firestore {
     // Safety setting change proposals: two-parent approval workflow
     //
     // Story 3A.2: Safety Settings Two-Parent Approval
+    // Story 3A.4: Safety Rule 48-Hour Cooling Period
+    //
     // In shared custody families, safety-related setting changes require
     // both guardians to approve before taking effect.
     //
@@ -179,6 +181,8 @@ service cloud.firestore {
     // - Only the OTHER guardian (not the proposer) can approve/decline
     // - Proposals cannot be self-approved (prevents single-parent override)
     // - Approved/declined/expired changes are immutable (audit trail)
+    // - Story 3A.4: Protection reductions enter 48-hour cooling period
+    // - Story 3A.4: Either guardian can cancel during cooling period
     //
     match /safetySettingChanges/{changeId} {
       // Helper: Check if user is a guardian of the family for new proposals
@@ -213,14 +217,30 @@ service cloud.firestore {
         isFamilyGuardianForCreate() &&
         request.resource.data.status == 'pending_approval';
 
-      // Update: Only the OTHER guardian can approve/decline
+      // Update for approval/decline: Only the OTHER guardian can approve/decline
       // - Must be pending_approval to be updated
-      // - Can only transition to approved or declined (not back to pending)
+      // - Story 3A.4: Can transition to approved, declined, OR cooling_period
+      // - Cannot transition directly to 'activated' (must go through cooling period)
       // - Cannot modify proposal details, only status and resolution fields
       allow update: if isOtherGuardian() &&
         resource.data.status == 'pending_approval' &&
-        request.resource.data.status in ['approved', 'declined'] &&
+        request.resource.data.status in ['approved', 'declined', 'cooling_period'] &&
         // Preserve original proposal data (immutability of proposal content)
+        request.resource.data.familyId == resource.data.familyId &&
+        request.resource.data.settingType == resource.data.settingType &&
+        request.resource.data.currentValue == resource.data.currentValue &&
+        request.resource.data.proposedValue == resource.data.proposedValue &&
+        request.resource.data.proposedByUid == resource.data.proposedByUid;
+
+      // Story 3A.4: Update for cancellation during cooling period
+      // - Either guardian (proposer OR approver) can cancel during cooling period
+      // - Must be in cooling_period status
+      // - Can only transition to 'cancelled'
+      // - Must preserve proposal data immutability
+      allow update: if isFamilyGuardian() &&
+        resource.data.status == 'cooling_period' &&
+        request.resource.data.status == 'cancelled' &&
+        // Preserve original proposal data
         request.resource.data.familyId == resource.data.familyId &&
         request.resource.data.settingType == resource.data.settingType &&
         request.resource.data.currentValue == resource.data.currentValue &&

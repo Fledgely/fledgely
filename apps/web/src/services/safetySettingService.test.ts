@@ -2,6 +2,7 @@
  * Unit tests for Safety Setting Service.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,6 +13,8 @@ import {
   getPendingSafetySettingChanges,
   reverseEmergencyIncrease,
   isEmergencySafetyIncrease,
+  isProtectionReduction,
+  cancelSafetySettingChange,
 } from './safetySettingService'
 import type { ProposeSafetySettingParams } from './safetySettingService'
 
@@ -96,6 +99,55 @@ describe('safetySettingService', () => {
     it('handles non-numeric values by defaulting to 0', () => {
       expect(isEmergencySafetyIncrease('monitoring_interval', 'invalid', 30)).toBe(false)
       expect(isEmergencySafetyIncrease('monitoring_interval', 60, 'invalid')).toBe(true)
+    })
+  })
+
+  describe('isProtectionReduction (Story 3A.4)', () => {
+    it('returns true when monitoring_interval is increased (less restrictive)', () => {
+      expect(isProtectionReduction('monitoring_interval', 30, 60)).toBe(true)
+    })
+
+    it('returns false when monitoring_interval is decreased (more restrictive)', () => {
+      expect(isProtectionReduction('monitoring_interval', 60, 30)).toBe(false)
+    })
+
+    it('returns true when retention_period is increased (less restrictive)', () => {
+      expect(isProtectionReduction('retention_period', 7, 30)).toBe(true)
+    })
+
+    it('returns false when retention_period is decreased (more restrictive)', () => {
+      expect(isProtectionReduction('retention_period', 30, 7)).toBe(false)
+    })
+
+    it('returns true when time_limits is increased (less restrictive)', () => {
+      expect(isProtectionReduction('time_limits', 60, 120)).toBe(true)
+    })
+
+    it('returns false when time_limits is decreased (more restrictive)', () => {
+      expect(isProtectionReduction('time_limits', 120, 60)).toBe(false)
+    })
+
+    it('returns true when age_restrictions is decreased (less restrictive)', () => {
+      expect(isProtectionReduction('age_restrictions', 16, 13)).toBe(true)
+    })
+
+    it('returns false when age_restrictions is increased (more restrictive)', () => {
+      expect(isProtectionReduction('age_restrictions', 13, 16)).toBe(false)
+    })
+
+    it('is the inverse of isEmergencySafetyIncrease', () => {
+      const testCases = [
+        { type: 'monitoring_interval' as const, current: 60, proposed: 30 },
+        { type: 'monitoring_interval' as const, current: 30, proposed: 60 },
+        { type: 'time_limits' as const, current: 120, proposed: 60 },
+        { type: 'time_limits' as const, current: 60, proposed: 120 },
+      ]
+
+      testCases.forEach(({ type, current, proposed }) => {
+        expect(isProtectionReduction(type, current, proposed)).toBe(
+          !isEmergencySafetyIncrease(type, current, proposed)
+        )
+      })
     })
   })
 
@@ -212,12 +264,15 @@ describe('safetySettingService', () => {
   })
 
   describe('approveSafetySettingChange', () => {
-    it('approves a pending change', async () => {
+    it('immediately approves an emergency increase (more restrictive)', async () => {
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
         data: () => ({
           proposedByUid: 'guardian-uid-1',
           status: 'pending_approval',
+          settingType: 'monitoring_interval',
+          currentValue: 60,
+          proposedValue: 30, // More restrictive (shorter interval)
           expiresAt: { toDate: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
         }),
       })
@@ -232,6 +287,34 @@ describe('safetySettingService', () => {
         expect.objectContaining({
           status: 'approved',
           approverUid: 'guardian-uid-2',
+        })
+      )
+    })
+
+    it('enters cooling period for protection reduction (Story 3A.4)', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          proposedByUid: 'guardian-uid-1',
+          status: 'pending_approval',
+          settingType: 'monitoring_interval',
+          currentValue: 30,
+          proposedValue: 60, // Less restrictive (longer interval)
+          expiresAt: { toDate: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
+        }),
+      })
+
+      await approveSafetySettingChange({
+        changeId: 'change-123',
+        approverUid: 'guardian-uid-2',
+      })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        'change-doc-ref',
+        expect.objectContaining({
+          status: 'cooling_period',
+          approverUid: 'guardian-uid-2',
+          effectiveAt: expect.anything(), // Should have effectiveAt set
         })
       )
     })
@@ -551,6 +634,145 @@ describe('safetySettingService', () => {
       await expect(reverseEmergencyIncrease('nonexistent', 'guardian-uid-2')).rejects.toThrow(
         'Safety setting change not found'
       )
+    })
+  })
+
+  describe('cancelSafetySettingChange (Story 3A.4)', () => {
+    it('cancels a change in cooling period', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          status: 'cooling_period',
+          familyId: 'family-456',
+          proposedByUid: 'guardian-uid-1',
+          approverUid: 'guardian-uid-2',
+          effectiveAt: { toDate: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
+        }),
+      })
+
+      await cancelSafetySettingChange({
+        changeId: 'change-123',
+        cancellerUid: 'guardian-uid-1', // Proposer can cancel
+      })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        'change-doc-ref',
+        expect.objectContaining({
+          status: 'cancelled',
+          cancelledByUid: 'guardian-uid-1',
+        })
+      )
+    })
+
+    it('allows approver to cancel during cooling period', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          status: 'cooling_period',
+          familyId: 'family-456',
+          proposedByUid: 'guardian-uid-1',
+          approverUid: 'guardian-uid-2',
+          effectiveAt: { toDate: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
+        }),
+      })
+
+      await cancelSafetySettingChange({
+        changeId: 'change-123',
+        cancellerUid: 'guardian-uid-2', // Approver can also cancel
+      })
+
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        'change-doc-ref',
+        expect.objectContaining({
+          status: 'cancelled',
+          cancelledByUid: 'guardian-uid-2',
+        })
+      )
+    })
+
+    it('throws error if change not found', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => false,
+      })
+
+      await expect(
+        cancelSafetySettingChange({
+          changeId: 'nonexistent',
+          cancellerUid: 'guardian-uid-1',
+        })
+      ).rejects.toThrow('Safety setting change not found')
+    })
+
+    it('throws error if not in cooling period', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          status: 'pending_approval', // Not in cooling period
+          familyId: 'family-456',
+        }),
+      })
+
+      await expect(
+        cancelSafetySettingChange({
+          changeId: 'change-123',
+          cancellerUid: 'guardian-uid-1',
+        })
+      ).rejects.toThrow('Only changes in cooling period can be cancelled')
+    })
+
+    it('throws error if cooling period already passed (effectiveAt in past)', async () => {
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          status: 'cooling_period',
+          familyId: 'family-456',
+          effectiveAt: { toDate: () => new Date(Date.now() - 1000) }, // Already passed
+        }),
+      })
+
+      await expect(
+        cancelSafetySettingChange({
+          changeId: 'change-123',
+          cancellerUid: 'guardian-uid-1',
+        })
+      ).rejects.toThrow('Cooling period has ended. Change has already taken effect.')
+    })
+
+    it('throws error if changeId is empty', async () => {
+      await expect(
+        cancelSafetySettingChange({
+          changeId: '',
+          cancellerUid: 'guardian-uid-1',
+        })
+      ).rejects.toThrow('changeId is required')
+    })
+
+    it('throws error if cancellerUid is empty', async () => {
+      await expect(
+        cancelSafetySettingChange({
+          changeId: 'change-123',
+          cancellerUid: '',
+        })
+      ).rejects.toThrow('cancellerUid is required')
+    })
+
+    it('verifies 48-hour cooling period cannot be bypassed', async () => {
+      // The system has no "expedite" or "force activate" function
+      // This test confirms that attempting to approve an already approved/cooling change fails
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          status: 'cooling_period', // Already in cooling
+          proposedByUid: 'guardian-uid-1',
+        }),
+      })
+
+      await expect(
+        approveSafetySettingChange({
+          changeId: 'change-123',
+          approverUid: 'guardian-uid-2',
+        })
+      ).rejects.toThrow('Cannot approve change with status: cooling_period')
     })
   })
 })

@@ -2,6 +2,7 @@
  * Unit tests for Safety Setting Change schemas.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval - AC1
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC1, AC3, AC6
  */
 
 import { describe, it, expect } from 'vitest'
@@ -33,8 +34,16 @@ describe('safetySettingTypeSchema', () => {
 })
 
 describe('settingChangeStatusSchema', () => {
-  it('accepts valid status values', () => {
-    const validStatuses = ['pending_approval', 'approved', 'declined', 'expired']
+  it('accepts valid status values including cooling period statuses', () => {
+    const validStatuses = [
+      'pending_approval',
+      'approved',
+      'declined',
+      'expired',
+      'cooling_period', // Story 3A.4
+      'activated', // Story 3A.4
+      'cancelled', // Story 3A.4
+    ]
 
     validStatuses.forEach((status) => {
       const result = settingChangeStatusSchema.safeParse(status)
@@ -64,6 +73,8 @@ describe('safetySettingChangeSchema', () => {
     createdAt: new Date(),
     expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
     resolvedAt: null,
+    effectiveAt: null, // Story 3A.4
+    cancelledByUid: null, // Story 3A.4
   }
 
   it('validates a complete pending change', () => {
@@ -197,9 +208,71 @@ describe('safetySettingChangeSchema', () => {
       declineReason: null,
       reviewExpiresAt: null,
       resolvedAt: null,
+      effectiveAt: null,
+      cancelledByUid: null,
     }
 
     const result = safetySettingChangeSchema.safeParse(changeWithNulls)
     expect(result.success).toBe(true)
+  })
+
+  // Story 3A.4: Cooling Period Tests
+  describe('cooling period status (Story 3A.4)', () => {
+    it('validates a change in cooling period with effectiveAt', () => {
+      const coolingChange = {
+        ...validChange,
+        status: 'cooling_period',
+        approverUid: 'guardian-uid-2',
+        isEmergencyIncrease: false, // Protection reduction needs cooling
+        effectiveAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        resolvedAt: new Date(),
+      }
+
+      const result = safetySettingChangeSchema.safeParse(coolingChange)
+      expect(result.success).toBe(true)
+    })
+
+    it('validates an activated change after cooling period', () => {
+      const activatedChange = {
+        ...validChange,
+        status: 'activated',
+        approverUid: 'guardian-uid-2',
+        isEmergencyIncrease: false,
+        effectiveAt: new Date(), // Now effective
+        resolvedAt: new Date(Date.now() - 48 * 60 * 60 * 1000), // Approved 48h ago
+      }
+
+      const result = safetySettingChangeSchema.safeParse(activatedChange)
+      expect(result.success).toBe(true)
+    })
+
+    it('validates a cancelled change with cancelledByUid', () => {
+      const cancelledChange = {
+        ...validChange,
+        status: 'cancelled',
+        approverUid: 'guardian-uid-2',
+        isEmergencyIncrease: false,
+        effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Was set but cancelled
+        cancelledByUid: 'guardian-uid-1', // Either guardian can cancel
+        resolvedAt: new Date(),
+      }
+
+      const result = safetySettingChangeSchema.safeParse(cancelledChange)
+      expect(result.success).toBe(true)
+    })
+
+    it('validates emergency increase skips cooling period (approved directly)', () => {
+      const emergencyChange = {
+        ...validChange,
+        status: 'approved', // Not cooling_period
+        approverUid: 'guardian-uid-2',
+        isEmergencyIncrease: true, // More restrictive = immediate
+        effectiveAt: null, // No delayed effect
+        resolvedAt: new Date(),
+      }
+
+      const result = safetySettingChangeSchema.safeParse(emergencyChange)
+      expect(result.success).toBe(true)
+    })
   })
 })

@@ -250,12 +250,16 @@ export type SafetySettingType = z.infer<typeof safetySettingTypeSchema>
  * Status of a safety setting change proposal.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval - AC1
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC1, AC3, AC6
  */
 export const settingChangeStatusSchema = z.enum([
   'pending_approval', // Awaiting other guardian's approval
-  'approved', // Change approved and applied
+  'approved', // Change approved and applied (immediate for increases)
   'declined', // Change rejected by other guardian
   'expired', // 72-hour approval window passed
+  'cooling_period', // 48-hour waiting period for protection reductions
+  'activated', // Change has taken effect after cooling period
+  'cancelled', // Cancelled during cooling period
 ])
 export type SettingChangeStatus = z.infer<typeof settingChangeStatusSchema>
 
@@ -266,6 +270,7 @@ export type SettingChangeStatus = z.infer<typeof settingChangeStatusSchema>
  * In shared custody families, safety changes require both parents to approve.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period
  */
 export const safetySettingChangeSchema = z.object({
   id: z.string(),
@@ -282,5 +287,7 @@ export const safetySettingChangeSchema = z.object({
   createdAt: z.date(),
   expiresAt: z.date(), // 72 hours from creation
   resolvedAt: z.date().nullable(), // When approved/declined/expired
+  effectiveAt: z.date().nullable(), // Story 3A.4: When change takes effect after cooling period
+  cancelledByUid: z.string().nullable(), // Story 3A.4: UID of guardian who cancelled during cooling
 })
 export type SafetySettingChange = z.infer<typeof safetySettingChangeSchema>

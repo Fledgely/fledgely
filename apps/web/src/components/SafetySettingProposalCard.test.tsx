@@ -2,6 +2,7 @@
  * Unit tests for SafetySettingProposalCard component.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval - AC2, AC3, AC7
+ * Story 3A.4: Safety Rule 48-Hour Cooling Period - AC2, AC3
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,6 +13,7 @@ import type { SafetySettingChange } from '@fledgely/shared/contracts'
 describe('SafetySettingProposalCard', () => {
   const mockOnApprove = vi.fn()
   const mockOnDecline = vi.fn()
+  const mockOnCancel = vi.fn()
 
   const createMockProposal = (overrides?: Partial<SafetySettingChange>): SafetySettingChange => ({
     id: 'change-123',
@@ -28,6 +30,8 @@ describe('SafetySettingProposalCard', () => {
     createdAt: new Date(),
     expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 hours from now
     resolvedAt: null,
+    effectiveAt: null, // Story 3A.4
+    cancelledByUid: null, // Story 3A.4
     ...overrides,
   })
 
@@ -35,6 +39,7 @@ describe('SafetySettingProposalCard', () => {
     vi.clearAllMocks()
     mockOnApprove.mockResolvedValue(undefined)
     mockOnDecline.mockResolvedValue(undefined)
+    mockOnCancel.mockResolvedValue(undefined)
   })
 
   describe('rendering', () => {
@@ -445,6 +450,246 @@ describe('SafetySettingProposalCard', () => {
       expect(screen.getByText('Age Restrictions')).toBeInTheDocument()
       expect(screen.getByText('13+ years')).toBeInTheDocument()
       expect(screen.getByText('16+ years')).toBeInTheDocument()
+    })
+  })
+
+  describe('cooling period (Story 3A.4)', () => {
+    it('shows cooling period badge when status is cooling_period', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      expect(screen.getByText('48-Hour Cooling Period')).toBeInTheDocument()
+    })
+
+    it('shows cooling period info with countdown', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      expect(
+        screen.getByText(/This safety change has been approved but is in a 48-hour cooling period/)
+      ).toBeInTheDocument()
+      expect(screen.getByText(/until active/)).toBeInTheDocument()
+    })
+
+    it('shows Cancel Change button during cooling period when onCancel provided', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      expect(screen.getByText('Cancel Change')).toBeInTheDocument()
+    })
+
+    it('does not show Cancel Change button when onCancel not provided', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+        />
+      )
+
+      expect(screen.queryByText('Cancel Change')).not.toBeInTheDocument()
+    })
+
+    it('calls onCancel when Cancel Change button is clicked', async () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Cancel Change'))
+
+      await waitFor(() => {
+        expect(mockOnCancel).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('shows loading state while cancelling', async () => {
+      mockOnCancel.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)))
+
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Cancel Change'))
+
+      expect(screen.getByText('Cancelling...')).toBeInTheDocument()
+    })
+
+    it('shows error message when cancel fails', async () => {
+      mockOnCancel.mockRejectedValue(new Error('Cancel failed'))
+
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      fireEvent.click(screen.getByText('Cancel Change'))
+
+      await waitFor(() => {
+        expect(screen.getByText('Cancel failed')).toBeInTheDocument()
+      })
+    })
+
+    it('does not show approve/decline buttons during cooling period', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cooling_period',
+            approverUid: 'guardian-uid-2',
+            effectiveAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+          onCancel={mockOnCancel}
+        />
+      )
+
+      expect(screen.queryByText('Approve Change')).not.toBeInTheDocument()
+      expect(screen.queryByText('Decline')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('resolved status display (Story 3A.4)', () => {
+    it('shows Activated badge for activated status', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'activated',
+            approverUid: 'guardian-uid-2',
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+        />
+      )
+
+      expect(screen.getByText('Activated')).toBeInTheDocument()
+      expect(
+        screen.getByText('This change has been activated and is now in effect.')
+      ).toBeInTheDocument()
+    })
+
+    it('shows Cancelled badge for cancelled status', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'cancelled',
+            cancelledByUid: 'guardian-uid-1',
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+        />
+      )
+
+      expect(screen.getByText('Cancelled')).toBeInTheDocument()
+      expect(
+        screen.getByText('This change was cancelled during the cooling period.')
+      ).toBeInTheDocument()
+    })
+
+    it('shows Declined badge with reason for declined status', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'declined',
+            approverUid: 'guardian-uid-2',
+            declineReason: 'Not appropriate at this time',
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+        />
+      )
+
+      expect(screen.getByText('Declined')).toBeInTheDocument()
+      expect(screen.getByText(/This change was declined/)).toBeInTheDocument()
+      expect(screen.getByText(/Not appropriate at this time/)).toBeInTheDocument()
+    })
+
+    it('shows approved message for approved status', () => {
+      render(
+        <SafetySettingProposalCard
+          proposal={createMockProposal({
+            status: 'approved',
+            approverUid: 'guardian-uid-2',
+          })}
+          currentUserUid="guardian-uid-1"
+          onApprove={mockOnApprove}
+          onDecline={mockOnDecline}
+        />
+      )
+
+      expect(
+        screen.getByText('This change has been approved and is now in effect.')
+      ).toBeInTheDocument()
     })
   })
 })
