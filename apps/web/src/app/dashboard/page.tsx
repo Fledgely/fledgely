@@ -215,6 +215,13 @@ export default function DashboardPage() {
           .declare-custody-link:hover {
             background-color: #b91c1c;
           }
+          .edit-child-link:focus {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+          }
+          .edit-child-link:hover {
+            background-color: #e5e7eb;
+          }
           .child-item {
             display: flex;
             align-items: center;
@@ -371,28 +378,52 @@ export default function DashboardPage() {
                               <CustodyStatusBadge custody={child.custody} />
                             </div>
                           </div>
-                          {needsCustody && (
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <a
-                              href={`/family/children/${child.id}/custody`}
+                              href={`/family/children/${child.id}/edit`}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 minHeight: '44px',
+                                minWidth: '44px',
                                 padding: '8px 12px',
-                                backgroundColor: '#dc2626',
-                                color: '#ffffff',
+                                backgroundColor: '#ffffff',
+                                color: '#374151',
                                 fontSize: '12px',
                                 fontWeight: 500,
                                 textDecoration: 'none',
                                 borderRadius: '6px',
+                                border: '1px solid #d1d5db',
                               }}
-                              className="declare-custody-link"
-                              aria-label={`Declare custody for ${child.name}`}
+                              className="edit-child-link"
+                              aria-label={`Edit ${child.name}'s profile`}
                             >
-                              Declare Custody
+                              Edit
                             </a>
-                          )}
+                            {needsCustody && (
+                              <a
+                                href={`/family/children/${child.id}/custody`}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minHeight: '44px',
+                                  padding: '8px 12px',
+                                  backgroundColor: '#dc2626',
+                                  color: '#ffffff',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  textDecoration: 'none',
+                                  borderRadius: '6px',
+                                }}
+                                className="declare-custody-link"
+                                aria-label={`Declare custody for ${child.name}`}
+                              >
+                                Declare Custody
+                              </a>
+                            )}
+                          </div>
                         </div>
                       )
                     })}

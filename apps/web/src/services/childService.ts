@@ -10,6 +10,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   collection,
   query,
   where,
@@ -222,4 +223,94 @@ export async function addChild(
  */
 export function isChildGuardian(child: ChildProfile, uid: string): boolean {
   return child.guardians.some((g) => g.uid === uid)
+}
+
+/**
+ * Update a child's profile.
+ *
+ * @param childId - The child document ID
+ * @param guardianUid - The UID of the guardian making the update
+ * @param name - The child's updated name
+ * @param birthdate - The child's updated birthdate
+ * @param photoURL - Optional updated photo URL
+ * @returns The updated child profile
+ * @throws If update fails, validation fails, authorization fails, or Firestore error
+ */
+export async function updateChild(
+  childId: string,
+  guardianUid: string,
+  name: string,
+  birthdate: Date,
+  photoURL?: string | null
+): Promise<ChildProfile> {
+  // Validate name
+  const trimmedName = name.trim()
+  if (!trimmedName) {
+    throw new Error('Name is required')
+  }
+
+  // Validate birthdate (not in future, reasonable age 0-25 years)
+  const today = new Date()
+  if (birthdate > today) {
+    throw new Error('Birthdate cannot be in the future')
+  }
+  const age = calculateAge(birthdate)
+  if (age < 0 || age > 25) {
+    throw new Error('Birthdate must result in age between 0 and 25 years')
+  }
+
+  // Validate photoURL if provided
+  if (photoURL !== null && photoURL !== undefined && photoURL.trim() !== '') {
+    try {
+      new URL(photoURL)
+    } catch {
+      throw new Error('Invalid photo URL format')
+    }
+  }
+
+  try {
+    const db = getFirestoreDb()
+    const childRef = doc(db, 'children', childId)
+
+    // Check that child exists before update
+    const existingDoc = await getDoc(childRef)
+    if (!existingDoc.exists()) {
+      throw new Error('Child not found')
+    }
+
+    // Verify authorization - must be a guardian of the child
+    const existingData = existingDoc.data()
+    const convertedExisting = convertChildTimestamps(existingData)
+    const existingChild = childProfileSchema.parse(convertedExisting)
+
+    if (!isChildGuardian(existingChild, guardianUid)) {
+      throw new Error('Not authorized to update this child')
+    }
+
+    // Update child document
+    await updateDoc(childRef, {
+      name: trimmedName,
+      birthdate,
+      photoURL: photoURL ?? null,
+      updatedAt: serverTimestamp(),
+    })
+
+    // Read back the child document to get updated data
+    const updatedDoc = await getDoc(childRef)
+    if (!updatedDoc.exists()) {
+      throw new Error('Failed to read updated child')
+    }
+
+    const data = updatedDoc.data()
+    const convertedData = convertChildTimestamps(data)
+
+    // Validate against schema before returning
+    return childProfileSchema.parse(convertedData)
+  } catch (err) {
+    if (err instanceof FirestoreError) {
+      console.error(`Firestore error updating child ${childId}:`, err.code, err.message)
+      throw new Error(`Failed to update child: ${err.message}`)
+    }
+    throw err
+  }
 }
