@@ -74,7 +74,7 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Family Creation & Child Profiles
-  epic-2: in-progress
+  epic-2: done
   2-1-family-creation: done
   2-2-add-child-to-family: done
   2-3-custody-arrangement-declaration: done
@@ -83,7 +83,7 @@ development_status:
   2-6-remove-child-from-family: done
   2-7-family-dissolution-initiation: done
   2-8-unilateral-self-removal-survivor-escape: backlog
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
 
   # Epic 3: Co-Parent Invitation & Family Sharing
   epic-3: backlog
