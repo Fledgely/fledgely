@@ -84,6 +84,7 @@ export async function createUserProfile(firebaseUser: FirebaseUser): Promise<Use
     email: firebaseUser.email ?? '',
     displayName: firebaseUser.displayName,
     photoURL: firebaseUser.photoURL,
+    familyId: null, // No family initially
   }
 
   // Write to Firestore with server timestamps

@@ -3,8 +3,8 @@
 /**
  * Onboarding page - shown to new users after first sign-in.
  *
- * Placeholder for Epic 2 (Family Setup) features.
- * Allows users to navigate to dashboard while onboarding is in development.
+ * Redirects users to family creation if they don't have a family yet.
+ * Otherwise redirects to dashboard.
  */
 
 import { useEffect } from 'react'
@@ -32,38 +32,6 @@ const styles = {
     maxWidth: '500px',
     width: '100%',
   },
-  icon: {
-    fontSize: '4rem',
-    marginBottom: '16px',
-  },
-  title: {
-    fontSize: '1.75rem',
-    fontWeight: 700,
-    color: '#1f2937',
-    marginBottom: '8px',
-    letterSpacing: '-0.02em',
-  },
-  subtitle: {
-    fontSize: '1rem',
-    color: '#6b7280',
-    marginBottom: '32px',
-    lineHeight: 1.6,
-  },
-  dashboardLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '44px',
-    minWidth: '180px',
-    padding: '12px 24px',
-    backgroundColor: '#4F46E5',
-    color: '#ffffff',
-    fontSize: '16px',
-    fontWeight: 500,
-    textDecoration: 'none',
-    borderRadius: '8px',
-    transition: 'all 0.2s ease',
-  },
   loadingText: {
     color: '#1f2937',
   },
@@ -87,50 +55,24 @@ export default function OnboardingPage() {
     }
   }, [firebaseUser, loading, router])
 
-  // Show loading state while checking auth
-  if (loading) {
-    return (
-      <main id="main-content" style={styles.main} role="main">
-        <div style={styles.card}>
-          <p style={styles.loadingText}>Loading...</p>
-        </div>
-      </main>
-    )
-  }
+  // Redirect to family creation if no family, otherwise to dashboard
+  useEffect(() => {
+    if (!loading && firebaseUser && userProfile) {
+      if (!userProfile.familyId) {
+        // No family yet - redirect to family creation
+        router.push('/family/create')
+      } else {
+        // Has family - redirect to dashboard
+        router.push('/dashboard')
+      }
+    }
+  }, [loading, firebaseUser, userProfile, router])
 
-  // Don't render if not authenticated
-  if (!firebaseUser) {
-    return null
-  }
-
-  const firstName =
-    userProfile?.displayName?.split(' ')[0] || firebaseUser.displayName?.split(' ')[0] || 'there'
-
+  // Show loading state while checking auth and redirecting
   return (
     <main id="main-content" style={styles.main} role="main" aria-label="Onboarding page">
-      <style>
-        {`
-          .dashboard-link:focus {
-            outline: 2px solid #ffffff;
-            outline-offset: 2px;
-          }
-          .dashboard-link:hover {
-            background-color: #4338CA;
-          }
-        `}
-      </style>
       <div style={styles.card}>
-        <div style={styles.icon} aria-hidden="true">
-          🎉
-        </div>
-        <h1 style={styles.title}>Welcome, {firstName}!</h1>
-        <p style={styles.subtitle}>
-          You&apos;ve successfully created your Fledgely account. Family setup features are coming
-          soon. For now, you can explore your dashboard.
-        </p>
-        <a href="/dashboard" style={styles.dashboardLink} className="dashboard-link">
-          Go to Dashboard
-        </a>
+        <p style={styles.loadingText}>Setting up your account...</p>
       </div>
     </main>
   )

@@ -34,9 +34,41 @@ export const userSchema = z.object({
   email: z.string().email(),
   displayName: z.string().nullable(),
   photoURL: z.string().url().nullable(),
+  familyId: z.string().nullable(), // Reference to family document
   createdAt: z.date(),
   lastLoginAt: z.date(),
   lastActivityAt: z.date(), // For 30-day session expiry tracking
 })
 
 export type User = z.infer<typeof userSchema>
+
+/**
+ * Guardian role in a family.
+ */
+export const guardianRoleSchema = z.enum(['primary_guardian', 'guardian'])
+export type GuardianRole = z.infer<typeof guardianRoleSchema>
+
+/**
+ * Guardian entry in a family document.
+ */
+export const familyGuardianSchema = z.object({
+  uid: z.string(),
+  role: guardianRoleSchema,
+  addedAt: z.date(),
+})
+export type FamilyGuardian = z.infer<typeof familyGuardianSchema>
+
+/**
+ * Family schema.
+ *
+ * Represents a family unit stored in Firestore at /families/{familyId}.
+ * Contains guardians (parents) and references to children.
+ */
+export const familySchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(100),
+  guardians: z.array(familyGuardianSchema).min(1),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type Family = z.infer<typeof familySchema>

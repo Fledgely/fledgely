@@ -3,7 +3,7 @@
 /**
  * Dashboard page - protected route.
  *
- * Shows user info and logout functionality.
+ * Shows user info, family info, and logout functionality.
  * Redirects unauthenticated users to login.
  * Redirects new users to onboarding.
  */
@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../contexts/AuthContext'
+import { useFamily } from '../../contexts/FamilyContext'
 
 const styles = {
   main: {
@@ -122,6 +123,7 @@ const styles = {
 
 export default function DashboardPage() {
   const { firebaseUser, userProfile, loading, isNewUser, profileError, signOut } = useAuth()
+  const { family, loading: familyLoading } = useFamily()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -189,6 +191,13 @@ export default function DashboardPage() {
             opacity: 0.7;
             cursor: not-allowed;
           }
+          .create-family-link:focus {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+          }
+          .create-family-link:hover {
+            background-color: #4338CA;
+          }
         `}
       </style>
       <header style={styles.header}>
@@ -228,7 +237,56 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Family Card */}
         <div style={styles.card}>
+          <h2 style={styles.cardTitle}>Family</h2>
+          {familyLoading ? (
+            <p style={styles.infoValue}>Loading family...</p>
+          ) : family ? (
+            <>
+              <div style={styles.infoRow}>
+                <span style={styles.infoLabel}>Family Name</span>
+                <span style={styles.infoValue}>{family.name}</span>
+              </div>
+              <div style={styles.infoRow}>
+                <span style={styles.infoLabel}>Guardians</span>
+                <span style={styles.infoValue}>{family.guardians.length}</span>
+              </div>
+              <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+                <span style={styles.infoLabel}>Created</span>
+                <span style={styles.infoValue}>{family.createdAt.toLocaleDateString()}</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: 'center' as const, padding: '16px 0' }}>
+              <p style={{ ...styles.infoValue, marginBottom: '16px' }}>
+                You haven&apos;t created a family yet.
+              </p>
+              <a
+                href="/family/create"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '44px',
+                  padding: '12px 24px',
+                  backgroundColor: '#4F46E5',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                }}
+                className="create-family-link"
+              >
+                Create Family
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Account Card */}
+        <div style={{ ...styles.card, marginTop: '24px' }}>
           <h2 style={styles.cardTitle}>Account Information</h2>
           <div style={styles.infoRow}>
             <span style={styles.infoLabel}>Email</span>
