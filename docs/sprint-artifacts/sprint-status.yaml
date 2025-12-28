@@ -86,18 +86,18 @@ development_status:
   epic-2-retrospective: done
 
   # Epic 3: Co-Parent Invitation & Family Sharing
-  epic-3: in-progress
+  epic-3: done # 5/6 stories complete, 1 blocked (3.6 depends on Epic 0.5)
   3-1-co-parent-invitation-generation: done
   3-2-invitation-delivery: done
   3-3-co-parent-invitation-acceptance: done
   3-4-equal-access-verification: done
   3-5-invitation-management: done
-  3-6-legal-parent-petition-for-access: backlog
-  epic-3-retrospective: optional
+  3-6-legal-parent-petition-for-access: blocked # Depends on Epic 0.5 (Safe Account Escape - support safety channel)
+  epic-3-retrospective: done
 
   # Epic 3A: Shared Custody Safeguards
-  epic-3a: backlog
-  3a-1-data-symmetry-enforcement: backlog
+  epic-3a: in-progress
+  3a-1-data-symmetry-enforcement: done
   3a-2-safety-settings-two-parent-approval: backlog
   3a-3-agreement-changes-two-parent-approval: backlog
   3a-4-safety-rule-48-hour-cooling-period: backlog

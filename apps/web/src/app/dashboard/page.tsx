@@ -24,6 +24,7 @@ import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
 import type { ChildProfile, Invitation } from '@fledgely/shared/contracts'
 import { getPendingInvitation } from '../../services/invitationService'
+import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
 
 const styles = {
   main: {
@@ -170,6 +171,20 @@ export default function DashboardPage() {
       setPendingInvitation(null)
     }
   }, [family?.id, invitationRefreshTrigger])
+
+  // Log data view for audit trail (Story 3A.1 - AC3)
+  // This creates transparency for co-parents in shared custody families
+  useEffect(() => {
+    if (family?.id && firebaseUser?.uid) {
+      // Log viewing the children list (family-level view)
+      logDataViewNonBlocking({
+        viewerUid: firebaseUser.uid,
+        childId: null,
+        familyId: family.id,
+        dataType: 'children_list',
+      })
+    }
+  }, [family?.id, firebaseUser?.uid])
 
   const handleLogout = async () => {
     setLoggingOut(true)

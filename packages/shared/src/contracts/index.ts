@@ -195,3 +195,39 @@ export const acceptInvitationInputSchema = z.object({
   token: z.string().min(1),
 })
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationInputSchema>
+
+/**
+ * Data view type for audit logging.
+ * Tracks what type of data was viewed by a guardian.
+ *
+ * Story 3A.1: Data Symmetry Enforcement - AC3
+ */
+export const dataViewTypeSchema = z.enum([
+  'children_list',
+  'child_profile',
+  'screenshots',
+  'activity',
+  'agreements',
+  'flags',
+])
+export type DataViewType = z.infer<typeof dataViewTypeSchema>
+
+/**
+ * Data view audit log schema.
+ *
+ * Records when a guardian views child or family data.
+ * Stored in Firestore at /auditLogs/{logId}.
+ *
+ * Story 3A.1: Data Symmetry Enforcement - AC3
+ * Used for Story 3A.5: Screenshot Viewing Rate Alert
+ */
+export const dataViewAuditSchema = z.object({
+  id: z.string(),
+  viewerUid: z.string(),
+  childId: z.string().nullable(), // null for family-level views
+  familyId: z.string(),
+  dataType: dataViewTypeSchema,
+  viewedAt: z.date(),
+  sessionId: z.string().nullable(), // Optional session correlation
+})
+export type DataViewAudit = z.infer<typeof dataViewAuditSchema>

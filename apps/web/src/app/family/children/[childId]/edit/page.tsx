@@ -13,6 +13,7 @@ import { useAuth } from '../../../../../contexts/AuthContext'
 import { useFamily } from '../../../../../contexts/FamilyContext'
 import { updateChild, calculateAge, isChildGuardian } from '../../../../../services/childService'
 import type { ChildProfile } from '@fledgely/shared/contracts'
+import { logDataViewNonBlocking } from '../../../../../services/dataViewAuditService'
 
 const styles = {
   main: {
@@ -256,6 +257,18 @@ export default function EditChildPage() {
       router.push('/dashboard')
     }
   }, [loading, children, child, router])
+
+  // Log data view for audit trail (Story 3A.1 - AC3)
+  useEffect(() => {
+    if (child && firebaseUser?.uid) {
+      logDataViewNonBlocking({
+        viewerUid: firebaseUser.uid,
+        childId: child.id,
+        familyId: child.familyId,
+        dataType: 'child_profile',
+      })
+    }
+  }, [child, firebaseUser?.uid])
 
   const validateForm = (): boolean => {
     const errors: { name?: string; birthdate?: string } = {}

@@ -54,8 +54,16 @@ service cloud.firestore {
     }
 
     // Child documents: guardians can access children in their family
+    //
+    // EPIC 3A DATA SYMMETRY PRINCIPLE (Story 3A.1):
+    // Both co-parents in shared custody families MUST have IDENTICAL access.
+    // All guardians in the guardians[] array have equal read permissions.
+    // No data filtering, delay, or modification based on which guardian views.
+    // This prevents information asymmetry in custody situations.
+    //
     match /children/{childId} {
       // Helper function to check if user is a guardian of this child
+      // DATA SYMMETRY: All guardians in guardians[] have identical access
       function isChildGuardian() {
         return request.auth != null &&
           request.auth.uid in resource.data.guardians[].uid;
@@ -74,6 +82,7 @@ service cloud.firestore {
       }
 
       // Read: only child guardians can read
+      // DATA SYMMETRY: Both co-parents see identical data simultaneously
       allow read: if isChildGuardian();
 
       // Create: authenticated user who is guardian of the family
@@ -117,6 +126,46 @@ service cloud.firestore {
 
       // Delete: not allowed (use status: revoked instead)
       allow delete: if false;
+    }
+
+    // Audit logs: append-only logs for data viewing transparency
+    //
+    // Story 3A.1: Data Symmetry Enforcement - AC3
+    // Records when guardians view child or family data.
+    // Story 3A.5: Screenshot Viewing Rate Alert uses this data.
+    //
+    // AC5 (Future): Access Revocation Symmetry
+    // When one parent's access is revoked (Story 3.6 legal petition),
+    // audit logs may become inaccessible to both until resolved.
+    // This ensures no information asymmetry during dispute resolution.
+    //
+    match /auditLogs/{logId} {
+      // Helper: Check if user is a guardian of the family in the audit log
+      function isFamilyGuardianForAudit() {
+        let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Helper: Check if user is guardian of family for existing audit log
+      function canReadFamilyAudit() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardians[].uid;
+      }
+
+      // Read: Family guardians can read audit logs for their family
+      // DATA SYMMETRY: Both co-parents can see all viewing activity
+      allow read: if canReadFamilyAudit();
+
+      // Create: Guardians can only log their own views (prevent spoofing)
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.viewerUid &&
+        isFamilyGuardianForAudit();
+
+      // Update/Delete: Not allowed (audit trail immutability)
+      // Audit logs are append-only for compliance and trust
+      allow update, delete: if false;
     }
 
     // Deny all other access by default
