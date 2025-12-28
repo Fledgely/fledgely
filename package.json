@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "npm run build --workspace=fledgely",
     "test": "npm run test:contracts && npm run test:shared && npm run test:functions && npm run test:web",
     "test:contracts": "cd packages/contracts && npm test",
     "test:shared": "cd packages/shared && npm test",
