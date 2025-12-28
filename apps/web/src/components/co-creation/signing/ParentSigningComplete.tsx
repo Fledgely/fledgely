@@ -185,5 +185,3 @@ export function ParentSigningComplete({
     </div>
   )
 }
-
-export type { ParentSigningCompleteProps }

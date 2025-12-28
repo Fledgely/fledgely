@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { SignaturePad } from './SignaturePad'
-import type { SignatureType, AgreementSignature } from '@fledgely/contracts'
+import type { SignatureType, DigitalAgreementSignature } from '@fledgely/contracts'
 
 /**
  * ParentSigningCeremony Component Props
@@ -18,7 +18,7 @@ export interface ParentSigningCeremonyProps {
   /** Parent's commitments */
   parentCommitments: string[]
   /** Callback when signing is complete */
-  onComplete: (signature: AgreementSignature) => void
+  onComplete: (signature: DigitalAgreementSignature) => void
   /** Callback when back button is pressed */
   onBack: () => void
   /** Loading state during submission */
@@ -77,7 +77,7 @@ export function ParentSigningCeremony({
   const handleSubmit = useCallback(() => {
     if (!isFormValid || isLoading) return
 
-    const signature: AgreementSignature = {
+    const signature: DigitalAgreementSignature = {
       agreementId,
       signature: {
         id: uuidv4(),
@@ -238,5 +238,3 @@ export function ParentSigningCeremony({
     </div>
   )
 }
-
-export type { ParentSigningCeremonyProps }

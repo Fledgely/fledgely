@@ -11,7 +11,7 @@ import {
   ParentSigningCeremony,
   ParentSigningComplete,
 } from '@/components/co-creation/signing'
-import type { AgreementSignature } from '@fledgely/contracts'
+import type { DigitalAgreementSignature } from '@fledgely/contracts'
 
 /**
  * ParentSigningPage
@@ -56,9 +56,9 @@ export default function ParentSigningPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Get child name from session/family
-  const child = family?.children?.find((c) => c.id === session?.childId)
-  const childName = child?.name ?? 'your child'
+  // Get child name - Family type only has child IDs, not profiles
+  // In a full implementation, we would load the child profile separately
+  const childName = 'your child'
 
   // Get parent name from user
   const parentName = user?.email?.split('@')[0] ?? 'Parent'
@@ -67,7 +67,7 @@ export default function ParentSigningPage() {
    * Handle signing completion
    */
   const handleSigningComplete = useCallback(
-    async (signature: AgreementSignature) => {
+    async (signature: DigitalAgreementSignature) => {
       if (!family?.id || isSubmitting) return
 
       setIsSubmitting(true)
@@ -75,7 +75,8 @@ export default function ParentSigningPage() {
 
       try {
         // Determine if this is a shared custody family
-        const isSharedCustody = family.custodyType === 'shared'
+        // Family type doesn't have custodyType - determine from number of guardians
+        const isSharedCustody = (family.guardians?.length ?? 0) > 1
 
         await recordParentSignature({
           familyId: family.id,
@@ -179,12 +180,14 @@ export default function ParentSigningPage() {
   }
 
   // Get commitments from session terms
-  const childCommitments =
-    session?.terms?.map((t) => t.content?.childCommitment ?? t.content?.title ?? '') ?? []
+  const childCommitments: string[] =
+    session?.terms?.map((t) =>
+      String(t.content?.childCommitment ?? t.content?.title ?? '')
+    ) ?? []
   const parentCommitments =
     session?.terms
       ?.map((t) => t.content?.parentCommitment)
-      .filter((c): c is string => Boolean(c)) ?? []
+      .filter((c): c is string => typeof c === 'string' && Boolean(c)) ?? []
 
   // Completion screen
   if (signingState === 'complete') {

@@ -9,7 +9,45 @@
  */
 
 import { z } from 'zod'
-import { crisisUrlEntrySchema } from '@fledgely/shared'
+
+/**
+ * Crisis resource categories for organization
+ * (Duplicated from @fledgely/shared to avoid circular dependency)
+ */
+const crisisResourceCategorySchema = z.enum([
+  'suicide',
+  'abuse',
+  'crisis',
+  'lgbtq',
+  'mental_health',
+  'domestic_violence',
+  'child_abuse',
+  'eating_disorder',
+  'substance_abuse',
+])
+
+const contactMethodSchema = z.enum(['phone', 'text', 'chat', 'web'])
+
+const wildcardPatternSchema = z
+  .string()
+  .regex(/^\*\./, 'Wildcard patterns must start with *.')
+
+/**
+ * Crisis URL entry schema (duplicated from @fledgely/shared to avoid circular dependency)
+ */
+const crisisUrlEntrySchema = z.object({
+  id: z.string().uuid(),
+  domain: z.string().min(1),
+  category: crisisResourceCategorySchema,
+  aliases: z.array(z.string().min(1)).default([]),
+  wildcardPatterns: z.array(wildcardPatternSchema).default([]),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  region: z.string().min(2).max(7).default('us'),
+  contactMethods: z.array(contactMethodSchema).min(1).default(['web']),
+  phoneNumber: z.string().optional(),
+  textNumber: z.string().optional(),
+})
 
 /**
  * Emergency push status values

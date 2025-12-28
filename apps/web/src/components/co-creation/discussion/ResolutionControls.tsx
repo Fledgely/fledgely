@@ -330,8 +330,3 @@ export const ResolutionControls = forwardRef<HTMLDivElement, ResolutionControlsP
   }
 )
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export type { ResolutionControlsProps }

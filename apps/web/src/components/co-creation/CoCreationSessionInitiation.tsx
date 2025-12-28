@@ -1,50 +1,14 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import type { AgreementTemplate, AgreementMode } from '@fledgely/contracts'
+import type { AgreementMode, SessionTermType } from '@fledgely/contracts'
 import { AGREEMENT_MODE_LABELS } from '@fledgely/contracts'
 import { ChildPresencePrompt } from './ChildPresencePrompt'
 import { SessionStartButton } from './SessionStartButton'
 import { AgreementModeSelector } from './mode'
+import type { DraftSource, WizardDraft, TemplateDraft } from './useDraftLoader'
 
-/**
- * Source draft types from Epic 4
- */
-export interface WizardDraft {
-  childAge: string
-  templateId: string
-  customizations: {
-    screenTimeMinutes: number
-    bedtimeCutoff: string
-    monitoringLevel: string
-    selectedRules: string[]
-  }
-  createdAt: string
-}
-
-export interface TemplateDraft {
-  templateId: string
-  childId: string
-  originalTemplate: AgreementTemplate
-  customizations: {
-    screenTimeMinutes: number | null
-    weekendScreenTimeMinutes: number | null
-    bedtimeCutoff: string | null
-    monitoringLevel: string | null
-    rules: {
-      enabled: string[]
-      disabled: string[]
-      custom: { id: string; text: string }[]
-    }
-  }
-  modifiedAt: string
-  createdAt: string
-}
-
-type DraftSource =
-  | { type: 'wizard'; draft: WizardDraft }
-  | { type: 'template_customization'; draft: TemplateDraft }
-  | { type: 'blank' }
+export type { DraftSource, WizardDraft, TemplateDraft }
 
 interface ChildProfile {
   id: string
@@ -66,8 +30,8 @@ interface CoCreationSessionInitiationProps {
       templateId?: string
       draftId?: string
     }
-    initialTerms?: Array<{ type: string; content: Record<string, unknown> }>
-    agreementMode?: AgreementMode
+    initialTerms?: Array<{ type: SessionTermType; content: Record<string, unknown> }>
+    agreementMode: AgreementMode
   }) => Promise<{ success: boolean; session?: { id: string }; error?: string }>
   /** Default agreement mode (optional, defaults to 'full') */
   defaultMode?: AgreementMode
@@ -188,7 +152,7 @@ export function CoCreationSessionInitiation({
 
       // Transform draft to initial terms
       // Skip monitoring terms if in agreement_only mode (Story 5.6 AC #1)
-      const initialTerms: Array<{ type: string; content: Record<string, unknown> }> = []
+      const initialTerms: Array<{ type: SessionTermType; content: Record<string, unknown> }> = []
 
       if (draftSource.type === 'wizard') {
         const draft = draftSource.draft

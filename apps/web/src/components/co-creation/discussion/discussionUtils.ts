@@ -9,7 +9,7 @@
  * NFR65: All prompts at 6th-grade reading level
  */
 
-import type { SessionContributor, TermType, ResolutionStatus } from '@fledgely/contracts'
+import type { SessionContributor, SessionTermType, ResolutionStatus } from '@fledgely/contracts'
 
 // ============================================
 // TYPES
@@ -40,7 +40,7 @@ export interface PromptSet {
  * Child-friendly prompts for each term type.
  * All written at 6th-grade reading level (NFR65).
  */
-export const DISCUSSION_PROMPTS: Record<TermType, PromptSet> = {
+export const DISCUSSION_PROMPTS: Record<SessionTermType, PromptSet> = {
   screen_time: {
     child: 'Why is this screen time important to you?',
     parent: 'What concerns do you have about screen time?',
@@ -83,7 +83,7 @@ export const DEFAULT_PROMPTS: PromptSet = {
  * Predefined compromise suggestions for common disagreements.
  * Shown when terms are in discussion status.
  */
-export const COMPROMISE_SUGGESTIONS: Record<TermType, CompromiseSuggestion[]> = {
+export const COMPROMISE_SUGGESTIONS: Record<SessionTermType, CompromiseSuggestion[]> = {
   screen_time: [
     { id: 'st-less-30', text: 'Try 30 minutes less', adjustment: { minutes: -30 } },
     { id: 'st-more-15', text: 'Try 15 minutes more', adjustment: { minutes: 15 } },
@@ -111,7 +111,7 @@ export const COMPROMISE_SUGGESTIONS: Record<TermType, CompromiseSuggestion[]> = 
  * Get the discussion prompt for a specific term type and contributor.
  */
 export function getDiscussionPrompt(
-  termType: TermType,
+  termType: SessionTermType,
   contributor: SessionContributor
 ): string {
   const prompts = DISCUSSION_PROMPTS[termType] ?? DEFAULT_PROMPTS
@@ -121,21 +121,21 @@ export function getDiscussionPrompt(
 /**
  * Get all discussion prompts for a term type.
  */
-export function getDiscussionPrompts(termType: TermType): PromptSet {
+export function getDiscussionPrompts(termType: SessionTermType): PromptSet {
   return DISCUSSION_PROMPTS[termType] ?? DEFAULT_PROMPTS
 }
 
 /**
  * Get compromise suggestions for a term type.
  */
-export function getCompromiseSuggestions(termType: TermType): CompromiseSuggestion[] {
+export function getCompromiseSuggestions(termType: SessionTermType): CompromiseSuggestion[] {
   return COMPROMISE_SUGGESTIONS[termType] ?? []
 }
 
 /**
  * Check if a term type has compromise suggestions available.
  */
-export function hasCompromiseSuggestions(termType: TermType): boolean {
+export function hasCompromiseSuggestions(termType: SessionTermType): boolean {
   const suggestions = COMPROMISE_SUGGESTIONS[termType]
   return suggestions !== undefined && suggestions.length > 0
 }
@@ -144,7 +144,7 @@ export function hasCompromiseSuggestions(termType: TermType): boolean {
  * Get a specific compromise suggestion by ID.
  */
 export function getCompromiseSuggestionById(
-  termType: TermType,
+  termType: SessionTermType,
   suggestionId: string
 ): CompromiseSuggestion | undefined {
   const suggestions = COMPROMISE_SUGGESTIONS[termType]

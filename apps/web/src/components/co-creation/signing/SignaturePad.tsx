@@ -353,5 +353,3 @@ export function SignaturePad({
     </div>
   )
 }
-
-export type { SignaturePadProps }

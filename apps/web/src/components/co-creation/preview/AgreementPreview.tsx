@@ -175,8 +175,8 @@ export function AgreementPreview({
   // Impact estimates
   const { impact, hasImpact } = useImpactEstimate(preview.terms)
 
-  // Contribution stats
-  const stats = getContributionStats(session.contributions)
+  // Contribution stats - use preview.contributions which is ContributionSummary[]
+  const stats = getContributionStats(preview.contributions)
 
   // Export functionality
   const { exportToPdf, openPrintDialog, isExporting } = useAgreementExport({
@@ -254,10 +254,8 @@ export function AgreementPreview({
           <section aria-labelledby="summary-heading">
             <AgreementSummary
               preview={preview}
-              session={session}
-              simplified={simplified}
+              simplifiedMode={simplified}
               showCommitments
-              showContributions
               data-testid="agreement-summary"
             />
           </section>

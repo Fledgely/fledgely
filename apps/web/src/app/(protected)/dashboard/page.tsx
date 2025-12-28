@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
 import { useFamily } from '@/hooks/useFamily'
@@ -35,6 +35,46 @@ import { Trash2, UserPlus, CheckCircle2, X, Mail, Clock, FileText } from 'lucide
  * - Screen reader announcements via aria-live
  */
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardLoadingFallback />}>
+      <DashboardPageContent />
+    </Suspense>
+  )
+}
+
+/**
+ * Loading fallback for the dashboard while Suspense resolves
+ */
+function DashboardLoadingFallback() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <main
+        className="flex flex-1 flex-col items-center justify-center p-4"
+        aria-busy="true"
+        aria-label="Loading your dashboard"
+      >
+        <div className="w-full max-w-2xl space-y-6">
+          <span className="sr-only" role="status" aria-live="polite">
+            Loading your dashboard, please wait.
+          </span>
+          <div className="space-y-4" aria-hidden="true">
+            <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-64 animate-pulse rounded bg-muted" />
+            <div className="space-y-3 pt-4">
+              <div className="h-20 animate-pulse rounded-lg bg-muted" />
+              <div className="h-20 animate-pulse rounded-lg bg-muted" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/**
+ * Dashboard page content - wrapped in Suspense boundary for useSearchParams
+ */
+function DashboardPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuthContext()

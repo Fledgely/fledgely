@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import {
-  type AgreementSignature,
+  type DigitalAgreementSignature,
   type SigningStatus,
   canChildSign,
   canParentSign,
@@ -50,7 +50,7 @@ export interface RecordSignatureParams {
   /** Agreement ID */
   agreementId: string
   /** The signature data */
-  signature: AgreementSignature
+  signature: DigitalAgreementSignature
 }
 
 /**

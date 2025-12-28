@@ -326,8 +326,3 @@ export const DiscussionTermCard = forwardRef<HTMLDivElement, DiscussionTermCardP
   }
 )
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export type { DiscussionTermCardProps }

@@ -295,5 +295,3 @@ export function KeyCommitmentsReadAloud({
     </div>
   )
 }
-
-export type { KeyCommitmentsReadAloudProps }

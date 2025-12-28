@@ -203,5 +203,3 @@ export function SigningCelebration({
     </div>
   )
 }
-
-export type { SigningCelebrationProps }

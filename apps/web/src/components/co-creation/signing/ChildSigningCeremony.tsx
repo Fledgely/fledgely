@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { type SignatureType, type SessionTerm, type AgreementSignature, isTypedSignatureValid, isDrawnSignatureValid } from '@fledgely/contracts'
+import { type SignatureType, type SessionTerm, type DigitalAgreementSignature, isTypedSignatureValid, isDrawnSignatureValid } from '@fledgely/contracts'
 import { SignaturePad } from './SignaturePad'
 import { useStepAnnouncer } from '@/hooks/useStepAnnouncer'
 import { v4 as uuidv4 } from 'uuid'
@@ -17,7 +17,7 @@ export interface ChildSigningCeremonyProps {
   /** Terms to display as key commitments */
   terms: SessionTerm[]
   /** Callback when signing is complete */
-  onComplete: (signature: AgreementSignature) => void | Promise<void>
+  onComplete: (signature: DigitalAgreementSignature) => void | Promise<void>
   /** Callback when user wants to go back */
   onBack: () => void
   /** Whether signing is in progress */
@@ -125,7 +125,7 @@ export function ChildSigningCeremony({
           ? signatureValue.trim().replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control chars
           : signatureValue // Canvas data URLs are already validated by browser
 
-      const signature: AgreementSignature = {
+      const signature: DigitalAgreementSignature = {
         agreementId,
         signature: {
           id: uuidv4(),
@@ -225,10 +225,10 @@ export function ChildSigningCeremony({
                 </div>
                 <div>
                   <p className="font-medium text-gray-900 dark:text-gray-100">
-                    {term.title}
+                    {String(term.content?.title ?? term.type)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {term.content}
+                    {String(term.content?.description ?? '')}
                   </p>
                 </div>
               </div>
@@ -355,5 +355,3 @@ export function ChildSigningCeremony({
     </div>
   )
 }
-
-export type { ChildSigningCeremonyProps }

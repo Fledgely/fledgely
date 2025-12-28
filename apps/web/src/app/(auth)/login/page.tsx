@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { SafetyResourcesLink } from '@/components/safety'
 import { GoogleSignInButton } from '@/components/auth'
@@ -20,6 +20,38 @@ import { getSafeRedirectUrl } from '@/lib/security'
  * - Subtle "Safety Resources" link for abuse victims
  */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLoadingFallback />}>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
+
+/**
+ * Loading fallback for login page
+ */
+function LoginLoadingFallback() {
+  return (
+    <div className="flex min-h-screen flex-col">
+      <main className="flex flex-1 flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="space-y-2 text-center">
+            <div className="mx-auto h-8 w-48 animate-pulse rounded bg-muted" />
+            <div className="mx-auto h-4 w-64 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="rounded-lg border bg-card p-6">
+            <div className="mx-auto h-11 w-48 animate-pulse rounded bg-muted" />
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/**
+ * Login page content - wrapped in Suspense for useSearchParams
+ */
+function LoginPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading, error: authError, signInWithGoogle, clearError: clearAuthError } = useAuthContext()

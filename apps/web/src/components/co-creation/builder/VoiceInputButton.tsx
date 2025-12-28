@@ -3,6 +3,56 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 
 /**
+ * Web Speech API type declarations
+ */
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList
+  resultIndex: number
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+  message?: string
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number
+  item(index: number): SpeechRecognitionResult
+  [index: number]: SpeechRecognitionResult
+}
+
+interface SpeechRecognitionResult {
+  readonly length: number
+  readonly isFinal: boolean
+  item(index: number): SpeechRecognitionAlternative
+  [index: number]: SpeechRecognitionAlternative
+}
+
+interface SpeechRecognitionAlternative {
+  readonly transcript: string
+  readonly confidence: number
+}
+
+interface SpeechRecognitionClass {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+  abort(): void
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionClass
+    webkitSpeechRecognition?: new () => SpeechRecognitionClass
+  }
+}
+
+/**
  * Props for the VoiceInputButton component
  */
 export interface VoiceInputButtonProps {
@@ -61,7 +111,7 @@ export function VoiceInputButton({
 }: VoiceInputButtonProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [isSupported, setIsSupported] = useState(true)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const recognitionRef = useRef<SpeechRecognitionClass | null>(null)
 
   // Check browser support on mount
   useEffect(() => {
@@ -76,6 +126,7 @@ export function VoiceInputButton({
 
     const SpeechRecognitionAPI =
       window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognitionAPI) return null
     const recognition = new SpeechRecognitionAPI()
 
     recognition.continuous = false

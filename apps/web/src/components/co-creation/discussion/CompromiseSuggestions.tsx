@@ -12,7 +12,7 @@
  */
 
 import { forwardRef, useState, useId, useCallback } from 'react'
-import type { TermType, SessionContributor } from '@fledgely/contracts'
+import type { SessionTermType, SessionContributor } from '@fledgely/contracts'
 import {
   getCompromiseSuggestions,
   hasCompromiseSuggestions,
@@ -26,7 +26,7 @@ import {
 
 export interface CompromiseSuggestionsProps {
   /** The type of term being discussed */
-  termType: TermType
+  termType: SessionTermType
   /** The current contributor */
   contributor: SessionContributor
   /** Callback when a suggestion is accepted */
@@ -230,8 +230,3 @@ export const CompromiseSuggestions = forwardRef<HTMLDivElement, CompromiseSugges
   }
 )
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export type { CompromiseSuggestionsProps }

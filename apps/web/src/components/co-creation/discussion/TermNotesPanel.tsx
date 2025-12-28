@@ -325,8 +325,3 @@ export const TermNotesPanel = forwardRef<HTMLDivElement, TermNotesPanelProps>(
   }
 )
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export type { TermNotesPanelProps }

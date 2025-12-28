@@ -11,7 +11,7 @@
  */
 
 import { forwardRef, useId } from 'react'
-import type { TermType, SessionContributor } from '@fledgely/contracts'
+import type { SessionTermType, SessionContributor } from '@fledgely/contracts'
 import { getDiscussionPrompt, getDiscussionPrompts } from './discussionUtils'
 
 // ============================================
@@ -20,7 +20,7 @@ import { getDiscussionPrompt, getDiscussionPrompts } from './discussionUtils'
 
 export interface DiscussionPromptProps {
   /** The type of term being discussed */
-  termType: TermType
+  termType: SessionTermType
   /** The current contributor viewing the prompt */
   contributor: SessionContributor
   /** Whether to show prompts for both parties */
@@ -35,7 +35,7 @@ export interface DiscussionPromptProps {
 // PROMPT ICONS
 // ============================================
 
-const PROMPT_ICONS: Record<TermType, string> = {
+const PROMPT_ICONS: Record<SessionTermType, string> = {
   screen_time: '📱',
   bedtime: '🌙',
   monitoring: '👀',
@@ -170,8 +170,3 @@ export const DiscussionPrompt = forwardRef<HTMLDivElement, DiscussionPromptProps
   }
 )
 
-// ============================================
-// EXPORTS
-// ============================================
-
-export type { DiscussionPromptProps }

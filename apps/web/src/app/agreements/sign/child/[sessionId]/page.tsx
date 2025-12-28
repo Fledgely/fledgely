@@ -13,7 +13,7 @@ import {
 } from '@/components/co-creation/signing'
 import { recordChildSignature } from '@/services/signatureService'
 import { useAgreementDownload } from '@/hooks/useAgreementDownload'
-import type { AgreementSignature } from '@fledgely/contracts'
+import type { DigitalAgreementSignature } from '@fledgely/contracts'
 
 /**
  * Child Signing Ceremony Page
@@ -66,13 +66,13 @@ function ChildSigningContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [agreementVersion, setAgreementVersion] = useState<string>('1.0')
 
-  // Get child name from family data
-  const childName = session?.childId
-    ? family?.children?.find((c) => c.id === session.childId)?.name || 'Friend'
-    : 'Friend'
+  // Get child name - fallback to 'Friend' since Family type only has child IDs, not profiles
+  // In a full implementation, we would load the child profile separately
+  const childName = 'Friend'
 
-  // Get parent name(s) from family data
-  const parentNames = family?.parents?.map((p) => p.name || 'Parent') || ['Parent']
+  // Get parent names - Family has guardians, not parents, and guardians don't have names
+  // In a full implementation, we would load user profiles for guardian UIDs
+  const parentNames = family?.guardians?.map(() => 'Parent') || ['Parent']
 
   // Agreement download/share functionality
   const { downloadAgreement, shareAgreement } = useAgreementDownload({
@@ -120,7 +120,7 @@ function ChildSigningContent() {
    * Handle signature completion
    */
   const handleSignatureComplete = useCallback(
-    async (signature: AgreementSignature) => {
+    async (signature: DigitalAgreementSignature) => {
       if (!familyId || !agreementId) return
 
       setIsSubmitting(true)
