@@ -154,7 +154,7 @@ export default function DashboardPage() {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <main style={styles.main}>
+      <main id="main-content" style={styles.main}>
         <div style={styles.content}>
           <p>Loading...</p>
         </div>
@@ -174,7 +174,7 @@ export default function DashboardPage() {
   const uid = firebaseUser.uid
 
   return (
-    <main style={styles.main}>
+    <main id="main-content" style={styles.main}>
       <style>
         {`
           .logout-button:focus {

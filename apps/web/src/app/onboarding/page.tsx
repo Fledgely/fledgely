@@ -90,7 +90,7 @@ export default function OnboardingPage() {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <main style={styles.main} role="main">
+      <main id="main-content" style={styles.main} role="main">
         <div style={styles.card}>
           <p style={styles.loadingText}>Loading...</p>
         </div>
@@ -107,7 +107,7 @@ export default function OnboardingPage() {
     userProfile?.displayName?.split(' ')[0] || firebaseUser.displayName?.split(' ')[0] || 'there'
 
   return (
-    <main style={styles.main} role="main" aria-label="Onboarding page">
+    <main id="main-content" style={styles.main} role="main" aria-label="Onboarding page">
       <style>
         {`
           .dashboard-link:focus {

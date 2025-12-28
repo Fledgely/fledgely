@@ -174,7 +174,7 @@ export default function LoginPage() {
   // Show loading state while checking auth
   if (loading) {
     return (
-      <main style={styles.main} role="main">
+      <main id="main-content" style={styles.main} role="main">
         <div style={styles.card}>
           <p style={styles.loadingText}>Loading...</p>
         </div>
@@ -188,7 +188,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={styles.main} role="main" aria-label="Login page">
+    <main id="main-content" style={styles.main} role="main" aria-label="Login page">
       <style>
         {`
           .back-link:focus {

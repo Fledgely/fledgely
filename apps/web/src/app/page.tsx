@@ -71,7 +71,7 @@ const styles = {
 
 export default function Home() {
   return (
-    <main style={styles.main} role="main" aria-label="Fledgely landing page">
+    <main id="main-content" style={styles.main} role="main" aria-label="Fledgely landing page">
       <style>
         {`
           .sign-in-link:focus {
