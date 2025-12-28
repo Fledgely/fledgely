@@ -9,7 +9,13 @@
  * - scheduled/ - Cron-based scheduled functions
  */
 
+import { initializeApp } from 'firebase-admin/app'
+
+// Initialize Firebase Admin SDK
+initializeApp()
+
 // Export callable functions here as they are implemented
+export { sendInvitation } from './callable/sendInvitation'
 // export { flagContent } from './callable/flagContent'
 
 // Export triggers here as they are implemented
@@ -17,6 +23,3 @@
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'
-
-// Placeholder to ensure the file compiles
-export const placeholder = 'Fledgely Functions'

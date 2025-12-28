@@ -88,7 +88,7 @@ development_status:
   # Epic 3: Co-Parent Invitation & Family Sharing
   epic-3: in-progress
   3-1-co-parent-invitation-generation: done
-  3-2-invitation-delivery: backlog
+  3-2-invitation-delivery: done
   3-3-co-parent-invitation-acceptance: backlog
   3-4-equal-access-verification: backlog
   3-5-invitation-management: backlog

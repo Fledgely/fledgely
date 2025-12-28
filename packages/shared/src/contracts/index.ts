@@ -167,8 +167,20 @@ export const invitationSchema = z.object({
   familyName: z.string(),
   token: z.string(), // Secure UUID token for invitation link
   status: invitationStatusSchema,
+  recipientEmail: z.string().email().nullable(), // Email address invitation was sent to (Story 3.2)
+  emailSentAt: z.date().nullable(), // When invitation email was sent (Story 3.2)
   expiresAt: z.date(),
   createdAt: z.date(),
   updatedAt: z.date(),
 })
 export type Invitation = z.infer<typeof invitationSchema>
+
+/**
+ * Schema for sending an invitation email.
+ * Used to validate input to the sendInvitation Cloud Function.
+ */
+export const sendInvitationEmailSchema = z.object({
+  invitationId: z.string(),
+  recipientEmail: z.string().email(),
+})
+export type SendInvitationEmailInput = z.infer<typeof sendInvitationEmailSchema>

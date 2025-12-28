@@ -13,6 +13,11 @@ import {
   connectFirestoreEmulator,
   Firestore,
 } from 'firebase/firestore'
+import {
+  getFunctions as getFunctionsSDK,
+  connectFunctionsEmulator,
+  Functions,
+} from 'firebase/functions'
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -28,9 +33,11 @@ const firebaseConfig = {
 let app: FirebaseApp | undefined
 let auth: Auth | undefined
 let firestore: Firestore | undefined
+let functions: Functions | undefined
 let googleProvider: GoogleAuthProvider | undefined
 let authEmulatorConnected = false
 let firestoreEmulatorConnected = false
+let functionsEmulatorConnected = false
 
 /**
  * Get Firebase app instance. Initializes lazily on first call.
@@ -94,6 +101,28 @@ function getFirestoreDb(): Firestore {
 }
 
 /**
+ * Get Firebase Functions instance. Initializes lazily on first call.
+ */
+function getFirebaseFunctions(): Functions {
+  if (functions) return functions
+
+  functions = getFunctionsSDK(getFirebaseApp())
+
+  // Connect to emulators in development (only once)
+  if (
+    !functionsEmulatorConnected &&
+    typeof window !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_USE_EMULATORS === 'true'
+  ) {
+    connectFunctionsEmulator(functions, 'localhost', 5001)
+    functionsEmulatorConnected = true
+  }
+
+  return functions
+}
+
+/**
  * Get Google Auth Provider instance.
  */
 function getGoogleProvider(): GoogleAuthProvider {
@@ -103,4 +132,4 @@ function getGoogleProvider(): GoogleAuthProvider {
 }
 
 // Export getter functions for lazy initialization
-export { getFirebaseApp, getFirebaseAuth, getFirestoreDb, getGoogleProvider }
+export { getFirebaseApp, getFirebaseAuth, getFirestoreDb, getFirebaseFunctions, getGoogleProvider }

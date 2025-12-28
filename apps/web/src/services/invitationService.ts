@@ -22,9 +22,10 @@ import {
   Timestamp,
   FirestoreError,
 } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { User as FirebaseUser } from 'firebase/auth'
 import { invitationSchema, type Invitation, type Family } from '@fledgely/shared/contracts'
-import { getFirestoreDb } from '../lib/firebase'
+import { getFirestoreDb, getFirebaseFunctions } from '../lib/firebase'
 
 /**
  * Check if Epic 3A safeguards are active.
@@ -61,6 +62,16 @@ function convertInvitationTimestamps(data: Record<string, unknown>): Record<stri
   }
   if (result.updatedAt instanceof Timestamp) {
     result.updatedAt = result.updatedAt.toDate()
+  }
+  if (result.emailSentAt instanceof Timestamp) {
+    result.emailSentAt = result.emailSentAt.toDate()
+  }
+  // Ensure nullable fields have null if not present
+  if (!('recipientEmail' in result)) {
+    result.recipientEmail = null
+  }
+  if (!('emailSentAt' in result)) {
+    result.emailSentAt = null
   }
   return result
 }
@@ -176,6 +187,8 @@ export async function createInvitation(
       familyName: family.name,
       token,
       status: 'pending',
+      recipientEmail: null, // Set when email is sent (Story 3.2)
+      emailSentAt: null, // Set when email is sent (Story 3.2)
       expiresAt: Timestamp.fromDate(expiresAt),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -250,4 +263,102 @@ export async function revokeInvitation(invitationId: string, revokerUid: string)
     }
     throw err
   }
+}
+
+/**
+ * Result of sending an invitation email.
+ */
+export interface SendInvitationEmailResult {
+  success: boolean
+  message: string
+}
+
+/**
+ * Send an invitation email via Cloud Function.
+ *
+ * Calls the sendInvitation Cloud Function which:
+ * - Validates the invitation exists and is pending
+ * - Verifies the user is the inviter
+ * - Sends the email via Resend
+ * - Updates the invitation with recipientEmail and emailSentAt
+ *
+ * @param invitationId - The invitation ID to send
+ * @param recipientEmail - The email address to send the invitation to
+ * @returns Result with success status and message
+ *
+ * Implements AC2 (Invitation Email Sending) and AC6 (Error Handling)
+ */
+export async function sendInvitationEmail(
+  invitationId: string,
+  recipientEmail: string
+): Promise<SendInvitationEmailResult> {
+  try {
+    const functions = getFirebaseFunctions()
+    const sendInvitation = httpsCallable<
+      { invitationId: string; recipientEmail: string },
+      { success: boolean; message: string }
+    >(functions, 'sendInvitation')
+
+    const result = await sendInvitation({ invitationId, recipientEmail })
+    return result.data
+  } catch (err) {
+    // Handle Firebase Functions errors
+    const error = err as { code?: string; message?: string }
+    console.error('Error sending invitation email:', error.message)
+
+    // Return user-friendly error messages (AC6)
+    if (error.code === 'functions/unauthenticated') {
+      return {
+        success: false,
+        message: 'Please sign in to send invitations.',
+      }
+    }
+    if (error.code === 'functions/permission-denied') {
+      return {
+        success: false,
+        message: 'You do not have permission to send this invitation.',
+      }
+    }
+    if (error.code === 'functions/not-found') {
+      return {
+        success: false,
+        message: 'Invitation not found.',
+      }
+    }
+    if (error.code === 'functions/invalid-argument') {
+      return {
+        success: false,
+        message: 'Please provide a valid email address.',
+      }
+    }
+
+    return {
+      success: false,
+      message: 'Unable to send invitation email. Please try again or use the copy link option.',
+    }
+  }
+}
+
+/**
+ * Validate email format.
+ *
+ * Uses a standard email regex pattern.
+ *
+ * @param email - Email address to validate
+ * @returns true if email format is valid
+ */
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+/**
+ * Generate the invitation join link for an invitation.
+ *
+ * @param invitation - The invitation with token
+ * @returns The full join link URL
+ */
+export function getInvitationLink(invitation: Invitation): string {
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://fledgely.com'
+  return `${baseUrl}/invite/accept?token=${invitation.token}`
 }
