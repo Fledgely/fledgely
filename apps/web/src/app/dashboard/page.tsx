@@ -5,6 +5,7 @@
  *
  * Shows user info and logout functionality.
  * Redirects unauthenticated users to login.
+ * Redirects new users to onboarding.
  */
 
 import { useEffect, useState } from 'react'
@@ -108,19 +109,35 @@ const styles = {
     fontSize: '14px',
     color: '#1f2937',
   },
+  errorBanner: {
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '24px',
+    color: '#dc2626',
+    fontSize: '14px',
+  },
 }
 
 export default function DashboardPage() {
-  const { user, loading, signOut } = useAuth()
+  const { firebaseUser, userProfile, loading, isNewUser, profileError, signOut } = useAuth()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !firebaseUser) {
       router.push('/login')
     }
-  }, [user, loading, router])
+  }, [firebaseUser, loading, router])
+
+  // Redirect new users to onboarding
+  useEffect(() => {
+    if (!loading && firebaseUser && isNewUser) {
+      router.push('/onboarding')
+    }
+  }, [firebaseUser, loading, isNewUser, router])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -145,9 +162,15 @@ export default function DashboardPage() {
   }
 
   // Don't render dashboard content if not authenticated
-  if (!user) {
+  if (!firebaseUser) {
     return null
   }
+
+  // Use Firestore profile if available, fallback to Firebase Auth data
+  const displayName = userProfile?.displayName ?? firebaseUser.displayName ?? 'User'
+  const email = userProfile?.email ?? firebaseUser.email ?? ''
+  const photoURL = userProfile?.photoURL ?? firebaseUser.photoURL
+  const uid = firebaseUser.uid
 
   return (
     <main style={styles.main}>
@@ -156,12 +179,12 @@ export default function DashboardPage() {
           Fledgely
         </a>
         <div style={styles.userInfo}>
-          {user.photoURL ? (
-            <img src={user.photoURL} alt="" style={styles.avatar} referrerPolicy="no-referrer" />
+          {photoURL ? (
+            <img src={photoURL} alt="" style={styles.avatar} referrerPolicy="no-referrer" />
           ) : (
             <div style={styles.avatar} />
           )}
-          <span style={styles.userName}>{user.displayName || 'User'}</span>
+          <span style={styles.userName}>{displayName}</span>
           <button
             onClick={handleLogout}
             disabled={loggingOut}
@@ -174,26 +197,38 @@ export default function DashboardPage() {
       </header>
 
       <div style={styles.content}>
-        <h1 style={styles.welcome}>Welcome, {user.displayName?.split(' ')[0] || 'there'}!</h1>
+        <h1 style={styles.welcome}>Welcome back, {displayName.split(' ')[0]}!</h1>
         <p style={styles.description}>
           You&apos;re signed in to Fledgely. This is a placeholder dashboard that will be replaced
           with family management features in upcoming stories.
         </p>
 
+        {profileError && (
+          <div style={styles.errorBanner} role="alert">
+            Unable to load your profile. Some features may be limited.
+          </div>
+        )}
+
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>Account Information</h2>
           <div style={styles.infoRow}>
             <span style={styles.infoLabel}>Email</span>
-            <span style={styles.infoValue}>{user.email}</span>
+            <span style={styles.infoValue}>{email}</span>
           </div>
           <div style={styles.infoRow}>
             <span style={styles.infoLabel}>Name</span>
-            <span style={styles.infoValue}>{user.displayName || 'Not set'}</span>
+            <span style={styles.infoValue}>{displayName || 'Not set'}</span>
           </div>
-          <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+          <div style={styles.infoRow}>
             <span style={styles.infoLabel}>User ID</span>
-            <span style={styles.infoValue}>{user.uid}</span>
+            <span style={styles.infoValue}>{uid}</span>
           </div>
+          {userProfile && (
+            <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+              <span style={styles.infoLabel}>Member since</span>
+              <span style={styles.infoValue}>{userProfile.createdAt.toLocaleDateString()}</span>
+            </div>
+          )}
         </div>
       </div>
     </main>

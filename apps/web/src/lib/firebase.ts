@@ -8,6 +8,11 @@
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import { getAuth, connectAuthEmulator, GoogleAuthProvider, Auth } from 'firebase/auth'
+import {
+  getFirestore as getFirestoreSDK,
+  connectFirestoreEmulator,
+  Firestore,
+} from 'firebase/firestore'
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -22,8 +27,10 @@ const firebaseConfig = {
 // Singleton instances (lazily initialized)
 let app: FirebaseApp | undefined
 let auth: Auth | undefined
+let firestore: Firestore | undefined
 let googleProvider: GoogleAuthProvider | undefined
-let emulatorConnected = false
+let authEmulatorConnected = false
+let firestoreEmulatorConnected = false
 
 /**
  * Get Firebase app instance. Initializes lazily on first call.
@@ -50,7 +57,7 @@ function getFirebaseAuth(): Auth {
 
   // Connect to emulators in development (only once)
   if (
-    !emulatorConnected &&
+    !authEmulatorConnected &&
     typeof window !== 'undefined' &&
     process.env.NODE_ENV === 'development' &&
     process.env.NEXT_PUBLIC_USE_EMULATORS === 'true'
@@ -58,10 +65,32 @@ function getFirebaseAuth(): Auth {
     connectAuthEmulator(auth, 'http://localhost:9099', {
       disableWarnings: true,
     })
-    emulatorConnected = true
+    authEmulatorConnected = true
   }
 
   return auth
+}
+
+/**
+ * Get Firestore instance. Initializes lazily on first call.
+ */
+function getFirestoreDb(): Firestore {
+  if (firestore) return firestore
+
+  firestore = getFirestoreSDK(getFirebaseApp())
+
+  // Connect to emulators in development (only once)
+  if (
+    !firestoreEmulatorConnected &&
+    typeof window !== 'undefined' &&
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_USE_EMULATORS === 'true'
+  ) {
+    connectFirestoreEmulator(firestore, 'localhost', 8080)
+    firestoreEmulatorConnected = true
+  }
+
+  return firestore
 }
 
 /**
@@ -74,4 +103,4 @@ function getGoogleProvider(): GoogleAuthProvider {
 }
 
 // Export getter functions for lazy initialization
-export { getFirebaseApp, getFirebaseAuth, getGoogleProvider }
+export { getFirebaseApp, getFirebaseAuth, getFirestoreDb, getGoogleProvider }

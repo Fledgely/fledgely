@@ -69,19 +69,23 @@ const styles = {
 }
 
 export default function LoginPage() {
-  const { user, loading } = useAuth()
+  const { firebaseUser, loading, isNewUser } = useAuth()
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
 
-  // Redirect authenticated users to dashboard
+  // Redirect authenticated users appropriately
   useEffect(() => {
-    if (!loading && user) {
-      router.push('/dashboard')
+    if (!loading && firebaseUser) {
+      if (isNewUser) {
+        router.push('/onboarding')
+      } else {
+        router.push('/dashboard')
+      }
     }
-  }, [user, loading, router])
+  }, [firebaseUser, loading, isNewUser, router])
 
   const handleSignInSuccess = () => {
-    router.push('/dashboard')
+    // Redirect handled by auth state change effect
   }
 
   const handleSignInError = (err: Error) => {
@@ -120,7 +124,7 @@ export default function LoginPage() {
   }
 
   // Don't show login form if already authenticated
-  if (user) {
+  if (firebaseUser) {
     return null
   }
 

@@ -17,3 +17,20 @@ export const placeholderSchema = z.object({
 })
 
 export type Placeholder = z.infer<typeof placeholderSchema>
+
+/**
+ * User profile schema.
+ *
+ * Represents a user's profile stored in Firestore at /users/{uid}.
+ * All users authenticate via Google Sign-In.
+ */
+export const userSchema = z.object({
+  uid: z.string(),
+  email: z.string().email(),
+  displayName: z.string().nullable(),
+  photoURL: z.string().url().nullable(),
+  createdAt: z.date(),
+  lastLoginAt: z.date(),
+})
+
+export type User = z.infer<typeof userSchema>
