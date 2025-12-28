@@ -11,6 +11,33 @@ const styles = {
     padding: '2rem',
     textAlign: 'center' as const,
   },
+  header: {
+    position: 'absolute' as const,
+    top: 0,
+    right: 0,
+    padding: '1.5rem 2rem',
+  },
+  signInLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '44px',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    color: '#ffffff',
+    borderRadius: '8px',
+    fontSize: '1rem',
+    fontWeight: 500,
+    textDecoration: 'none',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+  },
+  signInLinkFocus: {
+    outline: '2px solid #ffffff',
+    outlineOffset: '2px',
+  },
   logo: {
     fontSize: '4rem',
     fontWeight: 700,
@@ -45,6 +72,22 @@ const styles = {
 export default function Home() {
   return (
     <main style={styles.main} role="main" aria-label="Fledgely landing page">
+      <style>
+        {`
+          .sign-in-link:focus {
+            outline: 2px solid #ffffff;
+            outline-offset: 2px;
+          }
+          .sign-in-link:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+          }
+        `}
+      </style>
+      <header style={styles.header}>
+        <a href="/login" style={styles.signInLink} className="sign-in-link">
+          Sign In
+        </a>
+      </header>
       <h1 style={styles.logo}>Fledgely</h1>
       <p style={styles.tagline}>
         Building trust and safety in your family&apos;s digital life. Helping parents and children

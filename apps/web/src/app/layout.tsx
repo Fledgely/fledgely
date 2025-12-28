@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { AuthProvider } from '../contexts/AuthContext'
 
 export const metadata: Metadata = {
   title: 'Fledgely - Family Digital Safety',
@@ -37,7 +38,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0 }}>{children}</body>
+      <body style={{ margin: 0, padding: 0 }}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   )
 }
