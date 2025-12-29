@@ -602,3 +602,56 @@ export const AGREEMENT_MODE_CATEGORIES: Record<AgreementMode, TermCategory[]> = 
   agreement_only: ['time', 'apps', 'rewards', 'general'],
   full_monitoring: ['time', 'apps', 'monitoring', 'rewards', 'general'],
 }
+
+/**
+ * Version type for agreement drafts.
+ *
+ * Story 5.7: Draft Saving & Version History - AC3
+ * Categorizes what type of milestone created this version.
+ */
+export const versionTypeSchema = z.enum([
+  'initial_draft',
+  'child_additions',
+  'negotiation_complete',
+  'manual_save',
+  'auto_save',
+])
+export type VersionType = z.infer<typeof versionTypeSchema>
+
+/**
+ * Agreement version schema.
+ *
+ * Story 5.7: Draft Saving & Version History - AC3, AC4
+ * Represents a snapshot of the agreement at a point in time.
+ */
+export const agreementVersionSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  type: versionTypeSchema,
+  description: z.string().max(200),
+  termsSnapshot: z.array(agreementTermSchema),
+  createdAt: z.date(),
+  createdByUid: z.string(),
+})
+export type AgreementVersion = z.infer<typeof agreementVersionSchema>
+
+/**
+ * Auto-save interval in milliseconds.
+ *
+ * Story 5.7: Draft Saving & Version History - AC1
+ */
+export const AUTO_SAVE_INTERVAL_MS = 30000 // 30 seconds
+
+/**
+ * Draft expiry in days.
+ *
+ * Story 5.7: Draft Saving & Version History - AC5
+ */
+export const DRAFT_EXPIRY_DAYS = 30
+
+/**
+ * Inactivity reminder threshold in days.
+ *
+ * Story 5.7: Draft Saving & Version History - AC6
+ */
+export const INACTIVITY_REMINDER_DAYS = 7
