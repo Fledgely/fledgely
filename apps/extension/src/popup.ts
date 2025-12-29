@@ -4,52 +4,202 @@
  * Handles popup interactions and communicates with background service.
  *
  * Story 9.3: Extension Authentication
+ * Story 9.4: Family Connection & Child Selection
  */
 
 import { signIn, signOut, getAuthState, AuthState } from './auth'
 
-// DOM Elements
+// Mock family data for development
+// Real data will come from Firestore in Epic 12
+interface Child {
+  id: string
+  name: string
+  age: number
+  color: string
+  hasActiveAgreement: boolean
+}
+
+const MOCK_CHILDREN: Child[] = [
+  { id: 'child-1', name: 'Emma', age: 12, color: '#ec4899', hasActiveAgreement: true },
+  { id: 'child-2', name: 'Liam', age: 10, color: '#3b82f6', hasActiveAgreement: true },
+  { id: 'child-3', name: 'Olivia', age: 8, color: '#22c55e', hasActiveAgreement: false },
+]
+
+// State
+let selectedChildId: string | null = null
+let connectedChild: Child | null = null
+
+// DOM Elements - Not Authenticated
 const stateNotAuth = document.getElementById('state-not-auth')!
-const stateAuth = document.getElementById('state-auth')!
 const signInBtn = document.getElementById('sign-in-btn') as HTMLButtonElement
 const signInText = document.getElementById('sign-in-text')!
 const signInSpinner = document.getElementById('sign-in-spinner')!
-const signOutBtn = document.getElementById('sign-out-btn') as HTMLButtonElement
 const errorContainer = document.getElementById('error-container')!
-const userAvatar = document.getElementById('user-avatar')!
-const userName = document.getElementById('user-name')!
-const userEmail = document.getElementById('user-email')!
-const _authStatus = document.getElementById('auth-status')!
-const statusText = document.getElementById('status-text')!
-const authMessage = document.getElementById('auth-message')!
+
+// DOM Elements - Authenticated No Child
+const stateAuthNoChild = document.getElementById('state-auth-no-child')!
+const userAvatar1 = document.getElementById('user-avatar-1')!
+const userName1 = document.getElementById('user-name-1')!
+const userEmail1 = document.getElementById('user-email-1')!
+const childList = document.getElementById('child-list')!
+const connectBtn = document.getElementById('connect-btn') as HTMLButtonElement
+const signOutBtn1 = document.getElementById('sign-out-btn-1') as HTMLButtonElement
+
+// DOM Elements - Authenticated Connected
+const stateAuthConnected = document.getElementById('state-auth-connected')!
+const connectedChildAvatar = document.getElementById('connected-child-avatar')!
+const connectedChildName = document.getElementById('connected-child-name')!
+const changeChildBtn = document.getElementById('change-child-btn') as HTMLButtonElement
+const signOutBtn2 = document.getElementById('sign-out-btn-2') as HTMLButtonElement
+
+/**
+ * Update user info displays
+ */
+function updateUserInfo(authState: AuthState): void {
+  const elements = [{ avatar: userAvatar1, name: userName1, email: userEmail1 }]
+
+  for (const el of elements) {
+    if (authState.photoURL) {
+      el.avatar.innerHTML = `<img src="${authState.photoURL}" alt="Profile" />`
+    } else {
+      el.avatar.textContent = authState.displayName?.[0] || authState.email?.[0] || '?'
+    }
+    el.name.textContent = authState.displayName || 'User'
+    el.email.textContent = authState.email || ''
+  }
+}
+
+/**
+ * Render child selection list
+ */
+function renderChildList(): void {
+  childList.innerHTML = ''
+
+  for (const child of MOCK_CHILDREN) {
+    const isSelected = child.id === selectedChildId
+    const option = document.createElement('button')
+    option.type = 'button'
+    option.className = `child-option${isSelected ? ' selected' : ''}`
+    option.setAttribute('role', 'radio')
+    option.setAttribute('aria-checked', isSelected ? 'true' : 'false')
+    option.setAttribute(
+      'aria-label',
+      `${child.name}, age ${child.age}${!child.hasActiveAgreement ? ' (no active agreement)' : ''}`
+    )
+
+    option.innerHTML = `
+      <div class="child-avatar" style="background: ${child.color}">${child.name[0]}</div>
+      <div class="child-details">
+        <div class="child-name">${child.name}</div>
+        <div class="child-age">Age ${child.age}${!child.hasActiveAgreement ? ' • No Agreement' : ''}</div>
+      </div>
+      <div class="child-check">${isSelected ? '✓' : ''}</div>
+    `
+
+    option.addEventListener('click', () => selectChild(child.id))
+    childList.appendChild(option)
+  }
+}
+
+/**
+ * Select a child
+ */
+function selectChild(childId: string): void {
+  const child = MOCK_CHILDREN.find((c) => c.id === childId)
+  if (!child) return
+
+  selectedChildId = childId
+  connectBtn.disabled = !child.hasActiveAgreement
+
+  if (!child.hasActiveAgreement) {
+    connectBtn.textContent = 'Agreement Required'
+  } else {
+    connectBtn.textContent = 'Connect'
+  }
+
+  renderChildList()
+}
+
+/**
+ * Connect to selected child
+ */
+async function connectToChild(): Promise<void> {
+  if (!selectedChildId) return
+
+  const child = MOCK_CHILDREN.find((c) => c.id === selectedChildId)
+  if (!child || !child.hasActiveAgreement) return
+
+  connectedChild = child
+
+  // Store in chrome.storage and notify background
+  await chrome.storage.local.set({
+    connectedChild: {
+      id: child.id,
+      name: child.name,
+      color: child.color,
+    },
+  })
+
+  // Notify background to update state
+  chrome.runtime.sendMessage({
+    type: 'CHILD_CONNECTED',
+    childId: child.id,
+    childName: child.name,
+  })
+
+  updateUI(await getAuthState())
+}
+
+/**
+ * Disconnect from child (change selection)
+ */
+async function disconnectChild(): Promise<void> {
+  connectedChild = null
+  selectedChildId = null
+
+  await chrome.storage.local.remove('connectedChild')
+
+  // Notify background
+  chrome.runtime.sendMessage({
+    type: 'CHILD_DISCONNECTED',
+  })
+
+  updateUI(await getAuthState())
+}
 
 /**
  * Update UI based on auth state
  */
-function updateUI(authState: AuthState): void {
-  if (authState.isAuthenticated) {
-    // Show authenticated state
-    stateNotAuth.classList.add('hidden')
-    stateAuth.classList.remove('hidden')
+async function updateUI(authState: AuthState): Promise<void> {
+  // Load connected child from storage
+  const { connectedChild: stored } = await chrome.storage.local.get('connectedChild')
+  if (stored) {
+    connectedChild = MOCK_CHILDREN.find((c) => c.id === stored.id) || null
+  }
 
-    // Update user info
-    if (authState.photoURL) {
-      userAvatar.innerHTML = `<img src="${authState.photoURL}" alt="Profile" />`
-    } else {
-      userAvatar.textContent = authState.displayName?.[0] || authState.email?.[0] || '?'
-    }
-    userName.textContent = authState.displayName || 'User'
-    userEmail.textContent = authState.email || ''
-
-    // Update status based on family connection
-    // For now, just show "Signed In" - family connection will be in Story 9.4
-    statusText.textContent = 'Signed In'
-    authMessage.textContent = 'Connect this device to a child in your family.'
-  } else {
-    // Show not authenticated state
+  if (!authState.isAuthenticated) {
+    // Not authenticated
     stateNotAuth.classList.remove('hidden')
-    stateAuth.classList.add('hidden')
+    stateAuthNoChild.classList.add('hidden')
+    stateAuthConnected.classList.add('hidden')
     hideError()
+  } else if (connectedChild) {
+    // Authenticated and connected to child
+    stateNotAuth.classList.add('hidden')
+    stateAuthNoChild.classList.add('hidden')
+    stateAuthConnected.classList.remove('hidden')
+
+    connectedChildAvatar.style.background = connectedChild.color
+    connectedChildAvatar.textContent = connectedChild.name[0]
+    connectedChildName.textContent = connectedChild.name
+  } else {
+    // Authenticated but no child selected
+    stateNotAuth.classList.add('hidden')
+    stateAuthNoChild.classList.remove('hidden')
+    stateAuthConnected.classList.add('hidden')
+
+    updateUserInfo(authState)
+    renderChildList()
   }
 }
 
@@ -92,7 +242,7 @@ async function handleSignIn(): Promise<void> {
 
   try {
     const authState = await signIn()
-    updateUI(authState)
+    await updateUI(authState)
 
     // Notify background to update badge
     chrome.runtime.sendMessage({ type: 'AUTH_STATE_CHANGED', authState })
@@ -120,19 +270,23 @@ async function handleSignIn(): Promise<void> {
  * Handle sign-out button click
  */
 async function handleSignOut(): Promise<void> {
-  signOutBtn.disabled = true
+  // Clear connected child first
+  connectedChild = null
+  selectedChildId = null
+  await chrome.storage.local.remove('connectedChild')
 
   try {
     await signOut()
-    updateUI({ isAuthenticated: false } as AuthState)
+    await updateUI({ isAuthenticated: false } as AuthState)
 
     // Notify background to update badge
     chrome.runtime.sendMessage({
       type: 'AUTH_STATE_CHANGED',
       authState: { isAuthenticated: false },
     })
-  } finally {
-    signOutBtn.disabled = false
+  } catch {
+    // Still update UI even if signout has issues
+    await updateUI({ isAuthenticated: false } as AuthState)
   }
 }
 
@@ -142,11 +296,14 @@ async function handleSignOut(): Promise<void> {
 async function init(): Promise<void> {
   // Load current auth state
   const authState = await getAuthState()
-  updateUI(authState)
+  await updateUI(authState)
 
   // Set up event listeners
   signInBtn.addEventListener('click', handleSignIn)
-  signOutBtn.addEventListener('click', handleSignOut)
+  signOutBtn1.addEventListener('click', handleSignOut)
+  signOutBtn2.addEventListener('click', handleSignOut)
+  connectBtn.addEventListener('click', connectToChild)
+  changeChildBtn.addEventListener('click', disconnectChild)
 }
 
 // Run on load

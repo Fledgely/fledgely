@@ -123,6 +123,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'CHILD_CONNECTED':
+      // Update state when child is connected
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const newState: ExtensionState = {
+          ...(state || DEFAULT_STATE),
+          childId: message.childId,
+          monitoringEnabled: true,
+        }
+        await chrome.storage.local.set({ state: newState })
+        await updateActionTitle(newState)
+        console.log('[Fledgely] Connected to child:', message.childName)
+        sendResponse({ success: true })
+      })
+      return true
+
+    case 'CHILD_DISCONNECTED':
+      // Update state when child is disconnected
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const newState: ExtensionState = {
+          ...(state || DEFAULT_STATE),
+          childId: null,
+          monitoringEnabled: false,
+        }
+        await chrome.storage.local.set({ state: newState })
+        await updateActionTitle(newState)
+        console.log('[Fledgely] Disconnected from child')
+        sendResponse({ success: true })
+      })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
   }

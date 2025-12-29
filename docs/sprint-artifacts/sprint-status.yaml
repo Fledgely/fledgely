@@ -199,7 +199,7 @@ development_status:
   9-1-extension-package-manifest: done
   9-2-extension-installation-flow: done
   9-3-extension-authentication: done
-  9-4-family-connection-child-selection: backlog
+  9-4-family-connection-child-selection: done
   9-5-monitoring-indicator-display: backlog
   9-6-extension-background-service: backlog
   epic-9-retrospective: optional

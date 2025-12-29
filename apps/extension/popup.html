@@ -108,6 +108,7 @@
         color: white;
         font-weight: bold;
         font-size: 18px;
+        flex-shrink: 0;
       }
       .user-avatar img {
         width: 100%;
@@ -210,6 +211,107 @@
           transform: rotate(360deg);
         }
       }
+
+      /* Child Selection Styles */
+      .child-select-section {
+        margin-bottom: 16px;
+      }
+      .section-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+        text-align: left;
+      }
+      .child-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .child-option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+      }
+      .child-option:hover {
+        border-color: #4f46e5;
+        background: #f8fafc;
+      }
+      .child-option.selected {
+        border-color: #4f46e5;
+        background: #eef2ff;
+      }
+      .child-option:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 2px;
+      }
+      .child-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .child-details {
+        flex: 1;
+        min-width: 0;
+      }
+      .child-name {
+        font-weight: 600;
+        color: #1a1a1a;
+        font-size: 14px;
+      }
+      .child-age {
+        font-size: 12px;
+        color: #666;
+      }
+      .child-check {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+      }
+      .child-option.selected .child-check {
+        background: #4f46e5;
+        border-color: #4f46e5;
+      }
+      .connected-child {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #eef2ff;
+        border: 2px solid #4f46e5;
+        border-radius: 8px;
+        text-align: left;
+        margin-bottom: 16px;
+      }
+      .connected-label {
+        font-size: 11px;
+        color: #4f46e5;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
     </style>
   </head>
   <body>
@@ -238,29 +340,80 @@
         </button>
       </div>
 
-      <!-- Authenticated State -->
-      <div id="state-auth" class="hidden">
-        <div class="status status-connected" id="auth-status">
+      <!-- Authenticated - No Child Selected -->
+      <div id="state-auth-no-child" class="hidden">
+        <div class="status status-connected">
           <span class="status-dot"></span>
-          <span id="status-text">Signed In</span>
+          Signed In
         </div>
 
         <div class="user-info">
-          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-avatar" id="user-avatar-1">?</div>
           <div class="user-details">
-            <div class="user-name" id="user-name">User</div>
-            <div class="user-email" id="user-email">email@example.com</div>
+            <div class="user-name" id="user-name-1">User</div>
+            <div class="user-email" id="user-email-1">email@example.com</div>
           </div>
         </div>
 
-        <p class="message" id="auth-message">
-          Connected to your Fledgely account.
-        </p>
+        <div class="child-select-section">
+          <div class="section-label">Select Child for This Device</div>
+          <div class="child-list" id="child-list" role="radiogroup" aria-label="Select child">
+            <!-- Children will be inserted here -->
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="connect-btn"
+          disabled
+          aria-label="Connect to selected child"
+        >
+          Connect
+        </button>
 
         <button
           type="button"
           class="btn btn-link"
-          id="sign-out-btn"
+          id="sign-out-btn-1"
+          aria-label="Sign out"
+        >
+          Sign Out
+        </button>
+      </div>
+
+      <!-- Authenticated - Child Connected -->
+      <div id="state-auth-connected" class="hidden">
+        <div class="status status-monitoring" id="auth-status">
+          <span class="status-dot"></span>
+          <span id="status-text">Monitoring Active</span>
+        </div>
+
+        <div class="connected-child">
+          <div class="child-avatar" id="connected-child-avatar" style="background: #4f46e5">?</div>
+          <div class="child-details">
+            <div class="connected-label">Connected to</div>
+            <div class="child-name" id="connected-child-name">Child Name</div>
+          </div>
+        </div>
+
+        <p class="message" id="auth-message">
+          This device is being monitored according to your family agreement.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          id="change-child-btn"
+          aria-label="Change connected child"
+        >
+          Change Child
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-link"
+          id="sign-out-btn-2"
           aria-label="Sign out"
         >
           Sign Out
