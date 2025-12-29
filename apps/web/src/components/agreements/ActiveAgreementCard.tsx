@@ -9,7 +9,7 @@
 'use client'
 
 import type { ActiveAgreement } from '@fledgely/shared/contracts'
-import { formatDateShort } from '@/utils/formatDate'
+import { formatDateShort } from '../../utils/formatDate'
 
 interface ActiveAgreementCardProps {
   /** The active agreement to display */

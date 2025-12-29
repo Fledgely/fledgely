@@ -19,6 +19,7 @@ import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
+import { AddDeviceModal } from '../../components/devices'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -148,6 +149,7 @@ export default function DashboardPage() {
   const [childToRemove, setChildToRemove] = useState<ChildProfile | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false)
   const [pendingInvitation, setPendingInvitation] = useState<Invitation | null>(null)
   const [invitationRefreshTrigger, setInvitationRefreshTrigger] = useState(0)
   const [pendingSafetyChanges, setPendingSafetyChanges] = useState<SafetySettingChange[]>([])
@@ -309,6 +311,13 @@ export default function DashboardPage() {
           .invite-coparent-button:hover {
             background-color: #f5f3ff;
             border-color: #c4b5fd;
+          }
+          .add-device-button:focus {
+            outline: 2px solid #2563eb;
+            outline-offset: 2px;
+          }
+          .add-device-button:hover {
+            background-color: #1d4ed8;
           }
           .child-item {
             display: flex;
@@ -665,6 +674,54 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+
+              {/* Devices Section - Story 12.1 */}
+              <div style={{ marginTop: '24px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      margin: 0,
+                    }}
+                  >
+                    Devices
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDeviceModal(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '44px',
+                      padding: '8px 16px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      borderRadius: '6px',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                    className="add-device-button"
+                    aria-label="Add a device to your family"
+                  >
+                    + Add Device
+                  </button>
+                </div>
+                <p style={{ color: '#6b7280', fontSize: '14px', textAlign: 'center' as const }}>
+                  No devices enrolled yet. Add a Chromebook to start monitoring.
+                </p>
+              </div>
             </>
           ) : (
             <div style={{ textAlign: 'center' as const, padding: '16px 0' }}>
@@ -754,6 +811,16 @@ export default function DashboardPage() {
           isOpen={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           currentUserUid={firebaseUser.uid}
+        />
+      )}
+
+      {/* Add Device Modal - Story 12.1 */}
+      {family && firebaseUser && (
+        <AddDeviceModal
+          familyId={family.id}
+          userId={firebaseUser.uid}
+          isOpen={showAddDeviceModal}
+          onClose={() => setShowAddDeviceModal(false)}
         />
       )}
     </main>

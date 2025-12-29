@@ -10,7 +10,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { formatDateFull } from '@/utils/formatDate'
+import { formatDateFull } from '../../utils/formatDate'
 
 interface ActivationConfirmationProps {
   /** Agreement version (e.g., "v1.0") */

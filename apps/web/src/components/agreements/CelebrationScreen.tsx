@@ -11,7 +11,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { formatDateFull } from '@/utils/formatDate'
+import { formatDateFull } from '../../utils/formatDate'
 
 interface CelebrationScreenProps {
   /** Agreement version (e.g., "v1.0") */
