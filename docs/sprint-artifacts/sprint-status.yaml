@@ -208,7 +208,7 @@ development_status:
   epic-10: in-progress
   10-1-screenshot-capture-mechanism: done
   10-2-configurable-capture-intervals: done
-  10-3-local-screenshot-queue: backlog
+  10-3-local-screenshot-queue: done
   10-4-screenshot-upload-to-api: backlog
   10-5-capture-pause-during-inactivity: backlog
   10-6-capture-event-logging: backlog
