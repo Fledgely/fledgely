@@ -30,6 +30,11 @@ import {
   RETENTION_DAYS_OPTIONS,
   type RetentionDays,
 } from '@fledgely/shared'
+import {
+  checkQuotaBeforeUpload,
+  updateFamilyStorageUsage,
+  createStorageWarningAlert,
+} from '../../lib/storage'
 
 /**
  * Maximum file size in bytes (5MB)
@@ -274,6 +279,22 @@ export const uploadScreenshot = onRequest(
     // Convert data URL to buffer
     const imageBuffer = dataUrlToBuffer(uploadData.dataUrl)
 
+    // Story 18.8: Check storage quota before upload
+    const quotaCheck = await checkQuotaBeforeUpload(uploadData.familyId, imageBuffer.length)
+    if (!quotaCheck.allowed) {
+      logger.warn('Storage quota exceeded', {
+        familyId: uploadData.familyId,
+        usageBytes: quotaCheck.usageBytes,
+        quotaBytes: quotaCheck.quotaBytes,
+        attemptedUploadBytes: imageBuffer.length,
+      })
+      res.status(507).json({
+        success: false,
+        error: 'Storage quota exceeded. Please delete old screenshots or upgrade your plan.',
+      } as UploadResponse)
+      return
+    }
+
     // Generate storage path and screenshot ID
     const storagePath = generateStoragePath(uploadData.childId, uploadData.timestamp)
     const screenshotId = generateScreenshotId(uploadData.timestamp)
@@ -375,6 +396,26 @@ export const uploadScreenshot = onRequest(
         error: 'Failed to save screenshot metadata',
       } as UploadResponse)
       return
+    }
+
+    // Story 18.8: Update family storage usage
+    try {
+      await updateFamilyStorageUsage(uploadData.familyId, imageBuffer.length)
+
+      // Check if we need to create a storage warning alert
+      if (quotaCheck.isWarningLevel) {
+        await createStorageWarningAlert(
+          uploadData.familyId,
+          quotaCheck.usageBytes + imageBuffer.length,
+          quotaCheck.quotaBytes
+        )
+      }
+    } catch (storageUpdateError) {
+      // Log but don't fail the upload - storage tracking is secondary
+      logger.error('Failed to update storage usage', {
+        familyId: uploadData.familyId,
+        errorType: storageUpdateError instanceof Error ? storageUpdateError.name : 'Unknown',
+      })
     }
 
     // Log success (without PII)
