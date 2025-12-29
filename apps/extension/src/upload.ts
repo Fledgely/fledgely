@@ -4,9 +4,16 @@
  * Handles uploading screenshots from the local queue to the fledgely API.
  *
  * Story 10.4: Screenshot Upload to API
+ * Story 18.1: Firebase Storage Upload Endpoint - Real API integration
  */
 
 import { ScreenshotCapture } from './capture'
+
+/**
+ * API endpoint for screenshot uploads
+ * Uses Firebase Cloud Functions HTTP endpoint
+ */
+const API_ENDPOINT = 'https://us-central1-fledgely.cloudfunctions.net/uploadScreenshot'
 
 /**
  * Upload payload sent to the API
@@ -22,6 +29,8 @@ export interface UploadPayload {
   title: string
   /** Extension installation/device ID */
   deviceId: string
+  /** Family ID for device authentication */
+  familyId: string
   /** Connected child ID */
   childId: string
   /** Time when screenshot was added to queue */
@@ -53,20 +62,6 @@ const MAX_RETRIES = 5
  * Track upload timestamps for rate limiting
  */
 let uploadTimestamps: number[] = []
-
-/**
- * Get the device ID (extension installation ID)
- */
-async function getDeviceId(): Promise<string> {
-  // Use chrome.storage.local to store a persistent device ID
-  const { deviceId } = await chrome.storage.local.get('deviceId')
-  if (deviceId) return deviceId
-
-  // Generate a new device ID on first run
-  const newDeviceId = `ext-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-  await chrome.storage.local.set({ deviceId: newDeviceId })
-  return newDeviceId
-}
 
 /**
  * Check if we're within rate limits
@@ -102,9 +97,8 @@ export function shouldRetry(retryCount: number): boolean {
 
 /**
  * Upload a screenshot to the fledgely API
- *
- * NOTE: This is a placeholder implementation. The actual API endpoint
- * will be implemented in Epic 12 (Chromebook Device Enrollment).
+ * Story 10.4: Screenshot Upload to API
+ * Story 18.1: Real API integration with Firebase Storage
  */
 export async function uploadScreenshot(
   capture: ScreenshotCapture,
@@ -121,7 +115,20 @@ export async function uploadScreenshot(
   }
 
   try {
-    const deviceId = await getDeviceId()
+    // Get device credentials from storage
+    const { state } = await chrome.storage.local.get('state')
+    const deviceId = state?.deviceId
+    const familyId = state?.familyId
+
+    // Verify device is enrolled
+    if (!deviceId || !familyId) {
+      console.warn('[Fledgely] Device not enrolled, skipping upload')
+      return {
+        success: false,
+        error: 'Device not enrolled',
+        shouldRetry: false,
+      }
+    }
 
     const payload: UploadPayload = {
       dataUrl: capture.dataUrl,
@@ -129,13 +136,12 @@ export async function uploadScreenshot(
       url: capture.url,
       title: capture.title,
       deviceId,
+      familyId,
       childId,
       queuedAt,
     }
 
-    // TODO: Replace with actual API call in Epic 12
-    // For now, simulate upload with placeholder behavior
-    console.log('[Fledgely] Upload payload prepared:', {
+    console.log('[Fledgely] Uploading screenshot:', {
       timestamp: payload.timestamp,
       url: payload.url.substring(0, 50) + '...',
       deviceId: payload.deviceId,
@@ -143,27 +149,52 @@ export async function uploadScreenshot(
       imageSize: Math.round(payload.dataUrl.length / 1024) + 'KB',
     })
 
-    // Simulate network delay (remove in production)
-    // In production, this will be replaced with actual fetch call:
-    // const response = await fetch(API_ENDPOINT, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    //   body: JSON.stringify(payload),
-    // })
+    // Story 18.1: Call real API endpoint
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
 
-    // For now, mark as successful (placeholder)
-    recordUpload()
-    console.log('[Fledgely] Screenshot uploaded successfully (placeholder)')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      const errorMessage = errorData.error || `HTTP ${response.status}`
+      console.error('[Fledgely] Upload failed:', errorMessage)
 
-    return { success: true }
+      // Retry on 5xx server errors, not on 4xx client errors
+      const shouldRetry = response.status >= 500
+
+      return {
+        success: false,
+        error: errorMessage,
+        shouldRetry,
+      }
+    }
+
+    const result = await response.json()
+
+    if (result.success) {
+      recordUpload()
+      console.log('[Fledgely] Screenshot uploaded successfully:', result.storagePath)
+      return { success: true }
+    } else {
+      return {
+        success: false,
+        error: result.error || 'Upload failed',
+        shouldRetry: false,
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown upload error'
     console.error('[Fledgely] Upload failed:', errorMessage)
 
-    // Determine if error is retryable
+    // Determine if error is retryable (network errors are retryable)
     const isNetworkError =
       errorMessage.includes('network') ||
       errorMessage.includes('fetch') ||
+      errorMessage.includes('Failed to fetch') ||
       errorMessage.includes('timeout')
 
     return {

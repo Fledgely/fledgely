@@ -15,7 +15,30 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Deny all access by default
+    // Screenshots: devices can write via Cloud Functions, guardians can read
+    // Story 18.1: Firebase Storage Upload Endpoint
+    // Path: screenshots/{childId}/{date}/{filename}
+    //
+    // NOTE: Current implementation uses Cloud Functions with Admin SDK for uploads,
+    // which bypasses these rules. Rules provide defense-in-depth for:
+    // 1. Future direct-client uploads if needed
+    // 2. Preventing accidental direct uploads that bypass validation
+    // 3. Enforcing size/type constraints at storage layer
+    match /screenshots/{childId}/{date}/{filename} {
+      // Allow write from authenticated users (Cloud Functions handle authorization)
+      // Validate: size < 5MB, content type = JPEG
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType == 'image/jpeg';
+
+      // Allow read from authenticated users (family membership checked by Cloud Functions)
+      allow read: if request.auth != null;
+
+      // Never allow delete from client (only Cloud Functions with admin SDK)
+      allow delete: if false;
+    }
+
+    // Deny all other access by default
     match /{allPaths=**} {
       allow read, write: if false;
     }
