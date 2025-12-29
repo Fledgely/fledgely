@@ -971,3 +971,138 @@ export function findActiveAgreementForChild(
 ): ActiveAgreement | null {
   return agreements.find((a) => a.childId === childId && a.status === 'active') ?? null
 }
+
+// ============================================================================
+// EPIC 7: CRISIS ALLOWLIST FOUNDATION
+// Story 7.1: Crisis Allowlist Data Structure
+// ============================================================================
+
+/**
+ * Crisis resource category types.
+ *
+ * Story 7.1: Crisis Allowlist Data Structure - AC2
+ * Categories for organizing crisis resources.
+ */
+export const crisisResourceCategorySchema = z.enum([
+  'suicide_prevention',
+  'crisis_general',
+  'domestic_violence',
+  'child_abuse',
+  'sexual_assault',
+  'lgbtq_support',
+  'eating_disorder',
+  'mental_health',
+  'substance_abuse',
+])
+export type CrisisResourceCategory = z.infer<typeof crisisResourceCategorySchema>
+
+/**
+ * Individual crisis resource entry.
+ *
+ * Story 7.1: Crisis Allowlist Data Structure - AC2, AC3, AC7
+ * Represents a single crisis resource in the allowlist.
+ */
+export const crisisResourceSchema = z.object({
+  /** Unique identifier */
+  id: z.string(),
+  /** Primary domain (e.g., "988lifeline.org") */
+  domain: z.string(),
+  /** Wildcard pattern for subdomains (e.g., "*.988lifeline.org") */
+  pattern: z.string().nullable(),
+  /** Category for organization */
+  category: crisisResourceCategorySchema,
+  /** Human-readable name */
+  name: z.string(),
+  /** Description of what this resource helps with (6th-grade reading level) */
+  description: z.string(),
+  /** Crisis hotline phone number */
+  phone: z.string().nullable(),
+  /** Text crisis option (e.g., "Text HOME to 741741") */
+  text: z.string().nullable(),
+  /** Common typos and variations for fuzzy matching */
+  aliases: z.array(z.string()),
+  /** Whether this is a regional vs national resource */
+  regional: z.boolean(),
+})
+export type CrisisResource = z.infer<typeof crisisResourceSchema>
+
+/**
+ * Complete crisis allowlist with versioning.
+ *
+ * Story 7.1: Crisis Allowlist Data Structure - AC4, AC5, AC6
+ * The complete allowlist structure with metadata for sync.
+ */
+export const crisisAllowlistSchema = z.object({
+  /** Semantic version (e.g., "1.0.0") */
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  /** ISO timestamp of last update */
+  lastUpdated: z.string().datetime(),
+  /** All crisis resources */
+  resources: z.array(crisisResourceSchema),
+})
+export type CrisisAllowlist = z.infer<typeof crisisAllowlistSchema>
+
+/**
+ * Check if a URL matches a crisis resource.
+ *
+ * Story 7.1: Crisis Allowlist Data Structure - AC3
+ * Performs exact domain, wildcard, and alias matching.
+ *
+ * @param url - URL to check
+ * @param allowlist - Crisis allowlist to match against
+ * @returns Matching CrisisResource or null if no match
+ */
+export function matchesCrisisUrl(url: string, allowlist: CrisisAllowlist): CrisisResource | null {
+  let hostname: string
+  try {
+    const parsed = new URL(url)
+    hostname = parsed.hostname.toLowerCase()
+  } catch {
+    // Invalid URL - try treating as hostname directly
+    hostname = url.toLowerCase().replace(/^www\./, '')
+  }
+
+  // Remove www. prefix for matching
+  const normalizedHostname = hostname.replace(/^www\./, '')
+
+  for (const resource of allowlist.resources) {
+    const normalizedDomain = resource.domain.toLowerCase()
+
+    // Exact domain match (with or without www)
+    if (normalizedHostname === normalizedDomain || hostname === `www.${normalizedDomain}`) {
+      return resource
+    }
+
+    // Wildcard pattern match (*.domain.org matches any subdomain)
+    if (resource.pattern) {
+      const baseDomain = resource.pattern.replace('*.', '').toLowerCase()
+      if (normalizedHostname === baseDomain || normalizedHostname.endsWith(`.${baseDomain}`)) {
+        return resource
+      }
+    }
+
+    // Alias match
+    for (const alias of resource.aliases) {
+      const normalizedAlias = alias.toLowerCase()
+      if (normalizedHostname === normalizedAlias || hostname === `www.${normalizedAlias}`) {
+        return resource
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Check if a URL is on the crisis allowlist.
+ *
+ * Story 7.1: Crisis Allowlist Data Structure - AC3
+ * Convenience function that returns boolean.
+ *
+ * @param url - URL to check
+ * @param allowlist - Crisis allowlist to match against
+ * @returns true if URL matches any crisis resource
+ */
+export function isCrisisUrl(url: string, allowlist: CrisisAllowlist): boolean {
+  return matchesCrisisUrl(url, allowlist) !== null
+}
