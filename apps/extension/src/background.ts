@@ -19,9 +19,18 @@ import { captureScreenshot, ScreenshotCapture } from './capture'
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
 const ALARM_SYNC_QUEUE = 'sync-queue'
 
-// Default capture interval in minutes (MV3 minimum is 1 minute)
+// Capture interval constraints (MV3 minimum is 1 minute)
 const DEFAULT_CAPTURE_INTERVAL_MINUTES = 5
+const MIN_CAPTURE_INTERVAL_MINUTES = 1
+const MAX_CAPTURE_INTERVAL_MINUTES = 30
 const DEFAULT_SYNC_INTERVAL_MINUTES = 15
+
+/**
+ * Validate and clamp capture interval to allowed range
+ */
+function validateCaptureInterval(minutes: number): number {
+  return Math.max(MIN_CAPTURE_INTERVAL_MINUTES, Math.min(MAX_CAPTURE_INTERVAL_MINUTES, minutes))
+}
 
 // Extension state stored in chrome.storage.local
 interface ExtensionState {
@@ -49,6 +58,9 @@ const DEFAULT_STATE: ExtensionState = {
  * Uses chrome.alarms for MV3-compliant persistent scheduling
  */
 async function startMonitoringAlarms(intervalMinutes: number): Promise<void> {
+  // Validate and clamp interval to allowed range (1-30 minutes)
+  const validatedInterval = validateCaptureInterval(intervalMinutes)
+
   // Clear any existing alarms first
   await chrome.alarms.clear(ALARM_SCREENSHOT_CAPTURE)
   await chrome.alarms.clear(ALARM_SYNC_QUEUE)
@@ -57,9 +69,9 @@ async function startMonitoringAlarms(intervalMinutes: number): Promise<void> {
   // Note: MV3 minimum interval is 1 minute for repeating alarms
   await chrome.alarms.create(ALARM_SCREENSHOT_CAPTURE, {
     delayInMinutes: 1, // First capture after 1 minute
-    periodInMinutes: Math.max(1, intervalMinutes),
+    periodInMinutes: validatedInterval,
   })
-  console.log(`[Fledgely] Screenshot alarm created with ${intervalMinutes}min interval`)
+  console.log(`[Fledgely] Screenshot alarm created with ${validatedInterval}min interval`)
 
   // Create sync queue alarm
   await chrome.alarms.create(ALARM_SYNC_QUEUE, {
@@ -296,6 +308,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
+      })
+      return true
+
+    case 'UPDATE_CAPTURE_INTERVAL':
+      // Update capture interval and restart alarm with new timing
+      // Story 10.2: Configurable Capture Intervals
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newInterval = validateCaptureInterval(
+          message.intervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES
+        )
+
+        const newState: ExtensionState = {
+          ...currentState,
+          captureIntervalMinutes: newInterval,
+        }
+        await chrome.storage.local.set({ state: newState })
+
+        // If monitoring is active, restart alarms with new interval
+        if (currentState.monitoringEnabled) {
+          await startMonitoringAlarms(newInterval)
+          console.log(`[Fledgely] Capture interval updated to ${newInterval}min`)
+        }
+
+        sendResponse({ success: true, newInterval })
       })
       return true
 
