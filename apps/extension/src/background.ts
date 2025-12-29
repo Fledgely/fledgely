@@ -14,6 +14,7 @@
  */
 
 import { captureScreenshot, ScreenshotCapture } from './capture'
+import { uploadScreenshot, calculateRetryDelay, shouldRetry, getRemainingUploads } from './upload'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
@@ -114,6 +115,8 @@ interface QueuedScreenshot {
   capture: ScreenshotCapture
   childId: string
   queuedAt: number
+  retryCount: number
+  lastRetryAt: number | null
 }
 
 /**
@@ -128,6 +131,8 @@ async function queueScreenshot(capture: ScreenshotCapture, childId: string): Pro
     capture,
     childId,
     queuedAt: Date.now(),
+    retryCount: 0,
+    lastRetryAt: null,
   }
 
   // Add to queue
@@ -146,10 +151,88 @@ async function queueScreenshot(capture: ScreenshotCapture, childId: string): Pro
 
 /**
  * Get the current queue size
+ * Exported for popup to display queue status
  */
-async function getQueueSize(): Promise<number> {
+export async function getQueueSize(): Promise<number> {
   const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
   return screenshotQueue.length
+}
+
+/**
+ * Process the screenshot queue - upload pending items
+ * Story 10.4: Screenshot Upload to API
+ */
+async function processScreenshotQueue(): Promise<void> {
+  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
+
+  if (screenshotQueue.length === 0) {
+    console.log('[Fledgely] Queue empty, nothing to process')
+    return
+  }
+
+  const remainingUploads = getRemainingUploads()
+  if (remainingUploads === 0) {
+    console.log('[Fledgely] Rate limit reached, will retry on next sync')
+    return
+  }
+
+  // Process queue items that are ready for upload
+  const now = Date.now()
+  const updatedQueue: QueuedScreenshot[] = []
+  let uploadsThisRun = 0
+  let successCount = 0
+  let failCount = 0
+
+  for (const item of screenshotQueue) {
+    // Check if we've hit the rate limit for this run
+    if (uploadsThisRun >= remainingUploads) {
+      updatedQueue.push(item) // Keep for later
+      continue
+    }
+
+    // Check if item needs to wait for retry backoff
+    if (item.lastRetryAt !== null) {
+      const retryDelay = calculateRetryDelay(item.retryCount)
+      if (now - item.lastRetryAt < retryDelay) {
+        updatedQueue.push(item) // Not ready for retry yet
+        continue
+      }
+    }
+
+    // Check if max retries exceeded
+    if (!shouldRetry(item.retryCount)) {
+      console.warn(`[Fledgely] Dropping screenshot ${item.id} after max retries`)
+      failCount++
+      continue // Don't re-add to queue
+    }
+
+    // Attempt upload
+    const result = await uploadScreenshot(item.capture, item.childId, item.queuedAt)
+    uploadsThisRun++
+
+    if (result.success) {
+      successCount++
+      // Don't add back to queue - successfully uploaded
+    } else {
+      if (result.shouldRetry) {
+        // Update retry info and keep in queue
+        updatedQueue.push({
+          ...item,
+          retryCount: item.retryCount + 1,
+          lastRetryAt: now,
+        })
+      }
+      failCount++
+    }
+  }
+
+  // Save updated queue
+  await chrome.storage.local.set({ screenshotQueue: updatedQueue })
+
+  console.log(
+    `[Fledgely] Queue processed: ${successCount} uploaded, ${failCount} failed, ` +
+      `${updatedQueue.length} remaining`
+  )
 }
 
 /**
@@ -360,11 +443,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       break
 
     case ALARM_SYNC_QUEUE: {
-      // Sync queue processing will be implemented in Story 10.4
-      // Update lastSync timestamp to show activity
+      // Story 10.4: Screenshot Upload to API
+      console.log('[Fledgely] Sync queue alarm triggered')
+      await processScreenshotQueue()
       await updateLastSync()
-      const queueSize = await getQueueSize()
-      console.log(`[Fledgely] Sync queue alarm triggered, ${queueSize} items pending`)
       break
     }
   }
