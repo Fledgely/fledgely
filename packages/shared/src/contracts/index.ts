@@ -655,3 +655,121 @@ export const DRAFT_EXPIRY_DAYS = 30
  * Story 5.7: Draft Saving & Version History - AC6
  */
 export const INACTIVITY_REMINDER_DAYS = 7
+
+// ============================================================================
+// Epic 6: Agreement Signing & Activation
+// ============================================================================
+
+/**
+ * Signature method types.
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC2
+ * Story 6.7: Signature Accessibility - AC2
+ * Defines how a signature was created.
+ */
+export const signatureMethodSchema = z.enum(['typed', 'drawn'])
+export type SignatureMethod = z.infer<typeof signatureMethodSchema>
+
+/**
+ * Signing party types.
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC5
+ * Story 6.2: Parent Digital Signature - AC4
+ * Identifies who provided the signature.
+ */
+export const signingPartySchema = z.enum(['child', 'parent'])
+export type SigningParty = z.infer<typeof signingPartySchema>
+
+/**
+ * Digital signature schema.
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC5
+ * Story 6.2: Parent Digital Signature - AC4
+ * Represents a digital signature from a family member.
+ */
+export const signatureSchema = z.object({
+  id: z.string(),
+  party: signingPartySchema,
+  method: signatureMethodSchema,
+  /** Typed name or null if drawn */
+  name: z.string().nullable(),
+  /** Base64 image data for drawn signature or null if typed */
+  imageData: z.string().nullable(),
+  /** User ID of the signer (parent uid or child profile id) */
+  signerId: z.string(),
+  /** Display name of signer */
+  signerName: z.string(),
+  /** When the signature was created */
+  signedAt: z.date(),
+  /** Whether signer acknowledged understanding */
+  acknowledged: z.boolean(),
+})
+export type Signature = z.infer<typeof signatureSchema>
+
+/**
+ * Signing status for an agreement.
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC7
+ * Story 6.3: Agreement Activation - AC1
+ * Tracks the signing progress of an agreement.
+ */
+export const signingStatusSchema = z.enum([
+  'pending', // No signatures yet
+  'child_signed', // Child has signed, waiting for parent(s)
+  'parent_signed', // Parent signed (should not happen - child must sign first)
+  'complete', // All required signatures collected
+])
+export type SigningStatus = z.infer<typeof signingStatusSchema>
+
+/**
+ * Agreement signing session schema.
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC1, AC5
+ * Story 6.2: Parent Digital Signature - AC4
+ * Story 6.3: Agreement Activation - AC1
+ * Tracks the signing process for an agreement.
+ */
+export const agreementSigningSchema = z.object({
+  id: z.string(),
+  /** Reference to the co-creation session */
+  sessionId: z.string(),
+  /** Reference to the family */
+  familyId: z.string(),
+  /** Reference to the child profile */
+  childId: z.string(),
+  /** Current signing status */
+  status: signingStatusSchema,
+  /** Child's signature (null until signed) */
+  childSignature: signatureSchema.nullable(),
+  /** Parent signatures (array for shared custody) */
+  parentSignatures: z.array(signatureSchema),
+  /** Whether shared custody requires both parents */
+  requiresBothParents: z.boolean(),
+  /** Timestamp when signing became active */
+  startedAt: z.date(),
+  /** Timestamp when all signatures complete */
+  completedAt: z.date().nullable(),
+  /** Agreement version being signed */
+  agreementVersion: z.string(),
+})
+export type AgreementSigning = z.infer<typeof agreementSigningSchema>
+
+/**
+ * Validates signing order - child must sign first (FR19).
+ *
+ * Story 6.1: Child Digital Signature Ceremony - AC7
+ * Returns true if child can sign (no parent has signed yet).
+ */
+export function canChildSign(signing: AgreementSigning): boolean {
+  return signing.parentSignatures.length === 0 && signing.childSignature === null
+}
+
+/**
+ * Validates parent can sign - child must have signed first (FR19).
+ *
+ * Story 6.2: Parent Digital Signature - AC1
+ * Returns true if parent can sign (child has signed).
+ */
+export function canParentSign(signing: AgreementSigning): boolean {
+  return signing.childSignature !== null
+}
