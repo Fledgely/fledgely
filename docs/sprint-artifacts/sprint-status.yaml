@@ -163,8 +163,8 @@ development_status:
   epic-7-5-retrospective: optional
 
   # Epic 8: Data Isolation & Security Foundation
-  epic-8: backlog
-  8-1-family-data-isolation-rules: backlog
+  epic-8: in-progress
+  8-1-family-data-isolation-rules: done
   8-2-sibling-data-isolation: backlog
   8-3-child-permission-boundaries: backlog
   8-4-negative-capability-no-third-party-sharing: backlog
