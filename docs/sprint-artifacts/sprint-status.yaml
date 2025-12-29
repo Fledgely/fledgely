@@ -237,7 +237,7 @@ development_status:
   # Epic 13: Offline OTP Device Unlock
   epic-13: in-progress
   13-1-totp-secret-generation-at-enrollment: done
-  13-2-parent-emergency-code-display: backlog
+  13-2-parent-emergency-code-display: in-progress
   13-3-device-offline-code-entry: backlog
   13-4-brute-force-protection: backlog
   13-5-emergency-unlock-audit-trail: backlog

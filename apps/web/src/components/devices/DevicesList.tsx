@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5, 12.6
+ * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2
  *
  * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
@@ -13,12 +13,21 @@
  * - AC3 (12.5): Assignment updates device document
  * - AC5 (12.5): Device can be reassigned anytime
  * - AC6 (12.6): Remove Device action
+ * - AC1-6 (13.2): Emergency code display with re-auth
  */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useDevices, formatLastSeen, type Device } from '../../hooks/useDevices'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
-import { assignDeviceToChild, removeDevice } from '../../services/deviceService'
+import { useAuth } from '../../contexts/AuthContext'
+import {
+  assignDeviceToChild,
+  removeDevice,
+  getDeviceTotpSecret,
+  logEmergencyCodeView,
+} from '../../services/deviceService'
+import { ReauthModal } from '../auth/ReauthModal'
+import { EmergencyCodeModal } from './EmergencyCodeModal'
 
 interface DevicesListProps {
   familyId: string
@@ -205,6 +214,23 @@ const styles = {
     fontSize: '14px',
     cursor: 'pointer',
   },
+  emergencyCodeButton: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid #f59e0b',
+    backgroundColor: '#fffbeb',
+    color: '#b45309',
+    fontSize: '12px',
+    cursor: 'pointer',
+    marginLeft: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  emergencyCodeButtonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
 }
 
 function DeviceIcon({ type }: { type: Device['type'] }) {
@@ -337,13 +363,73 @@ function RemoveConfirmModal({ device, onConfirm, onCancel, isRemoving }: RemoveC
 export function DevicesList({ familyId }: DevicesListProps) {
   const { devices, loading: devicesLoading, error: devicesError } = useDevices({ familyId })
   const { children, loading: childrenLoading, error: childrenError } = useChildren({ familyId })
+  const { firebaseUser } = useAuth()
   const [updatingDevices, setUpdatingDevices] = useState<Set<string>>(new Set())
   const [deviceErrors, setDeviceErrors] = useState<Record<string, string>>({})
   const [deviceToRemove, setDeviceToRemove] = useState<Device | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
 
+  // Story 13.2: Emergency code state
+  const [deviceForEmergencyCode, setDeviceForEmergencyCode] = useState<Device | null>(null)
+  const [showReauthModal, setShowReauthModal] = useState(false)
+  const [emergencyCodeSecret, setEmergencyCodeSecret] = useState<string | null>(null)
+  const [emergencyCodeDeviceName, setEmergencyCodeDeviceName] = useState<string>('')
+  const [loadingEmergencyCode, setLoadingEmergencyCode] = useState(false)
+
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
+
+  /**
+   * Story 13.2: Handle emergency code button click.
+   * Opens re-auth modal first for security.
+   */
+  const handleEmergencyCodeClick = useCallback((device: Device) => {
+    setDeviceForEmergencyCode(device)
+    setShowReauthModal(true)
+  }, [])
+
+  /**
+   * Story 13.2: Handle successful re-authentication.
+   * Fetches TOTP secret and shows emergency code modal.
+   */
+  const handleReauthSuccess = useCallback(async () => {
+    setShowReauthModal(false)
+
+    if (!deviceForEmergencyCode || !firebaseUser) return
+
+    setLoadingEmergencyCode(true)
+    try {
+      const { totpSecret, deviceName } = await getDeviceTotpSecret(
+        familyId,
+        deviceForEmergencyCode.deviceId
+      )
+
+      // Log the view event (AC5)
+      await logEmergencyCodeView(familyId, deviceForEmergencyCode.deviceId, firebaseUser.uid)
+
+      setEmergencyCodeSecret(totpSecret)
+      setEmergencyCodeDeviceName(deviceName)
+    } catch (err) {
+      console.error('Failed to get TOTP secret:', err)
+      setDeviceErrors((prev) => ({
+        ...prev,
+        [deviceForEmergencyCode.deviceId]:
+          err instanceof Error ? err.message : 'Failed to get emergency code',
+      }))
+      setDeviceForEmergencyCode(null)
+    } finally {
+      setLoadingEmergencyCode(false)
+    }
+  }, [deviceForEmergencyCode, familyId, firebaseUser])
+
+  /**
+   * Story 13.2: Close emergency code modal and reset state.
+   */
+  const handleCloseEmergencyCode = useCallback(() => {
+    setEmergencyCodeSecret(null)
+    setEmergencyCodeDeviceName('')
+    setDeviceForEmergencyCode(null)
+  }, [])
 
   /**
    * Handle assignment change with server-first update.
@@ -463,6 +549,17 @@ export function DevicesList({ familyId }: DevicesListProps) {
             <StatusBadge status={device.status} />
             <button
               style={{
+                ...styles.emergencyCodeButton,
+                ...(loadingEmergencyCode ? styles.emergencyCodeButtonDisabled : {}),
+              }}
+              onClick={() => handleEmergencyCodeClick(device)}
+              disabled={loadingEmergencyCode}
+              aria-label="Show emergency unlock code"
+            >
+              🔓 Emergency Code
+            </button>
+            <button
+              style={{
                 ...styles.removeButton,
                 ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
               }}
@@ -482,6 +579,31 @@ export function DevicesList({ familyId }: DevicesListProps) {
           onConfirm={handleRemoveDevice}
           onCancel={() => setDeviceToRemove(null)}
           isRemoving={isRemoving}
+        />
+      )}
+
+      {/* Story 13.2: Re-authentication modal */}
+      {showReauthModal && firebaseUser && (
+        <ReauthModal
+          user={firebaseUser}
+          isOpen={showReauthModal}
+          onClose={() => {
+            setShowReauthModal(false)
+            setDeviceForEmergencyCode(null)
+          }}
+          onSuccess={handleReauthSuccess}
+          title="Confirm Your Identity"
+          description="For security, please verify your identity before viewing the emergency unlock code."
+        />
+      )}
+
+      {/* Story 13.2: Emergency code display modal */}
+      {emergencyCodeSecret && (
+        <EmergencyCodeModal
+          secret={emergencyCodeSecret}
+          deviceName={emergencyCodeDeviceName}
+          isOpen={!!emergencyCodeSecret}
+          onClose={handleCloseEmergencyCode}
         />
       )}
     </>

@@ -20,6 +20,11 @@ import * as deviceService from '../../../services/deviceService'
 vi.mock('../../../hooks/useDevices')
 vi.mock('../../../hooks/useChildren')
 vi.mock('../../../services/deviceService')
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    firebaseUser: { uid: 'mock-uid', email: 'test@example.com', providerData: [] },
+  }),
+}))
 
 const mockUseDevices = vi.mocked(useDevicesModule.useDevices)
 const mockUseChildren = vi.mocked(useChildrenModule.useChildren)
