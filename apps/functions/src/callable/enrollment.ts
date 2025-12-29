@@ -33,12 +33,67 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { z } from 'zod'
 import { verifyAuth } from '../shared/auth'
 import * as logger from 'firebase-functions/logger'
+import * as crypto from 'crypto'
 
 /** Request expiry time in milliseconds (10 minutes) */
 const REQUEST_EXPIRY_MS = 10 * 60 * 1000
 
 /** Batch size for expiry processing to avoid timeouts */
 const EXPIRY_BATCH_SIZE = 100
+
+/** TOTP secret size in bytes (256-bit / 32 bytes for strong security) */
+const TOTP_SECRET_BYTES = 32
+
+/**
+ * Base32 character set per RFC 4648
+ */
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+/**
+ * Encode bytes to Base32 string (RFC 4648)
+ * Used for TOTP secrets to ensure RFC 6238 compatibility
+ *
+ * @param buffer - Buffer to encode
+ * @returns Base32 encoded string
+ */
+function encodeBase32(buffer: Buffer): string {
+  let result = ''
+  let bits = 0
+  let value = 0
+
+  for (let i = 0; i < buffer.length; i++) {
+    value = (value << 8) | buffer[i]
+    bits += 8
+
+    while (bits >= 5) {
+      result += BASE32_ALPHABET[(value >>> (bits - 5)) & 0x1f]
+      bits -= 5
+    }
+  }
+
+  // Handle remaining bits
+  if (bits > 0) {
+    result += BASE32_ALPHABET[(value << (5 - bits)) & 0x1f]
+  }
+
+  return result
+}
+
+/**
+ * Generate a cryptographically secure TOTP secret
+ * Uses Node.js crypto.randomBytes for 256-bit entropy
+ *
+ * Story 13.1: AC1, AC5
+ * - Generates 32-byte (256-bit) random secret
+ * - Returns Base32 encoded for RFC 6238 compatibility
+ * - Never logs the secret value
+ *
+ * @returns Base32 encoded TOTP secret
+ */
+function generateTotpSecret(): string {
+  const secretBytes = crypto.randomBytes(TOTP_SECRET_BYTES)
+  return encodeBase32(secretBytes)
+}
 
 /**
  * Enrollment request document structure
@@ -129,6 +184,8 @@ interface RegisterDeviceResponse {
   success: boolean
   deviceId: string
   message: string
+  // Story 13.1: Include TOTP secret in response (one-time transmission)
+  totpSecret?: string // Only included on first registration, not on idempotent calls
 }
 
 interface AssignDeviceResponse {
@@ -139,6 +196,7 @@ interface AssignDeviceResponse {
 /**
  * Device document structure
  * Stored in /families/{familyId}/devices/{deviceId}
+ * Story 13.1: Added TOTP fields for offline unlock
  */
 export interface Device {
   deviceId: string
@@ -154,6 +212,12 @@ export interface Device {
     userAgent: string
     enrollmentRequestId: string
   }
+  // Story 13.1: TOTP fields for offline emergency unlock
+  totpSecret: string // Base32 encoded, 32 bytes (256-bit)
+  totpCreatedAt: Timestamp
+  totpAlgorithm: 'SHA1' // RFC 6238 default
+  totpDigits: 6 // Standard 6-digit codes
+  totpPeriod: 30 // 30-second window
 }
 
 /**
@@ -441,10 +505,14 @@ export const rejectEnrollment = onCall<
  * Register a device after enrollment approval.
  * Called by the extension after detecting approval status.
  * Story 12.4: Device Registration in Firestore
+ * Story 13.1: TOTP Secret Generation at Enrollment
  *
  * AC1: Creates device document in /families/{familyId}/devices
  * AC2: Stores deviceId, type, enrolledAt, enrolledBy
  * AC3: Returns deviceId for extension to store
+ * Story 13.1 AC1: Generates TOTP secret for offline unlock
+ * Story 13.1 AC3: Stores TOTP secret in Firestore
+ * Story 13.1 AC5: Returns TOTP secret in response (one-time)
  */
 export const registerDevice = onRequest({ cors: true }, async (req, res) => {
   // Only allow POST requests
@@ -494,9 +562,11 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
       // Check if device was already registered (recorded in request doc)
       if (requestData.registeredDeviceId) {
         // Device already registered - return existing deviceId
+        // Note: totpSecret is NOT returned on subsequent calls (one-time only)
         return {
           deviceId: requestData.registeredDeviceId as string,
           alreadyRegistered: true,
+          totpSecret: undefined, // Security: never return secret on idempotent calls
         }
       }
 
@@ -505,7 +575,11 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
       const deviceId = deviceRef.id
       const now = Timestamp.now()
 
-      // Create device document
+      // Story 13.1: Generate TOTP secret for offline emergency unlock
+      // Uses crypto.randomBytes for 256-bit entropy, encoded as Base32
+      const totpSecret = generateTotpSecret()
+
+      // Create device document with TOTP fields
       const device: Device = {
         deviceId,
         type: requestData.deviceInfo.type,
@@ -520,6 +594,12 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
           userAgent: requestData.deviceInfo.userAgent,
           enrollmentRequestId: requestId,
         },
+        // Story 13.1: TOTP fields for offline emergency unlock
+        totpSecret, // Base32 encoded, 32 bytes (256-bit)
+        totpCreatedAt: now,
+        totpAlgorithm: 'SHA1', // RFC 6238 default
+        totpDigits: 6, // Standard 6-digit codes
+        totpPeriod: 30, // 30-second window
       }
 
       transaction.set(deviceRef, device)
@@ -530,14 +610,18 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
         registeredAt: FieldValue.serverTimestamp(),
       })
 
-      return { deviceId, alreadyRegistered: false }
+      // Return deviceId and totpSecret (one-time transmission)
+      return { deviceId, alreadyRegistered: false, totpSecret }
     })
 
+    // Story 13.1 AC5: Log registration without exposing secret
+    // Note: totpSecret is intentionally NOT logged for security
     logger.info('Device registered', {
       deviceId: result.deviceId,
       familyId,
       requestId,
       alreadyRegistered: result.alreadyRegistered,
+      hasTotpSecret: !!result.totpSecret, // Log presence, not value
     })
 
     res.status(200).json({
@@ -547,6 +631,8 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
         message: result.alreadyRegistered
           ? 'Device already registered'
           : 'Device registered successfully',
+        // Story 13.1: Include TOTP secret only on first registration
+        totpSecret: result.totpSecret,
       } as RegisterDeviceResponse,
     })
   } catch (error: unknown) {

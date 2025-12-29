@@ -34,6 +34,52 @@ import {
 import { validateEnrollmentState, isEnrolled } from './enrollment-state'
 import { verifyDeviceEnrollment } from './enrollment-service'
 
+/**
+ * XOR encrypt/decrypt a string with a key
+ * Story 13.1 AC2: Basic obfuscation for TOTP secret in local storage
+ *
+ * This is NOT cryptographic security - it's obfuscation to prevent
+ * casual inspection of chrome.storage.local. The real security comes from:
+ * 1. Chrome extension isolation
+ * 2. The TOTP secret only being useful with knowledge of the algorithm
+ * 3. The 6-digit codes having limited validity windows
+ *
+ * @param data - String to encrypt/decrypt
+ * @param key - Key to XOR with (deviceId)
+ * @returns XOR'd string as hex
+ */
+function xorEncrypt(data: string, key: string): string {
+  const result: number[] = []
+  for (let i = 0; i < data.length; i++) {
+    const dataChar = data.charCodeAt(i)
+    const keyChar = key.charCodeAt(i % key.length)
+    result.push(dataChar ^ keyChar)
+  }
+  // Return as hex string for safe storage
+  return result.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * XOR decrypt a hex string with a key
+ * Story 13.1 AC2: Reverse of xorEncrypt
+ *
+ * @param hexData - Hex-encoded encrypted string
+ * @param key - Key to XOR with (deviceId)
+ * @returns Decrypted string
+ */
+function xorDecrypt(hexData: string, key: string): string {
+  const bytes: number[] = []
+  for (let i = 0; i < hexData.length; i += 2) {
+    bytes.push(parseInt(hexData.substring(i, i + 2), 16))
+  }
+  let result = ''
+  for (let i = 0; i < bytes.length; i++) {
+    const keyChar = key.charCodeAt(i % key.length)
+    result += String.fromCharCode(bytes[i] ^ keyChar)
+  }
+  return result
+}
+
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
 const ALARM_SYNC_QUEUE = 'sync-queue'
@@ -114,6 +160,8 @@ interface ExtensionState {
   enrollmentState: EnrollmentState // Story 12.2: Device enrollment status
   pendingEnrollment: EnrollmentPending | null // Story 12.2: Pending enrollment data
   deviceId: string | null // Story 12.4: Registered device ID
+  // Story 13.1: TOTP secret for offline emergency unlock
+  totpSecret: string | null // Base32 encoded secret (XOR encrypted with deviceId)
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -130,6 +178,7 @@ const DEFAULT_STATE: ExtensionState = {
   enrollmentState: 'not_enrolled', // Story 12.2: Device starts as not enrolled
   pendingEnrollment: null, // Story 12.2: No pending enrollment initially
   deviceId: null, // Story 12.4: No device ID initially
+  totpSecret: null, // Story 13.1: No TOTP secret initially
 }
 
 /**
@@ -1059,17 +1108,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'ENROLLMENT_COMPLETE':
       // Complete enrollment with deviceId after successful registration
       // Story 12.4: Device Registration in Firestore - AC4 credential storage
+      // Story 13.1: Store TOTP secret for offline emergency unlock
       chrome.storage.local.get('state').then(async ({ state }) => {
         const currentState = state || DEFAULT_STATE
+
+        // Story 13.1 AC2: Encrypt totpSecret with deviceId before storing
+        // Using XOR encryption for basic obfuscation in local storage
+        let encryptedTotpSecret: string | null = null
+        if (message.totpSecret && message.deviceId) {
+          encryptedTotpSecret = xorEncrypt(message.totpSecret, message.deviceId)
+        }
+
         const newState: ExtensionState = {
           ...currentState,
           enrollmentState: 'enrolled',
           familyId: message.familyId,
           deviceId: message.deviceId,
           pendingEnrollment: null,
+          totpSecret: encryptedTotpSecret, // Story 13.1: Store encrypted TOTP secret
         }
         await chrome.storage.local.set({ state: newState })
-        console.log('[Fledgely] Enrollment complete - deviceId:', message.deviceId)
+        console.log(
+          '[Fledgely] Enrollment complete - deviceId:',
+          message.deviceId,
+          'hasTotpSecret:',
+          !!encryptedTotpSecret
+        )
         sendResponse({ success: true })
       })
       return true
@@ -1077,6 +1141,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     case 'ENROLLMENT_INVALIDATED':
       // Story 12.6: Enrollment invalidated (server rejected or device removed)
       // AC5: Clear invalid state and prompt re-enrollment
+      // Story 13.1: Also clear TOTP secret
       chrome.storage.local.get('state').then(async ({ state }) => {
         const currentState = state || DEFAULT_STATE
         const newState: ExtensionState = {
@@ -1087,6 +1152,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           childId: null,
           pendingEnrollment: null,
           monitoringEnabled: false,
+          totpSecret: null, // Story 13.1: Clear TOTP secret on invalidation
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
@@ -1098,6 +1164,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'CLEAR_DEVICE_STATE':
       // Story 12.6 AC6: Explicit device removal clears all enrollment state
+      // Story 13.1: Also clear TOTP secret
       chrome.storage.local.get('state').then(async ({ state }) => {
         const currentState = state || DEFAULT_STATE
         const newState: ExtensionState = {
@@ -1108,6 +1175,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           childId: null,
           pendingEnrollment: null,
           monitoringEnabled: false,
+          totpSecret: null, // Story 13.1: Clear TOTP secret on device removal
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
@@ -1211,6 +1279,25 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   }
 })
 
+/**
+ * Get the decrypted TOTP secret from storage
+ * Story 13.1 Task 3.4: getTotpSecret() function to decrypt stored secret
+ *
+ * @returns Decrypted TOTP secret or null if not available
+ */
+export async function getTotpSecret(): Promise<string | null> {
+  const { state } = await chrome.storage.local.get('state')
+  if (!state?.totpSecret || !state?.deviceId) {
+    return null
+  }
+  try {
+    return xorDecrypt(state.totpSecret, state.deviceId)
+  } catch {
+    console.error('[Fledgely] Failed to decrypt TOTP secret')
+    return null
+  }
+}
+
 // Export for testing
 export type { ExtensionState }
-export { DEFAULT_STATE }
+export { DEFAULT_STATE, xorEncrypt, xorDecrypt }

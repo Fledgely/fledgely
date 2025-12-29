@@ -78,6 +78,12 @@ service cloud.firestore {
       // Guardians can view family devices.
       // Creation/updates are done via Cloud Functions for security.
       //
+      // Story 13.1: TOTP Secret Storage
+      // Device documents contain totpSecret for offline emergency unlock.
+      // SECURITY: totpSecret is only readable by guardians (parents) of the family.
+      // The secret is encrypted at rest by Firestore default encryption.
+      // Extension stores its own copy locally (see enrollment-state.ts).
+      //
       match /devices/{deviceId} {
         // Helper: Check if user is a guardian of the parent family document
         function isFamilyDeviceGuardian() {
