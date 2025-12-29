@@ -116,7 +116,7 @@ development_status:
   epic-4-retrospective: done
 
   # Epic 5: Basic Agreement Co-Creation
-  epic-5: in-progress
+  epic-5: done
   5-1-co-creation-session-initiation: done
   5-2-visual-agreement-builder: done
   5-3-child-contribution-capture: done
@@ -125,7 +125,7 @@ development_status:
   5-6-agreement-only-mode-selection: done
   5-7-draft-saving-version-history: done
   5-8-child-agreement-viewing: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   # Epic 6: Agreement Signing & Activation
   epic-6: backlog
