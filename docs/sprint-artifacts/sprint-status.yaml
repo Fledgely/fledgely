@@ -300,8 +300,8 @@ development_status:
   epic-18-retrospective: done
 
   # Epic 19: Device Status & Monitoring Health
-  epic-19: backlog
-  19-1-device-list-view: backlog
+  epic-19: in-progress
+  19-1-device-list-view: done
   19-2-device-status-indicators: backlog
   19-3-last-sync-timestamp-display: backlog
   19-4-monitoring-health-details: backlog

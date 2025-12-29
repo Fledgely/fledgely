@@ -1,10 +1,11 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6
+ * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6, 19.1
  *
  * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
+ * Story 19.1: Groups devices by assigned child with section headers.
  *
  * Requirements:
  * - AC5 (12.4): Dashboard device list refresh
@@ -15,6 +16,7 @@
  * - AC6 (12.6): Remove Device action
  * - AC1-6 (13.2): Emergency code display with re-auth
  * - AC1-5 (13.6): Reset emergency codes with confirmation and re-auth
+ * - AC1-6 (19.1): Device list grouped by child
  */
 
 import { useState, useCallback } from 'react'
@@ -268,11 +270,247 @@ const styles = {
     fontSize: '14px',
     cursor: 'pointer',
   },
+  // Story 19.1: Group section styles
+  groupSection: {
+    marginBottom: '24px',
+  },
+  groupHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px 0',
+    borderBottom: '1px solid #e5e7eb',
+    marginBottom: '8px',
+  },
+  groupHeaderAvatar: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: '#dbeafe',
+    marginRight: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#1e40af',
+    overflow: 'hidden',
+  } as React.CSSProperties,
+  groupHeaderAvatarImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  } as React.CSSProperties,
+  groupHeaderName: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1f2937',
+  },
+  groupHeaderCount: {
+    fontSize: '13px',
+    color: '#6b7280',
+    marginLeft: '8px',
+  },
+  unassignedSection: {
+    marginBottom: '24px',
+  },
+  unassignedHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px 0',
+    borderBottom: '1px solid #fbbf24',
+    marginBottom: '8px',
+  },
+  unassignedIcon: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: '#fef3c7',
+    marginRight: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '16px',
+  },
+  unassignedHeaderText: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#92400e',
+  },
+  unassignedHeaderCount: {
+    fontSize: '13px',
+    color: '#92400e',
+    marginLeft: '8px',
+  },
+  orphanedSection: {
+    marginBottom: '24px',
+  },
+  orphanedHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px 0',
+    borderBottom: '1px solid #f87171',
+    marginBottom: '8px',
+  },
+  orphanedIcon: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    backgroundColor: '#fee2e2',
+    marginRight: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '16px',
+  },
+  orphanedHeaderText: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#991b1b',
+  },
+  orphanedHeaderCount: {
+    fontSize: '13px',
+    color: '#991b1b',
+    marginLeft: '8px',
+  },
+  emptyStateCta: {
+    marginTop: '12px',
+    padding: '10px 20px',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
 }
 
 function DeviceIcon({ type }: { type: Device['type'] }) {
   const icon = type === 'chromebook' ? '💻' : '📱'
   return <div style={styles.deviceIcon}>{icon}</div>
+}
+
+/**
+ * Story 19.1: Group devices by child
+ * Task 1: Implement Device Grouping Logic
+ *
+ * Groups devices by their assigned child, with support for:
+ * - Unassigned devices (childId === null)
+ * - Orphaned devices (childId exists but child was deleted)
+ * - Children sorted alphabetically
+ */
+export interface DeviceGroup {
+  child: ChildSummary
+  devices: Device[]
+}
+
+export interface GroupedDevices {
+  childGroups: DeviceGroup[]
+  unassigned: Device[]
+  orphaned: Device[]
+}
+
+export function groupDevicesByChild(devices: Device[], children: ChildSummary[]): GroupedDevices {
+  const childMap = new Map(children.map((c) => [c.id, c]))
+  const devicesByChild = new Map<string, Device[]>()
+  const unassigned: Device[] = []
+  const orphaned: Device[] = []
+
+  for (const device of devices) {
+    if (device.childId === null) {
+      // Task 1.4: Unassigned devices
+      unassigned.push(device)
+    } else if (!childMap.has(device.childId)) {
+      // Task 1.5: Orphaned devices (childId exists but child was deleted)
+      orphaned.push(device)
+    } else {
+      // Task 1.2: Group by childId
+      const existing = devicesByChild.get(device.childId) || []
+      existing.push(device)
+      devicesByChild.set(device.childId, existing)
+    }
+  }
+
+  // Task 1.3: Sort children alphabetically by name
+  const sortedChildren = [...children].sort((a, b) => a.name.localeCompare(b.name))
+
+  // Build child groups (only for children that have devices)
+  const childGroups: DeviceGroup[] = sortedChildren
+    .filter((child) => devicesByChild.has(child.id))
+    .map((child) => ({
+      child,
+      devices: devicesByChild.get(child.id)!,
+    }))
+
+  return { childGroups, unassigned, orphaned }
+}
+
+/**
+ * Story 19.1: Child Group Header Component
+ * Task 2: Create Child Group Header Component
+ */
+interface ChildGroupHeaderProps {
+  child: ChildSummary
+  deviceCount: number
+}
+
+function ChildGroupHeader({ child, deviceCount }: ChildGroupHeaderProps) {
+  const initial = child.name.charAt(0).toUpperCase()
+
+  return (
+    <div style={styles.groupHeader} role="heading" aria-level={3}>
+      <div style={styles.groupHeaderAvatar} aria-hidden="true">
+        {child.photoURL ? (
+          <img src={child.photoURL} alt="" style={styles.groupHeaderAvatarImg} />
+        ) : (
+          initial
+        )}
+      </div>
+      <span style={styles.groupHeaderName}>{child.name}</span>
+      <span style={styles.groupHeaderCount}>
+        ({deviceCount} {deviceCount === 1 ? 'device' : 'devices'})
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Story 19.1: Unassigned Devices Header
+ * Task 3: Create Unassigned Section Header
+ */
+interface UnassignedHeaderProps {
+  count: number
+}
+
+function UnassignedHeader({ count }: UnassignedHeaderProps) {
+  return (
+    <div style={styles.unassignedHeader} role="heading" aria-level={3}>
+      <div style={styles.unassignedIcon}>📦</div>
+      <span style={styles.unassignedHeaderText}>Unassigned Devices</span>
+      <span style={styles.unassignedHeaderCount}>
+        ({count} {count === 1 ? 'device' : 'devices'})
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Story 19.1: Orphaned Devices Header (child deleted but device still has childId)
+ */
+interface OrphanedHeaderProps {
+  count: number
+}
+
+function OrphanedHeader({ count }: OrphanedHeaderProps) {
+  return (
+    <div style={styles.orphanedHeader} role="heading" aria-level={3}>
+      <div style={styles.orphanedIcon}>⚠️</div>
+      <span style={styles.orphanedHeaderText}>Unknown Child</span>
+      <span style={styles.orphanedHeaderCount}>
+        ({count} {count === 1 ? 'device' : 'devices'})
+      </span>
+    </div>
+  )
 }
 
 function StatusBadge({ status }: { status: Device['status'] }) {
@@ -649,73 +887,116 @@ export function DevicesList({ familyId }: DevicesListProps) {
     return <p style={styles.error}>{error}</p>
   }
 
-  if (devices.length === 0) {
+  // Filter out unenrolled devices - they shouldn't appear in the list (AC1)
+  const activeDevices = devices.filter((d) => d.status !== 'unenrolled')
+
+  // Story 19.1: Empty state with CTA (AC6)
+  // Check activeDevices to handle edge case where all devices are unenrolled
+  if (activeDevices.length === 0) {
     return (
-      <p style={styles.emptyState}>
-        No devices enrolled yet. Add a Chromebook to start monitoring.
-      </p>
+      <div style={styles.emptyState} role="status" aria-live="polite">
+        <p>No devices enrolled yet.</p>
+        <button
+          style={styles.emptyStateCta}
+          aria-label="Add your first device"
+          onClick={() => {
+            // TODO: Story 20.x - Navigate to device enrollment flow
+            // This will be implemented when the enrollment UI story is complete
+          }}
+        >
+          Add your first device
+        </button>
+      </div>
     )
   }
 
-  // Filter out unenrolled devices - they shouldn't appear in the list
-  const activeDevices = devices.filter((d) => d.status !== 'unenrolled')
+  // Story 19.1: Group devices by child (AC3, AC4)
+  const { childGroups, unassigned, orphaned } = groupDevicesByChild(activeDevices, children)
+
+  /**
+   * Story 19.1: Render a single device item
+   * Extracted to avoid code duplication across groups
+   */
+  const renderDeviceItem = (device: Device) => (
+    <div key={device.deviceId} style={styles.deviceItem}>
+      <DeviceIcon type={device.type} />
+      <div style={styles.deviceInfo}>
+        <div style={styles.deviceName}>{device.name}</div>
+        <div style={styles.deviceMeta}>
+          {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
+          {formatLastSeen(device.lastSeen)}
+        </div>
+      </div>
+      <ChildAssignment
+        device={device}
+        childList={children}
+        onAssignmentChange={handleAssignmentChange}
+        isUpdating={updatingDevices.has(device.deviceId)}
+        error={deviceErrors[device.deviceId] || null}
+      />
+      <StatusBadge status={device.status} />
+      <button
+        style={{
+          ...styles.emergencyCodeButton,
+          ...(loadingEmergencyCode ? styles.emergencyCodeButtonDisabled : {}),
+        }}
+        onClick={() => handleEmergencyCodeClick(device)}
+        disabled={loadingEmergencyCode}
+        aria-label="Show emergency unlock code"
+      >
+        🔓 Emergency Code
+      </button>
+      <button
+        style={{
+          ...styles.resetSecretButton,
+          ...(resettingSecret ? styles.resetSecretButtonDisabled : {}),
+        }}
+        onClick={() => handleResetSecretClick(device)}
+        disabled={resettingSecret}
+        aria-label="Reset emergency codes"
+      >
+        🔄 Reset Codes
+      </button>
+      <button
+        style={{
+          ...styles.removeButton,
+          ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
+        }}
+        onClick={() => setDeviceToRemove(device)}
+        disabled={updatingDevices.has(device.deviceId)}
+        aria-label="Remove device"
+      >
+        Remove
+      </button>
+    </div>
+  )
 
   return (
     <>
       <div style={styles.deviceList}>
-        {activeDevices.map((device) => (
-          <div key={device.deviceId} style={styles.deviceItem}>
-            <DeviceIcon type={device.type} />
-            <div style={styles.deviceInfo}>
-              <div style={styles.deviceName}>{device.name}</div>
-              <div style={styles.deviceMeta}>
-                {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
-                {formatLastSeen(device.lastSeen)}
-              </div>
-            </div>
-            <ChildAssignment
-              device={device}
-              childList={children}
-              onAssignmentChange={handleAssignmentChange}
-              isUpdating={updatingDevices.has(device.deviceId)}
-              error={deviceErrors[device.deviceId] || null}
-            />
-            <StatusBadge status={device.status} />
-            <button
-              style={{
-                ...styles.emergencyCodeButton,
-                ...(loadingEmergencyCode ? styles.emergencyCodeButtonDisabled : {}),
-              }}
-              onClick={() => handleEmergencyCodeClick(device)}
-              disabled={loadingEmergencyCode}
-              aria-label="Show emergency unlock code"
-            >
-              🔓 Emergency Code
-            </button>
-            <button
-              style={{
-                ...styles.resetSecretButton,
-                ...(resettingSecret ? styles.resetSecretButtonDisabled : {}),
-              }}
-              onClick={() => handleResetSecretClick(device)}
-              disabled={resettingSecret}
-              aria-label="Reset emergency codes"
-            >
-              🔄 Reset Codes
-            </button>
-            <button
-              style={{
-                ...styles.removeButton,
-                ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
-              }}
-              onClick={() => setDeviceToRemove(device)}
-              disabled={updatingDevices.has(device.deviceId)}
-              aria-label="Remove device"
-            >
-              Remove
-            </button>
+        {/* Story 19.1: Child-grouped sections (AC3) */}
+        {childGroups.map(({ child, devices: childDevices }) => (
+          <div key={child.id} style={styles.groupSection}>
+            <ChildGroupHeader child={child} deviceCount={childDevices.length} />
+            {childDevices.map(renderDeviceItem)}
           </div>
         ))}
+
+        {/* Story 19.1: Orphaned devices section (devices with deleted child) */}
+        {orphaned.length > 0 && (
+          <div style={styles.orphanedSection}>
+            <OrphanedHeader count={orphaned.length} />
+            {orphaned.map(renderDeviceItem)}
+          </div>
+        )}
+
+        {/* Story 19.1: Unassigned devices section (AC4) */}
+        {unassigned.length > 0 && (
+          <div style={styles.unassignedSection}>
+            <UnassignedHeader count={unassigned.length} />
+            {unassigned.map(renderDeviceItem)}
+          </div>
+        )}
       </div>
 
       {deviceToRemove && (
