@@ -602,39 +602,54 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
 
     case 'GET_CAPTURE_LOGS':
-      // Get capture event logs for debug panel
-      // Story 10.6: Capture Event Logging
-      getCaptureEvents(message.limit || 100)
-        .then((events) => {
+      // Get capture event logs for debug panel (parent only)
+      // Story 10.6: Capture Event Logging - AC5 requires parent authentication
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        if (!state?.isAuthenticated) {
+          sendResponse({ success: false, error: 'Not authenticated' })
+          return
+        }
+        try {
+          const events = await getCaptureEvents(message.limit || 100)
           sendResponse({ success: true, events })
-        })
-        .catch((error) => {
+        } catch (error) {
           sendResponse({ success: false, error: String(error) })
-        })
+        }
+      })
       return true
 
     case 'CLEAR_CAPTURE_LOGS':
-      // Clear capture event logs
-      // Story 10.6: Capture Event Logging
-      clearCaptureEvents()
-        .then(() => {
+      // Clear capture event logs (parent only)
+      // Story 10.6: Capture Event Logging - AC5 requires parent authentication
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        if (!state?.isAuthenticated) {
+          sendResponse({ success: false, error: 'Not authenticated' })
+          return
+        }
+        try {
+          await clearCaptureEvents()
           sendResponse({ success: true })
-        })
-        .catch((error) => {
+        } catch (error) {
           sendResponse({ success: false, error: String(error) })
-        })
+        }
+      })
       return true
 
     case 'GET_CAPTURE_STATS':
-      // Get capture event statistics
-      // Story 10.6: Capture Event Logging
-      getEventStats(message.hours || 24)
-        .then((stats) => {
+      // Get capture event statistics (parent only)
+      // Story 10.6: Capture Event Logging - AC5 requires parent authentication
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        if (!state?.isAuthenticated) {
+          sendResponse({ success: false, error: 'Not authenticated' })
+          return
+        }
+        try {
+          const stats = await getEventStats(message.hours || 24)
           sendResponse({ success: true, stats })
-        })
-        .catch((error) => {
+        } catch (error) {
           sendResponse({ success: false, error: String(error) })
-        })
+        }
+      })
       return true
 
     default:

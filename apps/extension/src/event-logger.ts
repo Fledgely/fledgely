@@ -69,7 +69,7 @@ export const ERROR_CODES = {
  * Generate a unique event ID
  */
 function generateEventId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
 }
 
 /**
@@ -82,17 +82,30 @@ function pruneOldEvents(events: CaptureEvent[]): CaptureEvent[] {
 
 /**
  * Get the current event log from storage
+ * @returns The event log or empty log if not found or on error
  */
 async function getEventLog(): Promise<EventLog> {
-  const result = await chrome.storage.local.get(STORAGE_KEY)
-  return result[STORAGE_KEY] || { events: [], lastPruned: 0 }
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY)
+    return result[STORAGE_KEY] || { events: [], lastPruned: 0 }
+  } catch {
+    // Storage unavailable - return empty log
+    console.warn('[Fledgely] Failed to read event log from storage')
+    return { events: [], lastPruned: 0 }
+  }
 }
 
 /**
  * Save the event log to storage
+ * Silently fails if storage is unavailable (non-critical operation)
  */
 async function saveEventLog(log: EventLog): Promise<void> {
-  await chrome.storage.local.set({ [STORAGE_KEY]: log })
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEY]: log })
+  } catch {
+    // Storage unavailable - log warning but don't throw
+    console.warn('[Fledgely] Failed to save event log to storage')
+  }
 }
 
 /**
@@ -142,6 +155,8 @@ export async function logCaptureEvent(
 /**
  * Get all capture events (for debug panel)
  * Returns events in reverse chronological order (newest first)
+ * @param limit Optional maximum number of events to return
+ * @returns Array of capture events, newest first
  */
 export async function getCaptureEvents(limit?: number): Promise<CaptureEvent[]> {
   const log = await getEventLog()
@@ -157,6 +172,7 @@ export async function getCaptureEvents(limit?: number): Promise<CaptureEvent[]> 
 
 /**
  * Clear all capture events (for debug panel)
+ * @returns Promise that resolves when events are cleared
  */
 export async function clearCaptureEvents(): Promise<void> {
   await saveEventLog({ events: [], lastPruned: Date.now() })
@@ -164,6 +180,8 @@ export async function clearCaptureEvents(): Promise<void> {
 
 /**
  * Get event statistics for the specified time period
+ * @param hours Number of hours to look back (default: 24)
+ * @returns Statistics object with counts by type and success/failure
  */
 export async function getEventStats(hours: number = 24): Promise<{
   total: number
@@ -192,6 +210,8 @@ export async function getEventStats(hours: number = 24): Promise<{
 /**
  * Check if there have been consecutive critical errors
  * Used for error badge display
+ * @param count Number of consecutive errors required (default: 3)
+ * @returns True if there are `count` consecutive critical errors
  */
 export async function hasConsecutiveCriticalErrors(count: number = 3): Promise<boolean> {
   const log = await getEventLog()
@@ -201,8 +221,11 @@ export async function hasConsecutiveCriticalErrors(count: number = 3): Promise<b
     return false
   }
 
-  // Check last 'count' events
+  // Critical error types that trigger the badge
   const criticalTypes: CaptureEventType[] = ['capture_failed', 'upload_failed', 'retry_exhausted']
+
+  // Success types that reset the error counter (ignore idle events)
+  const successTypes: CaptureEventType[] = ['capture_success', 'upload_success']
 
   let consecutiveErrors = 0
   for (const event of events) {
@@ -211,10 +234,11 @@ export async function hasConsecutiveCriticalErrors(count: number = 3): Promise<b
       if (consecutiveErrors >= count) {
         return true
       }
-    } else if (event.success) {
-      // Reset counter on success
+    } else if (event.success && successTypes.includes(event.eventType)) {
+      // Only reset on capture/upload success, not idle events
       break
     }
+    // Ignore idle_pause, idle_resume, capture_skipped for consecutive counting
   }
 
   return false
@@ -223,6 +247,7 @@ export async function hasConsecutiveCriticalErrors(count: number = 3): Promise<b
 /**
  * Count consecutive successes since last failure
  * Used to determine when to clear error badge
+ * @returns Number of consecutive successful capture/upload events
  */
 export async function countConsecutiveSuccesses(): Promise<number> {
   const log = await getEventLog()
