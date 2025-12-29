@@ -64,6 +64,12 @@ const PROTECTED_BADGE_TEXT = '✓' // Checkmark
 const PROTECTED_BADGE_COLOR = '#8b5cf6' // Purple (calming)
 const PROTECTED_TITLE = 'Fledgely - Private Site (not monitored)'
 
+// Decoy mode constants (Story 11.5)
+// Simple gray gradient placeholder image (1x1 pixel gray JPEG as minimal placeholder)
+// In production, this would be a more innocuous-looking search engine screenshot
+const DECOY_IMAGE_DATA =
+  'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMCwsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAr/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBEQCEAwEPwAAYAH//2Q=='
+
 /**
  * Validate and clamp capture interval to allowed range
  */
@@ -82,6 +88,7 @@ interface ExtensionState {
   captureIntervalMinutes: number
   idleThresholdSeconds: number
   showProtectedIndicator: boolean // Story 11.3: Optional visual indicator
+  decoyModeEnabled: boolean // Story 11.5: Generate decoys for crisis sites
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -94,6 +101,7 @@ const DEFAULT_STATE: ExtensionState = {
   captureIntervalMinutes: DEFAULT_CAPTURE_INTERVAL_MINUTES,
   idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
   showProtectedIndicator: true, // Story 11.3: Default to showing indicator
+  decoyModeEnabled: false, // Story 11.5: Default to off (opt-in)
 }
 
 /**
@@ -168,6 +176,21 @@ async function updateLastSync(): Promise<void> {
 }
 
 /**
+ * Create a decoy screenshot capture for crisis-protected sites
+ * Story 11.5: Decoy Mode for Crisis Browsing
+ * Returns a ScreenshotCapture with placeholder image and sanitized metadata
+ */
+function createDecoyCapture(): ScreenshotCapture {
+  return {
+    dataUrl: DECOY_IMAGE_DATA,
+    timestamp: Date.now(),
+    url: 'about:blank', // Sanitized URL - never expose protected site
+    title: 'Protected', // Sanitized title - never expose protected site
+    captureTimeMs: 0, // Decoy is instant
+  }
+}
+
+/**
  * Maximum number of screenshots in the local queue (NFR87)
  */
 const MAX_QUEUE_SIZE = 500
@@ -182,23 +205,30 @@ interface QueuedScreenshot {
   queuedAt: number
   retryCount: number
   lastRetryAt: number | null
+  isDecoy: boolean // Story 11.5: True if this is a decoy image for crisis protection
 }
 
 /**
  * Add a screenshot to the upload queue
  * Queue persists in chrome.storage.local for offline support
  * Story 10.6: Now logs queue overflow events
+ * Story 11.5: Added isDecoy parameter for decoy mode
  */
-async function queueScreenshot(capture: ScreenshotCapture, childId: string): Promise<void> {
+async function queueScreenshot(
+  capture: ScreenshotCapture,
+  childId: string,
+  isDecoy: boolean = false
+): Promise<void> {
   const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
 
   const item: QueuedScreenshot = {
-    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
     capture,
     childId,
     queuedAt: Date.now(),
     retryCount: 0,
     lastRetryAt: null,
+    isDecoy,
   }
 
   // Add to queue
@@ -363,11 +393,19 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
     if (activeTab?.url) {
       const isProtected = isUrlProtected(activeTab.url)
       if (isProtected) {
-        // ZERO DATA PATH: Skip capture entirely
+        // ZERO DATA PATH: Skip real capture entirely
         // Log event but DO NOT log URL (privacy requirement)
         const queueSize = await getQueueSize()
+
+        // Story 11.5: If decoy mode is enabled, queue a decoy instead of skipping
+        if (state.decoyModeEnabled) {
+          const decoyCapture = createDecoyCapture()
+          await queueScreenshot(decoyCapture, state.childId, true) // isDecoy=true
+          console.log('[Fledgely] Decoy queued for protected site (no gap in timeline)')
+        }
+
         await logCaptureEvent('capture_skipped', true, {
-          queueSize,
+          queueSize: state.decoyModeEnabled ? queueSize + 1 : queueSize,
           errorCode: ERROR_CODES.CRISIS_URL_PROTECTED,
         })
         // Note: We intentionally do NOT log anything about which site was protected
@@ -804,6 +842,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await chrome.storage.local.set({ state: newState })
         // Note: No logging of this setting change (AC6)
         sendResponse({ success: true, showIndicator: newState.showProtectedIndicator })
+      })
+      return true
+
+    case 'UPDATE_DECOY_MODE':
+      // Update decoy mode setting
+      // Story 11.5: Decoy Mode for Crisis Browsing - AC5 opt-in requirement
+      // Child must explicitly enable this feature
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          decoyModeEnabled: Boolean(message.enabled),
+        }
+        await chrome.storage.local.set({ state: newState })
+        console.log(`[Fledgely] Decoy mode ${newState.decoyModeEnabled ? 'enabled' : 'disabled'}`)
+        sendResponse({ success: true, decoyModeEnabled: newState.decoyModeEnabled })
       })
       return true
 
