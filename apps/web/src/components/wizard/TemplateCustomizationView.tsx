@@ -25,10 +25,10 @@ interface TemplateCustomizationViewProps {
   template: AgreementTemplate
   ageGroup: string | null
   onSaveDraft: (
-    summary: ReturnType<typeof useTemplateCustomization>['getCustomizationSummary']
+    summary: ReturnType<ReturnType<typeof useTemplateCustomization>['getCustomizationSummary']>
   ) => void
   onContinueToCoCreation: (
-    summary: ReturnType<typeof useTemplateCustomization>['getCustomizationSummary']
+    summary: ReturnType<ReturnType<typeof useTemplateCustomization>['getCustomizationSummary']>
   ) => void
   onCancel: () => void
 }

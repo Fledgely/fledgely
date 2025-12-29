@@ -37,8 +37,6 @@ interface CoCreationSessionProps {
   template?: AgreementTemplate
   /** Optional draft ID from customization */
   draftId?: string
-  /** Callback when session is completed */
-  _onComplete?: () => void
   /** Callback when session is cancelled */
   onCancel?: () => void
 }
@@ -49,7 +47,6 @@ export function CoCreationSession({
   parentUid,
   template,
   draftId,
-  _onComplete,
   onCancel,
 }: CoCreationSessionProps) {
   const [showStartPrompt, setShowStartPrompt] = useState(true)

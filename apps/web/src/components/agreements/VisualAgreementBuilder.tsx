@@ -2,6 +2,7 @@
  * Visual Agreement Builder Component.
  *
  * Story 5.2: Visual Agreement Builder - AC1, AC2, AC3, AC4, AC5, AC6
+ * Story 5.3: Child Contribution Capture - AC6 (Deletion Protection)
  *
  * Main component for building agreements using visual cards.
  * Features:
@@ -11,6 +12,7 @@
  * - Party attribution (AC4)
  * - Category color coding (AC5)
  * - 100 term limit validation (AC6, NFR60)
+ * - Child contribution protection (Story 5.3 AC6)
  */
 
 'use client'
@@ -21,10 +23,15 @@ import type {
   ContributionParty,
   CoCreationSession,
   TermCategory,
+  TermReaction,
+  TermReactionType,
 } from '@fledgely/shared/contracts'
 import { MAX_AGREEMENT_TERMS } from '@fledgely/shared/contracts'
 import { DroppableTermList } from './DroppableTermList'
 import { AddTermModal } from './AddTermModal'
+import { DeletionProtectionModal } from './DeletionProtectionModal'
+import { ChildTermInput } from './ChildTermInput'
+import { TermReactionBar } from './TermReactionBar'
 
 interface VisualAgreementBuilderProps {
   /** Current session */
@@ -37,6 +44,14 @@ interface VisualAgreementBuilderProps {
   onContribution?: (party: ContributionParty, type: string, content: unknown) => void
   /** Child name for display */
   childName: string
+  /** Current party using the builder */
+  currentParty?: ContributionParty
+  /** Term reactions */
+  reactions?: TermReaction[]
+  /** Called when a reaction is added */
+  onReaction?: (termId: string, type: TermReactionType, emoji?: string) => void
+  /** Whether to show simplified child input mode */
+  showChildInput?: boolean
 }
 
 /**
@@ -52,12 +67,17 @@ export function VisualAgreementBuilder({
   onTermsChange,
   onContribution,
   childName,
+  currentParty = 'parent',
+  reactions = [],
+  onReaction,
+  showChildInput = false,
 }: VisualAgreementBuilderProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingTerm, setEditingTerm] = useState<AgreementTerm | undefined>()
   const [activeParty, setActiveParty] = useState<ContributionParty>('parent')
   const [selectedTermId, setSelectedTermId] = useState<string | undefined>()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | undefined>()
+  const [protectedTermId, setProtectedTermId] = useState<string | undefined>()
 
   const termCount = terms.length
   const isAtLimit = termCount >= MAX_AGREEMENT_TERMS
@@ -131,7 +151,27 @@ export function VisualAgreementBuilder({
   )
 
   /**
-   * Handle deleting a term.
+   * Handle attempting to delete a term.
+   * Child terms are protected and cannot be deleted by parents.
+   */
+  const handleAttemptDelete = useCallback(
+    (termId: string) => {
+      const term = terms.find((t) => t.id === termId)
+      if (term) {
+        // Check if parent is trying to delete a child's term
+        if (term.party === 'child' && currentParty === 'parent') {
+          setProtectedTermId(termId)
+          return
+        }
+        // Otherwise, show normal delete confirmation
+        setDeleteConfirmId(termId)
+      }
+    },
+    [terms, currentParty]
+  )
+
+  /**
+   * Handle deleting a term (after confirmation).
    */
   const handleDeleteTerm = useCallback(
     (termId: string) => {
@@ -148,6 +188,16 @@ export function VisualAgreementBuilder({
     },
     [terms, onTermsChange, onContribution]
   )
+
+  /**
+   * Mark a child term for discussion instead of deleting.
+   */
+  const handleMarkForDiscussion = useCallback(() => {
+    if (protectedTermId) {
+      onReaction?.(protectedTermId, 'discuss')
+      setProtectedTermId(undefined)
+    }
+  }, [protectedTermId, onReaction])
 
   /**
    * Handle reordering terms.
@@ -272,6 +322,31 @@ export function VisualAgreementBuilder({
         </button>
       </div>
 
+      {/* Child-friendly input (when enabled) */}
+      {showChildInput && (
+        <ChildTermInput
+          onSubmit={(text, category) => {
+            if (isAtLimit) return
+            const now = new Date()
+            const newTerm: AgreementTerm = {
+              id: generateId(),
+              text,
+              category,
+              party: currentParty,
+              explanation: '',
+              order: terms.length,
+              createdAt: now,
+              updatedAt: now,
+            }
+            onTermsChange([...terms, newTerm])
+            onContribution?.(currentParty, 'add_term', newTerm)
+          }}
+          childName={childName}
+          currentParty={currentParty}
+          disabled={isAtLimit}
+        />
+      )}
+
       {/* Term list with drag-and-drop */}
       <DroppableTermList
         terms={terms}
@@ -279,9 +354,23 @@ export function VisualAgreementBuilder({
         selectedTermId={selectedTermId}
         onSelectTerm={setSelectedTermId}
         onEditTerm={handleEditTerm}
-        onDeleteTerm={(termId) => setDeleteConfirmId(termId)}
+        onDeleteTerm={handleAttemptDelete}
         emptyMessage={`No rules added yet. Work with ${childName} to add your first rule!`}
       />
+
+      {/* Reactions for selected term */}
+      {selectedTermId && onReaction && (
+        <div className="p-4 bg-gray-50 rounded-lg" data-testid="selected-term-reactions">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">React to this rule:</h4>
+          <TermReactionBar
+            termId={selectedTermId}
+            reactions={reactions.filter((r) => r.termId === selectedTermId)}
+            currentParty={currentParty}
+            onReact={(type, emoji) => onReaction(selectedTermId, type, emoji)}
+            size="medium"
+          />
+        </div>
+      )}
 
       {/* Add/Edit Term Modal */}
       <AddTermModal
@@ -334,6 +423,14 @@ export function VisualAgreementBuilder({
           </div>
         </div>
       )}
+
+      {/* Deletion Protection Modal for child terms */}
+      <DeletionProtectionModal
+        isOpen={!!protectedTermId}
+        onClose={() => setProtectedTermId(undefined)}
+        onMarkForDiscussion={handleMarkForDiscussion}
+        childName={childName}
+      />
     </div>
   )
 }

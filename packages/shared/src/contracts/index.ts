@@ -503,3 +503,28 @@ export type AgreementTerm = z.infer<typeof agreementTermSchema>
  * NFR60: Maximum 100 conditions per agreement.
  */
 export const MAX_AGREEMENT_TERMS = 100
+
+/**
+ * Term reaction types.
+ *
+ * Story 5.3: Child Contribution Capture - AC2, AC4
+ * Reactions that children (or parents) can add to terms.
+ */
+export const termReactionTypeSchema = z.enum(['agree', 'question', 'discuss', 'love', 'think'])
+export type TermReactionType = z.infer<typeof termReactionTypeSchema>
+
+/**
+ * Term reaction schema.
+ *
+ * Story 5.3: Child Contribution Capture - AC2
+ * Records a reaction to a term by a party.
+ */
+export const termReactionSchema = z.object({
+  id: z.string(),
+  termId: z.string(),
+  party: contributionPartySchema,
+  type: termReactionTypeSchema,
+  emoji: z.string().max(4).nullable(), // Optional custom emoji
+  createdAt: z.date(),
+})
+export type TermReaction = z.infer<typeof termReactionSchema>
