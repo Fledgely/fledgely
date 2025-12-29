@@ -7,6 +7,7 @@
  */
 
 export { ChildSigningCeremony } from './ChildSigningCeremony'
+export { ParentSigningCeremony } from './ParentSigningCeremony'
 export { TypedSignature } from './TypedSignature'
 export { DrawnSignature } from './DrawnSignature'
 export { ConsentCheckbox } from './ConsentCheckbox'

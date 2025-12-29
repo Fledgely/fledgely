@@ -773,3 +773,49 @@ export function canChildSign(signing: AgreementSigning): boolean {
 export function canParentSign(signing: AgreementSigning): boolean {
   return signing.childSignature !== null
 }
+
+/**
+ * Check if a specific parent has already signed.
+ *
+ * Story 6.2: Parent Digital Signature - AC5
+ * Returns true if the specified parent UID has already signed.
+ */
+export function hasParentSigned(signing: AgreementSigning, parentUid: string): boolean {
+  return signing.parentSignatures.some((sig) => sig.signerId === parentUid)
+}
+
+/**
+ * Check if all required signatures have been collected.
+ *
+ * Story 6.2: Parent Digital Signature - AC7
+ * Returns true if agreement is ready for activation.
+ */
+export function isSigningComplete(signing: AgreementSigning): boolean {
+  if (signing.childSignature === null) return false
+
+  if (signing.requiresBothParents) {
+    return signing.parentSignatures.length >= 2
+  }
+  return signing.parentSignatures.length >= 1
+}
+
+/**
+ * Get signing progress for UI display.
+ *
+ * Story 6.2: Parent Digital Signature - AC5
+ * Returns progress information for the signing process.
+ */
+export function getSigningProgress(signing: AgreementSigning): {
+  childSigned: boolean
+  parentsRequired: number
+  parentsSigned: number
+  isComplete: boolean
+} {
+  const parentsRequired = signing.requiresBothParents ? 2 : 1
+  return {
+    childSigned: signing.childSignature !== null,
+    parentsRequired,
+    parentsSigned: signing.parentSignatures.length,
+    isComplete: isSigningComplete(signing),
+  }
+}

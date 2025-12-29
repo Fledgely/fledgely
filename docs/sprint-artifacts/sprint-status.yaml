@@ -129,8 +129,8 @@ development_status:
 
   # Epic 6: Agreement Signing & Activation
   epic-6: in-progress
-  6-1-child-digital-signature-ceremony: ready-for-dev
-  6-2-parent-digital-signature: backlog
+  6-1-child-digital-signature-ceremony: done
+  6-2-parent-digital-signature: done
   6-3-agreement-activation: backlog
   6-4-signing-ceremony-celebration: backlog
   6-5-device-consent-gate: backlog
