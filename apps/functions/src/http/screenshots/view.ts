@@ -222,6 +222,9 @@ export const viewScreenshot = onRequest(
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown'
     const userAgent = req.headers['user-agent'] || 'unknown'
 
+    // Audit retention: 1 year (365 days in milliseconds)
+    const AUDIT_RETENTION_MS = 365 * 24 * 60 * 60 * 1000
+
     try {
       const viewRef = childRef.collection('screenshotViews').doc()
       await viewRef.set({
@@ -234,6 +237,7 @@ export const viewScreenshot = onRequest(
         ipAddress: typeof ipAddress === 'string' ? ipAddress : ipAddress[0],
         userAgent,
         watermarkGenerated: true,
+        retentionExpiresAt: viewTimestamp + AUDIT_RETENTION_MS,
       })
     } catch (error) {
       // Log failure but don't block serving (audit is secondary)
