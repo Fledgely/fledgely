@@ -15,6 +15,15 @@
 
 import { captureScreenshot, ScreenshotCapture } from './capture'
 import { uploadScreenshot, calculateRetryDelay, shouldRetry, getRemainingUploads } from './upload'
+import {
+  logCaptureEvent,
+  getCaptureEvents,
+  clearCaptureEvents,
+  getEventStats,
+  hasConsecutiveCriticalErrors,
+  countConsecutiveSuccesses,
+  ERROR_CODES,
+} from './event-logger'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
@@ -33,6 +42,11 @@ const MAX_IDLE_THRESHOLD_SECONDS = 1800 // 30 minutes
 
 // Current idle state (in-memory, not persisted)
 let isDeviceIdle = false
+
+// Error badge constants (Story 10.6)
+const ERROR_BADGE_COLOR = '#ef4444' // Red
+const CONSECUTIVE_ERRORS_THRESHOLD = 3
+const CONSECUTIVE_SUCCESSES_TO_CLEAR = 5
 
 /**
  * Validate and clamp capture interval to allowed range
@@ -155,6 +169,7 @@ interface QueuedScreenshot {
 /**
  * Add a screenshot to the upload queue
  * Queue persists in chrome.storage.local for offline support
+ * Story 10.6: Now logs queue overflow events
  */
 async function queueScreenshot(capture: ScreenshotCapture, childId: string): Promise<void> {
   const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
@@ -176,6 +191,12 @@ async function queueScreenshot(capture: ScreenshotCapture, childId: string): Pro
     const dropped = screenshotQueue.length - MAX_QUEUE_SIZE
     screenshotQueue.splice(0, dropped)
     console.warn(`[Fledgely] Queue overflow: dropped ${dropped} oldest screenshots`)
+
+    // Log queue overflow event (Story 10.6)
+    await logCaptureEvent('queue_overflow', false, {
+      queueSize: MAX_QUEUE_SIZE,
+      errorCode: ERROR_CODES.QUEUE_FULL,
+    })
   }
 
   await chrome.storage.local.set({ screenshotQueue })
@@ -194,6 +215,7 @@ export async function getQueueSize(): Promise<number> {
 /**
  * Process the screenshot queue - upload pending items
  * Story 10.4: Screenshot Upload to API
+ * Story 10.6: Now logs all upload events
  */
 async function processScreenshotQueue(): Promise<void> {
   const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
@@ -208,6 +230,9 @@ async function processScreenshotQueue(): Promise<void> {
     console.log('[Fledgely] Rate limit reached, will retry on next sync')
     return
   }
+
+  // Get state for badge updates
+  const { state } = await chrome.storage.local.get('state')
 
   // Process queue items that are ready for upload
   const now = Date.now()
@@ -236,15 +261,29 @@ async function processScreenshotQueue(): Promise<void> {
     if (!shouldRetry(item.retryCount)) {
       console.warn(`[Fledgely] Dropping screenshot ${item.id} after max retries`)
       failCount++
+
+      // Log retry exhausted event (Story 10.6)
+      await logCaptureEvent('retry_exhausted', false, {
+        queueSize: screenshotQueue.length,
+        errorCode: ERROR_CODES.MAX_RETRIES_EXCEEDED,
+      })
       continue // Don't re-add to queue
     }
 
     // Attempt upload
+    const uploadStart = Date.now()
     const result = await uploadScreenshot(item.capture, item.childId, item.queuedAt)
+    const uploadDuration = Date.now() - uploadStart
     uploadsThisRun++
 
     if (result.success) {
       successCount++
+
+      // Log upload success event (Story 10.6)
+      await logCaptureEvent('upload_success', true, {
+        duration: uploadDuration,
+        queueSize: updatedQueue.length + (screenshotQueue.length - uploadsThisRun),
+      })
       // Don't add back to queue - successfully uploaded
     } else {
       if (result.shouldRetry) {
@@ -256,6 +295,13 @@ async function processScreenshotQueue(): Promise<void> {
         })
       }
       failCount++
+
+      // Log upload failure event (Story 10.6)
+      await logCaptureEvent('upload_failed', false, {
+        duration: uploadDuration,
+        queueSize: updatedQueue.length + (screenshotQueue.length - uploadsThisRun),
+        errorCode: ERROR_CODES.UPLOAD_NETWORK_ERROR,
+      })
     }
   }
 
@@ -266,10 +312,16 @@ async function processScreenshotQueue(): Promise<void> {
     `[Fledgely] Queue processed: ${successCount} uploaded, ${failCount} failed, ` +
       `${updatedQueue.length} remaining`
   )
+
+  // Update error badge after processing (Story 10.6)
+  if (state) {
+    await updateErrorBadge(state)
+  }
 }
 
 /**
  * Handle screenshot capture triggered by alarm
+ * Story 10.6: Now logs all capture events
  */
 async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
   if (!state.childId) {
@@ -280,23 +332,53 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
   // Story 10.5: Skip capture if device is idle or locked
   if (isDeviceIdle) {
     console.log('[Fledgely] Device is idle/locked, skipping capture')
+    // Note: idle_pause/resume events logged in idle listener, not here
     return
   }
 
+  const startTime = Date.now()
   const result = await captureScreenshot({ quality: 80 })
+  const duration = Date.now() - startTime
+  const queueSize = await getQueueSize()
 
   if (result.success) {
     // Queue the screenshot for upload (Story 10.4 will implement actual upload)
     await queueScreenshot(result.capture, state.childId)
 
+    // Log success event (Story 10.6)
+    await logCaptureEvent('capture_success', true, {
+      duration,
+      queueSize: queueSize + 1, // After adding to queue
+    })
+
     // Update lastSync to show activity
     await updateLastSync()
+
+    // Check if we should clear error badge
+    await updateErrorBadge(state)
   } else if (result.skipped) {
     // Non-capturable URL (chrome://, etc.) - this is expected, not an error
     console.log(`[Fledgely] Capture skipped: ${result.error}`)
+
+    // Log skipped event (Story 10.6)
+    await logCaptureEvent('capture_skipped', true, {
+      duration,
+      queueSize,
+      errorCode: ERROR_CODES.NON_CAPTURABLE_URL,
+    })
   } else {
     // Actual error occurred
     console.error(`[Fledgely] Capture failed: ${result.error}`)
+
+    // Log failure event (Story 10.6)
+    await logCaptureEvent('capture_failed', false, {
+      duration,
+      queueSize,
+      errorCode: ERROR_CODES.CAPTURE_FAILED,
+    })
+
+    // Update error badge
+    await updateErrorBadge(state)
   }
 }
 
@@ -319,6 +401,41 @@ async function updateActionTitle(state: ExtensionState): Promise<void> {
     await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' }) // Amber
   } else {
     await chrome.action.setBadgeText({ text: '' })
+  }
+}
+
+/**
+ * Set error badge on extension icon when critical errors occur
+ * Story 10.6: Capture Event Logging
+ */
+async function setErrorBadge(): Promise<void> {
+  await chrome.action.setBadgeText({ text: '!' })
+  await chrome.action.setBadgeBackgroundColor({ color: ERROR_BADGE_COLOR })
+}
+
+/**
+ * Check and update error badge based on event log
+ * Called after logging events to show/clear error badge
+ * Story 10.6: Capture Event Logging
+ */
+async function updateErrorBadge(state: ExtensionState): Promise<void> {
+  // Only show error badge if monitoring is enabled
+  if (!state.monitoringEnabled) {
+    return
+  }
+
+  // Check if we should show error badge
+  const hasErrors = await hasConsecutiveCriticalErrors(CONSECUTIVE_ERRORS_THRESHOLD)
+  if (hasErrors) {
+    await setErrorBadge()
+    return
+  }
+
+  // Check if we should clear error badge (enough consecutive successes)
+  const successCount = await countConsecutiveSuccesses()
+  if (successCount >= CONSECUTIVE_SUCCESSES_TO_CLEAR) {
+    // Restore normal badge
+    await updateActionTitle(state)
   }
 }
 
@@ -484,6 +601,42 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'GET_CAPTURE_LOGS':
+      // Get capture event logs for debug panel
+      // Story 10.6: Capture Event Logging
+      getCaptureEvents(message.limit || 100)
+        .then((events) => {
+          sendResponse({ success: true, events })
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
+    case 'CLEAR_CAPTURE_LOGS':
+      // Clear capture event logs
+      // Story 10.6: Capture Event Logging
+      clearCaptureEvents()
+        .then(() => {
+          sendResponse({ success: true })
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
+    case 'GET_CAPTURE_STATS':
+      // Get capture event statistics
+      // Story 10.6: Capture Event Logging
+      getEventStats(message.hours || 24)
+        .then((stats) => {
+          sendResponse({ success: true, stats })
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
   }
@@ -517,8 +670,8 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 })
 
-// Idle state change listener (Story 10.5)
-chrome.idle.onStateChanged.addListener((newState) => {
+// Idle state change listener (Story 10.5, Story 10.6 logging)
+chrome.idle.onStateChanged.addListener(async (newState) => {
   const previousState = isDeviceIdle
 
   // Update idle state based on chrome.idle state
@@ -528,8 +681,16 @@ chrome.idle.onStateChanged.addListener((newState) => {
   if (previousState !== isDeviceIdle) {
     if (isDeviceIdle) {
       console.log(`[Fledgely] Device became ${newState} - capture paused`)
+
+      // Log idle pause event (Story 10.6)
+      const queueSize = await getQueueSize()
+      await logCaptureEvent('idle_pause', true, { queueSize })
     } else {
       console.log('[Fledgely] Device became active - capture resumed')
+
+      // Log idle resume event (Story 10.6)
+      const queueSize = await getQueueSize()
+      await logCaptureEvent('idle_resume', true, { queueSize })
     }
   }
 })

@@ -205,13 +205,13 @@ development_status:
   epic-9-retrospective: done
 
   # Epic 10: Chromebook Screenshot Capture
-  epic-10: in-progress
+  epic-10: done
   10-1-screenshot-capture-mechanism: done
   10-2-configurable-capture-intervals: done
   10-3-local-screenshot-queue: done
   10-4-screenshot-upload-to-api: done
   10-5-capture-pause-during-inactivity: done
-  10-6-capture-event-logging: backlog
+  10-6-capture-event-logging: done
   epic-10-retrospective: optional
 
   # Epic 11: Chromebook Crisis Protection
