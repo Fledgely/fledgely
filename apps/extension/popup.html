@@ -19,7 +19,7 @@
           Oxygen,
           Ubuntu,
           sans-serif;
-        width: 300px;
+        width: 320px;
         min-height: 200px;
         background: #fafafa;
       }
@@ -38,42 +38,238 @@
         align-items: center;
         gap: 8px;
         padding: 8px 16px;
-        background: #fff3cd;
-        border: 1px solid #ffc107;
         border-radius: 20px;
         font-size: 14px;
-        color: #856404;
         margin-bottom: 16px;
+      }
+      .status-not-connected {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+      }
+      .status-connected {
+        background: #d4edda;
+        border: 1px solid #28a745;
+        color: #155724;
+      }
+      .status-monitoring {
+        background: #d1ecf1;
+        border: 1px solid #17a2b8;
+        color: #0c5460;
       }
       .status-dot {
         width: 8px;
         height: 8px;
-        background: #ffc107;
         border-radius: 50%;
+      }
+      .status-not-connected .status-dot {
+        background: #ffc107;
+      }
+      .status-connected .status-dot {
+        background: #28a745;
+      }
+      .status-monitoring .status-dot {
+        background: #17a2b8;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
       }
       .message {
         font-size: 14px;
         color: #666;
         line-height: 1.5;
+        margin-bottom: 16px;
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        text-align: left;
+      }
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #4f46e5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+      }
+      .user-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+      }
+      .user-details {
+        flex: 1;
+        min-width: 0;
+      }
+      .user-name {
+        font-weight: 600;
+        color: #1a1a1a;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-email {
+        font-size: 12px;
+        color: #666;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        min-height: 44px;
+        min-width: 200px;
+        transition: all 0.2s;
+      }
+      .btn:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 2px;
+      }
+      .btn-primary {
+        background: #4f46e5;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #4338ca;
+      }
+      .btn-secondary {
+        background: #e2e8f0;
+        color: #475569;
+      }
+      .btn-secondary:hover {
+        background: #cbd5e1;
+      }
+      .btn-link {
+        background: transparent;
+        color: #4f46e5;
+        padding: 8px;
+        min-width: auto;
+      }
+      .btn-link:hover {
+        text-decoration: underline;
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .error {
+        padding: 12px;
+        background: #fee2e2;
+        border: 1px solid #ef4444;
+        border-radius: 8px;
+        color: #b91c1c;
+        font-size: 13px;
+        margin-bottom: 16px;
+        text-align: left;
       }
       .version {
-        margin-top: 20px;
+        margin-top: 16px;
         font-size: 12px;
         color: #999;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid transparent;
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="logo">Fledgely</div>
-      <div class="status">
-        <span class="status-dot"></span>
-        Not Connected
+
+      <!-- Not Authenticated State -->
+      <div id="state-not-auth">
+        <div class="status status-not-connected">
+          <span class="status-dot"></span>
+          Not Signed In
+        </div>
+        <p class="message">
+          Sign in with your Google account to connect this device to your
+          family.
+        </p>
+        <div id="error-container" class="error hidden"></div>
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="sign-in-btn"
+          aria-label="Sign in with Google"
+        >
+          <span id="sign-in-text">Sign in with Google</span>
+          <span id="sign-in-spinner" class="spinner hidden"></span>
+        </button>
       </div>
-      <p class="message">
-        Complete setup in the Fledgely web dashboard to connect this device.
-      </p>
-      <div class="version">v0.0.1</div>
+
+      <!-- Authenticated State -->
+      <div id="state-auth" class="hidden">
+        <div class="status status-connected" id="auth-status">
+          <span class="status-dot"></span>
+          <span id="status-text">Signed In</span>
+        </div>
+
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div class="user-details">
+            <div class="user-name" id="user-name">User</div>
+            <div class="user-email" id="user-email">email@example.com</div>
+          </div>
+        </div>
+
+        <p class="message" id="auth-message">
+          Connected to your Fledgely account.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-link"
+          id="sign-out-btn"
+          aria-label="Sign out"
+        >
+          Sign Out
+        </button>
+      </div>
+
+      <div class="version">v0.1.0</div>
     </div>
+
+    <script src="popup.js"></script>
   </body>
 </html>

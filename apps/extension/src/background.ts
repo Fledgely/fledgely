@@ -109,6 +109,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'AUTH_STATE_CHANGED':
+      // Update extension state and badge when auth changes
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const newState: ExtensionState = {
+          ...(state || DEFAULT_STATE),
+          isAuthenticated: message.authState?.isAuthenticated || false,
+          userId: message.authState?.userId || null,
+        }
+        await chrome.storage.local.set({ state: newState })
+        await updateActionTitle(newState)
+        sendResponse({ success: true })
+      })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
   }
