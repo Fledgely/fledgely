@@ -35,6 +35,7 @@ export {
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'
+export { cleanupExpiredScreenshots } from './scheduled'
 
 // Export HTTP functions
 export { uploadScreenshot } from './http/sync'
