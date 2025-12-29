@@ -312,6 +312,31 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
       }
+
+      /* Monitoring Info Styles */
+      .monitoring-info {
+        background: #f0fdf4;
+        border: 1px solid #22c55e;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      .info-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: #166534;
+      }
+      .info-row + .info-row {
+        margin-top: 8px;
+      }
+      .info-icon {
+        font-size: 14px;
+      }
+      .info-text {
+        flex: 1;
+      }
     </style>
   </head>
   <body>
@@ -384,16 +409,27 @@
 
       <!-- Authenticated - Child Connected -->
       <div id="state-auth-connected" class="hidden">
-        <div class="status status-monitoring" id="auth-status">
-          <span class="status-dot"></span>
+        <div class="status status-monitoring" id="auth-status" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
           <span id="status-text">Monitoring Active</span>
         </div>
 
         <div class="connected-child">
-          <div class="child-avatar" id="connected-child-avatar" style="background: #4f46e5">?</div>
+          <div class="child-avatar" id="connected-child-avatar" style="background: #4f46e5" aria-hidden="true">?</div>
           <div class="child-details">
             <div class="connected-label">Connected to</div>
             <div class="child-name" id="connected-child-name">Child Name</div>
+          </div>
+        </div>
+
+        <div class="monitoring-info" role="region" aria-label="Monitoring status">
+          <div class="info-row">
+            <span class="info-icon" aria-hidden="true">📸</span>
+            <span class="info-text">Screenshots are being captured</span>
+          </div>
+          <div class="info-row">
+            <span class="info-icon" aria-hidden="true">🕐</span>
+            <span class="info-text">Last sync: <span id="last-sync-time">Just now</span></span>
           </div>
         </div>
 

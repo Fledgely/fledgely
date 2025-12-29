@@ -49,6 +49,7 @@ const signOutBtn1 = document.getElementById('sign-out-btn-1') as HTMLButtonEleme
 const stateAuthConnected = document.getElementById('state-auth-connected')!
 const connectedChildAvatar = document.getElementById('connected-child-avatar')!
 const connectedChildName = document.getElementById('connected-child-name')!
+const lastSyncTime = document.getElementById('last-sync-time')!
 const changeChildBtn = document.getElementById('change-child-btn') as HTMLButtonElement
 const signOutBtn2 = document.getElementById('sign-out-btn-2') as HTMLButtonElement
 
@@ -151,6 +152,29 @@ async function connectToChild(): Promise<void> {
 }
 
 /**
+ * Format relative time for last sync display
+ */
+function formatRelativeTime(timestamp: number | null): string {
+  if (!timestamp) return 'Never'
+
+  const now = Date.now()
+  const diff = now - timestamp
+
+  if (diff < 60000) return 'Just now'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`
+  return `${Math.floor(diff / 86400000)} days ago`
+}
+
+/**
+ * Update last sync time display
+ */
+async function updateLastSyncDisplay(): Promise<void> {
+  const { state } = await chrome.storage.local.get('state')
+  lastSyncTime.textContent = formatRelativeTime(state?.lastSync)
+}
+
+/**
  * Disconnect from child (change selection)
  */
 async function disconnectChild(): Promise<void> {
@@ -192,6 +216,9 @@ async function updateUI(authState: AuthState): Promise<void> {
     connectedChildAvatar.style.background = connectedChild.color
     connectedChildAvatar.textContent = connectedChild.name[0]
     connectedChildName.textContent = connectedChild.name
+
+    // Update last sync time
+    await updateLastSyncDisplay()
   } else {
     // Authenticated but no child selected
     stateNotAuth.classList.add('hidden')
