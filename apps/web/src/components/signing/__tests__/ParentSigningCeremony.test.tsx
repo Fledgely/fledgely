@@ -2,6 +2,7 @@
  * Tests for ParentSigningCeremony component.
  *
  * Story 6.2: Parent Digital Signature - AC1, AC2, AC3, AC4, AC5, AC6, AC7
+ * Story 6.3: Agreement Activation - AC1, AC4
  */
 
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -435,6 +436,119 @@ describe('ParentSigningCeremony', () => {
       render(<ParentSigningCeremony {...defaultProps} className="custom-class" />)
 
       expect(screen.getByTestId('parent-signing-ceremony')).toHaveClass('custom-class')
+    })
+  })
+
+  describe('activation confirmation (Story 6.3 AC4)', () => {
+    const completeSigningState = createSigningState({
+      status: 'complete',
+      childSignature: mockChildSignature,
+      parentSignatures: [
+        {
+          id: 'sig-parent-1',
+          party: 'parent',
+          method: 'typed',
+          name: 'Mom',
+          imageData: null,
+          signerId: 'parent-1',
+          signerName: 'Mom',
+          signedAt: new Date('2024-01-15T12:00:00'),
+          acknowledged: true,
+        },
+      ],
+    })
+
+    it('should show activation confirmation when all signed and activation data provided', () => {
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+          familyName="Smith"
+        />
+      )
+
+      expect(screen.getByTestId('activation-confirmation')).toBeInTheDocument()
+    })
+
+    it('should display agreement version in activation confirmation', () => {
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v2.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+        />
+      )
+
+      expect(screen.getByTestId('version-info')).toHaveTextContent('Version v2.0')
+    })
+
+    it('should display activation date in confirmation', () => {
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+        />
+      )
+
+      expect(screen.getByTestId('version-info')).toHaveTextContent('January 15, 2024')
+    })
+
+    it('should display family name in activation confirmation', () => {
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+          familyName="Smith"
+        />
+      )
+
+      expect(screen.getByTestId('confirmation-heading')).toHaveTextContent(
+        'Smith Agreement Activated!'
+      )
+    })
+
+    it('should call onContinue when continue button clicked', () => {
+      const onContinue = vi.fn()
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+          onContinue={onContinue}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId('continue-button'))
+
+      expect(onContinue).toHaveBeenCalledTimes(1)
+    })
+
+    it('should show signature confirmation when complete but no activation data', () => {
+      render(<ParentSigningCeremony {...defaultProps} signingState={completeSigningState} />)
+
+      expect(screen.getByTestId('signature-confirmation')).toBeInTheDocument()
+      expect(screen.queryByTestId('activation-confirmation')).not.toBeInTheDocument()
+    })
+
+    it('should include child name in activation message', () => {
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+        />
+      )
+
+      expect(screen.getByTestId('confirmation-message')).toHaveTextContent('Alex')
     })
   })
 })

@@ -2,9 +2,11 @@
  * Parent Signing Ceremony Component.
  *
  * Story 6.2: Parent Digital Signature - AC1, AC2, AC3, AC4, AC5, AC6, AC7
+ * Story 6.3: Agreement Activation - AC1, AC4
  *
  * Signing ceremony flow for parents to sign family agreements.
  * Parent can only sign after child has signed (FR19).
+ * Shows activation confirmation when all signatures collected.
  */
 
 'use client'
@@ -21,6 +23,7 @@ import { TypedSignature } from './TypedSignature'
 import { DrawnSignature } from './DrawnSignature'
 import { ConsentCheckbox } from './ConsentCheckbox'
 import { SignatureConfirmation } from './SignatureConfirmation'
+import { ActivationConfirmation } from '../agreements/ActivationConfirmation'
 
 interface ParentSigningCeremonyProps {
   /** Parent's name */
@@ -29,6 +32,8 @@ interface ParentSigningCeremonyProps {
   parentUid: string
   /** Child's name (for display) */
   childName: string
+  /** Family name (for display) */
+  familyName?: string
   /** Agreement title */
   agreementTitle: string
   /** Key terms to display */
@@ -44,6 +49,12 @@ interface ParentSigningCeremonyProps {
     imageData: string | null
     acknowledged: boolean
   }) => void
+  /** Called when user continues from activation confirmation */
+  onContinue?: () => void
+  /** Agreement version (set after activation) */
+  agreementVersion?: string
+  /** Activation timestamp (set after activation) */
+  activatedAt?: Date
   /** Whether signing is in progress */
   isSubmitting?: boolean
   /** Additional CSS classes */
@@ -56,11 +67,15 @@ export function ParentSigningCeremony({
   parentName,
   parentUid,
   childName,
+  familyName,
   agreementTitle,
   keyTerms,
   parentTerms,
   signingState,
   onSign,
+  onContinue,
+  agreementVersion,
+  activatedAt,
   isSubmitting = false,
   className = '',
 }: ParentSigningCeremonyProps) {
@@ -139,6 +154,21 @@ export function ParentSigningCeremony({
     )
   }
 
+  // Show activation confirmation if all signatures collected and agreement activated (AC4)
+  // This check comes FIRST because once activated, we always show activation confirmation
+  if (isComplete && agreementVersion && activatedAt) {
+    return (
+      <ActivationConfirmation
+        version={agreementVersion}
+        activatedAt={activatedAt}
+        childName={childName}
+        familyName={familyName}
+        onContinue={onContinue}
+        className={className}
+      />
+    )
+  }
+
   // Show confirmation if this parent already signed
   if (alreadySigned) {
     // Check if we're waiting for second parent in shared custody
@@ -178,7 +208,7 @@ export function ParentSigningCeremony({
     return <SignatureConfirmation signerName={parentName} party="parent" className={className} />
   }
 
-  // Show completion screen if all signatures collected
+  // Show completion screen if all signatures collected (but not yet activated)
   if (isComplete) {
     return <SignatureConfirmation signerName={parentName} party="parent" className={className} />
   }
@@ -460,8 +490,19 @@ export function ParentSigningCeremony({
         </section>
       )}
 
-      {/* Step: Confirmation */}
-      {step === 'confirmation' && <SignatureConfirmation signerName={parentName} party="parent" />}
+      {/* Step: Confirmation - show activation confirmation if activated, otherwise signature confirmation */}
+      {step === 'confirmation' &&
+        (agreementVersion && activatedAt ? (
+          <ActivationConfirmation
+            version={agreementVersion}
+            activatedAt={activatedAt}
+            childName={childName}
+            familyName={familyName}
+            onContinue={onContinue}
+          />
+        ) : (
+          <SignatureConfirmation signerName={parentName} party="parent" />
+        ))}
     </main>
   )
 }

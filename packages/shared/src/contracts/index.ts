@@ -819,3 +819,155 @@ export function getSigningProgress(signing: AgreementSigning): {
     isComplete: isSigningComplete(signing),
   }
 }
+
+// ============================================================================
+// EPIC 6: AGREEMENT ACTIVATION
+// Story 6.3: Agreement Activation
+// ============================================================================
+
+/**
+ * Active agreement status.
+ *
+ * Story 6.3: Agreement Activation - AC1, AC7
+ */
+export const activeAgreementStatusSchema = z.enum(['active', 'archived'])
+export type ActiveAgreementStatus = z.infer<typeof activeAgreementStatusSchema>
+
+/**
+ * Active agreement schema.
+ *
+ * Story 6.3: Agreement Activation - AC1, AC2, AC3, AC6, AC7
+ *
+ * Represents a fully signed and activated family agreement.
+ * Only ONE active agreement per child at any time (AC7).
+ * Stored in Firestore at /activeAgreements/{agreementId}.
+ */
+export const activeAgreementSchema = z.object({
+  /** Unique identifier */
+  id: z.string(),
+  /** Reference to the family */
+  familyId: z.string(),
+  /** Reference to the child profile */
+  childId: z.string(),
+  /** Agreement version (e.g., "v1.0", "v2.0") - AC2 */
+  version: z.string(),
+  /** Reference to the signing session */
+  signingSessionId: z.string(),
+  /** Reference to the co-creation session */
+  coCreationSessionId: z.string(),
+  /** Snapshot of final terms - AC6 */
+  terms: z.array(agreementTermSchema),
+  /** When the agreement was activated - AC3 */
+  activatedAt: z.date(),
+  /** UID of parent who submitted final signature */
+  activatedByUid: z.string(),
+  /** Current status ('active' or 'archived') - AC1, AC7 */
+  status: activeAgreementStatusSchema,
+  /** When the agreement was archived (null if active) - AC7 */
+  archivedAt: z.date().nullable(),
+  /** ID of new agreement that replaced this one - AC7 */
+  archivedByAgreementId: z.string().nullable(),
+})
+export type ActiveAgreement = z.infer<typeof activeAgreementSchema>
+
+/**
+ * Generate the next version number for an agreement.
+ *
+ * Story 6.3: Agreement Activation - AC2
+ * - First agreement: v1.0
+ * - Future: v1.1 for minor changes, v2.0 for major renewals
+ *
+ * @param previousVersion - Previous version string (null for first agreement)
+ * @returns Next version string
+ */
+export function generateNextVersion(previousVersion: string | null): string {
+  if (previousVersion === null) {
+    return 'v1.0'
+  }
+
+  // Parse version string (e.g., "v1.0" -> major: 1, minor: 0)
+  const match = previousVersion.match(/^v(\d+)\.(\d+)$/)
+  if (!match) {
+    return 'v1.0' // Fallback for invalid version
+  }
+
+  const major = parseInt(match[1], 10)
+  // For now, increment major version for renewals (Epic 35 will refine this)
+  return `v${major + 1}.0`
+}
+
+/**
+ * Activate an agreement after all signatures are collected.
+ *
+ * Story 6.3: Agreement Activation - AC1, AC2, AC3, AC6
+ *
+ * @param signing - Completed signing session
+ * @param terms - Final terms snapshot from co-creation session
+ * @param previousVersion - Previous active agreement version (null for first)
+ * @param activatedByUid - UID of parent who submitted final signature
+ * @returns ActiveAgreement object ready for Firestore
+ */
+export function createActiveAgreement(
+  signing: AgreementSigning,
+  terms: AgreementTerm[],
+  previousVersion: string | null,
+  activatedByUid: string
+): ActiveAgreement {
+  if (!isSigningComplete(signing)) {
+    throw new Error('Cannot activate agreement: not all signatures collected')
+  }
+
+  const now = new Date()
+
+  return {
+    id: `agreement-${signing.familyId}-${signing.childId}-${now.getTime()}`,
+    familyId: signing.familyId,
+    childId: signing.childId,
+    version: generateNextVersion(previousVersion),
+    signingSessionId: signing.id,
+    coCreationSessionId: signing.sessionId,
+    terms,
+    activatedAt: now,
+    activatedByUid,
+    status: 'active',
+    archivedAt: null,
+    archivedByAgreementId: null,
+  }
+}
+
+/**
+ * Archive an existing active agreement.
+ *
+ * Story 6.3: Agreement Activation - AC7
+ *
+ * @param agreement - Agreement to archive
+ * @param newAgreementId - ID of new agreement replacing this one
+ * @returns Archived agreement object
+ */
+export function archiveAgreement(
+  agreement: ActiveAgreement,
+  newAgreementId: string
+): ActiveAgreement {
+  return {
+    ...agreement,
+    status: 'archived',
+    archivedAt: new Date(),
+    archivedByAgreementId: newAgreementId,
+  }
+}
+
+/**
+ * Check if there's an active agreement for a child.
+ *
+ * Story 6.3: Agreement Activation - AC7
+ *
+ * @param agreements - List of agreements to check
+ * @param childId - Child ID to check for
+ * @returns The active agreement if found, null otherwise
+ */
+export function findActiveAgreementForChild(
+  agreements: ActiveAgreement[],
+  childId: string
+): ActiveAgreement | null {
+  return agreements.find((a) => a.childId === childId && a.status === 'active') ?? null
+}
