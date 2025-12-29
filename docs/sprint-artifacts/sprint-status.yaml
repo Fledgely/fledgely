@@ -297,7 +297,7 @@ development_status:
   18-6-view-rate-limiting: done
   18-7-screenshot-access-audit-log: done
   18-8-storage-quota-monitoring: done
-  epic-18-retrospective: optional
+  epic-18-retrospective: done
 
   # Epic 19: Device Status & Monitoring Health
   epic-19: backlog
