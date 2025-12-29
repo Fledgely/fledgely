@@ -232,7 +232,7 @@ development_status:
   12-4-device-registration-in-firestore: done
   12-5-child-assignment-to-device: done
   12-6-enrollment-state-persistence: done
-  epic-12-retrospective: optional
+  epic-12-retrospective: done
 
   # Epic 13: Offline OTP Device Unlock
   epic-13: backlog
