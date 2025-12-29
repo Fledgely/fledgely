@@ -128,7 +128,7 @@ development_status:
   epic-5-retrospective: done
 
   # Epic 6: Agreement Signing & Activation
-  epic-6: in-progress
+  epic-6: done # 5/7 stories done, 2 blocked on Epic 9+
   6-1-child-digital-signature-ceremony: done
   6-2-parent-digital-signature: done
   6-3-agreement-activation: done
@@ -136,7 +136,7 @@ development_status:
   6-5-device-consent-gate: blocked # Depends on Epic 9+ (device enrollment)
   6-6-consent-withdrawal-handling: blocked # Depends on Epic 9+ (device enrollment)
   6-7-signature-accessibility: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
 
   # Epic 7: Crisis Allowlist Foundation
   epic-7: backlog
