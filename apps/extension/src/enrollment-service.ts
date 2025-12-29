@@ -1,14 +1,15 @@
 /**
- * Enrollment Service - Story 12.3
+ * Enrollment Service - Story 12.3, 12.4
  *
- * Handles enrollment request submission and status monitoring.
- * Works with Cloud Functions for the approval flow.
+ * Handles enrollment request submission, status monitoring, and device registration.
+ * Works with Cloud Functions for the approval and registration flow.
  *
  * Requirements:
- * - AC1: Submit enrollment request to server
- * - AC4: Handle approval timeout
- * - AC5: Handle rejection
- * - AC6: Handle approval success
+ * - Story 12.3 AC1: Submit enrollment request to server
+ * - Story 12.3 AC4: Handle approval timeout
+ * - Story 12.3 AC5: Handle rejection
+ * - Story 12.3 AC6: Handle approval success
+ * - Story 12.4 AC1-AC3: Register device after approval
  */
 
 /**
@@ -31,6 +32,17 @@ export type EnrollmentRequestStatus = 'pending' | 'approved' | 'rejected' | 'exp
 export interface SubmitEnrollmentResponse {
   success: boolean
   requestId?: string
+  message: string
+  error?: string
+}
+
+/**
+ * Response from device registration
+ * Story 12.4
+ */
+export interface RegisterDeviceResponse {
+  success: boolean
+  deviceId?: string
   message: string
   error?: string
 }
@@ -244,4 +256,50 @@ export function formatTimeRemaining(milliseconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+/**
+ * Register device after enrollment approval
+ * Story 12.4: Device Registration in Firestore
+ * AC3: Returns deviceId for extension to store
+ */
+export async function registerDevice(
+  familyId: string,
+  requestId: string
+): Promise<RegisterDeviceResponse> {
+  try {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/registerDevice`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        familyId,
+        requestId,
+      }),
+    })
+
+    const result = await response.json()
+
+    if (result.error) {
+      return {
+        success: false,
+        message: result.error.message || 'Failed to register device',
+        error: result.error.code || 'unknown',
+      }
+    }
+
+    return {
+      success: true,
+      deviceId: result.result.deviceId,
+      message: result.result.message || 'Device registered successfully',
+    }
+  } catch (error) {
+    console.error('[Fledgely] Device registration failed:', error)
+    return {
+      success: false,
+      message: 'Network error - please check your connection',
+      error: 'network_error',
+    }
+  }
 }

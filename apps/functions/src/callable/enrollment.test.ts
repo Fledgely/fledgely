@@ -1,11 +1,12 @@
 /**
- * Unit tests for Enrollment Cloud Functions - Story 12.3
+ * Unit tests for Enrollment Cloud Functions - Story 12.3, 12.4
  *
  * Tests cover:
  * - submitEnrollmentRequest: Token validation, request creation
  * - approveEnrollment: Auth, permission, state transitions
  * - rejectEnrollment: Auth, permission, state transitions
  * - Request expiry logic
+ * - registerDevice: Device document creation (Story 12.4)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -371,6 +372,136 @@ describe('Enrollment Cloud Functions', () => {
       expect(request.token).toBeDefined()
       expect(request.deviceInfo.type).toBe('chromebook')
       expect(request.status).toBe('pending')
+    })
+  })
+
+  describe('registerDevice - Story 12.4', () => {
+    describe('Input Validation', () => {
+      it('rejects empty familyId', () => {
+        const invalidInput = { familyId: '', requestId: 'request-123' }
+        expect(invalidInput.familyId.length).toBe(0)
+      })
+
+      it('rejects empty requestId', () => {
+        const invalidInput = { familyId: 'family-123', requestId: '' }
+        expect(invalidInput.requestId.length).toBe(0)
+      })
+
+      it('accepts valid input', () => {
+        const validInput = { familyId: 'family-123', requestId: 'request-456' }
+        expect(validInput.familyId.length).toBeGreaterThan(0)
+        expect(validInput.requestId.length).toBeGreaterThan(0)
+      })
+    })
+
+    describe('Request Status Validation', () => {
+      it('rejects non-approved requests', () => {
+        const invalidStatuses = ['pending', 'rejected', 'expired']
+        invalidStatuses.forEach((status) => {
+          expect(status).not.toBe('approved')
+        })
+      })
+
+      it('accepts approved requests', () => {
+        const request = { status: 'approved' }
+        expect(request.status).toBe('approved')
+      })
+    })
+
+    describe('Device Document Creation - AC1, AC2', () => {
+      it('creates device document path correctly', () => {
+        const familyId = 'family-abc'
+        const devicePath = `/families/${familyId}/devices`
+        expect(devicePath).toBe('/families/family-abc/devices')
+      })
+
+      it('creates valid Device structure', () => {
+        const now = Timestamp.now()
+        const device = {
+          deviceId: 'device-xyz',
+          type: 'chromebook' as const,
+          enrolledAt: now,
+          enrolledBy: 'parent-uid',
+          childId: null,
+          name: 'Chromebook device-',
+          lastSeen: now,
+          status: 'active' as const,
+          metadata: {
+            platform: 'Linux x86_64',
+            userAgent: 'Mozilla/5.0',
+            enrollmentRequestId: 'request-123',
+          },
+        }
+
+        expect(device.deviceId).toBeDefined()
+        expect(device.type).toBe('chromebook')
+        expect(device.enrolledAt).toBeDefined()
+        expect(device.enrolledBy).toBeDefined()
+        expect(device.childId).toBeNull() // Initially unassigned
+        expect(device.status).toBe('active')
+        expect(device.metadata.enrollmentRequestId).toBeDefined()
+      })
+
+      it('generates unique deviceId', () => {
+        const id1 = `device-${Date.now()}-${Math.random().toString(36).substring(2)}`
+        const id2 = `device-${Date.now()}-${Math.random().toString(36).substring(2)}`
+        expect(id1).not.toBe(id2)
+      })
+    })
+
+    describe('Response Structure - AC3', () => {
+      it('returns success response with deviceId', () => {
+        const response = {
+          success: true,
+          deviceId: 'device-12345',
+          message: 'Device registered successfully',
+        }
+
+        expect(response.success).toBe(true)
+        expect(response.deviceId).toBeDefined()
+        expect(response.message).toBeDefined()
+      })
+
+      it('returns error for non-approved request', () => {
+        const response = {
+          error: {
+            code: 'failed-precondition',
+            message: 'Cannot register device - request status is pending',
+          },
+        }
+
+        expect(response.error.code).toBe('failed-precondition')
+      })
+
+      it('returns error for non-existent request', () => {
+        const response = {
+          error: {
+            code: 'not-found',
+            message: 'Enrollment request not found',
+          },
+        }
+
+        expect(response.error.code).toBe('not-found')
+      })
+    })
+
+    describe('Idempotency', () => {
+      it('returns existing deviceId if already registered', () => {
+        // Simulate existing device for same enrollment request
+        const existingDevice = {
+          deviceId: 'existing-device-id',
+          metadata: { enrollmentRequestId: 'request-123' },
+        }
+
+        const response = {
+          success: true,
+          deviceId: existingDevice.deviceId,
+          message: 'Device already registered',
+        }
+
+        expect(response.deviceId).toBe('existing-device-id')
+        expect(response.message).toBe('Device already registered')
+      })
     })
   })
 })

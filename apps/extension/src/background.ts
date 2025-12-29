@@ -111,6 +111,7 @@ interface ExtensionState {
   decoyModeEnabled: boolean // Story 11.5: Generate decoys for crisis sites
   enrollmentState: EnrollmentState // Story 12.2: Device enrollment status
   pendingEnrollment: EnrollmentPending | null // Story 12.2: Pending enrollment data
+  deviceId: string | null // Story 12.4: Registered device ID
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -126,6 +127,7 @@ const DEFAULT_STATE: ExtensionState = {
   decoyModeEnabled: false, // Story 11.5: Default to off (opt-in)
   enrollmentState: 'not_enrolled', // Story 12.2: Device starts as not enrolled
   pendingEnrollment: null, // Story 12.2: No pending enrollment initially
+  deviceId: null, // Story 12.4: No device ID initially
 }
 
 /**
@@ -968,6 +970,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         if (newStatus === 'approved') {
           // AC6: Approval success - transition to enrolled state
+          // Note: This path is now deprecated - ENROLLMENT_COMPLETE is preferred
           const newState: ExtensionState = {
             ...currentState,
             enrollmentState: 'enrolled',
@@ -988,6 +991,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         sendResponse({ success: true, status: newStatus })
+      })
+      return true
+
+    case 'ENROLLMENT_COMPLETE':
+      // Complete enrollment with deviceId after successful registration
+      // Story 12.4: Device Registration in Firestore - AC4 credential storage
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          enrollmentState: 'enrolled',
+          familyId: message.familyId,
+          deviceId: message.deviceId,
+          pendingEnrollment: null,
+        }
+        await chrome.storage.local.set({ state: newState })
+        console.log('[Fledgely] Enrollment complete - deviceId:', message.deviceId)
+        sendResponse({ success: true })
       })
       return true
 

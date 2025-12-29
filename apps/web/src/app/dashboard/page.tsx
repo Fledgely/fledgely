@@ -19,7 +19,7 @@ import CustodyStatusBadge from '../../components/CustodyStatusBadge'
 import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
-import { AddDeviceModal } from '../../components/devices'
+import { AddDeviceModal, DevicesList } from '../../components/devices'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -675,7 +675,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Devices Section - Story 12.1 */}
+              {/* Devices Section - Story 12.1, 12.4 */}
               <div style={{ marginTop: '24px' }}>
                 <div
                   style={{
@@ -718,9 +718,7 @@ export default function DashboardPage() {
                     + Add Device
                   </button>
                 </div>
-                <p style={{ color: '#6b7280', fontSize: '14px', textAlign: 'center' as const }}>
-                  No devices enrolled yet. Add a Chromebook to start monitoring.
-                </p>
+                <DevicesList familyId={family.id} />
               </div>
             </>
           ) : (

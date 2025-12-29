@@ -22,6 +22,7 @@ export {
   getEnrollmentRequestStatus,
   approveEnrollment,
   rejectEnrollment,
+  registerDevice,
   expireEnrollmentRequests,
 } from './callable/enrollment'
 // export { flagContent } from './callable/flagContent'

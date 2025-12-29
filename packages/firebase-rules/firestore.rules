@@ -67,6 +67,89 @@ service cloud.firestore {
       // Delete: only guardians can delete their family (single-guardian only)
       // Multi-guardian families require support intervention
       allow delete: if isGuardian() && resource.data.guardians.size() == 1;
+
+      // =============================================================
+      // FAMILY SUBCOLLECTIONS - Story 12: Device Enrollment
+      // =============================================================
+
+      // Devices subcollection: enrolled devices for this family
+      //
+      // Story 12.4: Device Registration in Firestore
+      // Guardians can view family devices.
+      // Creation/updates are done via Cloud Functions for security.
+      //
+      match /devices/{deviceId} {
+        // Helper: Check if user is a guardian of the parent family document
+        function isFamilyDeviceGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardians[].uid;
+        }
+
+        // Read: Guardians can view enrolled devices
+        allow read: if isFamilyDeviceGuardian();
+
+        // Create: Only Cloud Functions can create (via Admin SDK)
+        // Direct client creation is denied for security
+        allow create: if false;
+
+        // Update: Guardians can update device settings (name, childId)
+        allow update: if isFamilyDeviceGuardian();
+
+        // Delete: Guardians can unenroll devices
+        allow delete: if isFamilyDeviceGuardian();
+      }
+
+      // Enrollment tokens subcollection: QR code tokens for device enrollment
+      //
+      // Story 12.1: Enrollment QR Code Generation
+      // Guardians can create and view tokens.
+      //
+      match /enrollmentTokens/{tokenId} {
+        function isEnrollmentTokenGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardians[].uid;
+        }
+
+        // Read: Guardians can view their tokens
+        allow read: if isEnrollmentTokenGuardian();
+
+        // Create: Guardians can create enrollment tokens
+        allow create: if isEnrollmentTokenGuardian();
+
+        // Update: Guardians can update token status
+        allow update: if isEnrollmentTokenGuardian();
+
+        // Delete: Guardians can delete tokens
+        allow delete: if isEnrollmentTokenGuardian();
+      }
+
+      // Enrollment requests subcollection: pending device enrollment requests
+      //
+      // Story 12.3: Device-to-Device Enrollment Approval
+      // Guardians can view and manage enrollment requests.
+      // Creation is done via Cloud Functions (from extension).
+      //
+      match /enrollmentRequests/{requestId} {
+        function isEnrollmentRequestGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardians[].uid;
+        }
+
+        // Read: Guardians can view enrollment requests
+        allow read: if isEnrollmentRequestGuardian();
+
+        // Create: Only Cloud Functions can create (from extension)
+        allow create: if false;
+
+        // Update: Guardians can approve/reject requests
+        allow update: if isEnrollmentRequestGuardian();
+
+        // Delete: Not allowed (keep audit trail)
+        allow delete: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

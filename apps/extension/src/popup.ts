@@ -15,7 +15,12 @@ import {
   stopCamera,
   validateEnrollmentPayload,
 } from './qr-scanner'
-import { submitEnrollmentRequest, pollEnrollmentStatus } from './enrollment-service'
+import {
+  submitEnrollmentRequest,
+  pollEnrollmentStatus,
+  registerDevice,
+  EnrollmentRequestStatus,
+} from './enrollment-service'
 
 // Enrollment state type (matches background.ts)
 type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
@@ -312,6 +317,7 @@ async function handleCancelEnrollment(): Promise<void> {
 /**
  * Start polling for enrollment approval status
  * Story 12.3: AC4, AC5, AC6 - Handle approval/rejection/expiry
+ * Story 12.4: Register device after approval
  */
 function startEnrollmentPolling(familyId: string, requestId: string): void {
   // Stop any existing polling
@@ -319,24 +325,59 @@ function startEnrollmentPolling(familyId: string, requestId: string): void {
     stopPolling()
   }
 
-  stopPolling = pollEnrollmentStatus(familyId, requestId, async (status) => {
-    // Update background state with new status
-    await new Promise<void>((resolve) => {
-      chrome.runtime.sendMessage(
-        {
-          type: 'UPDATE_ENROLLMENT_STATUS',
-          status,
-        },
-        () => resolve()
-      )
-    })
+  stopPolling = pollEnrollmentStatus(
+    familyId,
+    requestId,
+    async (status: EnrollmentRequestStatus) => {
+      // Stop polling
+      stopPolling = null
 
-    // Stop polling
-    stopPolling = null
+      // Story 12.4: If approved, register the device
+      if (status === 'approved') {
+        const registrationResult = await registerDevice(familyId, requestId)
 
-    // Update UI based on status
-    await updateUI(await getAuthState())
-  })
+        if (registrationResult.success && registrationResult.deviceId) {
+          // Update background state with enrollment complete and deviceId
+          await new Promise<void>((resolve) => {
+            chrome.runtime.sendMessage(
+              {
+                type: 'ENROLLMENT_COMPLETE',
+                familyId,
+                deviceId: registrationResult.deviceId,
+              },
+              () => resolve()
+            )
+          })
+        } else {
+          // Registration failed - show error and clear pending state
+          console.error('[Fledgely] Device registration failed:', registrationResult.message)
+          await new Promise<void>((resolve) => {
+            chrome.runtime.sendMessage(
+              {
+                type: 'UPDATE_ENROLLMENT_STATUS',
+                status: 'expired', // Treat failed registration like expired
+              },
+              () => resolve()
+            )
+          })
+        }
+      } else {
+        // Rejected or expired - update background state
+        await new Promise<void>((resolve) => {
+          chrome.runtime.sendMessage(
+            {
+              type: 'UPDATE_ENROLLMENT_STATUS',
+              status,
+            },
+            () => resolve()
+          )
+        })
+      }
+
+      // Update UI based on status
+      await updateUI(await getAuthState())
+    }
+  )
 }
 
 /**
