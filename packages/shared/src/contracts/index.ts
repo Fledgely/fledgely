@@ -391,3 +391,79 @@ export const agreementTemplateSchema = z.object({
   ruleExamples: z.record(z.string(), z.string()).optional(), // ruleIndex -> age-relevant example
 })
 export type AgreementTemplate = z.infer<typeof agreementTemplateSchema>
+
+/**
+ * Co-creation session status.
+ *
+ * Story 5.1: Co-Creation Session Initiation - AC2
+ * Tracks the lifecycle of an agreement co-creation session.
+ */
+export const sessionStatusSchema = z.enum(['draft', 'active', 'paused', 'completed'])
+export type SessionStatus = z.infer<typeof sessionStatusSchema>
+
+/**
+ * Party type for contribution attribution.
+ *
+ * Story 5.1: Co-Creation Session Initiation - AC3
+ * Identifies whether a contribution was made by parent or child.
+ */
+export const contributionPartySchema = z.enum(['parent', 'child'])
+export type ContributionParty = z.infer<typeof contributionPartySchema>
+
+/**
+ * Contribution type for session actions.
+ *
+ * Story 5.1: Co-Creation Session Initiation - AC3
+ * Categorizes the type of contribution made during co-creation.
+ */
+export const contributionTypeSchema = z.enum([
+  'add_term',
+  'modify_term',
+  'remove_term',
+  'comment',
+  'reaction',
+  'agree',
+  'question',
+])
+export type ContributionType = z.infer<typeof contributionTypeSchema>
+
+/**
+ * Individual contribution in a co-creation session.
+ *
+ * Story 5.1: Co-Creation Session Initiation - AC3
+ * Records a single action by parent or child during agreement creation.
+ */
+export const contributionSchema = z.object({
+  id: z.string(),
+  party: contributionPartySchema,
+  type: contributionTypeSchema,
+  content: z.unknown(), // Flexible content structure based on type
+  targetTermId: z.string().nullable(), // Reference to affected term
+  timestamp: z.date(),
+})
+export type Contribution = z.infer<typeof contributionSchema>
+
+/**
+ * Co-creation session schema.
+ *
+ * Represents an active or completed agreement co-creation session.
+ * Stored in Firestore at /coCreationSessions/{sessionId}.
+ *
+ * Story 5.1: Co-Creation Session Initiation - AC1, AC2, AC3, AC4, AC6
+ */
+export const coCreationSessionSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  childId: z.string(),
+  agreementDraftId: z.string().nullable(), // Reference to draft from Epic 4
+  templateId: z.string().nullable(), // Reference to template used
+  status: sessionStatusSchema,
+  contributions: z.array(contributionSchema),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  pausedAt: z.date().nullable(),
+  completedAt: z.date().nullable(),
+  lastActivityAt: z.date(),
+  createdByUid: z.string(), // Parent who initiated the session
+})
+export type CoCreationSession = z.infer<typeof coCreationSessionSchema>
