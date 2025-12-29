@@ -23,7 +23,13 @@ import {
   calculateRetentionExpiry,
   createScreenshotMetadata,
   DEFAULT_RETENTION_DAYS,
+  RETENTION_DAYS_OPTIONS,
+  retentionPolicySchema,
+  getRetentionDays,
+  isValidRetentionDays,
+  formatExpiryRemaining,
   type ScreenshotMetadata,
+  type RetentionPolicy,
 } from '@fledgely/shared'
 
 // Test helpers
@@ -559,5 +565,274 @@ describe('Create Screenshot Metadata Factory', () => {
 
     const expectedExpiry = metadata.uploadedAt + 60 * 24 * 60 * 60 * 1000
     expect(metadata.retentionExpiresAt).toBe(expectedExpiry)
+  })
+})
+
+// ============================================================================
+// Story 18.3: Configurable Retention Policy Tests
+// ============================================================================
+
+describe('Retention Days Options', () => {
+  // Story 18.3 AC2: Test allowed retention periods
+
+  it('should have exactly three retention options', () => {
+    expect(RETENTION_DAYS_OPTIONS.length).toBe(3)
+  })
+
+  it('should include 7, 30, and 90 days', () => {
+    expect(RETENTION_DAYS_OPTIONS).toContain(7)
+    expect(RETENTION_DAYS_OPTIONS).toContain(30)
+    expect(RETENTION_DAYS_OPTIONS).toContain(90)
+  })
+
+  it('should use 30 days as default', () => {
+    expect(DEFAULT_RETENTION_DAYS).toBe(30)
+    expect(RETENTION_DAYS_OPTIONS).toContain(DEFAULT_RETENTION_DAYS)
+  })
+})
+
+describe('isValidRetentionDays', () => {
+  // Story 18.3 AC2: Test retention validation
+
+  it('should accept 7 days', () => {
+    expect(isValidRetentionDays(7)).toBe(true)
+  })
+
+  it('should accept 30 days', () => {
+    expect(isValidRetentionDays(30)).toBe(true)
+  })
+
+  it('should accept 90 days', () => {
+    expect(isValidRetentionDays(90)).toBe(true)
+  })
+
+  it('should reject 0 days', () => {
+    expect(isValidRetentionDays(0)).toBe(false)
+  })
+
+  it('should reject 1 day', () => {
+    expect(isValidRetentionDays(1)).toBe(false)
+  })
+
+  it('should reject 14 days', () => {
+    expect(isValidRetentionDays(14)).toBe(false)
+  })
+
+  it('should reject 60 days', () => {
+    expect(isValidRetentionDays(60)).toBe(false)
+  })
+
+  it('should reject 365 days', () => {
+    expect(isValidRetentionDays(365)).toBe(false)
+  })
+
+  it('should reject negative values', () => {
+    expect(isValidRetentionDays(-1)).toBe(false)
+  })
+})
+
+describe('getRetentionDays', () => {
+  // Story 18.3 AC5: Test default retention fallback
+
+  it('should return default when policy is null', () => {
+    expect(getRetentionDays(null)).toBe(DEFAULT_RETENTION_DAYS)
+  })
+
+  it('should return default when policy is undefined', () => {
+    expect(getRetentionDays(undefined)).toBe(DEFAULT_RETENTION_DAYS)
+  })
+
+  it('should return policy value for 7 days', () => {
+    const policy: RetentionPolicy = {
+      retentionDays: 7,
+      updatedAt: Date.now(),
+      updatedByUid: 'user-123',
+    }
+    expect(getRetentionDays(policy)).toBe(7)
+  })
+
+  it('should return policy value for 90 days', () => {
+    const policy: RetentionPolicy = {
+      retentionDays: 90,
+      updatedAt: Date.now(),
+      updatedByUid: 'user-123',
+    }
+    expect(getRetentionDays(policy)).toBe(90)
+  })
+})
+
+describe('Retention Policy Schema', () => {
+  // Story 18.3 AC1, AC2: Test policy schema validation
+
+  const createValidPolicy = (): RetentionPolicy => ({
+    retentionDays: 30,
+    updatedAt: Date.now(),
+    updatedByUid: 'user-123',
+  })
+
+  it('should accept valid 7-day policy', () => {
+    const policy = { ...createValidPolicy(), retentionDays: 7 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(true)
+  })
+
+  it('should accept valid 30-day policy', () => {
+    const policy = createValidPolicy()
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(true)
+  })
+
+  it('should accept valid 90-day policy', () => {
+    const policy = { ...createValidPolicy(), retentionDays: 90 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(true)
+  })
+
+  it('should reject 14-day policy', () => {
+    const policy = { ...createValidPolicy(), retentionDays: 14 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject 60-day policy', () => {
+    const policy = { ...createValidPolicy(), retentionDays: 60 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject 0-day policy', () => {
+    const policy = { ...createValidPolicy(), retentionDays: 0 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject negative retention', () => {
+    const policy = { ...createValidPolicy(), retentionDays: -1 }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject missing updatedAt', () => {
+    const policy = { retentionDays: 30, updatedByUid: 'user-123' }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject missing updatedByUid', () => {
+    const policy = { retentionDays: 30, updatedAt: Date.now() }
+    const result = retentionPolicySchema.safeParse(policy)
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('formatExpiryRemaining', () => {
+  // Story 18.3 AC4: Test expiry display formatting
+
+  it('should show "Expired" for past dates', () => {
+    const pastExpiry = Date.now() - 1000
+    expect(formatExpiryRemaining(pastExpiry)).toBe('Expired')
+  })
+
+  it('should show "Expires today" for less than 24 hours', () => {
+    const soonExpiry = Date.now() + 12 * 60 * 60 * 1000 // 12 hours
+    expect(formatExpiryRemaining(soonExpiry)).toBe('Expires today')
+  })
+
+  it('should show "Expires tomorrow" for 24-48 hours', () => {
+    const tomorrowExpiry = Date.now() + 36 * 60 * 60 * 1000 // 36 hours
+    expect(formatExpiryRemaining(tomorrowExpiry)).toBe('Expires tomorrow')
+  })
+
+  it('should show "Expires in X days" for multiple days', () => {
+    const fiveDaysExpiry = Date.now() + 5 * 24 * 60 * 60 * 1000
+    expect(formatExpiryRemaining(fiveDaysExpiry)).toBe('Expires in 5 days')
+  })
+
+  it('should show "Expires in 30 days" for default retention', () => {
+    const thirtyDaysExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000
+    expect(formatExpiryRemaining(thirtyDaysExpiry)).toBe('Expires in 30 days')
+  })
+
+  it('should handle exact 0ms difference as Expired', () => {
+    const now = Date.now()
+    expect(formatExpiryRemaining(now)).toBe('Expired')
+  })
+})
+
+describe('Upload Request Schema with Retention', () => {
+  // Story 18.3: Test upload request accepts optional retentionDays
+
+  const createValidPayloadWithRetention = () => ({
+    ...{
+      dataUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgM=',
+      timestamp: 1735489200000,
+      url: 'https://example.com/page',
+      title: 'Test Page',
+      deviceId: 'device-123',
+      familyId: 'family-123',
+      childId: 'child-123',
+      queuedAt: 1735489195000,
+    },
+  })
+
+  it('should accept request without retentionDays', () => {
+    const payload = createValidPayloadWithRetention()
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.retentionDays).toBeUndefined()
+    }
+  })
+
+  it('should accept request with 7-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 7 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.retentionDays).toBe(7)
+    }
+  })
+
+  it('should accept request with 30-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 30 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.retentionDays).toBe(30)
+    }
+  })
+
+  it('should accept request with 90-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 90 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.retentionDays).toBe(90)
+    }
+  })
+
+  it('should reject request with 14-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 14 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject request with 60-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 60 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject request with 0-day retention', () => {
+    const payload = { ...createValidPayloadWithRetention(), retentionDays: 0 }
+    const result = uploadRequestSchema.safeParse(payload)
+
+    expect(result.success).toBe(false)
   })
 })

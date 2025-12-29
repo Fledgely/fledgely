@@ -1110,6 +1110,7 @@ export function isCrisisUrl(url: string, allowlist: CrisisAllowlist): boolean {
 // ============================================================================
 // EPIC 18: SCREENSHOT CLOUD STORAGE & RETENTION
 // Story 18.2: Screenshot Metadata in Firestore
+// Story 18.3: Configurable Retention Policy
 // ============================================================================
 
 /**
@@ -1119,6 +1120,84 @@ export function isCrisisUrl(url: string, allowlist: CrisisAllowlist): boolean {
  * Default retention of 30 days if not specified in family agreement.
  */
 export const DEFAULT_RETENTION_DAYS = 30
+
+/**
+ * Allowed retention periods in days.
+ *
+ * Story 18.3: Configurable Retention Policy - AC2
+ * Only these values are allowed to prevent accidental short retention.
+ */
+export const RETENTION_DAYS_OPTIONS = [7, 30, 90] as const
+export type RetentionDays = (typeof RETENTION_DAYS_OPTIONS)[number]
+
+/**
+ * Retention policy schema for family screenshot settings.
+ *
+ * Story 18.3: Configurable Retention Policy - AC1, AC2
+ * Stored on family document to configure screenshot retention.
+ */
+export const retentionPolicySchema = z.object({
+  /** Retention period in days (must be 7, 30, or 90) */
+  retentionDays: z
+    .number()
+    .refine((val): val is RetentionDays => RETENTION_DAYS_OPTIONS.includes(val as RetentionDays), {
+      message: 'Retention must be 7, 30, or 90 days',
+    }),
+  /** When the policy was last updated (epoch ms) */
+  updatedAt: z.number().int().positive(),
+  /** UID of guardian who updated the policy */
+  updatedByUid: z.string(),
+})
+
+export type RetentionPolicy = z.infer<typeof retentionPolicySchema>
+
+/**
+ * Get retention days from policy or use default.
+ *
+ * Story 18.3: Configurable Retention Policy - AC5
+ * Helper to safely get retention days with fallback to default.
+ *
+ * @param policy - Optional retention policy
+ * @returns Retention days (7, 30, or 90)
+ */
+export function getRetentionDays(policy?: RetentionPolicy | null): RetentionDays {
+  if (policy?.retentionDays && RETENTION_DAYS_OPTIONS.includes(policy.retentionDays)) {
+    return policy.retentionDays
+  }
+  return DEFAULT_RETENTION_DAYS as RetentionDays
+}
+
+/**
+ * Validate if a number is a valid retention days option.
+ *
+ * Story 18.3: Configurable Retention Policy - AC2
+ *
+ * @param days - Number to validate
+ * @returns true if days is 7, 30, or 90
+ */
+export function isValidRetentionDays(days: number): days is RetentionDays {
+  return RETENTION_DAYS_OPTIONS.includes(days as RetentionDays)
+}
+
+/**
+ * Format expiry time remaining as human-readable string.
+ *
+ * Story 18.3: Configurable Retention Policy - AC4
+ *
+ * @param retentionExpiresAt - Expiry timestamp in milliseconds
+ * @returns Human-readable string like "Expires in 15 days"
+ */
+export function formatExpiryRemaining(retentionExpiresAt: number): string {
+  const now = Date.now()
+  const remaining = retentionExpiresAt - now
+
+  if (remaining <= 0) return 'Expired'
+
+  const days = Math.floor(remaining / (24 * 60 * 60 * 1000))
+  if (days === 0) return 'Expires today'
+  if (days === 1) return 'Expires tomorrow'
+  return `Expires in ${days} days`
+}
 
 /**
  * Screenshot metadata schema.
@@ -1159,6 +1238,11 @@ export const screenshotMetadataSchema = z.object({
   queuedAt: z.number().int().positive(),
   /** When to auto-delete (uploadedAt + retention period) */
   retentionExpiresAt: z.number().int().positive(),
+  /** Story 18.3: Retention period in days (7, 30, or 90) */
+  retentionDays: z
+    .number()
+    .refine((val): val is RetentionDays => RETENTION_DAYS_OPTIONS.includes(val as RetentionDays))
+    .optional(),
 })
 
 export type ScreenshotMetadata = z.infer<typeof screenshotMetadataSchema>

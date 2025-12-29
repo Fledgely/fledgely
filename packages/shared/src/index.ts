@@ -36,3 +36,14 @@ export {
   createScreenshotMetadata,
   type ScreenshotMetadata,
 } from './contracts'
+
+// Retention policy exports (Story 18.3)
+export {
+  RETENTION_DAYS_OPTIONS,
+  retentionPolicySchema,
+  getRetentionDays,
+  isValidRetentionDays,
+  formatExpiryRemaining,
+  type RetentionDays,
+  type RetentionPolicy,
+} from './contracts'

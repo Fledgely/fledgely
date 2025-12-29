@@ -2,6 +2,7 @@
  * Screenshot Upload HTTP Endpoint
  * Story 18.1: Firebase Storage Upload Endpoint
  * Story 18.2: Screenshot Metadata in Firestore
+ * Story 18.3: Configurable Retention Policy
  *
  * Handles screenshot uploads from Chrome extension to Firebase Storage
  * and creates Firestore metadata documents for efficient querying.
@@ -26,6 +27,8 @@ import {
   generateScreenshotId,
   calculateRetentionExpiry,
   DEFAULT_RETENTION_DAYS,
+  RETENTION_DAYS_OPTIONS,
+  type RetentionDays,
 } from '@fledgely/shared'
 
 /**
@@ -45,6 +48,8 @@ const MAX_UPLOADS_PER_DEVICE_PER_MINUTE = 15 // Slightly higher than client to a
  * Request body validation schema
  * Matches UploadPayload from extension
  * Exported for testing
+ *
+ * Story 18.3: Added optional retentionDays parameter
  */
 export const uploadRequestSchema = z.object({
   dataUrl: z.string().min(1, 'dataUrl is required'),
@@ -55,6 +60,16 @@ export const uploadRequestSchema = z.object({
   familyId: z.string().min(1, 'familyId is required'),
   childId: z.string().min(1, 'childId is required'),
   queuedAt: z.number().positive('queuedAt must be positive'),
+  /**
+   * Story 18.3: Optional retention period in days.
+   * Must be one of: 7, 30, 90. Defaults to 30 if not provided.
+   */
+  retentionDays: z
+    .number()
+    .refine((val): val is RetentionDays => RETENTION_DAYS_OPTIONS.includes(val as RetentionDays), {
+      message: 'retentionDays must be 7, 30, or 90',
+    })
+    .optional(),
 })
 
 type UploadRequest = z.infer<typeof uploadRequestSchema>
@@ -300,8 +315,10 @@ export const uploadScreenshot = onRequest(
 
     // Phase 2: Create Firestore metadata document
     // Story 18.2 AC1, AC2, AC4: Create metadata with atomic rollback
+    // Story 18.3: Support configurable retention period
     const uploadedAt = Date.now()
-    const retentionExpiresAt = calculateRetentionExpiry(uploadedAt, DEFAULT_RETENTION_DAYS)
+    const retentionDays = uploadData.retentionDays ?? DEFAULT_RETENTION_DAYS
+    const retentionExpiresAt = calculateRetentionExpiry(uploadedAt, retentionDays)
 
     const screenshotRef = db
       .collection('children')
@@ -329,7 +346,8 @@ export const uploadScreenshot = onRequest(
         // Lifecycle timestamps
         uploadedAt,
         queuedAt: uploadData.queuedAt,
-        retentionExpiresAt, // Story 18.2 AC5: Default 30 days
+        retentionExpiresAt, // Story 18.2 AC5: Default 30 days, Story 18.3: Configurable
+        retentionDays, // Story 18.3: Store the retention period used
       })
     } catch (firestoreError) {
       // Story 18.2 AC4: Rollback storage on Firestore failure
@@ -360,12 +378,14 @@ export const uploadScreenshot = onRequest(
     }
 
     // Log success (without PII)
+    // Story 18.3: Log retention period used
     logger.info('Screenshot uploaded with metadata', {
       storagePath,
       screenshotId,
       childId: uploadData.childId,
       deviceId: uploadData.deviceId,
       sizeBytes: imageBuffer.length,
+      retentionDays,
     })
 
     // Story 18.1 AC5 + Story 18.2: Return success with storage reference AND screenshotId
