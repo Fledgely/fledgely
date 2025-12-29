@@ -195,13 +195,13 @@ development_status:
   # ============================================
 
   # Epic 9: Chromebook Extension Foundation
-  epic-9: in-progress
+  epic-9: done
   9-1-extension-package-manifest: done
   9-2-extension-installation-flow: done
   9-3-extension-authentication: done
   9-4-family-connection-child-selection: done
   9-5-monitoring-indicator-display: done
-  9-6-extension-background-service: backlog
+  9-6-extension-background-service: done
   epic-9-retrospective: optional
 
   # Epic 10: Chromebook Screenshot Capture

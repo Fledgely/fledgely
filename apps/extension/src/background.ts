@@ -12,6 +12,14 @@
  * Story 9.6: Extension Background Service
  */
 
+// Alarm names for scheduled tasks
+const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
+const ALARM_SYNC_QUEUE = 'sync-queue'
+
+// Default capture interval in minutes (MV3 minimum is 1 minute)
+const DEFAULT_CAPTURE_INTERVAL_MINUTES = 5
+const DEFAULT_SYNC_INTERVAL_MINUTES = 15
+
 // Extension state stored in chrome.storage.local
 interface ExtensionState {
   isAuthenticated: boolean
@@ -20,6 +28,7 @@ interface ExtensionState {
   childId: string | null
   lastSync: number | null
   monitoringEnabled: boolean
+  captureIntervalMinutes: number
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -29,6 +38,52 @@ const DEFAULT_STATE: ExtensionState = {
   childId: null,
   lastSync: null,
   monitoringEnabled: false,
+  captureIntervalMinutes: DEFAULT_CAPTURE_INTERVAL_MINUTES,
+}
+
+/**
+ * Start monitoring alarms when a child is connected
+ * Uses chrome.alarms for MV3-compliant persistent scheduling
+ */
+async function startMonitoringAlarms(intervalMinutes: number): Promise<void> {
+  // Clear any existing alarms first
+  await chrome.alarms.clear(ALARM_SCREENSHOT_CAPTURE)
+  await chrome.alarms.clear(ALARM_SYNC_QUEUE)
+
+  // Create screenshot capture alarm
+  // Note: MV3 minimum interval is 1 minute for repeating alarms
+  await chrome.alarms.create(ALARM_SCREENSHOT_CAPTURE, {
+    delayInMinutes: 1, // First capture after 1 minute
+    periodInMinutes: Math.max(1, intervalMinutes),
+  })
+  console.log(`[Fledgely] Screenshot alarm created with ${intervalMinutes}min interval`)
+
+  // Create sync queue alarm
+  await chrome.alarms.create(ALARM_SYNC_QUEUE, {
+    delayInMinutes: 2, // First sync after 2 minutes
+    periodInMinutes: DEFAULT_SYNC_INTERVAL_MINUTES,
+  })
+  console.log(`[Fledgely] Sync alarm created with ${DEFAULT_SYNC_INTERVAL_MINUTES}min interval`)
+}
+
+/**
+ * Stop monitoring alarms when child is disconnected or monitoring disabled
+ */
+async function stopMonitoringAlarms(): Promise<void> {
+  await chrome.alarms.clear(ALARM_SCREENSHOT_CAPTURE)
+  await chrome.alarms.clear(ALARM_SYNC_QUEUE)
+  console.log('[Fledgely] Monitoring alarms cleared')
+}
+
+/**
+ * Update lastSync timestamp in state
+ */
+async function updateLastSync(): Promise<void> {
+  const { state } = await chrome.storage.local.get('state')
+  if (state) {
+    const newState = { ...state, lastSync: Date.now() }
+    await chrome.storage.local.set({ state: newState })
+  }
 }
 
 // Update toolbar icon title based on state
@@ -85,10 +140,13 @@ chrome.runtime.onStartup.addListener(async () => {
   console.log('[Fledgely] Browser started, checking state')
   const { state } = await chrome.storage.local.get('state')
 
-  if (state?.isAuthenticated && state?.monitoringEnabled) {
-    // Resume monitoring if it was active
+  // Update toolbar with current state
+  await updateActionTitle(state || DEFAULT_STATE)
+
+  if (state?.isAuthenticated && state?.monitoringEnabled && state?.childId) {
+    // Resume monitoring alarms if they were active
     console.log('[Fledgely] Resuming monitoring for child:', state.childId)
-    // Monitoring setup will be implemented in Story 10.1
+    await startMonitoringAlarms(state.captureIntervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES)
   }
 })
 
@@ -124,7 +182,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
 
     case 'CHILD_CONNECTED':
-      // Update state when child is connected
+      // Update state when child is connected and start monitoring alarms
       chrome.storage.local.get('state').then(async ({ state }) => {
         const newState: ExtensionState = {
           ...(state || DEFAULT_STATE),
@@ -133,13 +191,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
+
+        // Start monitoring alarms for screenshot capture and sync
+        await startMonitoringAlarms(newState.captureIntervalMinutes)
+
         console.log('[Fledgely] Connected to child:', message.childName)
         sendResponse({ success: true })
       })
       return true
 
     case 'CHILD_DISCONNECTED':
-      // Update state when child is disconnected
+      // Update state when child is disconnected and stop monitoring alarms
       chrome.storage.local.get('state').then(async ({ state }) => {
         const newState: ExtensionState = {
           ...(state || DEFAULT_STATE),
@@ -148,6 +210,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
+
+        // Stop monitoring alarms
+        await stopMonitoringAlarms()
+
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
       })
@@ -159,18 +225,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 })
 
 // Alarm handler for scheduled tasks (MV3 persistent scheduling)
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   console.log('[Fledgely] Alarm fired:', alarm.name)
 
+  // Check if monitoring is still enabled before processing
+  const { state } = await chrome.storage.local.get('state')
+  if (!state?.monitoringEnabled) {
+    console.log('[Fledgely] Monitoring disabled, ignoring alarm')
+    return
+  }
+
   switch (alarm.name) {
-    case 'screenshot-capture':
-      // Will be implemented in Story 10.1
-      console.log('[Fledgely] Screenshot capture alarm - not yet implemented')
+    case ALARM_SCREENSHOT_CAPTURE:
+      // Screenshot capture will be implemented in Story 10.1
+      // This alarm wakes the service worker to trigger capture
+      console.log('[Fledgely] Screenshot capture alarm triggered')
+      // Placeholder: chrome.tabs.captureVisibleTab will be called here
       break
 
-    case 'sync-queue':
-      // Will be implemented in Story 10.4
-      console.log('[Fledgely] Sync queue alarm - not yet implemented')
+    case ALARM_SYNC_QUEUE:
+      // Sync queue processing will be implemented in Story 10.4
+      // Update lastSync timestamp to show activity
+      await updateLastSync()
+      console.log('[Fledgely] Sync queue alarm triggered, lastSync updated')
       break
   }
 })
