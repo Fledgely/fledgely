@@ -379,6 +379,7 @@ service cloud.firestore {
     // Story 3A.1: Data Symmetry Enforcement - AC3
     // Records when guardians view child or family data.
     // Story 3A.5: Screenshot Viewing Rate Alert uses this data.
+    // Story 12.5: Device assignment audit logs (AC4) - created via Admin SDK (Cloud Functions)
     //
     // AC5 (Future): Access Revocation Symmetry
     // When one parent's access is revoked (Story 3.6 legal petition),
@@ -405,6 +406,7 @@ service cloud.firestore {
       allow read: if canReadFamilyAudit();
 
       // Create: Guardians can only log their own views (prevent spoofing)
+      // Note: Server-side audit logs (device assignment) use Admin SDK and bypass rules
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.viewerUid &&
         isFamilyGuardianForAudit();

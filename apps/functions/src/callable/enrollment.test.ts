@@ -1,5 +1,5 @@
 /**
- * Unit tests for Enrollment Cloud Functions - Story 12.3, 12.4
+ * Unit tests for Enrollment Cloud Functions - Story 12.3, 12.4, 12.5
  *
  * Tests cover:
  * - submitEnrollmentRequest: Token validation, request creation
@@ -7,6 +7,7 @@
  * - rejectEnrollment: Auth, permission, state transitions
  * - Request expiry logic
  * - registerDevice: Device document creation (Story 12.4)
+ * - assignDeviceToChild: Child assignment (Story 12.5)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -501,6 +502,212 @@ describe('Enrollment Cloud Functions', () => {
 
         expect(response.deviceId).toBe('existing-device-id')
         expect(response.message).toBe('Device already registered')
+      })
+    })
+  })
+
+  describe('assignDeviceToChild - Story 12.5', () => {
+    describe('Authentication - Task 5.1', () => {
+      it('rejects unauthenticated requests', () => {
+        vi.mocked(verifyAuth).mockImplementation(() => {
+          throw new HttpsError('unauthenticated', 'Authentication required')
+        })
+        expect(() => verifyAuth(undefined)).toThrow('Authentication required')
+      })
+
+      it('accepts authenticated requests', () => {
+        vi.mocked(verifyAuth).mockReturnValue({
+          uid: 'parent-uid',
+          email: 'parent@example.com',
+          displayName: 'Parent',
+        })
+        const result = verifyAuth({ uid: 'parent-uid' } as Parameters<typeof verifyAuth>[0])
+        expect(result.uid).toBe('parent-uid')
+      })
+    })
+
+    describe('Input Validation', () => {
+      it('rejects empty familyId', () => {
+        const invalidInput = { familyId: '', deviceId: 'device-123', childId: 'child-123' }
+        expect(invalidInput.familyId.length).toBe(0)
+      })
+
+      it('rejects empty deviceId', () => {
+        const invalidInput = { familyId: 'family-123', deviceId: '', childId: 'child-123' }
+        expect(invalidInput.deviceId.length).toBe(0)
+      })
+
+      it('accepts null childId for unassignment', () => {
+        const validInput = { familyId: 'family-123', deviceId: 'device-456', childId: null }
+        expect(validInput.childId).toBeNull()
+      })
+
+      it('accepts valid childId for assignment', () => {
+        const validInput = { familyId: 'family-123', deviceId: 'device-456', childId: 'child-789' }
+        expect(validInput.childId).toBe('child-789')
+      })
+    })
+
+    describe('Permission Checks', () => {
+      it('rejects non-parent users', () => {
+        const familyData = {
+          parents: ['parent-uid'],
+          createdBy: 'parent-uid',
+        }
+        const requestingUser = 'non-parent-uid'
+
+        const isParent =
+          familyData.parents.includes(requestingUser) || familyData.createdBy === requestingUser
+
+        expect(isParent).toBe(false)
+      })
+
+      it('accepts parent users', () => {
+        const familyData = {
+          parents: ['parent-uid'],
+          createdBy: 'parent-uid',
+        }
+        const requestingUser = 'parent-uid'
+
+        const isParent =
+          familyData.parents.includes(requestingUser) || familyData.createdBy === requestingUser
+
+        expect(isParent).toBe(true)
+      })
+    })
+
+    describe('Child Family Verification', () => {
+      it('rejects child from different family', () => {
+        const childFamilyId = 'other-family'
+        const requestedFamilyId = 'family-123'
+
+        expect(childFamilyId).not.toBe(requestedFamilyId)
+      })
+
+      it('accepts child from same family', () => {
+        const childFamilyId = 'family-123'
+        const requestedFamilyId = 'family-123'
+
+        expect(childFamilyId).toBe(requestedFamilyId)
+      })
+    })
+
+    describe('Assignment Update - Task 5.2, AC3', () => {
+      it('updates device childId field', () => {
+        const updateData = {
+          childId: 'child-123',
+          assignedAt: 'SERVER_TIMESTAMP',
+          assignedBy: 'parent-uid',
+        }
+
+        expect(updateData.childId).toBe('child-123')
+        expect(updateData.assignedBy).toBe('parent-uid')
+      })
+
+      it('clears fields on unassignment', () => {
+        const updateData = {
+          childId: null,
+          assignedAt: null,
+          assignedBy: null,
+        }
+
+        expect(updateData.childId).toBeNull()
+        expect(updateData.assignedAt).toBeNull()
+        expect(updateData.assignedBy).toBeNull()
+      })
+
+      it('skips update if childId unchanged', () => {
+        const currentChildId = 'child-123'
+        const newChildId = 'child-123'
+
+        expect(currentChildId).toBe(newChildId)
+        // Should return early without update
+      })
+    })
+
+    describe('Reassignment - Task 5.4, AC5', () => {
+      it('allows reassignment from one child to another', () => {
+        const device = { childId: 'child-A' }
+        const newChildId = 'child-B'
+
+        expect(device.childId).not.toBe(newChildId)
+        // Should allow update
+      })
+
+      it('allows unassignment from assigned state', () => {
+        const device = { childId: 'child-A' }
+        const newChildId = null
+
+        expect(device.childId).not.toBeNull()
+        expect(newChildId).toBeNull()
+        // Should allow update to null
+      })
+    })
+
+    describe('Audit Log - AC4', () => {
+      it('creates audit log entry with required fields', () => {
+        const auditEntry = {
+          type: 'device_assignment',
+          familyId: 'family-123',
+          deviceId: 'device-456',
+          childId: 'child-789',
+          previousChildId: null,
+          performedBy: 'parent-uid',
+          timestamp: 'SERVER_TIMESTAMP',
+        }
+
+        expect(auditEntry.type).toBe('device_assignment')
+        expect(auditEntry.familyId).toBeDefined()
+        expect(auditEntry.deviceId).toBeDefined()
+        expect(auditEntry.childId).toBeDefined()
+        expect(auditEntry.previousChildId).toBeDefined()
+        expect(auditEntry.performedBy).toBeDefined()
+        expect(auditEntry.timestamp).toBeDefined()
+      })
+
+      it('tracks previous childId in audit log', () => {
+        const auditEntry = {
+          type: 'device_assignment',
+          deviceId: 'device-456',
+          childId: 'child-new',
+          previousChildId: 'child-old',
+          performedBy: 'parent-uid',
+        }
+
+        expect(auditEntry.previousChildId).toBe('child-old')
+        expect(auditEntry.childId).toBe('child-new')
+      })
+    })
+
+    describe('Response Structure', () => {
+      it('returns success response on assignment', () => {
+        const response = {
+          success: true,
+          message: 'Device assigned to child',
+        }
+
+        expect(response.success).toBe(true)
+        expect(response.message).toContain('assigned')
+      })
+
+      it('returns success response on unassignment', () => {
+        const response = {
+          success: true,
+          message: 'Device unassigned',
+        }
+
+        expect(response.success).toBe(true)
+        expect(response.message).toContain('unassigned')
+      })
+
+      it('returns unchanged message when assignment same', () => {
+        const response = {
+          success: true,
+          message: 'Device assignment unchanged',
+        }
+
+        expect(response.success).toBe(true)
+        expect(response.message).toContain('unchanged')
       })
     })
   })

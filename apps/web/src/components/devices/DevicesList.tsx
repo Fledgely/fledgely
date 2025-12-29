@@ -1,16 +1,23 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4
+ * DevicesList Component - Story 12.4, 12.5
  *
- * Displays the list of enrolled devices for a family.
+ * Displays the list of enrolled devices for a family with child assignment.
  * Uses real-time Firestore listener via useDevices hook.
  *
  * Requirements:
- * - AC5: Dashboard device list refresh
+ * - AC5 (12.4): Dashboard device list refresh
+ * - AC1 (12.5): Assign to Child dropdown for unassigned devices
+ * - AC2 (12.5): Dropdown shows all children in the family
+ * - AC3 (12.5): Assignment updates device document
+ * - AC5 (12.5): Device can be reassigned anytime
  */
 
+import { useState } from 'react'
 import { useDevices, formatLastSeen, type Device } from '../../hooks/useDevices'
+import { useChildren, type ChildSummary } from '../../hooks/useChildren'
+import { assignDeviceToChild } from '../../services/deviceService'
 
 interface DevicesListProps {
   familyId: string
@@ -94,6 +101,42 @@ const styles = {
     textAlign: 'center' as const,
     padding: '12px',
   },
+  assignmentContainer: {
+    marginLeft: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  childSelector: {
+    padding: '6px 10px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    fontSize: '13px',
+    backgroundColor: '#ffffff',
+    cursor: 'pointer',
+    minWidth: '140px',
+  },
+  childSelectorDisabled: {
+    backgroundColor: '#f3f4f6',
+    cursor: 'not-allowed',
+    opacity: 0.7,
+  },
+  assignmentError: {
+    color: '#dc2626',
+    fontSize: '12px',
+    marginTop: '4px',
+  },
+  assignedBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 8px',
+    borderRadius: '9999px',
+    fontSize: '12px',
+    fontWeight: 500,
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
+    marginRight: '8px',
+  },
 }
 
 function DeviceIcon({ type }: { type: Device['type'] }) {
@@ -116,8 +159,126 @@ function StatusBadge({ status }: { status: Device['status'] }) {
   return <span style={statusStyles}>{labels[status]}</span>
 }
 
+interface ChildAssignmentProps {
+  device: Device
+  childList: ChildSummary[]
+  onAssignmentChange: (deviceId: string, childId: string | null) => void
+  isUpdating: boolean
+  error: string | null
+}
+
+/**
+ * Child assignment dropdown for a device.
+ * Task 2: Dashboard Device Assignment UI
+ * - 2.1 Add child selector to DevicesList component
+ * - 2.2 Fetch children list for family (via props)
+ * - 2.3 Display current assignment status
+ * - 2.4 Handle assignment/reassignment actions
+ * - 2.5 Show loading and error states
+ */
+function ChildAssignment({
+  device,
+  childList,
+  onAssignmentChange,
+  isUpdating,
+  error,
+}: ChildAssignmentProps) {
+  const assignedChild = device.childId ? childList.find((c) => c.id === device.childId) : null
+
+  // Handle orphaned assignment (child was deleted but device still has childId)
+  const isOrphaned = device.childId && !assignedChild
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    const newChildId = value === '' ? null : value
+    onAssignmentChange(device.deviceId, newChildId)
+  }
+
+  const selectStyle = {
+    ...styles.childSelector,
+    ...(isUpdating ? styles.childSelectorDisabled : {}),
+  }
+
+  return (
+    <div style={styles.assignmentContainer}>
+      {assignedChild && <span style={styles.assignedBadge}>{assignedChild.name}</span>}
+      {isOrphaned && (
+        <span style={{ ...styles.assignedBadge, backgroundColor: '#fef3c7', color: '#92400e' }}>
+          Unknown child
+        </span>
+      )}
+      <select
+        style={selectStyle}
+        value={device.childId || ''}
+        onChange={handleChange}
+        disabled={isUpdating}
+        aria-label="Assign to child"
+      >
+        <option value="">{device.childId ? 'Unassign' : 'Assign to child...'}</option>
+        {childList.map((child) => (
+          <option key={child.id} value={child.id}>
+            {child.name}
+          </option>
+        ))}
+      </select>
+      {error && <span style={styles.assignmentError}>{error}</span>}
+    </div>
+  )
+}
+
 export function DevicesList({ familyId }: DevicesListProps) {
-  const { devices, loading, error } = useDevices({ familyId })
+  const { devices, loading: devicesLoading, error: devicesError } = useDevices({ familyId })
+  const { children, loading: childrenLoading, error: childrenError } = useChildren({ familyId })
+  const [updatingDevices, setUpdatingDevices] = useState<Set<string>>(new Set())
+  const [deviceErrors, setDeviceErrors] = useState<Record<string, string>>({})
+
+  const loading = devicesLoading || childrenLoading
+  const error = devicesError || childrenError
+
+  /**
+   * Handle assignment change with server-first update.
+   * Task 4.2: Handle loading state during assignment
+   * Task 4.3: Show error on failure
+   */
+  const handleAssignmentChange = async (deviceId: string, childId: string | null) => {
+    // Clear previous error for this device
+    setDeviceErrors((prev) => {
+      const next = { ...prev }
+      delete next[deviceId]
+      return next
+    })
+
+    // Mark device as updating
+    setUpdatingDevices((prev) => new Set(prev).add(deviceId))
+
+    try {
+      await assignDeviceToChild(familyId, deviceId, childId)
+      // Success - Firestore listener will update the UI automatically
+    } catch (err: unknown) {
+      // Parse Firebase error codes for better UX
+      let message = 'Assignment failed'
+      if (err && typeof err === 'object' && 'code' in err) {
+        const errorCode = (err as { code: string }).code
+        if (errorCode === 'functions/permission-denied') {
+          message = 'You do not have permission to assign devices'
+        } else if (errorCode === 'functions/not-found') {
+          message = 'Device or child not found'
+        } else if (errorCode === 'functions/unauthenticated') {
+          message = 'Please sign in to assign devices'
+        }
+      } else if (err instanceof Error) {
+        message = err.message
+      }
+      setDeviceErrors((prev) => ({ ...prev, [deviceId]: message }))
+    } finally {
+      // Clear updating state
+      setUpdatingDevices((prev) => {
+        const next = new Set(prev)
+        next.delete(deviceId)
+        return next
+      })
+    }
+  }
 
   if (loading) {
     return <p style={styles.loading}>Loading devices...</p>
@@ -145,9 +306,15 @@ export function DevicesList({ familyId }: DevicesListProps) {
             <div style={styles.deviceMeta}>
               {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
               {formatLastSeen(device.lastSeen)}
-              {device.childId && ` &middot; Assigned`}
             </div>
           </div>
+          <ChildAssignment
+            device={device}
+            childList={children}
+            onAssignmentChange={handleAssignmentChange}
+            isUpdating={updatingDevices.has(device.deviceId)}
+            error={deviceErrors[device.deviceId] || null}
+          />
           <StatusBadge status={device.status} />
         </div>
       ))}

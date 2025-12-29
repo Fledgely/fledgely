@@ -230,7 +230,7 @@ development_status:
   12-2-extension-qr-code-scanning: done
   12-3-device-to-device-enrollment-approval: done
   12-4-device-registration-in-firestore: done
-  12-5-child-assignment-to-device: backlog
+  12-5-child-assignment-to-device: done
   12-6-enrollment-state-persistence: backlog
   epic-12-retrospective: optional
 

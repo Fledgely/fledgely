@@ -1,0 +1,368 @@
+/**
+ * Unit tests for DevicesList component - Story 12.4, 12.5
+ *
+ * Tests cover:
+ * - Device list display (Story 12.4)
+ * - Child assignment dropdown (Story 12.5 AC1, AC2)
+ * - Assignment/reassignment actions (Story 12.5 AC3, AC5)
+ * - Loading and error states
+ */
+
+import React from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { DevicesList } from '../DevicesList'
+import * as useDevicesModule from '../../../hooks/useDevices'
+import * as useChildrenModule from '../../../hooks/useChildren'
+import * as deviceService from '../../../services/deviceService'
+
+// Mock the hooks and services
+vi.mock('../../../hooks/useDevices')
+vi.mock('../../../hooks/useChildren')
+vi.mock('../../../services/deviceService')
+
+const mockUseDevices = vi.mocked(useDevicesModule.useDevices)
+const mockUseChildren = vi.mocked(useChildrenModule.useChildren)
+const mockAssignDeviceToChild = vi.mocked(deviceService.assignDeviceToChild)
+
+describe('DevicesList', () => {
+  const mockDevices: useDevicesModule.Device[] = [
+    {
+      deviceId: 'device-1',
+      type: 'chromebook',
+      enrolledAt: new Date('2024-01-15'),
+      enrolledBy: 'parent-uid',
+      childId: null,
+      name: 'Chromebook device-1',
+      lastSeen: new Date(),
+      status: 'active',
+      metadata: {
+        platform: 'Chrome OS',
+        userAgent: 'Mozilla/5.0',
+        enrollmentRequestId: 'req-1',
+      },
+    },
+    {
+      deviceId: 'device-2',
+      type: 'chromebook',
+      enrolledAt: new Date('2024-01-10'),
+      enrolledBy: 'parent-uid',
+      childId: 'child-A',
+      name: 'Chromebook device-2',
+      lastSeen: new Date(Date.now() - 3600000), // 1 hour ago
+      status: 'active',
+      metadata: {
+        platform: 'Chrome OS',
+        userAgent: 'Mozilla/5.0',
+        enrollmentRequestId: 'req-2',
+      },
+    },
+  ]
+
+  const mockChildren: useChildrenModule.ChildSummary[] = [
+    { id: 'child-A', name: 'Alice', photoURL: null },
+    { id: 'child-B', name: 'Bob', photoURL: null },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    // Default mock implementations
+    mockUseDevices.mockReturnValue({
+      devices: mockDevices,
+      loading: false,
+      error: null,
+    })
+
+    mockUseChildren.mockReturnValue({
+      children: mockChildren,
+      loading: false,
+      error: null,
+    })
+
+    mockAssignDeviceToChild.mockResolvedValue({
+      success: true,
+      message: 'Device assigned to child',
+    })
+
+    // Mock formatLastSeen
+    vi.spyOn(useDevicesModule, 'formatLastSeen').mockImplementation((date: Date) => {
+      const diff = Date.now() - date.getTime()
+      if (diff < 60000) return 'Just now'
+      if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`
+      return `${Math.floor(diff / 3600000)} hour ago`
+    })
+  })
+
+  describe('Device list display (Story 12.4)', () => {
+    it('displays device names', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Chromebook device-1')).toBeInTheDocument()
+      expect(screen.getByText('Chromebook device-2')).toBeInTheDocument()
+    })
+
+    it('displays device type', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const typeLabels = screen.getAllByText(/Chromebook/)
+      expect(typeLabels.length).toBeGreaterThan(0)
+    })
+
+    it('displays status badges', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const activeBadges = screen.getAllByText('Active')
+      expect(activeBadges).toHaveLength(2)
+    })
+
+    it('displays last seen time', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      // Multiple devices, so use getAllByText
+      const lastSeenTexts = screen.getAllByText(/Last seen/)
+      expect(lastSeenTexts.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Loading state', () => {
+    it('shows loading message when devices are loading', () => {
+      mockUseDevices.mockReturnValue({
+        devices: [],
+        loading: true,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Loading devices...')).toBeInTheDocument()
+    })
+
+    it('shows loading message when children are loading', () => {
+      mockUseChildren.mockReturnValue({
+        children: [],
+        loading: true,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Loading devices...')).toBeInTheDocument()
+    })
+  })
+
+  describe('Error state', () => {
+    it('shows error message from devices hook', () => {
+      mockUseDevices.mockReturnValue({
+        devices: [],
+        loading: false,
+        error: 'Failed to load devices',
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Failed to load devices')).toBeInTheDocument()
+    })
+
+    it('shows error message from children hook', () => {
+      mockUseChildren.mockReturnValue({
+        children: [],
+        loading: false,
+        error: 'Failed to load children',
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Failed to load children')).toBeInTheDocument()
+    })
+  })
+
+  describe('Empty state', () => {
+    it('shows empty message when no devices', () => {
+      mockUseDevices.mockReturnValue({
+        devices: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(
+        screen.getByText('No devices enrolled yet. Add a Chromebook to start monitoring.')
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('Child assignment dropdown (Story 12.5 AC1, AC2)', () => {
+    it('shows child selector dropdown for each device', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      expect(selectors).toHaveLength(2)
+    })
+
+    it('shows all children in dropdown options (AC2)', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      const firstSelector = selectors[0]
+
+      // Check all children are options
+      expect(firstSelector).toHaveTextContent('Alice')
+      expect(firstSelector).toHaveTextContent('Bob')
+    })
+
+    it('shows "Assign to child..." placeholder for unassigned devices (AC1)', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      // First device is unassigned
+      expect(screen.getByText('Assign to child...')).toBeInTheDocument()
+    })
+
+    it('shows "Unassign" option for assigned devices (AC5)', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      // Second device is assigned, should show Unassign option
+      expect(screen.getByText('Unassign')).toBeInTheDocument()
+    })
+
+    it('shows assigned child name badge (AC3)', () => {
+      render(<DevicesList familyId="family-123" />)
+
+      // Device 2 is assigned to Alice - appears in badge and as option
+      // Look for the badge specifically by finding text within the badge container
+      const aliceTexts = screen.getAllByText('Alice')
+      // Should appear: once in badge, twice in dropdown options (one per device)
+      expect(aliceTexts.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe('Assignment actions (Story 12.5 AC3)', () => {
+    it('calls assignDeviceToChild when child is selected', async () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      const unassignedDeviceSelector = selectors[0]
+
+      fireEvent.change(unassignedDeviceSelector, { target: { value: 'child-B' } })
+
+      await waitFor(() => {
+        expect(mockAssignDeviceToChild).toHaveBeenCalledWith('family-123', 'device-1', 'child-B')
+      })
+    })
+
+    it('calls assignDeviceToChild with null for unassignment', async () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      const assignedDeviceSelector = selectors[1]
+
+      fireEvent.change(assignedDeviceSelector, { target: { value: '' } })
+
+      await waitFor(() => {
+        expect(mockAssignDeviceToChild).toHaveBeenCalledWith('family-123', 'device-2', null)
+      })
+    })
+  })
+
+  describe('Reassignment (Story 12.5 AC5)', () => {
+    it('allows reassignment to different child', async () => {
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      const assignedDeviceSelector = selectors[1] // Device assigned to child-A
+
+      // Reassign to child-B
+      fireEvent.change(assignedDeviceSelector, { target: { value: 'child-B' } })
+
+      await waitFor(() => {
+        expect(mockAssignDeviceToChild).toHaveBeenCalledWith('family-123', 'device-2', 'child-B')
+      })
+    })
+  })
+
+  describe('Error handling', () => {
+    it('shows error when assignment fails', async () => {
+      mockAssignDeviceToChild.mockRejectedValue(new Error('Assignment failed'))
+
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      fireEvent.change(selectors[0], { target: { value: 'child-A' } })
+
+      await waitFor(() => {
+        expect(screen.getByText('Assignment failed')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('Loading state during assignment', () => {
+    it('disables selector while updating', async () => {
+      // Make the assignment take time
+      mockAssignDeviceToChild.mockImplementation(
+        () =>
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ success: true, message: 'Done' }), 100)
+          )
+      )
+
+      render(<DevicesList familyId="family-123" />)
+
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      const selector = selectors[0]
+
+      fireEvent.change(selector, { target: { value: 'child-A' } })
+
+      // Should be disabled while updating
+      await waitFor(() => {
+        expect(selector).toBeDisabled()
+      })
+
+      // Should be enabled after update completes
+      await waitFor(() => {
+        expect(selector).not.toBeDisabled()
+      })
+    })
+  })
+
+  describe('Empty children list', () => {
+    it('shows only placeholder when no children exist', () => {
+      mockUseChildren.mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Should still show dropdowns
+      const selectors = screen.getAllByRole('combobox', { name: 'Assign to child' })
+      expect(selectors).toHaveLength(2)
+
+      // Dropdowns should only have the placeholder option
+      expect(selectors[0]).toHaveTextContent('Assign to child...')
+    })
+  })
+
+  describe('Orphaned child assignment', () => {
+    it('shows "Unknown child" badge when assigned child is deleted', () => {
+      // Device is assigned to child-X which doesn't exist in children list
+      const devicesWithOrphanedChild: useDevicesModule.Device[] = [
+        {
+          ...mockDevices[0],
+          childId: 'deleted-child-X', // This child doesn't exist in mockChildren
+        },
+      ]
+
+      mockUseDevices.mockReturnValue({
+        devices: devicesWithOrphanedChild,
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Unknown child')).toBeInTheDocument()
+    })
+  })
+})

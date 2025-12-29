@@ -2,6 +2,7 @@
  * Cloud Functions for Device Enrollment
  * Story 12.3: Device-to-Device Enrollment Approval
  * Story 12.4: Device Registration in Firestore
+ * Story 12.5: Child Assignment to Device
  *
  * Follows the Cloud Functions Template pattern:
  * 1. Auth (FIRST)
@@ -20,6 +21,10 @@
  * - AC1: Device document creation
  * - AC2: Device document data
  * - AC3: Device credentials returned
+ *
+ * Story 12.5 acceptance criteria:
+ * - AC3: Assignment updates device document with childId
+ * - AC4: Assignment change audited
  */
 
 import { onCall, HttpsError, onRequest } from 'firebase-functions/v2/https'
@@ -85,6 +90,12 @@ const registerDeviceSchema = z.object({
   requestId: z.string().min(1),
 })
 
+const assignDeviceToChildSchema = z.object({
+  familyId: z.string().min(1),
+  deviceId: z.string().min(1),
+  childId: z.string().nullable(), // null to unassign
+})
+
 // Response types
 interface SubmitEnrollmentResponse {
   success: boolean
@@ -117,6 +128,11 @@ interface GetEnrollmentStatusResponse {
 interface RegisterDeviceResponse {
   success: boolean
   deviceId: string
+  message: string
+}
+
+interface AssignDeviceResponse {
+  success: boolean
   message: string
 }
 
@@ -543,6 +559,111 @@ export const registerDevice = onRequest({ cors: true }, async (req, res) => {
         error: { code: 'internal', message: 'Device registration failed' },
       })
     }
+  }
+})
+
+/**
+ * Assign a device to a child (or unassign by passing null).
+ * Story 12.5: Child Assignment to Device
+ *
+ * AC3: Updates device document with childId
+ * AC4: Creates audit log entry for assignment
+ * AC5: Supports reassignment (changing childId)
+ */
+export const assignDeviceToChild = onCall<
+  z.infer<typeof assignDeviceToChildSchema>,
+  Promise<AssignDeviceResponse>
+>(async (request) => {
+  // 1. Auth (FIRST)
+  const user = verifyAuth(request.auth)
+
+  // 2. Validation (SECOND)
+  const parseResult = assignDeviceToChildSchema.safeParse(request.data)
+  if (!parseResult.success) {
+    throw new HttpsError('invalid-argument', 'Invalid assignment request')
+  }
+  const { familyId, deviceId, childId } = parseResult.data
+
+  // 3. Permission - verify user is a parent of this family
+  const db = getFirestore()
+  const familyRef = db.collection('families').doc(familyId)
+  const familyDoc = await familyRef.get()
+
+  if (!familyDoc.exists) {
+    throw new HttpsError('not-found', 'Family not found')
+  }
+
+  const familyData = familyDoc.data()
+  const isParent = familyData?.parents?.includes(user.uid) || familyData?.createdBy === user.uid
+
+  if (!isParent) {
+    throw new HttpsError('permission-denied', 'Only family parents can assign devices to children')
+  }
+
+  // 4. Verify child belongs to same family (if assigning)
+  if (childId) {
+    const childRef = db.collection('children').doc(childId)
+    const childDoc = await childRef.get()
+
+    if (!childDoc.exists) {
+      throw new HttpsError('not-found', 'Child not found')
+    }
+
+    const childData = childDoc.data()
+    if (childData?.familyId !== familyId) {
+      throw new HttpsError('permission-denied', 'Child does not belong to this family')
+    }
+  }
+
+  // 5. Get device and verify it exists
+  const deviceRef = familyRef.collection('devices').doc(deviceId)
+  const deviceDoc = await deviceRef.get()
+
+  if (!deviceDoc.exists) {
+    throw new HttpsError('not-found', 'Device not found')
+  }
+
+  const deviceData = deviceDoc.data() as Device
+  const previousChildId = deviceData.childId
+
+  // Skip if assignment hasn't changed
+  if (previousChildId === childId) {
+    return {
+      success: true,
+      message: 'Device assignment unchanged',
+    }
+  }
+
+  // 6. Update device with new childId
+  await deviceRef.update({
+    childId,
+    assignedAt: childId ? FieldValue.serverTimestamp() : null,
+    assignedBy: childId ? user.uid : null,
+  })
+
+  // 7. Create audit log entry (AC4)
+  const auditRef = db.collection('auditLogs').doc()
+  await auditRef.set({
+    type: 'device_assignment',
+    familyId,
+    deviceId,
+    childId,
+    previousChildId,
+    performedBy: user.uid,
+    timestamp: FieldValue.serverTimestamp(),
+  })
+
+  logger.info('Device assignment updated', {
+    deviceId,
+    familyId,
+    childId,
+    previousChildId,
+    assignedBy: user.uid,
+  })
+
+  return {
+    success: true,
+    message: childId ? 'Device assigned to child' : 'Device unassigned',
   }
 })
 
