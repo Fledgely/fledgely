@@ -133,6 +133,11 @@ export function AddTermModal({ isOpen, onClose, onSave, party, editingTerm }: Ad
                 <Dialog.Title className="text-lg font-semibold text-gray-900">
                   {isEditing ? 'Edit Rule' : 'Add a New Rule'}
                 </Dialog.Title>
+                <Dialog.Description className="sr-only">
+                  {isEditing
+                    ? 'Modify the rule text, category, and explanation'
+                    : 'Create a new rule with text, category, and explanation'}
+                </Dialog.Description>
                 <span
                   className={`px-2 py-1 rounded-full text-xs font-medium ${
                     party === 'parent'
