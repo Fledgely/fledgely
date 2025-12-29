@@ -1319,6 +1319,150 @@ export async function getTotpSecret(): Promise<string | null> {
   }
 }
 
+/**
+ * Story 13.5: Emergency Unlock Audit Trail
+ *
+ * Sync queued unlock and lockout events to the audit log when online.
+ * Events are queued locally during offline operation and synced when
+ * network connectivity is restored.
+ */
+
+// Storage keys for event queues
+const UNLOCK_EVENT_QUEUE_KEY = 'unlockEventQueue'
+const LOCKOUT_EVENT_QUEUE_KEY = 'lockoutEventQueue'
+
+// Alarm for periodic queue sync check
+const ALARM_AUDIT_SYNC = 'fledgely-audit-sync'
+const AUDIT_SYNC_INTERVAL_MINUTES = 5
+
+/**
+ * Initialize audit trail sync
+ * Story 13.5: Set up connectivity monitoring and periodic sync
+ */
+async function initAuditSync(): Promise<void> {
+  // Set up periodic sync alarm
+  await chrome.alarms.create(ALARM_AUDIT_SYNC, {
+    periodInMinutes: AUDIT_SYNC_INTERVAL_MINUTES,
+  })
+
+  // Sync immediately if online
+  if (navigator.onLine) {
+    await checkAndSyncEventQueues()
+  }
+
+  console.log('[Fledgely] Audit sync initialized')
+}
+
+/**
+ * Check and sync queued events to audit log
+ * Story 13.5 AC5: Process all queued events when online
+ */
+async function checkAndSyncEventQueues(): Promise<void> {
+  if (!navigator.onLine) {
+    console.log('[Fledgely] Offline - skipping audit sync')
+    return
+  }
+
+  const { state } = await chrome.storage.local.get('state')
+  if (!state?.familyId || !state?.deviceId) {
+    console.log('[Fledgely] Not enrolled - skipping audit sync')
+    return
+  }
+
+  try {
+    // Process unlock events
+    const unlockResult = await chrome.storage.local.get(UNLOCK_EVENT_QUEUE_KEY)
+    const unlockEvents = unlockResult[UNLOCK_EVENT_QUEUE_KEY] || []
+
+    if (unlockEvents.length > 0) {
+      console.log(`[Fledgely] Syncing ${unlockEvents.length} unlock events`)
+      for (const event of unlockEvents) {
+        await syncAuditEvent(state.familyId, {
+          type: 'emergency_unlock',
+          deviceId: state.deviceId,
+          timestamp: event.timestamp,
+          metadata: {
+            unlockType: event.unlockType,
+          },
+        })
+      }
+      // Clear queue after successful sync
+      await chrome.storage.local.remove(UNLOCK_EVENT_QUEUE_KEY)
+      console.log('[Fledgely] Unlock events synced and cleared')
+    }
+
+    // Process lockout events
+    const lockoutResult = await chrome.storage.local.get(LOCKOUT_EVENT_QUEUE_KEY)
+    const lockoutEvents = lockoutResult[LOCKOUT_EVENT_QUEUE_KEY] || []
+
+    if (lockoutEvents.length > 0) {
+      console.log(`[Fledgely] Syncing ${lockoutEvents.length} lockout events`)
+      for (const event of lockoutEvents) {
+        await syncAuditEvent(state.familyId, {
+          type: 'lockout_triggered',
+          deviceId: state.deviceId,
+          timestamp: event.timestamp,
+          metadata: {
+            attemptCount: event.attemptCount,
+            lockoutDuration: event.lockoutDuration,
+          },
+        })
+      }
+      // Clear queue after successful sync
+      await chrome.storage.local.remove(LOCKOUT_EVENT_QUEUE_KEY)
+      console.log('[Fledgely] Lockout events synced and cleared')
+    }
+  } catch (error) {
+    console.error('[Fledgely] Audit sync error:', error)
+    // Keep events in queue for retry
+  }
+}
+
+/**
+ * Sync a single audit event to Firestore via web dashboard API
+ * Story 13.5 AC1, AC2, AC3: Sync events without code values
+ *
+ * Note: This uses the web dashboard API endpoint for audit logging.
+ * In production, this would POST to /api/audit with the auth token.
+ * For now, we store events locally for the dashboard to read.
+ */
+async function syncAuditEvent(
+  familyId: string,
+  event: {
+    type: string
+    deviceId: string
+    timestamp: number
+    metadata: Record<string, unknown>
+  }
+): Promise<void> {
+  // Store in local audit log for dashboard to sync
+  // (Full Firestore integration will be in web dashboard)
+  const localAuditKey = 'localAuditLog'
+  const result = await chrome.storage.local.get(localAuditKey)
+  const auditLog = result[localAuditKey] || []
+
+  auditLog.push({
+    ...event,
+    familyId,
+    syncedAt: null, // Will be set when synced to Firestore
+  })
+
+  await chrome.storage.local.set({ [localAuditKey]: auditLog })
+  console.log(`[Fledgely] Audit event stored: ${event.type}`)
+}
+
+// Handle audit sync alarm
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === ALARM_AUDIT_SYNC) {
+    await checkAndSyncEventQueues()
+  }
+})
+
+// Initialize audit sync on service worker startup
+initAuditSync().catch((error) => {
+  console.error('[Fledgely] Failed to initialize audit sync:', error)
+})
+
 // Export for testing
 export type { ExtensionState }
-export { DEFAULT_STATE, xorEncrypt, xorDecrypt }
+export { DEFAULT_STATE, xorEncrypt, xorDecrypt, checkAndSyncEventQueues }
