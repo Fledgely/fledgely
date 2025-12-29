@@ -337,14 +337,195 @@
       .info-text {
         flex: 1;
       }
+
+      /* Story 12.2: QR Scanner Styles */
+      .scanner-container {
+        position: relative;
+        width: 280px;
+        height: 280px;
+        margin: 0 auto 16px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #1a1a1a;
+      }
+      .scanner-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .scanner-canvas {
+        display: none;
+      }
+      .scanner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .scanner-viewfinder {
+        width: 200px;
+        height: 200px;
+        border: 3px solid rgba(255, 255, 255, 0.8);
+        border-radius: 16px;
+        box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.3);
+      }
+      .scanner-corner {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 4px solid #4f46e5;
+      }
+      .scanner-corner.top-left {
+        top: 40px;
+        left: 40px;
+        border-right: none;
+        border-bottom: none;
+        border-top-left-radius: 8px;
+      }
+      .scanner-corner.top-right {
+        top: 40px;
+        right: 40px;
+        border-left: none;
+        border-bottom: none;
+        border-top-right-radius: 8px;
+      }
+      .scanner-corner.bottom-left {
+        bottom: 40px;
+        left: 40px;
+        border-right: none;
+        border-top: none;
+        border-bottom-left-radius: 8px;
+      }
+      .scanner-corner.bottom-right {
+        bottom: 40px;
+        right: 40px;
+        border-left: none;
+        border-top: none;
+        border-bottom-right-radius: 8px;
+      }
+      .scanner-line {
+        position: absolute;
+        left: 50px;
+        right: 50px;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #4f46e5, transparent);
+        animation: scan 2s ease-in-out infinite;
+      }
+      @keyframes scan {
+        0%, 100% { top: 50px; }
+        50% { top: 230px; }
+      }
+      .scanner-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #666;
+      }
+      .scanner-placeholder-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+      .scanner-status {
+        text-align: center;
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 12px;
+      }
+      .scanner-status.scanning {
+        color: #4f46e5;
+      }
+      .scanner-status.success {
+        color: #22c55e;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="logo">Fledgely</div>
 
+      <!-- Not Enrolled State - Story 12.2 -->
+      <div id="state-not-enrolled" class="hidden">
+        <div class="status status-not-connected">
+          <span class="status-dot"></span>
+          Not Enrolled
+        </div>
+        <p class="message">
+          Scan the QR code from your Fledgely dashboard to enroll this device.
+        </p>
+
+        <!-- Scanner Container -->
+        <div class="scanner-container" id="scanner-container" role="region" aria-label="QR code scanner">
+          <div class="scanner-placeholder" id="scanner-placeholder">
+            <span class="scanner-placeholder-icon" aria-hidden="true">📷</span>
+            <span>Click to start scanning</span>
+          </div>
+          <video id="scanner-video" class="scanner-video hidden" autoplay playsinline></video>
+          <canvas id="scanner-canvas" class="scanner-canvas"></canvas>
+          <div id="scanner-overlay" class="scanner-overlay hidden">
+            <div class="scanner-viewfinder"></div>
+            <div class="scanner-corner top-left"></div>
+            <div class="scanner-corner top-right"></div>
+            <div class="scanner-corner bottom-left"></div>
+            <div class="scanner-corner bottom-right"></div>
+            <div class="scanner-line"></div>
+          </div>
+        </div>
+
+        <div id="scanner-status" class="scanner-status">
+          Point your camera at the QR code
+        </div>
+
+        <div id="enrollment-error" class="error hidden"></div>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          id="start-scan-btn"
+          aria-label="Start QR code scanning"
+        >
+          <span id="scan-btn-text">Start Scanning</span>
+          <span id="scan-btn-spinner" class="spinner hidden"></span>
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-link hidden"
+          id="retry-scan-btn"
+          aria-label="Try scanning again"
+        >
+          Try Again
+        </button>
+      </div>
+
+      <!-- Pending Enrollment State - Story 12.2 -->
+      <div id="state-pending-enrollment" class="hidden">
+        <div class="status status-connected">
+          <span class="status-dot"></span>
+          QR Code Scanned
+        </div>
+        <p class="message">
+          Enrollment request submitted. Waiting for approval from a parent device...
+        </p>
+        <div class="spinner" style="margin: 16px auto;"></div>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          id="cancel-enrollment-btn"
+          aria-label="Cancel enrollment"
+        >
+          Cancel
+        </button>
+      </div>
+
       <!-- Not Authenticated State -->
-      <div id="state-not-auth">
+      <div id="state-not-auth" class="hidden">
         <div class="status status-not-connected">
           <span class="status-dot"></span>
           Not Signed In

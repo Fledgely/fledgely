@@ -77,6 +77,22 @@ function validateCaptureInterval(minutes: number): number {
   return Math.max(MIN_CAPTURE_INTERVAL_MINUTES, Math.min(MAX_CAPTURE_INTERVAL_MINUTES, minutes))
 }
 
+/**
+ * Enrollment state for device registration
+ * Story 12.2: Extension QR Code Scanning
+ */
+export type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
+
+/**
+ * Pending enrollment data from QR scan
+ * Story 12.2: Stored temporarily until enrollment is confirmed
+ */
+export interface EnrollmentPending {
+  familyId: string
+  token: string
+  scannedAt: number
+}
+
 // Extension state stored in chrome.storage.local
 interface ExtensionState {
   isAuthenticated: boolean
@@ -89,6 +105,8 @@ interface ExtensionState {
   idleThresholdSeconds: number
   showProtectedIndicator: boolean // Story 11.3: Optional visual indicator
   decoyModeEnabled: boolean // Story 11.5: Generate decoys for crisis sites
+  enrollmentState: EnrollmentState // Story 12.2: Device enrollment status
+  pendingEnrollment: EnrollmentPending | null // Story 12.2: Pending enrollment data
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -102,6 +120,8 @@ const DEFAULT_STATE: ExtensionState = {
   idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
   showProtectedIndicator: true, // Story 11.3: Default to showing indicator
   decoyModeEnabled: false, // Story 11.5: Default to off (opt-in)
+  enrollmentState: 'not_enrolled', // Story 12.2: Device starts as not enrolled
+  pendingEnrollment: null, // Story 12.2: No pending enrollment initially
 }
 
 /**
@@ -861,8 +881,58 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'SET_PENDING_ENROLLMENT':
+      // Store pending enrollment from QR code scan
+      // Story 12.2: Extension QR Code Scanning - AC6 success state transition
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          enrollmentState: 'pending',
+          pendingEnrollment: {
+            familyId: message.familyId,
+            token: message.token,
+            scannedAt: Date.now(),
+          },
+        }
+        await chrome.storage.local.set({ state: newState })
+        console.log('[Fledgely] Pending enrollment stored:', message.familyId)
+        sendResponse({ success: true })
+      })
+      return true
+
+    case 'CLEAR_PENDING_ENROLLMENT':
+      // Clear pending enrollment (e.g., on cancel or error)
+      // Story 12.2: Extension QR Code Scanning
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          enrollmentState: 'not_enrolled',
+          pendingEnrollment: null,
+        }
+        await chrome.storage.local.set({ state: newState })
+        console.log('[Fledgely] Pending enrollment cleared')
+        sendResponse({ success: true })
+      })
+      return true
+
+    case 'GET_ENROLLMENT_STATE':
+      // Get current enrollment state
+      // Story 12.2: Extension QR Code Scanning - AC1 enrollment state detection
+      chrome.storage.local.get('state').then(({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        sendResponse({
+          enrollmentState: currentState.enrollmentState,
+          pendingEnrollment: currentState.pendingEnrollment,
+          familyId: currentState.familyId,
+        })
+      })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
+      return false
   }
 })
 
@@ -955,4 +1025,5 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 })
 
 // Export for testing
-export { ExtensionState, DEFAULT_STATE }
+export type { ExtensionState }
+export { DEFAULT_STATE }

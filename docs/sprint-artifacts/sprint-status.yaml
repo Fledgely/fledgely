@@ -227,7 +227,7 @@ development_status:
   # Epic 12: Chromebook Device Enrollment
   epic-12: in-progress
   12-1-enrollment-qr-code-generation: done
-  12-2-extension-qr-code-scanning: backlog
+  12-2-extension-qr-code-scanning: done
   12-3-device-to-device-enrollment-approval: backlog
   12-4-device-registration-in-firestore: backlog
   12-5-child-assignment-to-device: backlog

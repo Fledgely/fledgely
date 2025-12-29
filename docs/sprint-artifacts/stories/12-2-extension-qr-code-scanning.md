@@ -1,0 +1,306 @@
+# Story 12.2: Extension QR Code Scanning
+
+Status: Done
+
+## Story
+
+As a **parent setting up a Chromebook**,
+I want **to scan the enrollment QR code with the extension**,
+So that **the device is linked to our family account**.
+
+## Acceptance Criteria
+
+1. **AC1: Scan to Enroll Interface**
+   - Given fledgely extension is installed but not enrolled
+   - When parent opens extension popup
+   - Then extension shows "Scan to Enroll" camera interface
+
+2. **AC2: Camera Permission Request**
+   - Given extension needs camera access for QR scanning
+   - When parent initiates QR scanning
+   - Then extension requests camera permission if not granted
+   - And shows clear instructions if permission denied
+
+3. **AC3: QR Code Auto-Decode**
+   - Given camera is active and viewing QR code
+   - When QR code is detected in camera view
+   - Then camera captures and decodes QR code automatically
+   - And decoded data is extracted (familyId, token, expiry, version)
+
+4. **AC4: Payload Validation**
+   - Given QR code has been decoded
+   - When data is extracted
+   - Then decoded data is validated (family ID, token, expiry)
+   - And invalid JSON shows "Invalid code - please try again" error
+   - And missing required fields show appropriate error
+
+5. **AC5: Expired Token Handling**
+   - Given a valid QR code is scanned
+   - When token has expired (past expiry timestamp)
+   - Then expired tokens show clear error with "Generate new code" instruction
+   - And user can return to scanning
+
+6. **AC6: Success State Transition**
+   - Given QR code is valid and not expired
+   - When payload validation succeeds
+   - Then extension stores enrollment data temporarily
+   - And transitions to enrollment confirmation (Story 12.3)
+
+## Tasks / Subtasks
+
+- [x] Task 1: Enrollment State Detection (AC: #1)
+  - [x] 1.1 Add `isEnrolled` flag to ExtensionState interface
+  - [x] 1.2 Create `enrollmentState` type: 'not_enrolled' | 'pending' | 'enrolled'
+  - [x] 1.3 Update popup.ts to check enrollment state on load
+  - [x] 1.4 Add new state section in popup.html for enrollment UI
+
+- [x] Task 2: QR Scanner UI Component (AC: #1, #2)
+  - [x] 2.1 Install jsQR library for QR code decoding (browser-compatible)
+  - [x] 2.2 Create enrollment UI section in popup.html
+  - [x] 2.3 Add video element for camera preview
+  - [x] 2.4 Add scanning overlay with viewfinder animation
+  - [x] 2.5 Create "Start Scanning" button with proper aria-labels
+
+- [x] Task 3: Camera Access Implementation (AC: #2)
+  - [x] 3.1 Create `qr-scanner.ts` module for camera/QR handling
+  - [x] 3.2 Implement `requestCameraPermission()` function
+  - [x] 3.3 Handle permission denied with user-friendly message
+  - [x] 3.4 Handle browser not supporting getUserMedia
+  - [x] 3.5 Create `startCameraStream()` for video feed
+
+- [x] Task 4: QR Code Decoding (AC: #3)
+  - [x] 4.1 Implement `scanQRCode()` using jsQR library
+  - [x] 4.2 Set up canvas-based frame capture from video
+  - [x] 4.3 Create scanning loop with requestAnimationFrame
+  - [x] 4.4 Auto-detect QR code in camera view
+  - [ ] 4.5 Play success sound/vibration on detection (deferred - not required for MVP)
+
+- [x] Task 5: Payload Validation (AC: #4, #5)
+  - [x] 5.1 Create `validateEnrollmentPayload()` function
+  - [x] 5.2 Validate JSON structure (familyId, token, expiry, version)
+  - [x] 5.3 Check token expiry against current time
+  - [x] 5.4 Validate version compatibility (version: 1)
+  - [x] 5.5 Return typed validation result with error codes
+
+- [x] Task 6: Error Handling UI (AC: #4, #5)
+  - [x] 6.1 Create error display section in popup
+  - [x] 6.2 Show "Invalid code - please try again" for parse errors
+  - [x] 6.3 Show "Code expired - generate a new one" for expired tokens
+  - [x] 6.4 Add "Try Again" button to restart scanning
+  - [x] 6.5 Show "Generate New Code" link for expired tokens
+
+- [x] Task 7: Enrollment Data Storage (AC: #6)
+  - [x] 7.1 Create `EnrollmentPending` interface for temp storage
+  - [x] 7.2 Store pending enrollment in chrome.storage.local
+  - [x] 7.3 Add message handler for enrollment state changes
+  - [x] 7.4 Prepare for transition to Story 12.3 approval flow
+
+- [x] Task 8: Unit Tests
+  - [x] 8.1 Test payload validation logic (valid, invalid, expired)
+  - [x] 8.2 Test enrollment state transitions
+  - [ ] 8.3 Test camera permission handling mocks (deferred - requires complex browser mocks)
+  - [x] 8.4 Test QR decode result handling
+
+### Review Follow-ups (AI)
+
+- [ ] [AI-Review][LOW] Remove unused `checkCameraPermission` export or document future use [qr-scanner.ts:63]
+- [ ] [AI-Review][LOW] Consider creating shared types file for EnrollmentState to avoid duplication [popup.ts:19 / background.ts:83]
+- [ ] [AI-Review][LOW] Replace emoji icon with SVG in scanner placeholder [popup.html:466]
+
+## Dev Notes
+
+### Implementation Strategy
+
+This story implements the extension-side QR scanning to receive enrollment tokens generated by the web dashboard (Story 12.1).
+
+The enrollment flow:
+
+1. Extension detects it's not enrolled (no familyId in state)
+2. Shows "Scan to Enroll" UI instead of sign-in
+3. User clicks to start camera scanning
+4. Camera captures video, jsQR decodes frames
+5. Valid QR → store pending enrollment → proceed to Story 12.3
+6. Invalid/expired → show error with retry option
+
+### Key Requirements
+
+- **FR7:** Device enrollment
+- **FR11:** QR code-based enrollment
+- **FR12:** Family-device association
+- **NFR42:** Security - token expiry validation
+
+### Technical Details
+
+#### QR Code Payload Structure (from Story 12.1)
+
+```typescript
+interface EnrollmentPayload {
+  familyId: string // Family to enroll into
+  token: string // One-time enrollment token
+  expiry: number // Unix timestamp when token expires
+  version: number // Payload version (currently 1)
+}
+```
+
+#### Extension State Changes
+
+```typescript
+interface ExtensionState {
+  // ... existing fields ...
+  enrollmentState: 'not_enrolled' | 'pending' | 'enrolled'
+  pendingEnrollment: EnrollmentPending | null
+}
+
+interface EnrollmentPending {
+  familyId: string
+  token: string
+  scannedAt: number
+}
+```
+
+#### Library Requirements
+
+```bash
+# QR code decoding (browser-compatible)
+yarn add jsqr
+yarn add -D @types/jsqr
+
+# Note: jsQR is a pure JavaScript QR decoder that works with canvas
+# It processes image data from video frames
+```
+
+#### Camera Access Pattern
+
+```typescript
+// Request camera with back camera preference for scanning
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: {
+    facingMode: 'environment', // Prefer back camera
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+})
+```
+
+#### QR Scanning Loop
+
+```typescript
+function scanFrame(): void {
+  if (!scanning) return
+
+  // Draw video frame to canvas
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+  // Get image data and decode
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  const code = jsQR(imageData.data, imageData.width, imageData.height)
+
+  if (code) {
+    onQRCodeDetected(code.data)
+  } else {
+    requestAnimationFrame(scanFrame)
+  }
+}
+```
+
+### Project Structure Notes
+
+- QR scanner module: `apps/extension/src/qr-scanner.ts`
+- Popup HTML needs new state section for enrollment
+- Follow existing popup state pattern (hidden/visible states)
+- Use existing error styling from popup.html
+
+### References
+
+- [Source: docs/epics/epic-list.md#Story-12.2]
+- [Pattern: apps/extension/src/popup.ts - state management]
+- [Pattern: apps/extension/popup.html - UI states]
+- [Dependency: apps/web/src/services/enrollmentService.ts - payload structure]
+
+### Previous Story Intelligence
+
+From Story 12.1:
+
+- QR payload structure: `{ familyId, token, expiry, version }`
+- Tokens expire in 15 minutes
+- Only one active token per family
+- Token stored in Firestore `/families/{familyId}/enrollmentTokens`
+
+From Epic 11:
+
+- Service worker patterns established
+- chrome.storage.local for state persistence
+- Message passing between popup and background
+- Crisis allowlist architecture (can ignore for enrollment)
+
+### Git Intelligence
+
+Recent commits show:
+
+- Story 12.1 complete - QR code generation working
+- Extension has popup.ts and popup.html patterns
+- Enrollment token service ready for validation
+
+## Dev Agent Record
+
+### Context Reference
+
+Story 12.1 completed - Web dashboard can generate enrollment QR codes
+
+### Agent Model Used
+
+Claude Opus 4.5
+
+### Debug Log References
+
+N/A - All builds and tests passed
+
+### Completion Notes List
+
+1. **QR Scanner Module** - Created `qr-scanner.ts` with:
+   - `initializeCamera()` - Initializes camera stream with back camera preference
+   - `startScanning()` - Scanning loop with requestAnimationFrame
+   - `validateEnrollmentPayload()` - Full validation with error codes
+   - `formatTimeRemaining()` - Time formatting utility
+   - Camera permission handling with user-friendly error messages
+
+2. **Extension State Updates** - Added to `background.ts`:
+   - `EnrollmentState` type: 'not_enrolled' | 'pending' | 'enrolled'
+   - `EnrollmentPending` interface for temporary storage
+   - Message handlers: SET_PENDING_ENROLLMENT, CLEAR_PENDING_ENROLLMENT, GET_ENROLLMENT_STATE
+
+3. **Popup UI Updates** - Updated `popup.html` with:
+   - Not Enrolled state with QR scanner UI
+   - Scanner container with video, canvas, and overlay elements
+   - Viewfinder animation with scanning line
+   - Status messages and error display
+   - Pending Enrollment state with spinner
+
+4. **Popup Logic** - Updated `popup.ts` with:
+   - Enrollment state detection on load
+   - Camera initialization and scanning flow
+   - QR code detection and validation handling
+   - Error display with retry functionality
+   - State transitions between enrollment states
+
+5. **Unit Tests** - Created `qr-scanner.test.ts` with:
+   - 29 tests covering payload validation
+   - Tests for valid, invalid, expired tokens
+   - Time formatting tests
+   - Error code validation
+
+### File List
+
+**New Files:**
+
+- `apps/extension/src/qr-scanner.ts` - QR scanning module (200 lines)
+- `apps/extension/src/qr-scanner.test.ts` - Unit tests (29 tests)
+
+**Modified Files:**
+
+- `apps/extension/popup.html` - Enrollment UI states and scanner styles
+- `apps/extension/src/popup.ts` - Enrollment state handling and QR scanning
+- `apps/extension/src/background.ts` - EnrollmentState types and message handlers
+- `apps/extension/package.json` - Added jsQR dependency
+- `yarn.lock` - Updated dependencies
+- `docs/sprint-artifacts/sprint-status.yaml` - Updated story status

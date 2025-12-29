@@ -5,9 +5,19 @@
  *
  * Story 9.3: Extension Authentication
  * Story 9.4: Family Connection & Child Selection
+ * Story 12.2: Extension QR Code Scanning
  */
 
 import { signIn, signOut, getAuthState, AuthState } from './auth'
+import {
+  initializeCamera,
+  startScanning,
+  stopCamera,
+  validateEnrollmentPayload,
+} from './qr-scanner'
+
+// Enrollment state type (matches background.ts)
+type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
 
 // Mock family data for development
 // Real data will come from Firestore in Epic 12
@@ -28,6 +38,23 @@ const MOCK_CHILDREN: Child[] = [
 // State
 let selectedChildId: string | null = null
 let connectedChild: Child | null = null
+let isScanning = false
+
+// DOM Elements - Not Enrolled (Story 12.2)
+const stateNotEnrolled = document.getElementById('state-not-enrolled')!
+const statePendingEnrollment = document.getElementById('state-pending-enrollment')!
+const scannerContainer = document.getElementById('scanner-container')!
+const scannerPlaceholder = document.getElementById('scanner-placeholder')!
+const scannerVideo = document.getElementById('scanner-video') as HTMLVideoElement
+const scannerCanvas = document.getElementById('scanner-canvas') as HTMLCanvasElement
+const scannerOverlay = document.getElementById('scanner-overlay')!
+const scannerStatus = document.getElementById('scanner-status')!
+const enrollmentError = document.getElementById('enrollment-error')!
+const startScanBtn = document.getElementById('start-scan-btn') as HTMLButtonElement
+const scanBtnText = document.getElementById('scan-btn-text')!
+const scanBtnSpinner = document.getElementById('scan-btn-spinner')!
+const retryScanBtn = document.getElementById('retry-scan-btn') as HTMLButtonElement
+const cancelEnrollmentBtn = document.getElementById('cancel-enrollment-btn') as HTMLButtonElement
 
 // DOM Elements - Not Authenticated
 const stateNotAuth = document.getElementById('state-not-auth')!
@@ -52,6 +79,191 @@ const connectedChildName = document.getElementById('connected-child-name')!
 const lastSyncTime = document.getElementById('last-sync-time')!
 const changeChildBtn = document.getElementById('change-child-btn') as HTMLButtonElement
 const signOutBtn2 = document.getElementById('sign-out-btn-2') as HTMLButtonElement
+
+/**
+ * Hide all state sections
+ */
+function hideAllStates(): void {
+  stateNotEnrolled.classList.add('hidden')
+  statePendingEnrollment.classList.add('hidden')
+  stateNotAuth.classList.add('hidden')
+  stateAuthNoChild.classList.add('hidden')
+  stateAuthConnected.classList.add('hidden')
+}
+
+/**
+ * Get enrollment state from background
+ */
+async function getEnrollmentState(): Promise<{
+  enrollmentState: EnrollmentState
+  familyId: string | null
+}> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'GET_ENROLLMENT_STATE' }, (response) => {
+      resolve({
+        enrollmentState: response?.enrollmentState || 'not_enrolled',
+        familyId: response?.familyId || null,
+      })
+    })
+  })
+}
+
+/**
+ * Show enrollment error
+ */
+function showEnrollmentError(message: string): void {
+  enrollmentError.textContent = message
+  enrollmentError.classList.remove('hidden')
+  scannerStatus.textContent = 'Scan failed'
+  scannerStatus.className = 'scanner-status'
+}
+
+/**
+ * Hide enrollment error
+ */
+function hideEnrollmentError(): void {
+  enrollmentError.classList.add('hidden')
+  enrollmentError.textContent = ''
+}
+
+/**
+ * Set scan button loading state
+ */
+function setScanLoading(loading: boolean): void {
+  startScanBtn.disabled = loading
+  if (loading) {
+    scanBtnText.classList.add('hidden')
+    scanBtnSpinner.classList.remove('hidden')
+  } else {
+    scanBtnText.classList.remove('hidden')
+    scanBtnSpinner.classList.add('hidden')
+  }
+}
+
+/**
+ * Handle successful QR code detection
+ * AC3, AC4, AC5, AC6
+ */
+async function handleQRCodeDetected(data: string): Promise<void> {
+  // Stop scanning
+  isScanning = false
+  stopCamera()
+
+  // Validate the payload
+  const result = validateEnrollmentPayload(data)
+
+  if (!result.valid) {
+    // Show error based on error code
+    let errorMessage = result.errorMessage || 'Invalid code - please try again'
+
+    // AC5: Expired token handling
+    if (result.errorCode === 'EXPIRED_TOKEN') {
+      errorMessage = 'Code expired - generate a new one from the dashboard'
+    }
+
+    showEnrollmentError(errorMessage)
+
+    // Show retry button
+    startScanBtn.classList.add('hidden')
+    retryScanBtn.classList.remove('hidden')
+
+    // Reset UI
+    scannerVideo.classList.add('hidden')
+    scannerOverlay.classList.add('hidden')
+    scannerPlaceholder.classList.remove('hidden')
+
+    return
+  }
+
+  // AC6: Success - store pending enrollment
+  const payload = result.payload!
+
+  scannerStatus.textContent = 'QR code detected!'
+  scannerStatus.className = 'scanner-status success'
+
+  // Send to background to store pending enrollment
+  await new Promise<void>((resolve) => {
+    chrome.runtime.sendMessage(
+      {
+        type: 'SET_PENDING_ENROLLMENT',
+        familyId: payload.familyId,
+        token: payload.token,
+      },
+      () => resolve()
+    )
+  })
+
+  // Update UI to show pending state
+  await updateUI(await getAuthState())
+}
+
+/**
+ * Start QR code scanning
+ * AC1, AC2, AC3
+ */
+async function handleStartScanning(): Promise<void> {
+  hideEnrollmentError()
+  setScanLoading(true)
+
+  try {
+    // Initialize camera
+    await initializeCamera(scannerVideo, scannerCanvas)
+
+    // Update UI for scanning mode
+    scannerPlaceholder.classList.add('hidden')
+    scannerVideo.classList.remove('hidden')
+    scannerOverlay.classList.remove('hidden')
+    scannerStatus.textContent = 'Scanning for QR code...'
+    scannerStatus.className = 'scanner-status scanning'
+
+    // Hide start button, keep retry hidden
+    startScanBtn.classList.add('hidden')
+    retryScanBtn.classList.add('hidden')
+
+    isScanning = true
+
+    // Start scanning loop
+    startScanning(handleQRCodeDetected)
+  } catch (error) {
+    // AC2: Handle camera permission errors
+    const message = error instanceof Error ? error.message : 'Failed to access camera'
+    showEnrollmentError(message)
+
+    // Show retry button
+    startScanBtn.classList.add('hidden')
+    retryScanBtn.classList.remove('hidden')
+  } finally {
+    setScanLoading(false)
+  }
+}
+
+/**
+ * Handle retry scan button click
+ */
+async function handleRetryScan(): Promise<void> {
+  // Reset UI
+  retryScanBtn.classList.add('hidden')
+  startScanBtn.classList.remove('hidden')
+  hideEnrollmentError()
+  scannerStatus.textContent = 'Point your camera at the QR code'
+  scannerStatus.className = 'scanner-status'
+
+  // Start scanning again
+  await handleStartScanning()
+}
+
+/**
+ * Handle cancel enrollment button click
+ */
+async function handleCancelEnrollment(): Promise<void> {
+  // Clear pending enrollment
+  await new Promise<void>((resolve) => {
+    chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_ENROLLMENT' }, () => resolve())
+  })
+
+  // Update UI
+  await updateUI(await getAuthState())
+}
 
 /**
  * Update user info displays
@@ -192,9 +404,46 @@ async function disconnectChild(): Promise<void> {
 }
 
 /**
- * Update UI based on auth state
+ * Update UI based on auth and enrollment state
+ * Story 12.2: Now handles enrollment states first
  */
 async function updateUI(authState: AuthState): Promise<void> {
+  // Hide all states first
+  hideAllStates()
+
+  // Stop camera if switching away from scanner
+  if (isScanning) {
+    isScanning = false
+    stopCamera()
+  }
+
+  // Get enrollment state
+  const { enrollmentState, familyId } = await getEnrollmentState()
+
+  // Story 12.2: Check enrollment state first
+  // If device is not enrolled and not pending, show enrollment UI
+  if (enrollmentState === 'not_enrolled' && !familyId) {
+    stateNotEnrolled.classList.remove('hidden')
+
+    // Reset scanner UI
+    scannerPlaceholder.classList.remove('hidden')
+    scannerVideo.classList.add('hidden')
+    scannerOverlay.classList.add('hidden')
+    startScanBtn.classList.remove('hidden')
+    retryScanBtn.classList.add('hidden')
+    hideEnrollmentError()
+    scannerStatus.textContent = 'Point your camera at the QR code'
+    scannerStatus.className = 'scanner-status'
+
+    return
+  }
+
+  // Story 12.2: Pending enrollment state
+  if (enrollmentState === 'pending') {
+    statePendingEnrollment.classList.remove('hidden')
+    return
+  }
+
   // Load connected child from storage
   const { connectedChild: stored } = await chrome.storage.local.get('connectedChild')
   if (stored) {
@@ -204,13 +453,9 @@ async function updateUI(authState: AuthState): Promise<void> {
   if (!authState.isAuthenticated) {
     // Not authenticated
     stateNotAuth.classList.remove('hidden')
-    stateAuthNoChild.classList.add('hidden')
-    stateAuthConnected.classList.add('hidden')
     hideError()
   } else if (connectedChild) {
     // Authenticated and connected to child
-    stateNotAuth.classList.add('hidden')
-    stateAuthNoChild.classList.add('hidden')
     stateAuthConnected.classList.remove('hidden')
 
     connectedChildAvatar.style.background = connectedChild.color
@@ -221,9 +466,7 @@ async function updateUI(authState: AuthState): Promise<void> {
     await updateLastSyncDisplay()
   } else {
     // Authenticated but no child selected
-    stateNotAuth.classList.add('hidden')
     stateAuthNoChild.classList.remove('hidden')
-    stateAuthConnected.classList.add('hidden')
 
     updateUserInfo(authState)
     renderChildList()
@@ -325,7 +568,18 @@ async function init(): Promise<void> {
   const authState = await getAuthState()
   await updateUI(authState)
 
-  // Set up event listeners
+  // Set up event listeners - Enrollment (Story 12.2)
+  startScanBtn.addEventListener('click', handleStartScanning)
+  retryScanBtn.addEventListener('click', handleRetryScan)
+  cancelEnrollmentBtn.addEventListener('click', handleCancelEnrollment)
+  scannerContainer.addEventListener('click', () => {
+    // Allow clicking on placeholder to start scanning
+    if (!isScanning && scannerPlaceholder.classList.contains('hidden') === false) {
+      handleStartScanning()
+    }
+  })
+
+  // Set up event listeners - Auth
   signInBtn.addEventListener('click', handleSignIn)
   signOutBtn1.addEventListener('click', handleSignOut)
   signOutBtn2.addEventListener('click', handleSignOut)
