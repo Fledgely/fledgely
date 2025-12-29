@@ -24,11 +24,21 @@ import {
   countConsecutiveSuccesses,
   ERROR_CODES,
 } from './event-logger'
-import { isUrlProtected, initializeAllowlist, getAllowlistVersion } from './crisis-allowlist'
+import {
+  isUrlProtected,
+  initializeAllowlist,
+  getAllowlistVersion,
+  syncAllowlistFromServer,
+  isAllowlistStale,
+} from './crisis-allowlist'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
 const ALARM_SYNC_QUEUE = 'sync-queue'
+const ALARM_ALLOWLIST_SYNC = 'allowlist-sync' // Story 11.2
+
+// Allowlist sync interval (24 hours)
+const ALLOWLIST_SYNC_INTERVAL_HOURS = 24
 
 // Capture interval constraints (MV3 minimum is 1 minute)
 const DEFAULT_CAPTURE_INTERVAL_MINUTES = 5
@@ -479,6 +489,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   await initializeAllowlist()
   console.log(`[Fledgely] Crisis allowlist initialized (v${getAllowlistVersion()})`)
 
+  // Story 11.2: Set up allowlist sync alarm (24h interval)
+  await chrome.alarms.create(ALARM_ALLOWLIST_SYNC, {
+    delayInMinutes: 60, // First sync 1 hour after install
+    periodInMinutes: ALLOWLIST_SYNC_INTERVAL_HOURS * 60,
+  })
+  console.log('[Fledgely] Allowlist sync alarm created')
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -509,6 +526,19 @@ chrome.runtime.onStartup.addListener(async () => {
   // Story 11.1: Initialize crisis allowlist on startup
   await initializeAllowlist()
   console.log(`[Fledgely] Crisis allowlist initialized (v${getAllowlistVersion()})`)
+
+  // Story 11.2: Set up allowlist sync alarm (24h interval)
+  await chrome.alarms.create(ALARM_ALLOWLIST_SYNC, {
+    delayInMinutes: 60, // First sync 1 hour after startup
+    periodInMinutes: ALLOWLIST_SYNC_INTERVAL_HOURS * 60,
+  })
+  console.log('[Fledgely] Allowlist sync alarm created')
+
+  // Story 11.2: Check if allowlist needs immediate sync
+  if (await isAllowlistStale()) {
+    console.log('[Fledgely] Allowlist is stale, syncing now')
+    await syncAllowlistFromServer()
+  }
 
   const { state } = await chrome.storage.local.get('state')
 
@@ -702,7 +732,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   console.log('[Fledgely] Alarm fired:', alarm.name)
 
-  // Check if monitoring is still enabled before processing
+  // Story 11.2: Allowlist sync runs regardless of monitoring state
+  if (alarm.name === ALARM_ALLOWLIST_SYNC) {
+    console.log('[Fledgely] Allowlist sync alarm triggered')
+    await syncAllowlistFromServer()
+    return
+  }
+
+  // Check if monitoring is still enabled before processing capture/upload alarms
   const { state } = await chrome.storage.local.get('state')
   if (!state?.monitoringEnabled) {
     console.log('[Fledgely] Monitoring disabled, ignoring alarm')

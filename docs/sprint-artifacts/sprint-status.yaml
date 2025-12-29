@@ -217,7 +217,7 @@ development_status:
   # Epic 11: Chromebook Crisis Protection
   epic-11: in-progress
   11-1-pre-capture-allowlist-check: done
-  11-2-cached-allowlist-with-fail-safe: backlog
+  11-2-cached-allowlist-with-fail-safe: done
   11-3-protected-site-visual-indicator: backlog
   11-4-fuzzy-url-matching: backlog
   11-5-decoy-mode-for-crisis-browsing: backlog

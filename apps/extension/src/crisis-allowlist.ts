@@ -256,5 +256,83 @@ export function getProtectedDomainCount(): number {
   return cachedDomainSet?.size || 0
 }
 
+/**
+ * Check if the cached allowlist is stale and needs refresh
+ * @param maxAgeMs Maximum age in milliseconds (default 24 hours)
+ * @returns true if cache is stale or missing
+ */
+export async function isAllowlistStale(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<boolean> {
+  try {
+    const allowlist = await getAllowlist()
+    if (allowlist.lastUpdated === 0) {
+      // Bundled defaults - no network sync yet
+      return true
+    }
+    const age = Date.now() - allowlist.lastUpdated
+    return age > maxAgeMs
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Sync allowlist from server (placeholder - Epic 12 will implement real API)
+ * For now, this just logs the attempt and returns false (no update available)
+ * @returns true if allowlist was updated, false otherwise
+ */
+export async function syncAllowlistFromServer(): Promise<boolean> {
+  console.log('[Fledgely] Crisis allowlist sync requested')
+
+  try {
+    // PLACEHOLDER: Epic 12 will implement real fledgely API
+    // For now, simulate a successful check with no updates
+    console.log('[Fledgely] Allowlist sync: using bundled defaults (API not yet available)')
+
+    // Update lastUpdated to prevent constant retries
+    const currentAllowlist = await getAllowlist()
+    if (currentAllowlist.lastUpdated === 0) {
+      // First time sync - mark as "synced" with bundled defaults
+      await updateAllowlist({
+        version: 'bundled-v1-synced',
+        lastUpdated: Date.now(),
+        domains: currentAllowlist.domains,
+      })
+      console.log('[Fledgely] Allowlist marked as synced with bundled defaults')
+      return true
+    }
+
+    return false
+  } catch (error) {
+    // Network error or other failure - keep using cached version
+    console.warn('[Fledgely] Crisis allowlist sync failed, using cached version')
+    return false
+  }
+}
+
+/**
+ * Get the age of the cached allowlist in human-readable format
+ * @returns Age string or "bundled" if never synced
+ */
+export async function getAllowlistAge(): Promise<string> {
+  try {
+    const allowlist = await getAllowlist()
+    if (allowlist.lastUpdated === 0) {
+      return 'bundled'
+    }
+    const ageMs = Date.now() - allowlist.lastUpdated
+    const ageHours = Math.floor(ageMs / (60 * 60 * 1000))
+    if (ageHours < 1) {
+      return 'less than 1 hour'
+    } else if (ageHours < 24) {
+      return `${ageHours} hour${ageHours === 1 ? '' : 's'}`
+    } else {
+      const ageDays = Math.floor(ageHours / 24)
+      return `${ageDays} day${ageDays === 1 ? '' : 's'}`
+    }
+  } catch {
+    return 'unknown'
+  }
+}
+
 // Export default sites for testing
 export const DEFAULT_CRISIS_DOMAINS = DEFAULT_CRISIS_SITES
