@@ -1,19 +1,30 @@
 /**
  * DevicesList Component Tests
  * Story 19.1: Device List View
+ * Story 19.2: Device Status Indicators
  *
  * Tests for:
+ * Story 19.1:
  * - AC1: All enrolled devices listed
  * - AC2: Device information display
  * - AC3: Devices grouped by child
  * - AC4: Unassigned devices section
  * - AC5: Real-time updates (via hooks)
  * - AC6: Empty state
+ *
+ * Story 19.2:
+ * - AC1: Colored status indicator
+ * - AC2: Green = Active (< 1 hour)
+ * - AC3: Yellow = Warning (1-24 hours)
+ * - AC4: Red = Critical (24+ hours)
+ * - AC5: Gray = Offline/Removed
+ * - AC6: Status tooltip with last sync
+ * - AC7: Click for health details
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { groupDevicesByChild } from './DevicesList'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { groupDevicesByChild, getDeviceHealthStatus } from './DevicesList'
 import type { Device } from '../../hooks/useDevices'
 import type { ChildSummary } from '../../hooks/useChildren'
 
@@ -525,6 +536,330 @@ describe('DevicesList Component', () => {
 
       expect(screen.getByText('Unknown Child')).toBeInTheDocument()
       expect(screen.getByText('Orphaned Device')).toBeInTheDocument()
+    })
+  })
+})
+
+/**
+ * Story 19.2: Device Status Indicators
+ * Tests for getDeviceHealthStatus utility function
+ */
+describe('getDeviceHealthStatus - Story 19.2', () => {
+  const HOUR_MS = 60 * 60 * 1000
+  const DAY_MS = 24 * HOUR_MS
+
+  describe('AC2: Green = Active (synced within 1 hour)', () => {
+    it('should return active for device synced just now', () => {
+      const device = createDevice({
+        lastSeen: new Date(),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('active')
+    })
+
+    it('should return active for device synced 30 minutes ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 30 * 60 * 1000),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('active')
+    })
+
+    it('should return active for device synced 59 minutes ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 59 * 60 * 1000),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('active')
+    })
+  })
+
+  describe('AC3: Yellow = Warning (synced 1-24 hours ago)', () => {
+    it('should return warning for device synced exactly 1 hour ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - HOUR_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('warning')
+    })
+
+    it('should return warning for device synced 6 hours ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 6 * HOUR_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('warning')
+    })
+
+    it('should return warning for device synced 23 hours ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 23 * HOUR_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('warning')
+    })
+  })
+
+  describe('AC4: Red = Critical (synced 24+ hours ago)', () => {
+    it('should return critical for device synced exactly 24 hours ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - DAY_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+
+    it('should return critical for device synced 2 days ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 2 * DAY_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+
+    it('should return critical for device synced 1 week ago', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() - 7 * DAY_MS),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+  })
+
+  describe('AC5: Gray = Offline/Removed', () => {
+    it('should return offline for device with status offline', () => {
+      const device = createDevice({
+        lastSeen: new Date(), // Recent, but offline status takes precedence
+        status: 'offline',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('offline')
+    })
+
+    it('should return offline for unenrolled device', () => {
+      const device = createDevice({
+        lastSeen: new Date(),
+        status: 'unenrolled',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('offline')
+    })
+  })
+
+  describe('Edge cases', () => {
+    it('should handle future timestamp (clock skew) as active', () => {
+      const device = createDevice({
+        lastSeen: new Date(Date.now() + HOUR_MS), // 1 hour in the future
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('active')
+    })
+
+    it('should handle very old lastSeen as critical', () => {
+      const device = createDevice({
+        lastSeen: new Date('2020-01-01'),
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+  })
+})
+
+describe('StatusBadge Component - Story 19.2', () => {
+  describe('AC1: Colored status indicator', () => {
+    it('should render status badge with colored dot', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Status badge should be a button with proper aria-label
+      const statusBadge = screen.getByRole('button', { name: /Device status:/ })
+      expect(statusBadge).toBeInTheDocument()
+    })
+  })
+
+  describe('AC6: Status tooltip with last sync', () => {
+    it('should show tooltip on hover with last sync time', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      const statusBadge = screen.getByRole('button', { name: /Device status:/ })
+
+      // Hover to show tooltip
+      fireEvent.mouseEnter(statusBadge)
+
+      // Tooltip should appear with "Last sync:" text
+      expect(screen.getByRole('tooltip')).toBeInTheDocument()
+      expect(screen.getByText(/Last sync:/)).toBeInTheDocument()
+    })
+
+    it('should hide tooltip on mouse leave', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      const statusBadge = screen.getByRole('button', { name: /Device status:/ })
+
+      // Hover and unhover
+      fireEvent.mouseEnter(statusBadge)
+      expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+      fireEvent.mouseLeave(statusBadge)
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('AC7: Click for health details', () => {
+    it('should be clickable as a button', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      // Mock console.log to verify click handler is called
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+      render(<DevicesList familyId="family-123" />)
+
+      const statusBadge = screen.getByRole('button', { name: /Device status:/ })
+      fireEvent.click(statusBadge)
+
+      // Click handler should log the device ID (placeholder for Story 19.4 modal)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Health details clicked for device:',
+        expect.any(String)
+      )
+
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('Status label display', () => {
+    it('should show Active label for recently synced device', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Active')).toBeInTheDocument()
+    })
+
+    it('should show Offline label for offline device', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'offline',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText('Offline')).toBeInTheDocument()
     })
   })
 })

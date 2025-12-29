@@ -1,11 +1,12 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6, 19.1
+ * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6, 19.1, 19.2
  *
  * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
  * Story 19.1: Groups devices by assigned child with section headers.
+ * Story 19.2: Visual health status indicators based on last sync time.
  *
  * Requirements:
  * - AC5 (12.4): Dashboard device list refresh
@@ -17,6 +18,7 @@
  * - AC1-6 (13.2): Emergency code display with re-auth
  * - AC1-5 (13.6): Reset emergency codes with confirmation and re-auth
  * - AC1-6 (19.1): Device list grouped by child
+ * - AC1-7 (19.2): Device health status indicators with tooltip
  */
 
 import { useState, useCallback } from 'react'
@@ -79,27 +81,85 @@ const styles = {
     fontSize: '13px',
     color: '#6b7280',
   },
+  // Story 19.2: Enhanced status badge styles with health indicators
   statusBadge: {
     base: {
       display: 'inline-flex',
       alignItems: 'center',
-      padding: '2px 8px',
+      padding: '4px 10px',
       borderRadius: '9999px',
       fontSize: '12px',
       fontWeight: 500,
+      gap: '6px',
+      cursor: 'pointer',
+      border: 'none',
+      transition: 'background-color 0.15s, box-shadow 0.15s',
     },
     active: {
       backgroundColor: '#dcfce7',
       color: '#166534',
     },
-    offline: {
+    warning: {
       backgroundColor: '#fef3c7',
       color: '#92400e',
     },
-    unenrolled: {
+    critical: {
       backgroundColor: '#fee2e2',
       color: '#991b1b',
     },
+    offline: {
+      backgroundColor: '#f3f4f6',
+      color: '#6b7280',
+    },
+  },
+  statusDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  statusDotActive: {
+    backgroundColor: '#22c55e',
+  },
+  statusDotWarning: {
+    backgroundColor: '#f59e0b',
+  },
+  statusDotCritical: {
+    backgroundColor: '#ef4444',
+  },
+  statusDotOffline: {
+    backgroundColor: '#9ca3af',
+  },
+  // Story 19.2: Tooltip styles
+  tooltipContainer: {
+    position: 'relative' as const,
+    display: 'inline-block',
+  },
+  tooltip: {
+    position: 'absolute' as const,
+    bottom: '100%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    padding: '8px 12px',
+    backgroundColor: '#1f2937',
+    color: '#ffffff',
+    borderRadius: '6px',
+    fontSize: '12px',
+    whiteSpace: 'nowrap' as const,
+    marginBottom: '6px',
+    zIndex: 100,
+    pointerEvents: 'none' as const,
+  },
+  tooltipArrow: {
+    position: 'absolute' as const,
+    top: '100%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 0,
+    height: 0,
+    borderLeft: '6px solid transparent',
+    borderRight: '6px solid transparent',
+    borderTop: '6px solid #1f2937',
   },
   error: {
     color: '#dc2626',
@@ -513,19 +573,142 @@ function OrphanedHeader({ count }: OrphanedHeaderProps) {
   )
 }
 
-function StatusBadge({ status }: { status: Device['status'] }) {
+/**
+ * Story 19.2: Health status type
+ * Task 1: Create Status Calculation Utility
+ */
+export type HealthStatus = 'active' | 'warning' | 'critical' | 'offline'
+
+// Story 19.2: Configurable thresholds (in milliseconds)
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+
+/**
+ * Story 19.2: Calculate device health status based on last sync time
+ * Task 1.1-1.5: Status calculation utility
+ *
+ * @param device - The device to check
+ * @returns HealthStatus - 'active' | 'warning' | 'critical' | 'offline'
+ */
+export function getDeviceHealthStatus(device: Device): HealthStatus {
+  // Task 1.4: Unenrolled devices are always offline
+  if (device.status === 'unenrolled') return 'offline'
+
+  // Offline status from device takes precedence
+  if (device.status === 'offline') return 'offline'
+
+  const now = Date.now()
+  const lastSeenMs = device.lastSeen.getTime()
+  const timeSinceSync = now - lastSeenMs
+
+  // Task 1.5: Handle edge case - future timestamp (clock skew)
+  if (timeSinceSync < 0) return 'active'
+
+  // Task 1.5: Configurable thresholds
+  if (timeSinceSync < HOUR_MS) return 'active' // Green: < 1 hour (AC2)
+  if (timeSinceSync < DAY_MS) return 'warning' // Yellow: 1-24 hours (AC3)
+  return 'critical' // Red: 24+ hours (AC4)
+}
+
+/**
+ * Story 19.2: Format exact timestamp for tooltip
+ * Task 3.4: Show exact timestamp
+ */
+function formatExactTimestamp(date: Date): string {
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+/**
+ * Story 19.2: Enhanced Status Badge with health indicators
+ * Task 2: Update StatusBadge Component
+ * Task 3: Add Tooltip with Last Sync
+ * Task 4: Add Click Handler for Health Details
+ */
+interface StatusBadgeProps {
+  device: Device
+  onClick?: (device: Device) => void
+}
+
+function StatusBadge({ device, onClick }: StatusBadgeProps) {
+  const [showTooltip, setShowTooltip] = useState(false)
+
+  const healthStatus = getDeviceHealthStatus(device)
+
+  // Task 2.3-2.4: Map health status to colors and labels
   const statusStyles = {
     ...styles.statusBadge.base,
-    ...styles.statusBadge[status],
+    ...styles.statusBadge[healthStatus],
   }
 
-  const labels = {
+  const dotStyles = {
+    ...styles.statusDot,
+    ...(healthStatus === 'active'
+      ? styles.statusDotActive
+      : healthStatus === 'warning'
+        ? styles.statusDotWarning
+        : healthStatus === 'critical'
+          ? styles.statusDotCritical
+          : styles.statusDotOffline),
+  }
+
+  const labels: Record<HealthStatus, string> = {
     active: 'Active',
+    warning: 'Warning',
+    critical: 'Critical',
     offline: 'Offline',
-    unenrolled: 'Unenrolled',
   }
 
-  return <span style={statusStyles}>{labels[status]}</span>
+  // Task 4.1-4.4: Make clickable with visual feedback
+  const handleClick = () => {
+    if (onClick) {
+      onClick(device)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }
+
+  return (
+    <div style={styles.tooltipContainer}>
+      {/* Task 3.1-3.5: Tooltip on hover */}
+      {showTooltip && (
+        <div style={styles.tooltip} role="tooltip">
+          <div>Last sync: {formatLastSeen(device.lastSeen)}</div>
+          <div style={{ opacity: 0.8, fontSize: '11px' }}>
+            {formatExactTimestamp(device.lastSeen)}
+          </div>
+          <div style={styles.tooltipArrow} />
+        </div>
+      )}
+      {/* Task 2.1-2.5: Enhanced status badge with dot indicator */}
+      <button
+        style={statusStyles}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onFocus={() => setShowTooltip(true)}
+        onBlur={() => setShowTooltip(false)}
+        aria-label={`Device status: ${labels[healthStatus]}. Last sync: ${formatLastSeen(device.lastSeen)}. Click for details.`}
+        type="button"
+      >
+        {/* Task 2.2: Colored dot indicator */}
+        <span style={dotStyles} aria-hidden="true" />
+        {labels[healthStatus]}
+      </button>
+    </div>
+  )
 }
 
 interface ChildAssignmentProps {
@@ -934,7 +1117,14 @@ export function DevicesList({ familyId }: DevicesListProps) {
         isUpdating={updatingDevices.has(device.deviceId)}
         error={deviceErrors[device.deviceId] || null}
       />
-      <StatusBadge status={device.status} />
+      <StatusBadge
+        device={device}
+        onClick={(dev) => {
+          // Task 4.3: Wire to state setter for future health panel modal (Story 19.4)
+          console.log('Health details clicked for device:', dev.deviceId)
+          // TODO: Story 19.4 will implement the detailed health breakdown panel
+        }}
+      />
       <button
         style={{
           ...styles.emergencyCodeButton,
