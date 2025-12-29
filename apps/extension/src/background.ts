@@ -26,6 +26,14 @@ const MIN_CAPTURE_INTERVAL_MINUTES = 1
 const MAX_CAPTURE_INTERVAL_MINUTES = 30
 const DEFAULT_SYNC_INTERVAL_MINUTES = 15
 
+// Idle detection constants (Story 10.5)
+const DEFAULT_IDLE_THRESHOLD_SECONDS = 300 // 5 minutes
+const MIN_IDLE_THRESHOLD_SECONDS = 60 // 1 minute
+const MAX_IDLE_THRESHOLD_SECONDS = 1800 // 30 minutes
+
+// Current idle state (in-memory, not persisted)
+let isDeviceIdle = false
+
 /**
  * Validate and clamp capture interval to allowed range
  */
@@ -42,6 +50,7 @@ interface ExtensionState {
   lastSync: number | null
   monitoringEnabled: boolean
   captureIntervalMinutes: number
+  idleThresholdSeconds: number
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -52,15 +61,39 @@ const DEFAULT_STATE: ExtensionState = {
   lastSync: null,
   monitoringEnabled: false,
   captureIntervalMinutes: DEFAULT_CAPTURE_INTERVAL_MINUTES,
+  idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
+}
+
+/**
+ * Validate and clamp idle threshold to allowed range
+ */
+function validateIdleThreshold(seconds: number): number {
+  return Math.max(MIN_IDLE_THRESHOLD_SECONDS, Math.min(MAX_IDLE_THRESHOLD_SECONDS, seconds))
+}
+
+/**
+ * Set up idle detection with the configured threshold
+ * Story 10.5: Capture Pause During Inactivity
+ */
+function setupIdleDetection(thresholdSeconds: number): void {
+  const validatedThreshold = validateIdleThreshold(thresholdSeconds)
+  chrome.idle.setDetectionInterval(validatedThreshold)
+  console.log(`[Fledgely] Idle detection set to ${validatedThreshold}s`)
 }
 
 /**
  * Start monitoring alarms when a child is connected
  * Uses chrome.alarms for MV3-compliant persistent scheduling
  */
-async function startMonitoringAlarms(intervalMinutes: number): Promise<void> {
+async function startMonitoringAlarms(
+  intervalMinutes: number,
+  idleThreshold: number = DEFAULT_IDLE_THRESHOLD_SECONDS
+): Promise<void> {
   // Validate and clamp interval to allowed range (1-30 minutes)
   const validatedInterval = validateCaptureInterval(intervalMinutes)
+
+  // Set up idle detection (Story 10.5)
+  setupIdleDetection(idleThreshold)
 
   // Clear any existing alarms first
   await chrome.alarms.clear(ALARM_SCREENSHOT_CAPTURE)
@@ -244,6 +277,12 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
     return
   }
 
+  // Story 10.5: Skip capture if device is idle or locked
+  if (isDeviceIdle) {
+    console.log('[Fledgely] Device is idle/locked, skipping capture')
+    return
+  }
+
   const result = await captureScreenshot({ quality: 80 })
 
   if (result.success) {
@@ -321,7 +360,10 @@ chrome.runtime.onStartup.addListener(async () => {
   if (state?.isAuthenticated && state?.monitoringEnabled && state?.childId) {
     // Resume monitoring alarms if they were active
     console.log('[Fledgely] Resuming monitoring for child:', state.childId)
-    await startMonitoringAlarms(state.captureIntervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES)
+    await startMonitoringAlarms(
+      state.captureIntervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES,
+      state.idleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS
+    )
   }
 })
 
@@ -368,7 +410,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await updateActionTitle(newState)
 
         // Start monitoring alarms for screenshot capture and sync
-        await startMonitoringAlarms(newState.captureIntervalMinutes)
+        await startMonitoringAlarms(newState.captureIntervalMinutes, newState.idleThresholdSeconds)
 
         console.log('[Fledgely] Connected to child:', message.childName)
         sendResponse({ success: true })
@@ -411,11 +453,34 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // If monitoring is active, restart alarms with new interval
         if (currentState.monitoringEnabled) {
-          await startMonitoringAlarms(newInterval)
+          await startMonitoringAlarms(newInterval, currentState.idleThresholdSeconds)
           console.log(`[Fledgely] Capture interval updated to ${newInterval}min`)
         }
 
         sendResponse({ success: true, newInterval })
+      })
+      return true
+
+    case 'UPDATE_IDLE_THRESHOLD':
+      // Update idle threshold for inactivity detection
+      // Story 10.5: Capture Pause During Inactivity
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newThreshold = validateIdleThreshold(
+          message.thresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS
+        )
+
+        const newState: ExtensionState = {
+          ...currentState,
+          idleThresholdSeconds: newThreshold,
+        }
+        await chrome.storage.local.set({ state: newState })
+
+        // Update idle detection with new threshold
+        setupIdleDetection(newThreshold)
+        console.log(`[Fledgely] Idle threshold updated to ${newThreshold}s`)
+
+        sendResponse({ success: true, newThreshold })
       })
       return true
 
@@ -448,6 +513,23 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await processScreenshotQueue()
       await updateLastSync()
       break
+    }
+  }
+})
+
+// Idle state change listener (Story 10.5)
+chrome.idle.onStateChanged.addListener((newState) => {
+  const previousState = isDeviceIdle
+
+  // Update idle state based on chrome.idle state
+  // "active" = user is active, "idle" = user is idle, "locked" = screen is locked
+  isDeviceIdle = newState !== 'active'
+
+  if (previousState !== isDeviceIdle) {
+    if (isDeviceIdle) {
+      console.log(`[Fledgely] Device became ${newState} - capture paused`)
+    } else {
+      console.log('[Fledgely] Device became active - capture resumed')
     }
   }
 })

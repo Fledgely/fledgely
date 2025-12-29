@@ -210,7 +210,7 @@ development_status:
   10-2-configurable-capture-intervals: done
   10-3-local-screenshot-queue: done
   10-4-screenshot-upload-to-api: done
-  10-5-capture-pause-during-inactivity: backlog
+  10-5-capture-pause-during-inactivity: done
   10-6-capture-event-logging: backlog
   epic-10-retrospective: optional
 

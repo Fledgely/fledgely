@@ -3,7 +3,7 @@
   "name": "Fledgely",
   "version": "0.1.0",
   "description": "Family digital safety and trust building for Chromebook monitoring",
-  "permissions": ["storage", "alarms", "tabs", "activeTab", "identity"],
+  "permissions": ["storage", "alarms", "tabs", "activeTab", "identity", "idle"],
   "host_permissions": [
     "https://*.fledgely.app/*",
     "https://*.firebaseapp.com/*",
