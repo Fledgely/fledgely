@@ -167,7 +167,7 @@ development_status:
   8-1-family-data-isolation-rules: done
   8-2-sibling-data-isolation: done
   8-3-child-permission-boundaries: done
-  8-4-negative-capability-no-third-party-sharing: backlog
+  8-4-negative-capability-no-third-party-sharing: done
   8-5-negative-capability-no-advertising-use: backlog
   8-6-negative-capability-no-identifiable-ai-training: backlog
   8-7-vpn-detection-transparency: backlog

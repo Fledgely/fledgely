@@ -5,21 +5,23 @@
 **Decision Compatibility:**
 All 17 ADRs validated for compatibility. No contradictions found.
 
-| Decision Pair | Compatibility |
-|---------------|---------------|
-| Firebase (AT1) ↔ Next.js (ADR-008) | ✅ Native integration |
-| TanStack Query (ADR-010) ↔ Firestore | ✅ SSR hydration works |
-| Zod (ADR-007) ↔ TypeScript | ✅ Type inference flows |
-| Nx (ADR-009) ↔ Native repos | ✅ Hybrid model works |
-| shadcn (ADR-011) ↔ App Router RSC | ✅ Compatible |
+| Decision Pair                        | Compatibility           |
+| ------------------------------------ | ----------------------- |
+| Firebase (AT1) ↔ Next.js (ADR-008)   | ✅ Native integration   |
+| TanStack Query (ADR-010) ↔ Firestore | ✅ SSR hydration works  |
+| Zod (ADR-007) ↔ TypeScript           | ✅ Type inference flows |
+| Nx (ADR-009) ↔ Native repos          | ✅ Hybrid model works   |
+| shadcn (ADR-011) ↔ App Router RSC    | ✅ Compatible           |
 
 **Pattern Consistency:**
+
 - ✅ Naming conventions consistent across all layers
 - ✅ Data flow patterns align with state management
 - ✅ Error handling patterns consistent
 - ✅ Test patterns mirror source structure
 
 **Structure Alignment:**
+
 - ✅ Project structure supports hybrid repo decision
 - ✅ Function/service separation enables testability
 - ✅ Data access layer in shared package enables reuse
@@ -78,10 +80,12 @@ All 17 ADRs validated for compatibility. No contradictions found.
 ## Additional Validation Items
 
 **Form Library Decision:**
+
 - react-hook-form with Zod resolver for all forms
 - Form state never in Zustand or TanStack Query
 
 **Cold Start UX Strategy:**
+
 - Optimistic UI with `pendingWrites` indicator
 - User perceives instant action, sync in background
 
@@ -94,6 +98,7 @@ All 17 ADRs validated for compatibility. No contradictions found.
 | Timeout | 30 seconds for all callable functions |
 
 **Test Data Strategy:**
+
 - Deterministic factories with fixed faker seed
 - Fake timers for timestamp consistency
 - Predictable IDs for snapshot stability
@@ -141,25 +146,27 @@ describe('Cross-Family Data Isolation', () => {
 
 ## User Journey Validation
 
-| Journey | Steps | Architectural Support |
-|---------|-------|----------------------|
-| Parent Onboarding | Sign-in → Create family → Add child → AI conversation → Sign agreement | ✅ Fully supported |
-| Flag Review | Capture → Classify → Child annotate → Parent notify → Review | ✅ Fully supported |
-| Crisis Protection | Visit crisis URL → Zero capture → No record | ✅ Fully supported |
+| Journey           | Steps                                                                  | Architectural Support |
+| ----------------- | ---------------------------------------------------------------------- | --------------------- |
+| Parent Onboarding | Sign-in → Create family → Add child → AI conversation → Sign agreement | ✅ Fully supported    |
+| Flag Review       | Capture → Classify → Child annotate → Parent notify → Review           | ✅ Fully supported    |
+| Crisis Protection | Visit crisis URL → Zero capture → No record                            | ✅ Fully supported    |
 
 ---
 
 ## ADR Quick Reference
 
-| Task | Primary ADR | Related |
-|------|-------------|---------|
-| Building a form | Form Library | ADR-010 |
-| Adding API endpoint | ADR-007 | ADR-013 |
-| Fetching data | ADR-010 | ADR-003 |
-| New collection | ADR-001 | ADR-002 |
-| Security rules | ADR-006 | PR1, SA1 |
-| Offline handling | ADR-016 | ADR-010 |
-| AI classification | AT2 | ADR-012 |
+| Task                          | Primary ADR  | Related                 |
+| ----------------------------- | ------------ | ----------------------- |
+| Building a form               | Form Library | ADR-010                 |
+| Adding API endpoint           | ADR-007      | ADR-013                 |
+| Fetching data                 | ADR-010      | ADR-003                 |
+| New collection                | ADR-001      | ADR-002                 |
+| Security rules                | ADR-006      | PR1, SA1                |
+| Offline handling              | ADR-016      | ADR-010                 |
+| AI classification             | AT2          | ADR-012                 |
+| Adding third-party dependency | ADR-018      | Privacy audit checklist |
+| External API integration      | ADR-018      | ADR-007                 |
 
 ---
 
@@ -179,44 +186,50 @@ const db = new DatabaseHelper(firestore)
 const doc = await getDoc(ref)
 
 // ❌ WRONG: Business logic in components
-function FlagReview() { const impact = calculateTrustImpact(flag) }
+function FlagReview() {
+  const impact = calculateTrustImpact(flag)
+}
 
 // ✅ CORRECT: Logic in services
-function FlagReview() { const { data } = useFlagWithImpact(flagId) }
+function FlagReview() {
+  const { data } = useFlagWithImpact(flagId)
+}
 ```
 
 ---
 
 ## Architectural Invariants
 
-| ID | Property | Verification |
-|----|----------|--------------|
-| INV-001 | Crisis URLs NEVER captured | Adversarial test + code review |
-| INV-002 | Child data requires guardian permission | Security rules tests |
-| INV-003 | All types from Zod schemas | ESLint + grep |
-| INV-004 | No Firebase abstractions | Code review + grep |
-| INV-005 | Deletion at 18 is automatic | Scheduled function test |
+| ID      | Property                                | Verification                   |
+| ------- | --------------------------------------- | ------------------------------ |
+| INV-001 | Crisis URLs NEVER captured              | Adversarial test + code review |
+| INV-002 | Child data requires guardian permission | Security rules tests           |
+| INV-003 | All types from Zod schemas              | ESLint + grep                  |
+| INV-004 | No Firebase abstractions                | Code review + grep             |
+| INV-005 | Deletion at 18 is automatic             | Scheduled function test        |
 
 ---
 
 ## Accepted Unknowns
 
-| Unknown | Risk | Mitigation |
-|---------|------|------------|
-| Gemini API scale | May need rate limiting | Monitor, adjust maxInstances |
-| On-device ML size | May exceed bundle | Progressive download |
-| Third-party privacy | Imperfect redaction | Retention limits, no export |
+| Unknown             | Risk                   | Mitigation                   |
+| ------------------- | ---------------------- | ---------------------------- |
+| Gemini API scale    | May need rate limiting | Monitor, adjust maxInstances |
+| On-device ML size   | May exceed bundle      | Progressive download         |
+| Third-party privacy | Imperfect redaction    | Retention limits, no export  |
 
 ---
 
 ## Cross-Repository Integration
 
 **Contract Version Lock:**
+
 - Native repos pin exact OpenAPI spec version
 - CI fails if spec >7 days old
 - Breaking changes require coordinated release
 
 **Weekly Integration Tests:**
+
 - Android and iOS test against live functions
 - Shared test scenarios across platforms
 
@@ -240,15 +253,18 @@ function FlagReview() { const { data } = useFlagWithImpact(flagId) }
 ## Cost Protection
 
 **Per-Device Limits:**
+
 - 500 screenshots/day hard cap
 - 120 screenshots/hour
 - 60 sync requests/hour
 
 **Anomaly Alerts:**
-- >1000 screenshots/day/child
-- >$10/day Cloud Functions cost
+
+- > 1000 screenshots/day/child
+- > $10/day Cloud Functions cost
 
 **Emergency Kill Switch:**
+
 ```typescript
 const enabled = await remoteConfig.getBoolean('screenshot_capture_enabled')
 if (!enabled) return { error: 'service-paused' }
@@ -259,6 +275,7 @@ if (!enabled) return { error: 'service-paused' }
 ## Callable Function Security Checklist
 
 Every callable function MUST follow:
+
 1. **Auth check** (FIRST)
 2. **Input validation** (SECOND)
 3. **Permission check** (THIRD)
@@ -271,15 +288,18 @@ CODEOWNERS: `apps/functions/src/callable/` requires @security-team
 ## Schema Evolution Rules
 
 **Safe (no migration):**
+
 - New optional fields
 - New enum values at END
 
 **Breaking (migration required):**
+
 - New required fields
 - Removing fields
 - Changing types
 
 **Deployment Order:**
+
 1. Deploy migration function
 2. Run backfill
 3. Verify all migrated
@@ -293,19 +313,22 @@ CODEOWNERS: `apps/functions/src/callable/` requires @security-team
 
 **Confidence Level:** HIGH
 
-*Would be MEDIUM if:*
+_Would be MEDIUM if:_
+
 - Any critical feature lacked data model
 - Security rules coverage < 80%
 - No adversarial test suite
 - Native contract undefined
 
-*Would be LOW if:*
+_Would be LOW if:_
+
 - Core technology untested
 - No error handling patterns
 - No offline strategy
 - Compliance requirements unclear
 
 **Key Strengths:**
+
 1. Full Firebase commitment - no abstraction layers
 2. Child-centric data model handles complex families
 3. Comprehensive adversarial testing for safety
@@ -314,6 +337,7 @@ CODEOWNERS: `apps/functions/src/callable/` requires @security-team
 6. All 5 elicitation methods applied across Steps 4-7
 
 **Areas for Future Enhancement:**
+
 1. E2EE implementation (M18)
 2. On-device ML model training
 3. Native OpenAPI client generation automation
@@ -323,6 +347,7 @@ CODEOWNERS: `apps/functions/src/callable/` requires @security-team
 ## Implementation Handoff
 
 **AI Agent Guidelines:**
+
 1. Follow all ADRs exactly as documented
 2. Use implementation patterns consistently
 3. Respect project structure and boundaries
@@ -330,6 +355,7 @@ CODEOWNERS: `apps/functions/src/callable/` requires @security-team
 5. When in doubt, check the anti-patterns section
 
 **First Implementation Priority:**
+
 ```bash
 # Initialize Nx monorepo with Firebase
 npx create-nx-workspace@latest fledgely --preset=next

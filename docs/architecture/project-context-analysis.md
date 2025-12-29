@@ -7,6 +7,7 @@
 
 **Non-Functional Requirements:**
 91 NFRs covering:
+
 - Performance (2-second dashboard loads, 500ms screenshot capture, 30-second AI classification)
 - Security (AES-256 at rest, TLS 1.3 in transit, Firebase Security Rules as primary boundary)
 - Privacy & Compliance (COPPA 2025, GDPR, UK AADC, data minimization)
@@ -17,6 +18,7 @@
 - Operational (cost alerts, resource limits, incident classification)
 
 **Scale & Complexity:**
+
 - Primary domain: Multi-platform consumer application with native clients
 - Complexity level: High
 - Estimated architectural components: 15-20 major components
@@ -25,16 +27,16 @@
 
 ## Technical Constraints & Dependencies
 
-| Constraint | Impact |
-|------------|--------|
+| Constraint                    | Impact                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------- |
 | Firebase-centric architecture | All backend services built on Firebase; self-hosted deploys to user's GCP project |
-| Google Sign-In delegation | No auth logic in fledgely; MFA encouragement only |
-| iOS screenshot impossibility | Metadata/title classification only on iOS |
-| Chrome MV3 5-minute limit | Alarms API scheduling; chunked uploads |
-| Android 14+ MediaProjection | Per-session consent; clear UX for re-approval |
-| Crisis allowlist immutability | Check BEFORE any capture; zero data path |
-| Store independence | Sideload paths mandatory; never depend on app stores |
-| E2EE deferred to M18 | Firebase Security Rules are current security boundary |
+| Google Sign-In delegation     | No auth logic in fledgely; MFA encouragement only                                 |
+| iOS screenshot impossibility  | Metadata/title classification only on iOS                                         |
+| Chrome MV3 5-minute limit     | Alarms API scheduling; chunked uploads                                            |
+| Android 14+ MediaProjection   | Per-session consent; clear UX for re-approval                                     |
+| Crisis allowlist immutability | Check BEFORE any capture; zero data path                                          |
+| Store independence            | Sideload paths mandatory; never depend on app stores                              |
+| E2EE deferred to M18          | Firebase Security Rules are current security boundary                             |
 
 ## Cross-Cutting Concerns Identified
 
@@ -142,6 +144,7 @@ Use platform hardware encryption where available (Keystore/Keychain). Queue is s
 Security-critical settings hardcoded in Terraform, not configurable. Documented shared responsibility model.
 
 **PR5: Adversarial Family Protections - Full Scope**
+
 - Shared custody immutability (can't remove other parent)
 - Separation flow with 30-day waiting period
 - Safety rule 48-hour cooling period
@@ -158,11 +161,13 @@ Graceful degradation hierarchy (never "completely broken"). Explicit platform ti
 **ADR-001: Firestore Data Model - Child-Centric with Guardian Links**
 
 Children are the root entity, not families. Each child has:
+
 - Their own guardians (parents, step-parents, legal guardians) with explicit permissions
 - Their own agreement that travels with them across households
 - Their own screenshots, activity, and trust score
 
 Data Structure:
+
 ```
 /users/{userId}/
   - profile: { name, email }
@@ -194,6 +199,7 @@ This supports: shared custody, blended families, complex multi-partner situation
 **ADR-002: Screenshot Storage - Child-Scoped Paths**
 
 Single Cloud Storage bucket with path structure:
+
 ```
 gs://fledgely-screenshots/
   └── children/{childId}/screenshots/{YYYY-MM-DD}/{timestamp}_{deviceId}_{uuid}.enc
@@ -208,6 +214,7 @@ Direct Firestore listeners with query limits for cost efficiency. Dashboard quer
 **ADR-004: Agreement Versioning - Full History**
 
 Keep ALL historical versions (agreements don't change frequently). Current agreement + complete history + proposals with approval workflow.
+
 ```
 /children/{childId}/agreement/current
 /children/{childId}/agreement/history/{version}
@@ -272,6 +279,7 @@ Rationale: Development will leverage AI agentic engineers as specialists (Kotlin
 **Repository Structure:**
 
 Primary Monorepo (`fledgely/`):
+
 ```
 fledgely/
 ├── apps/
@@ -290,6 +298,7 @@ fledgely/
 ```
 
 Separate Native Repositories:
+
 ```
 fledgely-android/              # Kotlin - Android + Fire TV
 fledgely-ios/                  # Swift - iOS
@@ -298,13 +307,13 @@ fledgely-desktop/              # Electron or Tauri - Windows + macOS (if needed)
 
 **Comparative Analysis Matrix:**
 
-| Criterion (Weight) | Nx Mono | Turborepo | Polyrepo | Hybrid |
-|--------------------|---------|-----------|----------|--------|
-| TS Code Sharing (1.0) | 5 | 5 | 2 | 5 |
-| Native Dev Experience (1.0) | 3 | 3 | 5 | 5 |
-| Version Compat Testing (1.0) | 5 | 4 | 3 | 4 |
-| AI Agent Specialization (1.0) | 3 | 3 | 5 | 5 |
-| **Weighted Total** | **4.00** | **3.75** | **3.75** | **4.75** |
+| Criterion (Weight)            | Nx Mono  | Turborepo | Polyrepo | Hybrid   |
+| ----------------------------- | -------- | --------- | -------- | -------- |
+| TS Code Sharing (1.0)         | 5        | 5         | 2        | 5        |
+| Native Dev Experience (1.0)   | 3        | 3         | 5        | 5        |
+| Version Compat Testing (1.0)  | 5        | 4         | 3        | 4        |
+| AI Agent Specialization (1.0) | 3        | 3         | 5        | 5        |
+| **Weighted Total**            | **4.00** | **3.75**  | **3.75** | **4.75** |
 
 Hybrid wins by providing best-of-both-worlds: unified TypeScript tooling where it matters, native-first experience where it matters.
 
@@ -319,6 +328,7 @@ Zod schemas in `packages/contracts/` are the single source of truth:
    - iOS: OpenAPI Generator → Swift with Codable
 
 Version compatibility enforced via:
+
 - Contract version field in all API requests
 - Server supports current + N-1 versions
 - CI matrix tests: {latest server × old clients} + {old server × latest clients}
@@ -329,6 +339,7 @@ Version compatibility enforced via:
 Decision: Next.js 14+ with App Router for the web dashboard.
 
 Rationale:
+
 - Firebase hosting has first-class Next.js support via `firebase init hosting`
 - App Router provides React Server Components for dashboard performance
 - Native Firebase SDK integration (no adapter layers)
@@ -336,10 +347,11 @@ Rationale:
 - SSR/SSG flexibility for public pages vs authenticated dashboard
 
 Configuration:
+
 ```typescript
 // next.config.js
 module.exports = {
-  output: 'export',  // Static export for Firebase Hosting
+  output: 'export', // Static export for Firebase Hosting
   // Or 'standalone' if using Cloud Functions for SSR
 }
 ```
@@ -349,6 +361,7 @@ module.exports = {
 Decision: Nx for TypeScript monorepo management.
 
 Rationale:
+
 - Superior affected command detection for CI efficiency
 - Built-in caching (local + Nx Cloud)
 - First-class Firebase/Next.js generators
@@ -356,6 +369,7 @@ Rationale:
 - Stronger TypeScript project references support
 
 Key Nx Features Used:
+
 - `nx affected:test` - Only test what changed
 - `nx graph` - Dependency visualization
 - Workspace generators for consistent package scaffolding
@@ -364,6 +378,7 @@ Key Nx Features Used:
 **Version Compatibility Testing Strategy:**
 
 CI Matrix Approach:
+
 ```yaml
 # .github/workflows/compatibility.yml
 strategy:
@@ -374,12 +389,14 @@ strategy:
 ```
 
 Contract Versioning:
+
 - Major version: Breaking changes (migration required)
 - Minor version: Additive changes (backward compatible)
 - Every request includes `X-Contract-Version` header
 - Server responds with supported version range
 
 Native Repository Sync:
+
 - OpenAPI spec published as GitHub release artifact
 - Native repos pin to specific contract version
 - Dependabot-style PRs when new contract version available
@@ -396,23 +413,26 @@ Decision: TanStack Query for server state + Zustand for UI state + Direct Firest
 Rationale: TanStack Query provides SSR hydration and normalized caching that Firestore SDK alone doesn't offer. For simpler projects without SSR needs, react-firebase-hooks would be a valid alternative.
 
 **Server-Authoritative Pattern:**
+
 - Firestore is ALWAYS the source of truth - TanStack Query and Zustand are read caches only
 - All writes route through Cloud Functions returning canonical state
 - Optimistic updates show `pendingWrites` visual indicator
 - Conflict resolution: server timestamp wins, no client-side merge logic
 
 **Tiered staleTime Configuration:**
+
 ```typescript
 export const QUERY_STALE_TIMES = {
-  agreement: 5 * 60 * 1000,     // 5 min - rarely changes
-  childProfile: 5 * 60 * 1000,  // 5 min - stable
-  trustScore: 5 * 60 * 1000,    // 5 min - matches batch frequency
-  activity: 60 * 1000,          // 1 min - moderate volatility
-  screenshots: 30 * 1000,       // 30s - new captures arrive real-time
+  agreement: 5 * 60 * 1000, // 5 min - rarely changes
+  childProfile: 5 * 60 * 1000, // 5 min - stable
+  trustScore: 5 * 60 * 1000, // 5 min - matches batch frequency
+  activity: 60 * 1000, // 1 min - moderate volatility
+  screenshots: 30 * 1000, // 30s - new captures arrive real-time
 } as const
 ```
 
 **Performance Optimization:**
+
 - Trust scores batched server-side every 5 minutes (90% read cost reduction)
 - ESLint rule enforces onSnapshot cleanup to prevent listener leaks
 
@@ -423,12 +443,14 @@ export const QUERY_STALE_TIMES = {
 Decision: shadcn/ui built on Radix UI primitives + Tailwind CSS.
 
 Rationale:
+
 - WCAG 2.1 AA accessibility via Radix primitives (required by NFRs)
 - Copy-paste ownership allows customization for family-specific UX
 - Minimal bundle impact (~20KB base)
 - Next.js App Router / RSC friendly
 
 **CI-Enforced Accessibility (not quarterly audits):**
+
 ```yaml
 # .github/workflows/accessibility.yml
 name: Accessibility Check
@@ -447,6 +469,7 @@ jobs:
 ```
 
 **Automated Radix Version Tracking:**
+
 ```yaml
 # .github/workflows/radix-updates.yml
 - name: Check Radix Updates
@@ -464,15 +487,16 @@ Screenshot documents include `aiDescription` field generated during classificati
 
 Decision: Vitest (unit) + Playwright (E2E) + Firebase Emulator Suite + Adversarial Tests.
 
-| Layer | Tool | Scope |
-|-------|------|-------|
-| Unit | Vitest | Components, hooks, utilities, Cloud Functions logic |
-| Integration | Vitest + Firebase Emulators | Firestore operations, security rules |
-| E2E | Playwright | Full browser flows against local stack |
-| Adversarial | Playwright | Circumvention, abuse, weaponization scenarios |
-| Shadow | Weekly | Production parity verification |
+| Layer       | Tool                        | Scope                                               |
+| ----------- | --------------------------- | --------------------------------------------------- |
+| Unit        | Vitest                      | Components, hooks, utilities, Cloud Functions logic |
+| Integration | Vitest + Firebase Emulators | Firestore operations, security rules                |
+| E2E         | Playwright                  | Full browser flows against local stack              |
+| Adversarial | Playwright                  | Circumvention, abuse, weaponization scenarios       |
+| Shadow      | Weekly                      | Production parity verification                      |
 
 **Adversarial Test Suite:**
+
 ```
 e2e/
   adversarial/
@@ -484,6 +508,7 @@ e2e/
 ```
 
 **Test Instrumentation for Crisis Verification:**
+
 ```typescript
 // Test environments can verify blocking happened without exposing to client
 if (process.env.NODE_ENV === 'test') {
@@ -492,6 +517,7 @@ if (process.env.NODE_ENV === 'test') {
 ```
 
 **Developer Experience:**
+
 ```typescript
 // playwright.config.ts
 webServer: {
@@ -500,9 +526,10 @@ webServer: {
 ```
 
 **Seed Data Validation:**
+
 ```typescript
 // Zod validation on seed data prevents schema drift
-seedData.children.forEach(child => ChildSchema.parse(child))
+seedData.children.forEach((child) => ChildSchema.parse(child))
 ```
 
 ---
@@ -512,11 +539,12 @@ seedData.children.forEach(child => ChildSchema.parse(child))
 Decision: Typed internal error codes + sanitized user-facing messages + correlation IDs.
 
 **Error Sanitization Layer:**
+
 ```typescript
 const ERROR_SANITIZATION: Record<string, string> = {
   'crisis/resource-blocked': 'content/unavailable',
   'agreement/cooling-period-active': 'agreement/pending-changes',
-  'auth/permission-denied': 'auth/access-denied'
+  'auth/permission-denied': 'auth/access-denied',
 }
 
 function handleError(error: InternalError, res: Response) {
@@ -529,7 +557,7 @@ function handleError(error: InternalError, res: Response) {
   res.status(400).json({
     code: sanitizeError(error.code),
     message: getUserFriendlyMessage(error.code),
-    supportId: correlationId
+    supportId: correlationId,
   })
 }
 ```
@@ -544,6 +572,7 @@ Auth-sensitive endpoints use constant-time responses (minimum 200ms) to prevent 
 Decision: GitHub Actions + Workload Identity Federation + Nx affected commands.
 
 **Security: No Static Keys**
+
 ```yaml
 jobs:
   deploy:
@@ -557,6 +586,7 @@ jobs:
 ```
 
 **Nx-ified Security Rules:**
+
 ```
 packages/
   firebase-rules/
@@ -569,8 +599,10 @@ packages/
 **Deploy Order:** Rules deploy AFTER functions to prevent brief misconfiguration window.
 
 **Break-Glass Emergency Procedure:**
+
 ```markdown
 When GitHub Actions unavailable (requires 2-person auth):
+
 1. Retrieve break-glass key from 1Password vault
 2. gcloud auth activate-service-account --key-file=break-glass.json
 3. firebase deploy --only functions,hosting
@@ -583,17 +615,18 @@ When GitHub Actions unavailable (requires 2-person auth):
 
 Decision: All-Google stack - Firebase Crashlytics + Cloud Monitoring. No Sentry.
 
-| Concern | Tool |
-|---------|------|
-| Crashes (all platforms) | Firebase Crashlytics |
-| Performance | Firebase Performance Monitoring |
-| Infrastructure | Cloud Monitoring |
-| Logs | Cloud Logging (structured JSON) |
-| Alerts | Cloud Monitoring (single pane) |
+| Concern                 | Tool                            |
+| ----------------------- | ------------------------------- |
+| Crashes (all platforms) | Firebase Crashlytics            |
+| Performance             | Firebase Performance Monitoring |
+| Infrastructure          | Cloud Monitoring                |
+| Logs                    | Cloud Logging (structured JSON) |
+| Alerts                  | Cloud Monitoring (single pane)  |
 
 Rationale: Crashlytics added web support in 2024. All-Google eliminates Sentry → BigQuery pipeline complexity.
 
 **Key Metrics:**
+
 - Screenshot capture success rate by platform
 - AI classification latency (target: 30s)
 - Dashboard load time (target: 2s)
@@ -606,16 +639,18 @@ Rationale: Crashlytics added web support in 2024. All-Google eliminates Sentry �
 Decision: Firestore offline persistence + bounded queue + sequential ID integrity + throttled sync.
 
 **Configurable Offline Tolerance:**
+
 ```typescript
 interface AgreementSettings {
-  offlineToleranceHours: number  // Default: 72, range: 24-168 (1-7 days)
+  offlineToleranceHours: number // Default: 72, range: 24-168 (1-7 days)
 }
 ```
 
 **Queue Integrity (Lightweight):**
+
 ```typescript
 interface QueueEntry {
-  id: string           // Sequential: 1, 2, 3...
+  id: string // Sequential: 1, 2, 3...
   timestamp: number
   data: EncryptedScreenshot
 }
@@ -624,8 +659,8 @@ interface QueueEntry {
 function detectGaps(entries: QueueEntry[]): number[] {
   const gaps: number[] = []
   for (let i = 1; i < entries.length; i++) {
-    if (parseInt(entries[i].id) !== parseInt(entries[i-1].id) + 1) {
-      gaps.push(parseInt(entries[i-1].id) + 1)
+    if (parseInt(entries[i].id) !== parseInt(entries[i - 1].id) + 1) {
+      gaps.push(parseInt(entries[i - 1].id) + 1)
     }
   }
   return gaps
@@ -633,6 +668,7 @@ function detectGaps(entries: QueueEntry[]): number[] {
 ```
 
 **Throttled Sync on Reconnect:**
+
 ```typescript
 async function syncOfflineQueue(entries: QueueEntry[]) {
   const BATCH_SIZE = 50
@@ -662,6 +698,7 @@ Decision: GCP-native rate limiting + behavioral anomaly detection.
 | Budget | Cloud Billing alerts at 25%, 50%, 80%, 100% |
 
 **Behavioral Anomaly Detection (Abuse):**
+
 ```typescript
 // Separate from cost control - detects weaponization patterns
 const ANOMALY_PATTERNS = {
@@ -676,9 +713,70 @@ const ANOMALY_EXEMPTIONS = { offline_sync: true }
 
 ---
 
+**ADR-018: Negative Capabilities - Data Privacy Commitments**
+
+Decision: Architectural commitments to what fledgely will NOT do with family data.
+
+**Rationale:** Child monitoring software requires explicit architectural boundaries to prevent misuse. These are not features to add later - they are constraints that inform all design decisions.
+
+**Third-Party Data Sharing Policy:**
+| Integration | Data Shared | Retention | Third-Party Access |
+|-------------|-------------|-----------|-------------------|
+| Firebase/GCP | All user data | Per family policy | None (infrastructure only) |
+| Gemini AI | Screenshot images | Ephemeral (request/response) | None |
+| Stripe | Payment info only | Stripe's policy | None (payment processor only) |
+| Resend | Email addresses | Transactional only | None |
+
+**Architectural Constraints:**
+
+1. **No Third-Party Export APIs**: No endpoints exist to export user data to external services
+2. **No Advertising Integration**: No ad SDKs, no user profiling for ads, no ad network data sharing
+3. **No AI Training with Identifiable Data**: Screenshots processed and discarded, never stored for model training
+4. **No Law Enforcement Backdoors**: All access requires documented legal process through legal team
+
+**Enforcement Mechanisms:**
+
+- PR reviews must verify no advertising/analytics SDKs added
+- Dependency audits check for known ad/tracking libraries
+- Architecture documentation must be updated for any new external integration
+- Annual privacy audit validates compliance
+
+**Dependency Audit Checklist (for any new package):**
+
+1. Does it collect user data?
+2. Does it share data with third parties?
+3. Does it include advertising identifiers (IDFA, GAID)?
+4. Is it GDPR/COPPA/AADC compliant?
+5. Does it phone home to external servers?
+
+**Current Third-Party Dependencies (Audited 2025-12-29):**
+| Package | Type | Privacy Risk | Verdict |
+|---------|------|--------------|---------|
+| firebase | Infrastructure | Low (our infra) | ✅ |
+| next | Framework | None | ✅ |
+| react | Framework | None | ✅ |
+| @tanstack/react-query | Utility | None | ✅ |
+| zod | Utility | None | ✅ |
+| resend | Transactional email | Low (no tracking) | ✅ |
+| @dnd-kit/_ | UI utility | None | ✅ |
+| @radix-ui/_ | UI components | None | ✅ |
+
+**AI Data Flow (Gemini Integration):**
+
+```
+Screenshot → Cloud Function → Gemini API → Classification Result → Firestore
+                              ↓
+                        NOT stored for training
+                        NOT shared with third parties
+                        Ephemeral processing only
+```
+
+---
+
 ## Decision Consistency Matrix
 
 All ADRs validated for cross-consistency:
+
 - State management aligned with offline sync (Firestore authoritative)
 - Error handling flows to monitoring (correlation IDs)
 - Testing covers adversarial scenarios from PRD
