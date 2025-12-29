@@ -10,7 +10,10 @@
  *
  * Story 9.1: Extension Package & Manifest
  * Story 9.6: Extension Background Service
+ * Story 10.1: Screenshot Capture Mechanism
  */
+
+import { captureScreenshot, ScreenshotCapture } from './capture'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
@@ -83,6 +86,83 @@ async function updateLastSync(): Promise<void> {
   if (state) {
     const newState = { ...state, lastSync: Date.now() }
     await chrome.storage.local.set({ state: newState })
+  }
+}
+
+/**
+ * Maximum number of screenshots in the local queue (NFR87)
+ */
+const MAX_QUEUE_SIZE = 500
+
+/**
+ * Queue item for pending screenshot upload
+ */
+interface QueuedScreenshot {
+  id: string
+  capture: ScreenshotCapture
+  childId: string
+  queuedAt: number
+}
+
+/**
+ * Add a screenshot to the upload queue
+ * Queue persists in chrome.storage.local for offline support
+ */
+async function queueScreenshot(capture: ScreenshotCapture, childId: string): Promise<void> {
+  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
+
+  const item: QueuedScreenshot = {
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    capture,
+    childId,
+    queuedAt: Date.now(),
+  }
+
+  // Add to queue
+  screenshotQueue.push(item)
+
+  // Enforce queue size limit (drop oldest items)
+  if (screenshotQueue.length > MAX_QUEUE_SIZE) {
+    const dropped = screenshotQueue.length - MAX_QUEUE_SIZE
+    screenshotQueue.splice(0, dropped)
+    console.warn(`[Fledgely] Queue overflow: dropped ${dropped} oldest screenshots`)
+  }
+
+  await chrome.storage.local.set({ screenshotQueue })
+  console.log(`[Fledgely] Screenshot queued (${screenshotQueue.length} items in queue)`)
+}
+
+/**
+ * Get the current queue size
+ */
+async function getQueueSize(): Promise<number> {
+  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
+  return screenshotQueue.length
+}
+
+/**
+ * Handle screenshot capture triggered by alarm
+ */
+async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
+  if (!state.childId) {
+    console.log('[Fledgely] No child connected, skipping capture')
+    return
+  }
+
+  const result = await captureScreenshot({ quality: 80 })
+
+  if (result.success) {
+    // Queue the screenshot for upload (Story 10.4 will implement actual upload)
+    await queueScreenshot(result.capture, state.childId)
+
+    // Update lastSync to show activity
+    await updateLastSync()
+  } else if (result.skipped) {
+    // Non-capturable URL (chrome://, etc.) - this is expected, not an error
+    console.log(`[Fledgely] Capture skipped: ${result.error}`)
+  } else {
+    // Actual error occurred
+    console.error(`[Fledgely] Capture failed: ${result.error}`)
   }
 }
 
@@ -237,18 +317,19 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   switch (alarm.name) {
     case ALARM_SCREENSHOT_CAPTURE:
-      // Screenshot capture will be implemented in Story 10.1
-      // This alarm wakes the service worker to trigger capture
+      // Story 10.1: Screenshot Capture Mechanism
       console.log('[Fledgely] Screenshot capture alarm triggered')
-      // Placeholder: chrome.tabs.captureVisibleTab will be called here
+      await handleScreenshotCapture(state)
       break
 
-    case ALARM_SYNC_QUEUE:
+    case ALARM_SYNC_QUEUE: {
       // Sync queue processing will be implemented in Story 10.4
       // Update lastSync timestamp to show activity
       await updateLastSync()
-      console.log('[Fledgely] Sync queue alarm triggered, lastSync updated')
+      const queueSize = await getQueueSize()
+      console.log(`[Fledgely] Sync queue alarm triggered, ${queueSize} items pending`)
       break
+    }
   }
 })
 
