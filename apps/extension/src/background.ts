@@ -24,6 +24,7 @@ import {
   countConsecutiveSuccesses,
   ERROR_CODES,
 } from './event-logger'
+import { isUrlProtected, initializeAllowlist, getAllowlistVersion } from './crisis-allowlist'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
@@ -322,6 +323,7 @@ async function processScreenshotQueue(): Promise<void> {
 /**
  * Handle screenshot capture triggered by alarm
  * Story 10.6: Now logs all capture events
+ * Story 11.1: Checks crisis allowlist BEFORE any capture
  */
 async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
   if (!state.childId) {
@@ -333,6 +335,36 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
   if (isDeviceIdle) {
     console.log('[Fledgely] Device is idle/locked, skipping capture')
     // Note: idle_pause/resume events logged in idle listener, not here
+    return
+  }
+
+  // Story 11.1: Check crisis allowlist BEFORE any capture (INV-001 zero data path)
+  // This check MUST happen before captureScreenshot to ensure no data is created
+  try {
+    // Get current tab URL for allowlist check
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (activeTab?.url) {
+      const isProtected = isUrlProtected(activeTab.url)
+      if (isProtected) {
+        // ZERO DATA PATH: Skip capture entirely
+        // Log event but DO NOT log URL (privacy requirement)
+        const queueSize = await getQueueSize()
+        await logCaptureEvent('capture_skipped', true, {
+          queueSize,
+          errorCode: ERROR_CODES.CRISIS_URL_PROTECTED,
+        })
+        // Note: We intentionally do NOT log anything about which site was protected
+        return
+      }
+    }
+  } catch {
+    // Fail-safe: If we can't check the allowlist, skip capture
+    console.error('[Fledgely] Crisis allowlist check failed, skipping capture (fail-safe)')
+    const queueSize = await getQueueSize()
+    await logCaptureEvent('capture_skipped', true, {
+      queueSize,
+      errorCode: ERROR_CODES.ALLOWLIST_CHECK_ERROR,
+    })
     return
   }
 
@@ -443,6 +475,10 @@ async function updateErrorBadge(state: ExtensionState): Promise<void> {
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('[Fledgely] Extension installed:', details.reason)
 
+  // Story 11.1: Initialize crisis allowlist on install/update
+  await initializeAllowlist()
+  console.log(`[Fledgely] Crisis allowlist initialized (v${getAllowlistVersion()})`)
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -469,6 +505,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Handle startup (browser restart)
 chrome.runtime.onStartup.addListener(async () => {
   console.log('[Fledgely] Browser started, checking state')
+
+  // Story 11.1: Initialize crisis allowlist on startup
+  await initializeAllowlist()
+  console.log(`[Fledgely] Crisis allowlist initialized (v${getAllowlistVersion()})`)
+
   const { state } = await chrome.storage.local.get('state')
 
   // Update toolbar with current state

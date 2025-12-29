@@ -212,11 +212,11 @@ development_status:
   10-4-screenshot-upload-to-api: done
   10-5-capture-pause-during-inactivity: done
   10-6-capture-event-logging: done
-  epic-10-retrospective: optional
+  epic-10-retrospective: done
 
   # Epic 11: Chromebook Crisis Protection
-  epic-11: backlog
-  11-1-pre-capture-allowlist-check: backlog
+  epic-11: in-progress
+  11-1-pre-capture-allowlist-check: done
   11-2-cached-allowlist-with-fail-safe: backlog
   11-3-protected-site-visual-indicator: backlog
   11-4-fuzzy-url-matching: backlog
