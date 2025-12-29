@@ -12,6 +12,7 @@
 
 import { useState, useCallback } from 'react'
 import type {
+  AgreementMode,
   CoCreationSession,
   Contribution,
   ContributionParty,
@@ -31,6 +32,7 @@ interface CreateSessionParams {
   createdByUid: string
   agreementDraftId?: string
   templateId?: string
+  mode?: AgreementMode
 }
 
 interface AddContributionParams {
@@ -68,6 +70,7 @@ export function useCoCreationSession(options: UseCoCreationSessionOptions = {}) 
           childId: params.childId,
           agreementDraftId: params.agreementDraftId ?? null,
           templateId: params.templateId ?? null,
+          mode: params.mode ?? 'full_monitoring',
           status: 'active',
           contributions: [],
           createdAt: now,

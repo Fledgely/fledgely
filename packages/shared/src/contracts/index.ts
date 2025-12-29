@@ -457,6 +457,7 @@ export const coCreationSessionSchema = z.object({
   childId: z.string(),
   agreementDraftId: z.string().nullable(), // Reference to draft from Epic 4
   templateId: z.string().nullable(), // Reference to template used
+  mode: z.enum(['agreement_only', 'full_monitoring']).default('full_monitoring'), // Story 5.6: Agreement mode
   status: sessionStatusSchema,
   contributions: z.array(contributionSchema),
   createdAt: z.date(),
@@ -579,3 +580,25 @@ export const agreementTermWithDiscussionSchema = agreementTermSchema.extend({
   resolution: discussionResolutionSchema.nullable().default(null),
 })
 export type AgreementTermWithDiscussion = z.infer<typeof agreementTermWithDiscussionSchema>
+
+/**
+ * Agreement mode types.
+ *
+ * Story 5.6: Agreement-Only Mode Selection - AC1, AC2
+ * Defines whether an agreement includes device monitoring.
+ * - agreement_only: Digital expectations without device surveillance
+ * - full_monitoring: Complete protection with device tracking and screenshots
+ */
+export const agreementModeSchema = z.enum(['agreement_only', 'full_monitoring'])
+export type AgreementMode = z.infer<typeof agreementModeSchema>
+
+/**
+ * Term categories available for each agreement mode.
+ *
+ * Story 5.6: Agreement-Only Mode Selection - AC2, AC3
+ * Maps agreement modes to their available term categories.
+ */
+export const AGREEMENT_MODE_CATEGORIES: Record<AgreementMode, TermCategory[]> = {
+  agreement_only: ['time', 'apps', 'rewards', 'general'],
+  full_monitoring: ['time', 'apps', 'monitoring', 'rewards', 'general'],
+}

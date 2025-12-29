@@ -120,9 +120,9 @@ development_status:
   5-1-co-creation-session-initiation: done
   5-2-visual-agreement-builder: done
   5-3-child-contribution-capture: done
-  5-4-negotiation-discussion-support: backlog
-  5-5-agreement-preview-summary: backlog
-  5-6-agreement-only-mode-selection: backlog
+  5-4-negotiation-discussion-support: done
+  5-5-agreement-preview-summary: done
+  5-6-agreement-only-mode-selection: done
   5-7-draft-saving-version-history: backlog
   5-8-child-agreement-viewing: backlog
   epic-5-retrospective: optional
