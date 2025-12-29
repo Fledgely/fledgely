@@ -1,9 +1,9 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5
+ * DevicesList Component - Story 12.4, 12.5, 12.6
  *
- * Displays the list of enrolled devices for a family with child assignment.
+ * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
  *
  * Requirements:
@@ -12,12 +12,13 @@
  * - AC2 (12.5): Dropdown shows all children in the family
  * - AC3 (12.5): Assignment updates device document
  * - AC5 (12.5): Device can be reassigned anytime
+ * - AC6 (12.6): Remove Device action
  */
 
 import { useState } from 'react'
 import { useDevices, formatLastSeen, type Device } from '../../hooks/useDevices'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
-import { assignDeviceToChild } from '../../services/deviceService'
+import { assignDeviceToChild, removeDevice } from '../../services/deviceService'
 
 interface DevicesListProps {
   familyId: string
@@ -137,6 +138,73 @@ const styles = {
     color: '#1e40af',
     marginRight: '8px',
   },
+  removeButton: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid #dc2626',
+    backgroundColor: '#ffffff',
+    color: '#dc2626',
+    fontSize: '12px',
+    cursor: 'pointer',
+    marginLeft: '8px',
+  },
+  removeButtonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  confirmModal: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  confirmDialog: {
+    backgroundColor: '#ffffff',
+    padding: '24px',
+    borderRadius: '12px',
+    maxWidth: '400px',
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+  },
+  confirmTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    marginBottom: '12px',
+    color: '#1f2937',
+  },
+  confirmText: {
+    fontSize: '14px',
+    color: '#6b7280',
+    marginBottom: '20px',
+  },
+  confirmButtons: {
+    display: 'flex',
+    gap: '12px',
+    justifyContent: 'flex-end',
+  },
+  cancelButton: {
+    padding: '8px 16px',
+    borderRadius: '6px',
+    border: '1px solid #d1d5db',
+    backgroundColor: '#ffffff',
+    color: '#374151',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  confirmRemoveButton: {
+    padding: '8px 16px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: '#dc2626',
+    color: '#ffffff',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
 }
 
 function DeviceIcon({ type }: { type: Device['type'] }) {
@@ -226,11 +294,53 @@ function ChildAssignment({
   )
 }
 
+/**
+ * Confirmation modal for device removal
+ * Story 12.6 Task 5.4: Handle removal confirmation
+ */
+interface RemoveConfirmModalProps {
+  device: Device
+  onConfirm: () => void
+  onCancel: () => void
+  isRemoving: boolean
+}
+
+function RemoveConfirmModal({ device, onConfirm, onCancel, isRemoving }: RemoveConfirmModalProps) {
+  return (
+    <div style={styles.confirmModal} onClick={onCancel}>
+      <div style={styles.confirmDialog} onClick={(e) => e.stopPropagation()}>
+        <h3 style={styles.confirmTitle}>Remove Device?</h3>
+        <p style={styles.confirmText}>
+          Are you sure you want to remove &quot;{device.name}&quot;? The device will need to be
+          re-enrolled to resume monitoring.
+        </p>
+        <div style={styles.confirmButtons}>
+          <button style={styles.cancelButton} onClick={onCancel} disabled={isRemoving}>
+            Cancel
+          </button>
+          <button
+            style={{
+              ...styles.confirmRemoveButton,
+              ...(isRemoving ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+            }}
+            onClick={onConfirm}
+            disabled={isRemoving}
+          >
+            {isRemoving ? 'Removing...' : 'Remove Device'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DevicesList({ familyId }: DevicesListProps) {
   const { devices, loading: devicesLoading, error: devicesError } = useDevices({ familyId })
   const { children, loading: childrenLoading, error: childrenError } = useChildren({ familyId })
   const [updatingDevices, setUpdatingDevices] = useState<Set<string>>(new Set())
   const [deviceErrors, setDeviceErrors] = useState<Record<string, string>>({})
+  const [deviceToRemove, setDeviceToRemove] = useState<Device | null>(null)
+  const [isRemoving, setIsRemoving] = useState(false)
 
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
@@ -280,6 +390,37 @@ export function DevicesList({ familyId }: DevicesListProps) {
     }
   }
 
+  /**
+   * Handle device removal with confirmation.
+   * Story 12.6 Task 5: Device Removal Flow (AC: #6)
+   */
+  const handleRemoveDevice = async () => {
+    if (!deviceToRemove) return
+
+    setIsRemoving(true)
+    try {
+      await removeDevice(familyId, deviceToRemove.deviceId)
+      // Success - Firestore listener will update the UI (device status becomes 'unenrolled')
+      setDeviceToRemove(null)
+    } catch (err: unknown) {
+      let message = 'Failed to remove device'
+      if (err && typeof err === 'object' && 'code' in err) {
+        const errorCode = (err as { code: string }).code
+        if (errorCode === 'functions/permission-denied') {
+          message = 'You do not have permission to remove devices'
+        } else if (errorCode === 'functions/not-found') {
+          message = 'Device not found'
+        }
+      } else if (err instanceof Error) {
+        message = err.message
+      }
+      setDeviceErrors((prev) => ({ ...prev, [deviceToRemove.deviceId]: message }))
+      setDeviceToRemove(null)
+    } finally {
+      setIsRemoving(false)
+    }
+  }
+
   if (loading) {
     return <p style={styles.loading}>Loading devices...</p>
   }
@@ -296,28 +437,53 @@ export function DevicesList({ familyId }: DevicesListProps) {
     )
   }
 
+  // Filter out unenrolled devices - they shouldn't appear in the list
+  const activeDevices = devices.filter((d) => d.status !== 'unenrolled')
+
   return (
-    <div style={styles.deviceList}>
-      {devices.map((device) => (
-        <div key={device.deviceId} style={styles.deviceItem}>
-          <DeviceIcon type={device.type} />
-          <div style={styles.deviceInfo}>
-            <div style={styles.deviceName}>{device.name}</div>
-            <div style={styles.deviceMeta}>
-              {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
-              {formatLastSeen(device.lastSeen)}
+    <>
+      <div style={styles.deviceList}>
+        {activeDevices.map((device) => (
+          <div key={device.deviceId} style={styles.deviceItem}>
+            <DeviceIcon type={device.type} />
+            <div style={styles.deviceInfo}>
+              <div style={styles.deviceName}>{device.name}</div>
+              <div style={styles.deviceMeta}>
+                {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
+                {formatLastSeen(device.lastSeen)}
+              </div>
             </div>
+            <ChildAssignment
+              device={device}
+              childList={children}
+              onAssignmentChange={handleAssignmentChange}
+              isUpdating={updatingDevices.has(device.deviceId)}
+              error={deviceErrors[device.deviceId] || null}
+            />
+            <StatusBadge status={device.status} />
+            <button
+              style={{
+                ...styles.removeButton,
+                ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
+              }}
+              onClick={() => setDeviceToRemove(device)}
+              disabled={updatingDevices.has(device.deviceId)}
+              aria-label="Remove device"
+            >
+              Remove
+            </button>
           </div>
-          <ChildAssignment
-            device={device}
-            childList={children}
-            onAssignmentChange={handleAssignmentChange}
-            isUpdating={updatingDevices.has(device.deviceId)}
-            error={deviceErrors[device.deviceId] || null}
-          />
-          <StatusBadge status={device.status} />
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      {deviceToRemove && (
+        <RemoveConfirmModal
+          device={deviceToRemove}
+          onConfirm={handleRemoveDevice}
+          onCancel={() => setDeviceToRemove(null)}
+          isRemoving={isRemoving}
+        />
+      )}
+    </>
   )
 }

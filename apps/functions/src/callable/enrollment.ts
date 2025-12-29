@@ -667,6 +667,176 @@ export const assignDeviceToChild = onCall<
   }
 })
 
+// Story 12.6: Device removal schema
+const removeDeviceSchema = z.object({
+  familyId: z.string().min(1),
+  deviceId: z.string().min(1),
+})
+
+interface VerifyDeviceEnrollmentResponse {
+  valid: boolean
+  status: 'active' | 'revoked' | 'not_found'
+  familyId?: string
+  deviceId?: string
+  childId?: string | null
+}
+
+interface RemoveDeviceResponse {
+  success: boolean
+  message: string
+}
+
+/**
+ * Verify a device's enrollment status.
+ * Called by extension on startup to validate enrollment is still valid.
+ * Story 12.6: Enrollment State Persistence
+ *
+ * AC4: Server-side verification of enrollment
+ * AC5: Returns status for extension to handle invalid state
+ */
+export const verifyDeviceEnrollment = onRequest({ cors: true }, async (req, res) => {
+  // Only allow GET requests
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: { code: 'method-not-allowed', message: 'Method not allowed' } })
+    return
+  }
+
+  const { familyId, deviceId } = req.query
+
+  // Validate parameters
+  if (!familyId || typeof familyId !== 'string' || !deviceId || typeof deviceId !== 'string') {
+    res.status(400).json({
+      error: { code: 'invalid-argument', message: 'familyId and deviceId are required' },
+    })
+    return
+  }
+
+  const db = getFirestore()
+  const deviceRef = db.collection('families').doc(familyId).collection('devices').doc(deviceId)
+  const deviceDoc = await deviceRef.get()
+
+  if (!deviceDoc.exists) {
+    // Device not found - could have been removed
+    res.status(200).json({
+      result: {
+        valid: false,
+        status: 'not_found',
+        familyId,
+        deviceId,
+      } as VerifyDeviceEnrollmentResponse,
+    })
+    return
+  }
+
+  const deviceData = deviceDoc.data() as Device
+
+  // Check if device is unenrolled/revoked
+  if (deviceData.status === 'unenrolled') {
+    res.status(200).json({
+      result: {
+        valid: false,
+        status: 'revoked',
+        familyId,
+        deviceId,
+      } as VerifyDeviceEnrollmentResponse,
+    })
+    return
+  }
+
+  // Update lastSeen timestamp
+  await deviceRef.update({
+    lastSeen: FieldValue.serverTimestamp(),
+  })
+
+  // Device is valid
+  res.status(200).json({
+    result: {
+      valid: true,
+      status: 'active',
+      familyId,
+      deviceId,
+      childId: deviceData.childId,
+    } as VerifyDeviceEnrollmentResponse,
+  })
+})
+
+/**
+ * Remove a device from the family.
+ * Called by parent from dashboard.
+ * Story 12.6: Enrollment State Persistence
+ *
+ * AC6: Explicit device removal clears enrollment
+ */
+export const removeDevice = onCall<
+  z.infer<typeof removeDeviceSchema>,
+  Promise<RemoveDeviceResponse>
+>(async (request) => {
+  // 1. Auth (FIRST)
+  const user = verifyAuth(request.auth)
+
+  // 2. Validation (SECOND)
+  const parseResult = removeDeviceSchema.safeParse(request.data)
+  if (!parseResult.success) {
+    throw new HttpsError('invalid-argument', 'Invalid removal request')
+  }
+  const { familyId, deviceId } = parseResult.data
+
+  // 3. Permission - verify user is a parent of this family
+  const db = getFirestore()
+  const familyRef = db.collection('families').doc(familyId)
+  const familyDoc = await familyRef.get()
+
+  if (!familyDoc.exists) {
+    throw new HttpsError('not-found', 'Family not found')
+  }
+
+  const familyData = familyDoc.data()
+  const isParent = familyData?.parents?.includes(user.uid) || familyData?.createdBy === user.uid
+
+  if (!isParent) {
+    throw new HttpsError('permission-denied', 'Only family parents can remove devices')
+  }
+
+  // 4. Get device and verify it exists
+  const deviceRef = familyRef.collection('devices').doc(deviceId)
+  const deviceDoc = await deviceRef.get()
+
+  if (!deviceDoc.exists) {
+    throw new HttpsError('not-found', 'Device not found')
+  }
+
+  const deviceData = deviceDoc.data() as Device
+
+  // 5. Mark device as unenrolled (soft delete to preserve audit trail)
+  await deviceRef.update({
+    status: 'unenrolled',
+    unenrolledAt: FieldValue.serverTimestamp(),
+    unenrolledBy: user.uid,
+  })
+
+  // 6. Create audit log entry
+  const auditRef = db.collection('auditLogs').doc()
+  await auditRef.set({
+    type: 'device_removal',
+    familyId,
+    deviceId,
+    childId: deviceData.childId,
+    performedBy: user.uid,
+    timestamp: FieldValue.serverTimestamp(),
+  })
+
+  logger.info('Device removed', {
+    deviceId,
+    familyId,
+    removedBy: user.uid,
+  })
+
+  return {
+    success: true,
+    message: 'Device has been removed',
+  }
+})
+
 /**
  * Scheduled function to expire old enrollment requests.
  * Runs every minute to ensure timely expiry.

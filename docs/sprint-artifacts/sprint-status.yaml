@@ -225,13 +225,13 @@ development_status:
   epic-11-retrospective: done
 
   # Epic 12: Chromebook Device Enrollment
-  epic-12: in-progress
+  epic-12: done
   12-1-enrollment-qr-code-generation: done
   12-2-extension-qr-code-scanning: done
   12-3-device-to-device-enrollment-approval: done
   12-4-device-registration-in-firestore: done
   12-5-child-assignment-to-device: done
-  12-6-enrollment-state-persistence: backlog
+  12-6-enrollment-state-persistence: done
   epic-12-retrospective: optional
 
   # Epic 13: Offline OTP Device Unlock

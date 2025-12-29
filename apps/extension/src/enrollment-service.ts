@@ -263,6 +263,56 @@ export function formatTimeRemaining(milliseconds: number): string {
  * Story 12.4: Device Registration in Firestore
  * AC3: Returns deviceId for extension to store
  */
+/**
+ * Verification response from server
+ * Story 12.6: Enrollment State Persistence
+ */
+export interface VerifyEnrollmentResponse {
+  valid: boolean
+  status: 'active' | 'revoked' | 'not_found'
+  familyId?: string
+  deviceId?: string
+  childId?: string | null
+}
+
+/**
+ * Verify device enrollment with server
+ * Story 12.6: Enrollment State Persistence - AC4
+ *
+ * @param familyId - Family ID
+ * @param deviceId - Device ID
+ * @returns Enrollment verification result
+ */
+export async function verifyDeviceEnrollment(
+  familyId: string,
+  deviceId: string
+): Promise<VerifyEnrollmentResponse> {
+  try {
+    const response = await fetch(
+      `${FUNCTIONS_BASE_URL}/verifyDeviceEnrollment?` + new URLSearchParams({ familyId, deviceId }),
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      // Server error - assume valid to avoid false negatives
+      console.warn('[Fledgely] Enrollment verification failed, assuming valid')
+      return { valid: true, status: 'active' }
+    }
+
+    const result = await response.json()
+    return result.result as VerifyEnrollmentResponse
+  } catch (error) {
+    // Network error - assume valid (offline-first approach)
+    console.warn('[Fledgely] Enrollment verification network error, assuming valid:', error)
+    return { valid: true, status: 'active' }
+  }
+}
+
 export async function registerDevice(
   familyId: string,
   requestId: string

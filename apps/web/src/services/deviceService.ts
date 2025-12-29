@@ -1,12 +1,13 @@
 /**
- * Device Service - Story 12.5
+ * Device Service - Story 12.5, 12.6
  *
  * Client-side service for device operations via Cloud Functions.
  * Follows existing service patterns from enrollmentService.ts.
  *
  * Requirements:
- * - AC3: Assignment updates device document with childId
- * - AC5: Device can be reassigned to different child
+ * - Story 12.5 AC3: Assignment updates device document with childId
+ * - Story 12.5 AC5: Device can be reassigned to different child
+ * - Story 12.6 AC6: Explicit device removal
  */
 
 import { getFunctions, httpsCallable } from 'firebase/functions'
@@ -55,5 +56,46 @@ export async function assignDeviceToChild(
   >(functions, 'assignDeviceToChild')
 
   const result = await assignFn({ familyId, deviceId, childId })
+  return result.data
+}
+
+/**
+ * Response from removeDevice Cloud Function
+ */
+interface RemoveDeviceResponse {
+  success: boolean
+  message: string
+}
+
+/**
+ * Remove a device from the family.
+ * Calls the removeDevice Cloud Function.
+ *
+ * Story 12.6 Task 5: Device Removal Flow (AC: #6)
+ *
+ * @param familyId - The family ID
+ * @param deviceId - The device ID to remove
+ * @returns Promise with success status and message
+ * @throws Error if the function call fails
+ */
+export async function removeDevice(
+  familyId: string,
+  deviceId: string
+): Promise<RemoveDeviceResponse> {
+  if (!familyId) {
+    throw new Error('familyId is required')
+  }
+  if (!deviceId) {
+    throw new Error('deviceId is required')
+  }
+
+  const app = getFirebaseApp()
+  const functions = getFunctions(app)
+  const removeFn = httpsCallable<{ familyId: string; deviceId: string }, RemoveDeviceResponse>(
+    functions,
+    'removeDevice'
+  )
+
+  const result = await removeFn({ familyId, deviceId })
   return result.data
 }

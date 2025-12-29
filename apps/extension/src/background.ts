@@ -31,6 +31,8 @@ import {
   syncAllowlistFromServer,
   isAllowlistStale,
 } from './crisis-allowlist'
+import { validateEnrollmentState, isEnrolled } from './enrollment-state'
+import { verifyDeviceEnrollment } from './enrollment-service'
 
 // Alarm names for scheduled tasks
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
@@ -674,6 +676,66 @@ chrome.runtime.onStartup.addListener(async () => {
 
   const { state } = await chrome.storage.local.get('state')
 
+  // Story 12.6: Validate enrollment state on startup
+  const enrollmentValidation = validateEnrollmentState(state)
+
+  if (!enrollmentValidation.valid) {
+    // Story 12.6 AC5: Invalid/corrupted state - clear and reset
+    console.warn('[Fledgely] Enrollment state validation failed:', enrollmentValidation.error)
+    const resetState: ExtensionState = {
+      ...DEFAULT_STATE,
+      enrollmentState: 'not_enrolled',
+      familyId: null,
+      deviceId: null,
+      pendingEnrollment: null,
+    }
+    await chrome.storage.local.set({ state: resetState })
+    await updateActionTitle(resetState)
+    console.log('[Fledgely] Invalid enrollment state cleared, prompting re-enrollment')
+    return
+  }
+
+  // Story 12.6 AC1, AC2: Log enrollment status for debugging
+  if (isEnrolled(enrollmentValidation)) {
+    console.log('[Fledgely] Enrolled device restored:', {
+      familyId: enrollmentValidation.familyId,
+      deviceId: enrollmentValidation.deviceId,
+      childId: enrollmentValidation.childId,
+    })
+
+    // Story 12.6 AC4: Optionally verify enrollment with server (non-blocking)
+    // This runs in the background and doesn't block startup
+    verifyDeviceEnrollment(enrollmentValidation.familyId!, enrollmentValidation.deviceId!)
+      .then(async (serverResult) => {
+        if (!serverResult.valid) {
+          // Story 12.6 AC5: Server says enrollment is invalid
+          console.warn('[Fledgely] Server rejected enrollment:', serverResult.status)
+
+          if (serverResult.status === 'not_found' || serverResult.status === 'revoked') {
+            // Clear local state and prompt re-enrollment
+            const resetState: ExtensionState = {
+              ...DEFAULT_STATE,
+              enrollmentState: 'not_enrolled',
+              familyId: null,
+              deviceId: null,
+              pendingEnrollment: null,
+            }
+            await chrome.storage.local.set({ state: resetState })
+            await updateActionTitle(resetState)
+            console.log('[Fledgely] Enrollment revoked by server, cleared local state')
+          }
+        } else {
+          console.log('[Fledgely] Server confirmed enrollment is valid')
+        }
+      })
+      .catch((error) => {
+        // Non-fatal error - offline-first approach
+        console.warn('[Fledgely] Server verification failed (continuing anyway):', error)
+      })
+  } else {
+    console.log('[Fledgely] Device not enrolled, state:', enrollmentValidation.enrollmentState)
+  }
+
   // Update toolbar with current state
   await updateActionTitle(state || DEFAULT_STATE)
 
@@ -1008,6 +1070,49 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
         await chrome.storage.local.set({ state: newState })
         console.log('[Fledgely] Enrollment complete - deviceId:', message.deviceId)
+        sendResponse({ success: true })
+      })
+      return true
+
+    case 'ENROLLMENT_INVALIDATED':
+      // Story 12.6: Enrollment invalidated (server rejected or device removed)
+      // AC5: Clear invalid state and prompt re-enrollment
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          enrollmentState: 'not_enrolled',
+          familyId: null,
+          deviceId: null,
+          childId: null,
+          pendingEnrollment: null,
+          monitoringEnabled: false,
+        }
+        await chrome.storage.local.set({ state: newState })
+        await updateActionTitle(newState)
+        await stopMonitoringAlarms()
+        console.log('[Fledgely] Enrollment invalidated, state cleared')
+        sendResponse({ success: true, reason: message.reason || 'unknown' })
+      })
+      return true
+
+    case 'CLEAR_DEVICE_STATE':
+      // Story 12.6 AC6: Explicit device removal clears all enrollment state
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          enrollmentState: 'not_enrolled',
+          familyId: null,
+          deviceId: null,
+          childId: null,
+          pendingEnrollment: null,
+          monitoringEnabled: false,
+        }
+        await chrome.storage.local.set({ state: newState })
+        await updateActionTitle(newState)
+        await stopMonitoringAlarms()
+        console.log('[Fledgely] Device state cleared for re-enrollment')
         sendResponse({ success: true })
       })
       return true

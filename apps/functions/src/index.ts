@@ -24,6 +24,8 @@ export {
   rejectEnrollment,
   registerDevice,
   assignDeviceToChild,
+  verifyDeviceEnrollment,
+  removeDevice,
   expireEnrollmentRequests,
 } from './callable/enrollment'
 // export { flagContent } from './callable/flagContent'
