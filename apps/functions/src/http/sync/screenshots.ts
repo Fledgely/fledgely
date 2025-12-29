@@ -1,14 +1,16 @@
 /**
  * Screenshot Upload HTTP Endpoint
  * Story 18.1: Firebase Storage Upload Endpoint
+ * Story 18.2: Screenshot Metadata in Firestore
  *
- * Handles screenshot uploads from Chrome extension to Firebase Storage.
+ * Handles screenshot uploads from Chrome extension to Firebase Storage
+ * and creates Firestore metadata documents for efficient querying.
  *
  * Follows Cloud Functions Template pattern:
  * 1. Auth (FIRST) - validate device credentials
  * 2. Validation (SECOND) - validate request body
  * 3. Permission (THIRD) - verify device is registered and active
- * 4. Business logic (LAST) - upload to Firebase Storage
+ * 4. Business logic (LAST) - upload to Firebase Storage + create Firestore metadata
  *
  * Note: Uses device-based authentication since Chrome extensions
  * don't have Firebase Auth SDK. Devices are authenticated via
@@ -20,6 +22,11 @@ import { getStorage } from 'firebase-admin/storage'
 import { getFirestore } from 'firebase-admin/firestore'
 import { z } from 'zod'
 import * as logger from 'firebase-functions/logger'
+import {
+  generateScreenshotId,
+  calculateRetentionExpiry,
+  DEFAULT_RETENTION_DAYS,
+} from '@fledgely/shared'
 
 /**
  * Maximum file size in bytes (5MB)
@@ -54,10 +61,12 @@ type UploadRequest = z.infer<typeof uploadRequestSchema>
 
 /**
  * Response structure for upload endpoint
+ * Story 18.2: Added screenshotId for Firestore document reference
  */
 interface UploadResponse {
   success: boolean
   storagePath?: string
+  screenshotId?: string
   error?: string
 }
 
@@ -240,22 +249,27 @@ export const uploadScreenshot = onRequest(
       return
     }
 
-    // 4. Business logic (LAST) - Upload to Firebase Storage
+    // 4. Business logic (LAST) - Upload to Firebase Storage + create Firestore metadata
+    // Story 18.2: Two-phase commit - Storage upload then Firestore metadata
+    // If Firestore fails, rollback Storage upload
+
+    const storage = getStorage()
+    const bucket = storage.bucket()
+
+    // Convert data URL to buffer
+    const imageBuffer = dataUrlToBuffer(uploadData.dataUrl)
+
+    // Generate storage path and screenshot ID
+    const storagePath = generateStoragePath(uploadData.childId, uploadData.timestamp)
+    const screenshotId = generateScreenshotId(uploadData.timestamp)
+
+    // Create file reference
+    const file = bucket.file(storagePath)
+
+    // Phase 1: Upload to Firebase Storage
     try {
-      const storage = getStorage()
-      const bucket = storage.bucket()
-
-      // Convert data URL to buffer
-      const imageBuffer = dataUrlToBuffer(uploadData.dataUrl)
-
-      // Generate storage path
-      const storagePath = generateStoragePath(uploadData.childId, uploadData.timestamp)
-
-      // Create file reference
-      const file = bucket.file(storagePath)
-
       // Upload with metadata
-      // AC4: Store metadata with upload
+      // Story 18.1 AC4: Store metadata with upload
       await file.save(imageBuffer, {
         contentType: 'image/jpeg',
         metadata: {
@@ -270,31 +284,95 @@ export const uploadScreenshot = onRequest(
           },
         },
       })
-
-      // Log success (without PII)
-      logger.info('Screenshot uploaded', {
-        storagePath,
-        childId: uploadData.childId,
-        deviceId: uploadData.deviceId,
-        sizeBytes: imageBuffer.length,
-      })
-
-      // AC5: Return success with storage reference
-      res.status(200).json({
-        success: true,
-        storagePath,
-      } as UploadResponse)
-    } catch (error) {
-      logger.error('Screenshot upload failed', {
-        error,
+    } catch (storageError) {
+      logger.error('Screenshot storage upload failed', {
+        error: storageError,
         childId: uploadData.childId,
         deviceId: uploadData.deviceId,
       })
 
       res.status(500).json({
         success: false,
-        error: 'Failed to upload screenshot',
+        error: 'Failed to upload screenshot to storage',
       } as UploadResponse)
+      return
     }
+
+    // Phase 2: Create Firestore metadata document
+    // Story 18.2 AC1, AC2, AC4: Create metadata with atomic rollback
+    const uploadedAt = Date.now()
+    const retentionExpiresAt = calculateRetentionExpiry(uploadedAt, DEFAULT_RETENTION_DAYS)
+
+    const screenshotRef = db
+      .collection('children')
+      .doc(uploadData.childId)
+      .collection('screenshots')
+      .doc(screenshotId)
+
+    try {
+      await screenshotRef.set({
+        // Identity
+        screenshotId,
+        childId: uploadData.childId,
+        familyId: uploadData.familyId,
+        deviceId: uploadData.deviceId,
+
+        // Content reference (NOT actual image - Story 18.2 AC2)
+        storagePath,
+        sizeBytes: imageBuffer.length,
+
+        // Capture context
+        timestamp: uploadData.timestamp,
+        url: uploadData.url,
+        title: uploadData.title,
+
+        // Lifecycle timestamps
+        uploadedAt,
+        queuedAt: uploadData.queuedAt,
+        retentionExpiresAt, // Story 18.2 AC5: Default 30 days
+      })
+    } catch (firestoreError) {
+      // Story 18.2 AC4: Rollback storage on Firestore failure
+      logger.error('Screenshot Firestore metadata failed, rolling back storage', {
+        error: firestoreError,
+        childId: uploadData.childId,
+        deviceId: uploadData.deviceId,
+        screenshotId,
+      })
+
+      // Rollback: delete the storage blob
+      try {
+        await file.delete({ ignoreNotFound: true })
+        logger.info('Storage rollback successful', { storagePath })
+      } catch (rollbackError) {
+        // Log but don't fail - orphaned blob will be cleaned up by retention
+        logger.error('Storage rollback failed - orphaned blob', {
+          error: rollbackError,
+          storagePath,
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to save screenshot metadata',
+      } as UploadResponse)
+      return
+    }
+
+    // Log success (without PII)
+    logger.info('Screenshot uploaded with metadata', {
+      storagePath,
+      screenshotId,
+      childId: uploadData.childId,
+      deviceId: uploadData.deviceId,
+      sizeBytes: imageBuffer.length,
+    })
+
+    // Story 18.1 AC5 + Story 18.2: Return success with storage reference AND screenshotId
+    res.status(200).json({
+      success: true,
+      storagePath,
+      screenshotId,
+    } as UploadResponse)
   }
 )

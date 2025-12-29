@@ -26,3 +26,13 @@ export {
   type CrisisResource,
   type CrisisAllowlist,
 } from './contracts'
+
+// Screenshot metadata exports (Story 18.2)
+export {
+  DEFAULT_RETENTION_DAYS,
+  screenshotMetadataSchema,
+  generateScreenshotId,
+  calculateRetentionExpiry,
+  createScreenshotMetadata,
+  type ScreenshotMetadata,
+} from './contracts'

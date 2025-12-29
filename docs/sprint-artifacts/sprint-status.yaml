@@ -290,7 +290,7 @@ development_status:
   # Epic 18: Screenshot Cloud Storage & Retention
   epic-18: in-progress
   18-1-firebase-storage-upload-endpoint: done
-  18-2-screenshot-metadata-in-firestore: backlog
+  18-2-screenshot-metadata-in-firestore: done
   18-3-configurable-retention-policy: backlog
   18-4-automatic-screenshot-deletion: backlog
   18-5-forensic-watermarking-on-view: backlog

@@ -1106,3 +1106,131 @@ export function matchesCrisisUrl(url: string, allowlist: CrisisAllowlist): Crisi
 export function isCrisisUrl(url: string, allowlist: CrisisAllowlist): boolean {
   return matchesCrisisUrl(url, allowlist) !== null
 }
+
+// ============================================================================
+// EPIC 18: SCREENSHOT CLOUD STORAGE & RETENTION
+// Story 18.2: Screenshot Metadata in Firestore
+// ============================================================================
+
+/**
+ * Default retention period for screenshots in days.
+ *
+ * Story 18.2: Screenshot Metadata in Firestore - AC5
+ * Default retention of 30 days if not specified in family agreement.
+ */
+export const DEFAULT_RETENTION_DAYS = 30
+
+/**
+ * Screenshot metadata schema.
+ *
+ * Story 18.2: Screenshot Metadata in Firestore - AC1, AC2, AC5
+ * Represents screenshot metadata stored in Firestore at /children/{childId}/screenshots/{screenshotId}.
+ * Does NOT contain actual image data - only references to Firebase Storage.
+ */
+export const screenshotMetadataSchema = z.object({
+  // Identity
+  /** Unique screenshot ID (timestamp-based for natural ordering) */
+  screenshotId: z.string(),
+  /** Reference to child profile */
+  childId: z.string(),
+  /** Reference to family (for guardian access control) */
+  familyId: z.string(),
+  /** Source device that captured the screenshot */
+  deviceId: z.string(),
+
+  // Content reference (NOT actual image)
+  /** Firebase Storage path to the image file */
+  storagePath: z.string(),
+  /** File size in bytes (for quota tracking) */
+  sizeBytes: z.number().int().positive(),
+
+  // Capture context
+  /** When the screenshot was captured (epoch ms) */
+  timestamp: z.number().int().positive(),
+  /** Page URL at capture time */
+  url: z.string(),
+  /** Page title at capture time */
+  title: z.string(),
+
+  // Lifecycle timestamps (epoch ms)
+  /** When uploaded to Firebase Storage */
+  uploadedAt: z.number().int().positive(),
+  /** When added to queue on device */
+  queuedAt: z.number().int().positive(),
+  /** When to auto-delete (uploadedAt + retention period) */
+  retentionExpiresAt: z.number().int().positive(),
+})
+
+export type ScreenshotMetadata = z.infer<typeof screenshotMetadataSchema>
+
+/**
+ * Generate a unique screenshot ID.
+ *
+ * Story 18.2: Screenshot Metadata in Firestore - AC1
+ * Uses timestamp + random suffix for natural ordering and uniqueness.
+ *
+ * @param timestamp - Capture timestamp in milliseconds
+ * @returns Unique screenshot ID in format "{timestamp}_{random}"
+ */
+export function generateScreenshotId(timestamp: number): string {
+  const randomSuffix = Math.random().toString(36).substring(2, 8)
+  return `${timestamp}_${randomSuffix}`
+}
+
+/**
+ * Calculate retention expiry timestamp.
+ *
+ * Story 18.2: Screenshot Metadata in Firestore - AC5
+ * Default retention is 30 days from upload.
+ *
+ * @param uploadedAt - Upload timestamp in milliseconds
+ * @param retentionDays - Retention period in days (default: 30)
+ * @returns Expiry timestamp in milliseconds
+ */
+export function calculateRetentionExpiry(
+  uploadedAt: number,
+  retentionDays: number = DEFAULT_RETENTION_DAYS
+): number {
+  return uploadedAt + retentionDays * 24 * 60 * 60 * 1000
+}
+
+/**
+ * Create screenshot metadata for Firestore.
+ *
+ * Story 18.2: Screenshot Metadata in Firestore - AC1, AC2
+ * Factory function to create properly structured metadata.
+ *
+ * @param params - Screenshot metadata parameters
+ * @returns ScreenshotMetadata ready for Firestore
+ */
+export function createScreenshotMetadata(params: {
+  timestamp: number
+  childId: string
+  familyId: string
+  deviceId: string
+  storagePath: string
+  sizeBytes: number
+  url: string
+  title: string
+  queuedAt: number
+  retentionDays?: number
+}): ScreenshotMetadata {
+  const now = Date.now()
+  const screenshotId = generateScreenshotId(params.timestamp)
+  const retentionExpiresAt = calculateRetentionExpiry(now, params.retentionDays)
+
+  return {
+    screenshotId,
+    childId: params.childId,
+    familyId: params.familyId,
+    deviceId: params.deviceId,
+    storagePath: params.storagePath,
+    sizeBytes: params.sizeBytes,
+    timestamp: params.timestamp,
+    url: params.url,
+    title: params.title,
+    uploadedAt: now,
+    queuedAt: params.queuedAt,
+    retentionExpiresAt,
+  }
+}

@@ -1,11 +1,15 @@
 /**
- * Unit tests for Screenshot Upload HTTP Endpoint - Story 18.1
+ * Unit tests for Screenshot Upload HTTP Endpoint
+ * Story 18.1: Firebase Storage Upload Endpoint
+ * Story 18.2: Screenshot Metadata in Firestore
  *
  * Tests cover:
  * - AC1: Storage upload (device validation, storage integration)
  * - AC2: Upload validation (device auth, childId ownership, file size)
  * - AC4: Metadata storage
  * - AC5: Success response format
+ * - Story 18.2 AC1: Metadata schema validation
+ * - Story 18.2 AC5: Retention calculation (30 days default)
  *
  * Note: Tests the uploadRequestSchema validation and path generation utilities.
  * Full integration tests would require firebase-functions-test package.
@@ -13,6 +17,14 @@
 
 import { describe, it, expect } from 'vitest'
 import { uploadRequestSchema, generateStoragePath, dataUrlToBuffer } from './screenshots'
+import {
+  screenshotMetadataSchema,
+  generateScreenshotId,
+  calculateRetentionExpiry,
+  createScreenshotMetadata,
+  DEFAULT_RETENTION_DAYS,
+  type ScreenshotMetadata,
+} from '@fledgely/shared'
 
 // Test helpers
 const createValidPayload = () => ({
@@ -261,20 +273,24 @@ describe('Data URL Format Validation', () => {
 })
 
 describe('Response Format', () => {
+  // Story 18.2: Updated response format to include screenshotId
   interface UploadResponse {
     success: boolean
     storagePath?: string
+    screenshotId?: string
     error?: string
   }
 
-  it('should have correct success response structure', () => {
+  it('should have correct success response structure with screenshotId', () => {
     const successResponse: UploadResponse = {
       success: true,
       storagePath: 'screenshots/child-123/2025-12-29/1735489200000.jpg',
+      screenshotId: '1735489200000_abc123',
     }
 
     expect(successResponse.success).toBe(true)
     expect(successResponse.storagePath).toBeDefined()
+    expect(successResponse.screenshotId).toBeDefined()
     expect(successResponse.error).toBeUndefined()
   })
 
@@ -287,5 +303,261 @@ describe('Response Format', () => {
     expect(errorResponse.success).toBe(false)
     expect(errorResponse.error).toBeDefined()
     expect(errorResponse.storagePath).toBeUndefined()
+    expect(errorResponse.screenshotId).toBeUndefined()
+  })
+})
+
+// ============================================================================
+// Story 18.2: Screenshot Metadata in Firestore Tests
+// ============================================================================
+
+describe('Screenshot Metadata Schema', () => {
+  // Story 18.2 AC1: Test metadata schema validation
+  const createValidMetadata = (): ScreenshotMetadata => ({
+    screenshotId: '1735489200000_abc123',
+    childId: 'child-123',
+    familyId: 'family-123',
+    deviceId: 'device-123',
+    storagePath: 'screenshots/child-123/2025-12-29/1735489200000.jpg',
+    sizeBytes: 500000,
+    timestamp: 1735489200000,
+    url: 'https://example.com/page',
+    title: 'Test Page',
+    uploadedAt: 1735489210000,
+    queuedAt: 1735489195000,
+    retentionExpiresAt: 1738081210000,
+  })
+
+  describe('Valid metadata', () => {
+    it('should accept valid metadata', () => {
+      const metadata = createValidMetadata()
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data).toEqual(metadata)
+      }
+    })
+
+    it('should accept metadata with all required fields', () => {
+      const metadata = createValidMetadata()
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.screenshotId).toBe(metadata.screenshotId)
+        expect(result.data.childId).toBe(metadata.childId)
+        expect(result.data.familyId).toBe(metadata.familyId)
+        expect(result.data.deviceId).toBe(metadata.deviceId)
+        expect(result.data.storagePath).toBe(metadata.storagePath)
+        expect(result.data.sizeBytes).toBe(metadata.sizeBytes)
+        expect(result.data.timestamp).toBe(metadata.timestamp)
+        expect(result.data.url).toBe(metadata.url)
+        expect(result.data.title).toBe(metadata.title)
+        expect(result.data.uploadedAt).toBe(metadata.uploadedAt)
+        expect(result.data.queuedAt).toBe(metadata.queuedAt)
+        expect(result.data.retentionExpiresAt).toBe(metadata.retentionExpiresAt)
+      }
+    })
+  })
+
+  describe('Invalid metadata', () => {
+    it('should reject missing screenshotId', () => {
+      const metadata = { ...createValidMetadata() }
+      delete (metadata as any).screenshotId
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject invalid sizeBytes (negative)', () => {
+      const metadata = { ...createValidMetadata(), sizeBytes: -1 }
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject invalid sizeBytes (zero)', () => {
+      const metadata = { ...createValidMetadata(), sizeBytes: 0 }
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject invalid timestamp (negative)', () => {
+      const metadata = { ...createValidMetadata(), timestamp: -1 }
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject invalid timestamp (zero)', () => {
+      const metadata = { ...createValidMetadata(), timestamp: 0 }
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should reject non-integer sizeBytes', () => {
+      const metadata = { ...createValidMetadata(), sizeBytes: 500.5 }
+      const result = screenshotMetadataSchema.safeParse(metadata)
+
+      expect(result.success).toBe(false)
+    })
+  })
+})
+
+describe('Screenshot ID Generation', () => {
+  // Story 18.2 AC1: Test screenshotId generation uniqueness
+
+  it('should generate ID with timestamp prefix', () => {
+    const timestamp = 1735489200000
+    const id = generateScreenshotId(timestamp)
+
+    expect(id.startsWith(`${timestamp}_`)).toBe(true)
+  })
+
+  it('should generate unique IDs for same timestamp', () => {
+    const timestamp = 1735489200000
+    const ids = new Set<string>()
+
+    // Generate 100 IDs with the same timestamp
+    for (let i = 0; i < 100; i++) {
+      ids.add(generateScreenshotId(timestamp))
+    }
+
+    // All IDs should be unique
+    expect(ids.size).toBe(100)
+  })
+
+  it('should generate IDs with format {timestamp}_{random}', () => {
+    const timestamp = 1735489200000
+    const id = generateScreenshotId(timestamp)
+
+    // Should match format: timestamp_6chars
+    const match = id.match(/^(\d+)_([a-z0-9]+)$/)
+    expect(match).not.toBeNull()
+    expect(match?.[1]).toBe(timestamp.toString())
+    expect(match?.[2].length).toBe(6)
+  })
+
+  it('should generate different IDs for different timestamps', () => {
+    const id1 = generateScreenshotId(1735489200000)
+    const id2 = generateScreenshotId(1735489200001)
+
+    expect(id1.split('_')[0]).not.toBe(id2.split('_')[0])
+  })
+})
+
+describe('Retention Expiry Calculation', () => {
+  // Story 18.2 AC5: Test retention calculation (30 days default)
+
+  it('should use default retention of 30 days', () => {
+    expect(DEFAULT_RETENTION_DAYS).toBe(30)
+  })
+
+  it('should calculate expiry as uploadedAt + 30 days by default', () => {
+    const uploadedAt = 1735489200000
+    const expiry = calculateRetentionExpiry(uploadedAt)
+
+    const expectedExpiry = uploadedAt + 30 * 24 * 60 * 60 * 1000
+    expect(expiry).toBe(expectedExpiry)
+  })
+
+  it('should calculate expiry with custom retention days', () => {
+    const uploadedAt = 1735489200000
+    const customDays = 60
+    const expiry = calculateRetentionExpiry(uploadedAt, customDays)
+
+    const expectedExpiry = uploadedAt + customDays * 24 * 60 * 60 * 1000
+    expect(expiry).toBe(expectedExpiry)
+  })
+
+  it('should handle 0 day retention', () => {
+    const uploadedAt = 1735489200000
+    const expiry = calculateRetentionExpiry(uploadedAt, 0)
+
+    expect(expiry).toBe(uploadedAt)
+  })
+
+  it('should calculate ~2592000000ms for 30 days', () => {
+    const uploadedAt = 0
+    const expiry = calculateRetentionExpiry(uploadedAt, 30)
+
+    // 30 days in ms = 30 * 24 * 60 * 60 * 1000 = 2,592,000,000
+    expect(expiry).toBe(2592000000)
+  })
+})
+
+describe('Create Screenshot Metadata Factory', () => {
+  // Story 18.2 AC1, AC2: Test factory function
+
+  const createParams = () => ({
+    timestamp: 1735489200000,
+    childId: 'child-123',
+    familyId: 'family-123',
+    deviceId: 'device-123',
+    storagePath: 'screenshots/child-123/2025-12-29/1735489200000.jpg',
+    sizeBytes: 500000,
+    url: 'https://example.com/page',
+    title: 'Test Page',
+    queuedAt: 1735489195000,
+  })
+
+  it('should create valid metadata from params', () => {
+    const params = createParams()
+    const metadata = createScreenshotMetadata(params)
+
+    // Validate against schema
+    const result = screenshotMetadataSchema.safeParse(metadata)
+    expect(result.success).toBe(true)
+  })
+
+  it('should include all required fields', () => {
+    const params = createParams()
+    const metadata = createScreenshotMetadata(params)
+
+    expect(metadata.childId).toBe(params.childId)
+    expect(metadata.familyId).toBe(params.familyId)
+    expect(metadata.deviceId).toBe(params.deviceId)
+    expect(metadata.storagePath).toBe(params.storagePath)
+    expect(metadata.sizeBytes).toBe(params.sizeBytes)
+    expect(metadata.timestamp).toBe(params.timestamp)
+    expect(metadata.url).toBe(params.url)
+    expect(metadata.title).toBe(params.title)
+    expect(metadata.queuedAt).toBe(params.queuedAt)
+  })
+
+  it('should generate screenshotId from timestamp', () => {
+    const params = createParams()
+    const metadata = createScreenshotMetadata(params)
+
+    expect(metadata.screenshotId.startsWith(`${params.timestamp}_`)).toBe(true)
+  })
+
+  it('should set uploadedAt to current time', () => {
+    const before = Date.now()
+    const params = createParams()
+    const metadata = createScreenshotMetadata(params)
+    const after = Date.now()
+
+    expect(metadata.uploadedAt).toBeGreaterThanOrEqual(before)
+    expect(metadata.uploadedAt).toBeLessThanOrEqual(after)
+  })
+
+  it('should calculate retentionExpiresAt with default 30 days', () => {
+    const params = createParams()
+    const metadata = createScreenshotMetadata(params)
+
+    const expectedExpiry = metadata.uploadedAt + 30 * 24 * 60 * 60 * 1000
+    expect(metadata.retentionExpiresAt).toBe(expectedExpiry)
+  })
+
+  it('should calculate retentionExpiresAt with custom retention days', () => {
+    const params = { ...createParams(), retentionDays: 60 }
+    const metadata = createScreenshotMetadata(params)
+
+    const expectedExpiry = metadata.uploadedAt + 60 * 24 * 60 * 60 * 1000
+    expect(metadata.retentionExpiresAt).toBe(expectedExpiry)
   })
 })
