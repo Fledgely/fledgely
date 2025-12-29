@@ -242,7 +242,7 @@ development_status:
   13-4-brute-force-protection: done
   13-5-emergency-unlock-audit-trail: done
   13-6-totp-secret-recovery: done
-  epic-13-retrospective: optional
+  epic-13-retrospective: done
 
   # Epic 14: Android Agent Foundation
   epic-14: backlog
