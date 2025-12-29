@@ -165,7 +165,7 @@ development_status:
   # Epic 8: Data Isolation & Security Foundation
   epic-8: in-progress
   8-1-family-data-isolation-rules: done
-  8-2-sibling-data-isolation: backlog
+  8-2-sibling-data-isolation: done
   8-3-child-permission-boundaries: backlog
   8-4-negative-capability-no-third-party-sharing: backlog
   8-5-negative-capability-no-advertising-use: backlog
