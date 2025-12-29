@@ -3,6 +3,7 @@
  *
  * Story 4.1: Template Library Structure - AC1, AC2, AC4, AC5
  * Story 4.3: Template Preview & Selection - AC1, AC3, AC4
+ * Story 4.6: Template Accessibility - AC2, AC4
  *
  * Displays browsable template collection organized by age group.
  * Includes filtering by categories and search functionality.
@@ -280,7 +281,7 @@ export function TemplateLibrary({
                 className={`
                 px-3 py-1.5 text-sm font-medium rounded-full border transition-colors
                 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
-                min-h-[44px]
+                min-h-[44px] min-w-[60px]
                 ${
                   selectedCategories.includes(category)
                     ? 'bg-primary text-white border-primary'

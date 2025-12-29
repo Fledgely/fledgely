@@ -2,6 +2,7 @@
  * Template Preview Modal Component.
  *
  * Story 4.3: Template Preview & Selection - AC1, AC2, AC3, AC5, AC6
+ * Story 4.6: Template Accessibility - AC5
  *
  * Displays full template preview in an accessible modal with:
  * - All template sections (screen time, monitoring, rules)

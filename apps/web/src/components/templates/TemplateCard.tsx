@@ -4,6 +4,7 @@
  * Story 4.1: Template Library Structure - AC3, AC5
  * Story 4.2: Age-Appropriate Template Content - AC5, AC6
  * Story 4.3: Template Preview & Selection - AC4
+ * Story 4.6: Template Accessibility - AC1, AC3, AC6, AC7
  *
  * Displays a template preview with key information at a glance.
  * Includes screen time summary, monitoring level, and key rules count.
