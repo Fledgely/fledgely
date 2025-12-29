@@ -67,6 +67,17 @@
       "collectionGroup": "screenshotViews",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "timestamp", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "alerts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "viewerId", "order": "ASCENDING" },
+        { "fieldPath": "childId", "order": "ASCENDING" },
+        { "fieldPath": "dismissed", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

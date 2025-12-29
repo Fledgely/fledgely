@@ -1,21 +1,24 @@
 /**
  * Screenshot View HTTP Endpoint with Forensic Watermarking
  * Story 18.5: Forensic Watermarking on View
+ * Story 18.6: View Rate Limiting
  *
  * Serves screenshots with invisible forensic watermarks embedded.
  * The watermark encodes the viewer's identity for leak tracing.
+ * Rate limiting detects abnormal viewing patterns (non-blocking).
  *
  * Key Security Features:
  * - Requires Firebase Auth token
  * - Verifies family membership
  * - Never serves unwatermarked original
  * - Logs all view events for audit
+ * - Alerts other guardians on high view rates
  *
  * Follows Cloud Functions Template pattern:
  * 1. Auth (FIRST) - validate Firebase Auth token
  * 2. Validation (SECOND) - validate request params
  * 3. Permission (THIRD) - verify family membership
- * 4. Business logic (LAST) - fetch, watermark, serve
+ * 4. Business logic (LAST) - fetch, watermark, serve, check rate limit
  */
 
 import { onRequest } from 'firebase-functions/v2/https'
@@ -24,6 +27,8 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
 import * as logger from 'firebase-functions/logger'
 import { embedWatermark, type WatermarkPayload } from '../../lib/watermark'
+import { checkViewRateLimit } from '../../lib/rate-limit'
+import { getActiveRateLimitAlert, createRateLimitAlert } from '../../lib/alerts'
 
 /**
  * Extract Bearer token from Authorization header
@@ -247,7 +252,50 @@ export const viewScreenshot = onRequest(
       viewTimestamp,
     })
 
-    // Serve watermarked image
+    // Check rate limit (non-blocking - Story 18.6)
+    // This runs AFTER audit log so the current view is counted
+    try {
+      const rateResult = await checkViewRateLimit(viewerId, childId, familyId)
+
+      if (rateResult.exceeded) {
+        // Check if alert already exists for this window (deduplication)
+        const existingAlert = await getActiveRateLimitAlert(
+          familyId,
+          viewerId,
+          childId,
+          rateResult.windowMs
+        )
+
+        if (!existingAlert) {
+          // Create alert for other guardians
+          await createRateLimitAlert({
+            familyId,
+            childId,
+            viewerId,
+            viewerEmail,
+            count: rateResult.count,
+            threshold: rateResult.threshold,
+            windowMs: rateResult.windowMs,
+          })
+
+          logger.info('Rate limit exceeded, alert created', {
+            viewerId,
+            childId,
+            count: rateResult.count,
+            threshold: rateResult.threshold,
+          })
+        }
+      }
+    } catch (error) {
+      // Rate limit check is non-blocking - log and continue
+      logger.error('Rate limit check failed', {
+        viewerId,
+        childId,
+        errorType: error instanceof Error ? error.name : 'Unknown',
+      })
+    }
+
+    // Serve watermarked image (always - non-blocking rate limit per AC3)
     res.set({
       'Content-Type': 'image/jpeg',
       'Content-Length': watermarkedBuffer.length.toString(),
