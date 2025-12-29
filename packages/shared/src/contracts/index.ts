@@ -209,6 +209,8 @@ export const dataViewTypeSchema = z.enum([
   'activity',
   'agreements',
   'flags',
+  'devices', // Story 19.8: Dashboard view logging for device list
+  'device_detail', // Story 19.8: Individual device detail view
 ])
 export type DataViewType = z.infer<typeof dataViewTypeSchema>
 

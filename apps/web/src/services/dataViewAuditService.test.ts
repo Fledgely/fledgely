@@ -52,6 +52,8 @@ describe('dataViewAuditService', () => {
         dataType: 'children_list',
         viewedAt: { seconds: 1234567890, nanoseconds: 0 },
         sessionId: 'session-abc',
+        deviceId: null, // Story 19.8
+        metadata: null, // Story 19.8
       })
       expect(result).toBe('audit-log-123')
     })
@@ -137,6 +139,8 @@ describe('dataViewAuditService', () => {
         'activity',
         'agreements',
         'flags',
+        'devices', // Story 19.8
+        'device_detail', // Story 19.8
       ] as const
 
       for (const dataType of dataTypes) {
@@ -149,6 +153,59 @@ describe('dataViewAuditService', () => {
           })
         )
       }
+    })
+
+    // Story 19.8: Device-specific audit logging
+    it('includes deviceId for device views', async () => {
+      const params: LogDataViewParams = {
+        ...validParams,
+        dataType: 'devices',
+        deviceId: 'device-123',
+      }
+
+      await logDataView(params)
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          deviceId: 'device-123',
+        })
+      )
+    })
+
+    it('includes metadata for device views', async () => {
+      const params: LogDataViewParams = {
+        ...validParams,
+        dataType: 'devices',
+        metadata: {
+          deviceCount: 3,
+          activeDeviceCount: 2,
+        },
+      }
+
+      await logDataView(params)
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          metadata: {
+            deviceCount: 3,
+            activeDeviceCount: 2,
+          },
+        })
+      )
+    })
+
+    it('sets deviceId and metadata to null when not provided', async () => {
+      await logDataView(validParams)
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          deviceId: null,
+          metadata: null,
+        })
+      )
     })
   })
 

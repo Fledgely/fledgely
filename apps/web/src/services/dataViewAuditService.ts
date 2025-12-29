@@ -23,6 +23,8 @@ const VALID_DATA_VIEW_TYPES = [
   'activity',
   'agreements',
   'flags',
+  'devices', // Story 19.8: Dashboard view logging
+  'device_detail', // Story 19.8: Individual device detail view
 ] as const
 
 /**
@@ -39,6 +41,10 @@ export interface LogDataViewParams {
   dataType: DataViewType
   /** Optional session ID for correlation */
   sessionId?: string
+  /** Story 19.8: Optional device ID for device-related views */
+  deviceId?: string
+  /** Story 19.8: Optional additional metadata for audit context */
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -56,7 +62,7 @@ export interface LogDataViewParams {
  * @throws Error if Firestore write fails (caller should handle)
  */
 export async function logDataView(params: LogDataViewParams): Promise<string> {
-  const { viewerUid, childId, familyId, dataType, sessionId } = params
+  const { viewerUid, childId, familyId, dataType, sessionId, deviceId, metadata } = params
 
   // Validate required fields
   if (!viewerUid) {
@@ -80,6 +86,7 @@ export async function logDataView(params: LogDataViewParams): Promise<string> {
   const db = getFirestoreDb()
   const auditLogsRef = collection(db, 'auditLogs')
 
+  // Story 19.8: Include deviceId and metadata in audit log
   const docRef = await addDoc(auditLogsRef, {
     viewerUid,
     childId: childId ?? null,
@@ -87,6 +94,8 @@ export async function logDataView(params: LogDataViewParams): Promise<string> {
     dataType,
     viewedAt: Timestamp.now(),
     sessionId: sessionId ?? null,
+    deviceId: deviceId ?? null, // Story 19.8
+    metadata: metadata ?? null, // Story 19.8
   })
 
   return docRef.id

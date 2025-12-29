@@ -21,7 +21,7 @@
  * - AC1-7 (19.2): Device health status indicators with tooltip
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDevices, formatLastSeen, isValidDate, type Device } from '../../hooks/useDevices'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
 import { useAuth } from '../../contexts/AuthContext'
@@ -32,6 +32,7 @@ import {
   logEmergencyCodeView,
   resetTotpSecret,
 } from '../../services/deviceService'
+import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
 import { ReauthModal } from '../auth/ReauthModal'
 import { EmergencyCodeModal } from './EmergencyCodeModal'
 
@@ -886,6 +887,26 @@ export function DevicesList({ familyId }: DevicesListProps) {
 
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
+
+  /**
+   * Story 19.8: Log device list view for audit trail (FR27A).
+   * Logs when the devices list is rendered and visible to the parent.
+   */
+  useEffect(() => {
+    if (!loading && !error && familyId && firebaseUser?.uid && devices.length > 0) {
+      // Log the devices list view
+      logDataViewNonBlocking({
+        viewerUid: firebaseUser.uid,
+        childId: null, // Family-level view
+        familyId,
+        dataType: 'devices',
+        metadata: {
+          deviceCount: devices.length,
+          activeDeviceCount: devices.filter((d) => d.status === 'active').length,
+        },
+      })
+    }
+  }, [loading, error, familyId, firebaseUser?.uid, devices.length])
 
   /**
    * Story 13.2: Handle emergency code button click.

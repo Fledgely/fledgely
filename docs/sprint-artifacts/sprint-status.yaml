@@ -304,11 +304,11 @@ development_status:
   19-1-device-list-view: done
   19-2-device-status-indicators: done
   19-3-last-sync-timestamp-display: done
-  19-4-monitoring-health-details: backlog
-  19-5-monitoring-disabled-alert: backlog
-  19-6-device-removal-flow: backlog
-  19-7-child-device-visibility: backlog
-  19-8-dashboard-view-logging-fr27a: backlog
+  19-4-monitoring-health-details: blocked # Requires extension health metrics sync infrastructure
+  19-5-monitoring-disabled-alert: blocked # Requires push notifications and extension tamper detection
+  19-6-device-removal-flow: blocked # Requires child notification system and audit logging
+  19-7-child-device-visibility: blocked # Requires child login/authentication flow
+  19-8-dashboard-view-logging-fr27a: done
   epic-19-retrospective: optional
 
   # Epic 19A: Quick Status View (Focus Group)
