@@ -330,6 +330,49 @@ describe('ChildSigningCeremony', () => {
 
       expect(screen.getByTestId('proceed-to-signature-button')).toHaveClass('min-h-[44px]')
     })
+
+    // Story 6.7 - Signature Accessibility tests
+    it('should have step announcement live region', () => {
+      render(<ChildSigningCeremony {...defaultProps} />)
+
+      const announcement = screen.getByTestId('step-announcement')
+      expect(announcement).toHaveAttribute('aria-live', 'polite')
+      expect(announcement).toHaveAttribute('aria-atomic', 'true')
+    })
+
+    it('should announce step changes', () => {
+      render(<ChildSigningCeremony {...defaultProps} />)
+
+      const announcement = screen.getByTestId('step-announcement')
+      expect(announcement).toHaveTextContent('Step 1 of 3')
+
+      fireEvent.click(screen.getByTestId('proceed-to-signature-button'))
+
+      expect(announcement).toHaveTextContent('Step 2 of 3')
+    })
+
+    it('should have focusable headings with tabIndex=-1', () => {
+      render(<ChildSigningCeremony {...defaultProps} />)
+
+      const heading = screen.getByRole('heading', { level: 1 })
+      expect(heading).toHaveAttribute('tabIndex', '-1')
+    })
+
+    it('should have validation message with role alert', () => {
+      render(<ChildSigningCeremony {...defaultProps} />)
+      fireEvent.click(screen.getByTestId('proceed-to-signature-button'))
+
+      const validationMessage = screen.getByTestId('validation-message')
+      expect(validationMessage).toHaveAttribute('role', 'alert')
+    })
+
+    it('should connect validation error to submit button via aria-describedby', () => {
+      render(<ChildSigningCeremony {...defaultProps} />)
+      fireEvent.click(screen.getByTestId('proceed-to-signature-button'))
+
+      const submitButton = screen.getByTestId('submit-signature-button')
+      expect(submitButton).toHaveAttribute('aria-describedby', 'signature-validation-error')
+    })
   })
 
   describe('styling', () => {

@@ -238,6 +238,10 @@ export function DrawnSignature({
       <p id="drawn-signature-help" className="text-sm text-gray-500">
         Use your finger or mouse to draw your signature above.
       </p>
+      {/* Keyboard accessibility notice (Story 6.7 - AC2) */}
+      <p className="text-xs text-gray-400 mt-1">
+        Using a keyboard? Switch to &quot;Type My Name&quot; for easier signing.
+      </p>
     </div>
   )
 }

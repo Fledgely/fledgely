@@ -2,6 +2,7 @@
  * Child Signing Ceremony Component.
  *
  * Story 6.1: Child Digital Signature Ceremony - AC1, AC2, AC3, AC4, AC5, AC6, AC7
+ * Story 6.7: Signature Accessibility - AC1, AC2, AC3, AC4
  *
  * Full signing ceremony flow for children to sign family agreements.
  * Provides meaningful ceremony experience with accessibility support.
@@ -9,7 +10,7 @@
 
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { AgreementTerm, SignatureMethod, AgreementSigning } from '@fledgely/shared/contracts'
 import { canChildSign } from '@fledgely/shared/contracts'
 import { TypedSignature } from './TypedSignature'
@@ -55,9 +56,27 @@ export function ChildSigningCeremony({
   const [typedName, setTypedName] = useState('')
   const [drawnImageData, setDrawnImageData] = useState<string | null>(null)
   const [hasConsented, setHasConsented] = useState(false)
+  const [stepAnnouncement, setStepAnnouncement] = useState('')
+
+  // Refs for focus management (Story 6.7 - AC4)
+  const commitmentsHeadingRef = useRef<HTMLHeadingElement>(null)
+  const signatureHeadingRef = useRef<HTMLHeadingElement>(null)
 
   // Check if child can sign (AC7 - parent cannot sign first)
   const canSign = canChildSign(signingState)
+
+  // Focus management when step changes (Story 6.7 - AC4)
+  useEffect(() => {
+    if (step === 'commitments') {
+      commitmentsHeadingRef.current?.focus()
+      setStepAnnouncement('Step 1 of 3: Review your commitments')
+    } else if (step === 'signature') {
+      signatureHeadingRef.current?.focus()
+      setStepAnnouncement('Step 2 of 3: Sign your name')
+    } else if (step === 'confirmation') {
+      setStepAnnouncement('Step 3 of 3: Signing complete!')
+    }
+  }, [step])
 
   /**
    * Check if signature is valid for submission.
@@ -133,6 +152,16 @@ export function ChildSigningCeremony({
       className={`max-w-2xl mx-auto p-4 ${className}`}
       data-testid="child-signing-ceremony"
     >
+      {/* Live region for step announcements (Story 6.7 - AC3) */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="step-announcement"
+      >
+        {stepAnnouncement}
+      </div>
+
       {/* Progress indicator */}
       <nav className="mb-6" aria-label="Signing progress">
         <ol className="flex items-center justify-center gap-2" role="list">
@@ -175,7 +204,12 @@ export function ChildSigningCeremony({
       {step === 'commitments' && (
         <section aria-labelledby="commitments-heading" data-testid="commitments-step">
           <header className="text-center mb-6">
-            <h1 id="commitments-heading" className="text-2xl font-bold text-gray-900 mb-2">
+            <h1
+              id="commitments-heading"
+              ref={commitmentsHeadingRef}
+              tabIndex={-1}
+              className="text-2xl font-bold text-gray-900 mb-2 outline-none"
+            >
               Ready to Sign, {childName}?
             </h1>
             <p className="text-gray-600">
@@ -228,7 +262,12 @@ export function ChildSigningCeremony({
       {step === 'signature' && (
         <section aria-labelledby="signature-heading" data-testid="signature-step">
           <header className="text-center mb-6">
-            <h1 id="signature-heading" className="text-2xl font-bold text-gray-900 mb-2">
+            <h1
+              id="signature-heading"
+              ref={signatureHeadingRef}
+              tabIndex={-1}
+              className="text-2xl font-bold text-gray-900 mb-2 outline-none"
+            >
               Sign Your Name
             </h1>
             <p className="text-gray-600">Choose how you want to sign: type your name or draw it!</p>
@@ -300,6 +339,7 @@ export function ChildSigningCeremony({
               type="button"
               onClick={handleSubmit}
               disabled={!isSignatureValid() || isSubmitting}
+              aria-describedby={!isSignatureValid() ? 'signature-validation-error' : undefined}
               className={`
                 px-8 py-3 rounded-full
                 font-medium text-lg
@@ -317,7 +357,12 @@ export function ChildSigningCeremony({
               {isSubmitting ? 'Signing...' : 'Sign the Agreement'}
             </button>
             {!isSignatureValid() && (
-              <p className="mt-2 text-sm text-gray-500">
+              <p
+                id="signature-validation-error"
+                role="alert"
+                className="mt-2 text-sm text-gray-500"
+                data-testid="validation-message"
+              >
                 {!hasConsented
                   ? 'Please check the box above to agree'
                   : signatureMethod === 'typed'
