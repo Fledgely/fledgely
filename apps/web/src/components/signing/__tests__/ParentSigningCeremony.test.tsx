@@ -3,12 +3,40 @@
  *
  * Story 6.2: Parent Digital Signature - AC1, AC2, AC3, AC4, AC5, AC6, AC7
  * Story 6.3: Agreement Activation - AC1, AC4
+ * Story 6.4: Signing Ceremony Celebration - Integration
  */
 
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import { ParentSigningCeremony } from '../ParentSigningCeremony'
 import type { AgreementTerm, AgreementSigning } from '@fledgely/shared/contracts'
+
+// Store original matchMedia
+const originalMatchMedia = window.matchMedia
+
+// Mock matchMedia for reduced motion detection in CelebrationScreen
+beforeAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+})
+
+afterAll(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: originalMatchMedia,
+  })
+})
 
 const createTerm = (overrides: Partial<AgreementTerm> = {}): AgreementTerm => ({
   id: 'term-1',
@@ -439,7 +467,7 @@ describe('ParentSigningCeremony', () => {
     })
   })
 
-  describe('activation confirmation (Story 6.3 AC4)', () => {
+  describe('celebration screen (Story 6.3 AC4, Story 6.4)', () => {
     const completeSigningState = createSigningState({
       status: 'complete',
       childSignature: mockChildSignature,
@@ -458,7 +486,7 @@ describe('ParentSigningCeremony', () => {
       ],
     })
 
-    it('should show activation confirmation when all signed and activation data provided', () => {
+    it('should show celebration screen when all signed and activation data provided', () => {
       render(
         <ParentSigningCeremony
           {...defaultProps}
@@ -469,10 +497,10 @@ describe('ParentSigningCeremony', () => {
         />
       )
 
-      expect(screen.getByTestId('activation-confirmation')).toBeInTheDocument()
+      expect(screen.getByTestId('celebration-screen')).toBeInTheDocument()
     })
 
-    it('should display agreement version in activation confirmation', () => {
+    it('should display agreement version in celebration screen', () => {
       render(
         <ParentSigningCeremony
           {...defaultProps}
@@ -485,7 +513,7 @@ describe('ParentSigningCeremony', () => {
       expect(screen.getByTestId('version-info')).toHaveTextContent('Version v2.0')
     })
 
-    it('should display activation date in confirmation', () => {
+    it('should display activation date in celebration screen', () => {
       render(
         <ParentSigningCeremony
           {...defaultProps}
@@ -498,7 +526,7 @@ describe('ParentSigningCeremony', () => {
       expect(screen.getByTestId('version-info')).toHaveTextContent('January 15, 2024')
     })
 
-    it('should display family name in activation confirmation', () => {
+    it('should display family name in celebration heading', () => {
       render(
         <ParentSigningCeremony
           {...defaultProps}
@@ -509,36 +537,34 @@ describe('ParentSigningCeremony', () => {
         />
       )
 
-      expect(screen.getByTestId('confirmation-heading')).toHaveTextContent(
-        'Smith Agreement Activated!'
-      )
+      expect(screen.getByTestId('celebration-heading')).toHaveTextContent('Smith')
     })
 
-    it('should call onContinue when continue button clicked', () => {
-      const onContinue = vi.fn()
+    it('should call onViewDashboard when view dashboard button clicked', () => {
+      const onViewDashboard = vi.fn()
       render(
         <ParentSigningCeremony
           {...defaultProps}
           signingState={completeSigningState}
           agreementVersion="v1.0"
           activatedAt={new Date('2024-01-15T12:00:00')}
-          onContinue={onContinue}
+          onViewDashboard={onViewDashboard}
         />
       )
 
-      fireEvent.click(screen.getByTestId('continue-button'))
+      fireEvent.click(screen.getByTestId('view-dashboard-button'))
 
-      expect(onContinue).toHaveBeenCalledTimes(1)
+      expect(onViewDashboard).toHaveBeenCalledTimes(1)
     })
 
     it('should show signature confirmation when complete but no activation data', () => {
       render(<ParentSigningCeremony {...defaultProps} signingState={completeSigningState} />)
 
       expect(screen.getByTestId('signature-confirmation')).toBeInTheDocument()
-      expect(screen.queryByTestId('activation-confirmation')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('celebration-screen')).not.toBeInTheDocument()
     })
 
-    it('should include child name in activation message', () => {
+    it('should show partnership message in celebration', () => {
       render(
         <ParentSigningCeremony
           {...defaultProps}
@@ -548,7 +574,41 @@ describe('ParentSigningCeremony', () => {
         />
       )
 
-      expect(screen.getByTestId('confirmation-message')).toHaveTextContent('Alex')
+      expect(screen.getByTestId('partnership-message')).toHaveTextContent('together')
+    })
+
+    it('should call onSetupDevices when setup devices button clicked', () => {
+      const onSetupDevices = vi.fn()
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+          onSetupDevices={onSetupDevices}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId('setup-devices-button'))
+
+      expect(onSetupDevices).toHaveBeenCalledTimes(1)
+    })
+
+    it('should call onDownload when download button clicked', () => {
+      const onDownload = vi.fn()
+      render(
+        <ParentSigningCeremony
+          {...defaultProps}
+          signingState={completeSigningState}
+          agreementVersion="v1.0"
+          activatedAt={new Date('2024-01-15T12:00:00')}
+          onDownload={onDownload}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId('download-button'))
+
+      expect(onDownload).toHaveBeenCalledTimes(1)
     })
   })
 })

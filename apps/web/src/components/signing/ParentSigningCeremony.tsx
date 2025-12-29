@@ -3,10 +3,11 @@
  *
  * Story 6.2: Parent Digital Signature - AC1, AC2, AC3, AC4, AC5, AC6, AC7
  * Story 6.3: Agreement Activation - AC1, AC4
+ * Story 6.4: Signing Ceremony Celebration - AC1, AC2, AC3, AC4, AC5, AC6, AC7
  *
  * Signing ceremony flow for parents to sign family agreements.
  * Parent can only sign after child has signed (FR19).
- * Shows activation confirmation when all signatures collected.
+ * Shows celebration screen when all signatures collected and activated.
  */
 
 'use client'
@@ -23,7 +24,7 @@ import { TypedSignature } from './TypedSignature'
 import { DrawnSignature } from './DrawnSignature'
 import { ConsentCheckbox } from './ConsentCheckbox'
 import { SignatureConfirmation } from './SignatureConfirmation'
-import { ActivationConfirmation } from '../agreements/ActivationConfirmation'
+import { CelebrationScreen } from '../agreements/CelebrationScreen'
 
 interface ParentSigningCeremonyProps {
   /** Parent's name */
@@ -49,8 +50,12 @@ interface ParentSigningCeremonyProps {
     imageData: string | null
     acknowledged: boolean
   }) => void
-  /** Called when user continues from activation confirmation */
-  onContinue?: () => void
+  /** Called when user views dashboard from celebration */
+  onViewDashboard?: () => void
+  /** Called when user wants to set up devices from celebration */
+  onSetupDevices?: () => void
+  /** Called when user wants to download agreement from celebration */
+  onDownload?: () => void
   /** Agreement version (set after activation) */
   agreementVersion?: string
   /** Activation timestamp (set after activation) */
@@ -73,7 +78,9 @@ export function ParentSigningCeremony({
   parentTerms,
   signingState,
   onSign,
-  onContinue,
+  onViewDashboard,
+  onSetupDevices,
+  onDownload,
   agreementVersion,
   activatedAt,
   isSubmitting = false,
@@ -154,16 +161,18 @@ export function ParentSigningCeremony({
     )
   }
 
-  // Show activation confirmation if all signatures collected and agreement activated (AC4)
-  // This check comes FIRST because once activated, we always show activation confirmation
+  // Show celebration screen if all signatures collected and agreement activated (AC4)
+  // This check comes FIRST because once activated, we always show celebration screen
   if (isComplete && agreementVersion && activatedAt) {
     return (
-      <ActivationConfirmation
+      <CelebrationScreen
         version={agreementVersion}
         activatedAt={activatedAt}
         childName={childName}
         familyName={familyName}
-        onContinue={onContinue}
+        onViewDashboard={onViewDashboard}
+        onSetupDevices={onSetupDevices}
+        onDownload={onDownload}
         className={className}
       />
     )
@@ -490,15 +499,17 @@ export function ParentSigningCeremony({
         </section>
       )}
 
-      {/* Step: Confirmation - show activation confirmation if activated, otherwise signature confirmation */}
+      {/* Step: Confirmation - show celebration screen if activated, otherwise signature confirmation */}
       {step === 'confirmation' &&
         (agreementVersion && activatedAt ? (
-          <ActivationConfirmation
+          <CelebrationScreen
             version={agreementVersion}
             activatedAt={activatedAt}
             childName={childName}
             familyName={familyName}
-            onContinue={onContinue}
+            onViewDashboard={onViewDashboard}
+            onSetupDevices={onSetupDevices}
+            onDownload={onDownload}
           />
         ) : (
           <SignatureConfirmation signerName={parentName} party="parent" />
