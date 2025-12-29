@@ -15,6 +15,7 @@ import {
   stopCamera,
   validateEnrollmentPayload,
 } from './qr-scanner'
+import { submitEnrollmentRequest, pollEnrollmentStatus } from './enrollment-service'
 
 // Enrollment state type (matches background.ts)
 type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
@@ -39,6 +40,7 @@ const MOCK_CHILDREN: Child[] = [
 let selectedChildId: string | null = null
 let connectedChild: Child | null = null
 let isScanning = false
+let stopPolling: (() => void) | null = null // Story 12.3: Cleanup function for polling
 
 // DOM Elements - Not Enrolled (Story 12.2)
 const stateNotEnrolled = document.getElementById('state-not-enrolled')!
@@ -193,6 +195,42 @@ async function handleQRCodeDetected(data: string): Promise<void> {
     )
   })
 
+  // Story 12.3: Submit enrollment request to server
+  scannerStatus.textContent = 'Submitting request...'
+  const submitResult = await submitEnrollmentRequest(payload.familyId, payload.token)
+
+  if (!submitResult.success) {
+    showEnrollmentError(submitResult.message)
+    startScanBtn.classList.add('hidden')
+    retryScanBtn.classList.remove('hidden')
+    scannerVideo.classList.add('hidden')
+    scannerOverlay.classList.add('hidden')
+    scannerPlaceholder.classList.remove('hidden')
+
+    // Clear pending enrollment on failure
+    await new Promise<void>((resolve) => {
+      chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_ENROLLMENT' }, () => resolve())
+    })
+    return
+  }
+
+  // Store request ID for polling
+  if (submitResult.requestId) {
+    await new Promise<void>((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          type: 'UPDATE_ENROLLMENT_REQUEST',
+          requestId: submitResult.requestId,
+          expiresAt: Date.now() + 10 * 60 * 1000, // 10 minute expiry
+        },
+        () => resolve()
+      )
+    })
+
+    // Start polling for approval status
+    startEnrollmentPolling(payload.familyId, submitResult.requestId)
+  }
+
   // Update UI to show pending state
   await updateUI(await getAuthState())
 }
@@ -256,6 +294,12 @@ async function handleRetryScan(): Promise<void> {
  * Handle cancel enrollment button click
  */
 async function handleCancelEnrollment(): Promise<void> {
+  // Stop polling if active
+  if (stopPolling) {
+    stopPolling()
+    stopPolling = null
+  }
+
   // Clear pending enrollment
   await new Promise<void>((resolve) => {
     chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_ENROLLMENT' }, () => resolve())
@@ -263,6 +307,36 @@ async function handleCancelEnrollment(): Promise<void> {
 
   // Update UI
   await updateUI(await getAuthState())
+}
+
+/**
+ * Start polling for enrollment approval status
+ * Story 12.3: AC4, AC5, AC6 - Handle approval/rejection/expiry
+ */
+function startEnrollmentPolling(familyId: string, requestId: string): void {
+  // Stop any existing polling
+  if (stopPolling) {
+    stopPolling()
+  }
+
+  stopPolling = pollEnrollmentStatus(familyId, requestId, async (status) => {
+    // Update background state with new status
+    await new Promise<void>((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          type: 'UPDATE_ENROLLMENT_STATUS',
+          status,
+        },
+        () => resolve()
+      )
+    })
+
+    // Stop polling
+    stopPolling = null
+
+    // Update UI based on status
+    await updateUI(await getAuthState())
+  })
 }
 
 /**

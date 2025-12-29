@@ -86,11 +86,15 @@ export type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
 /**
  * Pending enrollment data from QR scan
  * Story 12.2: Stored temporarily until enrollment is confirmed
+ * Story 12.3: Extended with request tracking
  */
 export interface EnrollmentPending {
   familyId: string
   token: string
   scannedAt: number
+  requestId?: string // Added in Story 12.3 after submission
+  requestStatus?: 'pending' | 'approved' | 'rejected' | 'expired' // Story 12.3
+  expiresAt?: number // Story 12.3: Request expiry timestamp
 }
 
 // Extension state stored in chrome.storage.local
@@ -927,6 +931,63 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           pendingEnrollment: currentState.pendingEnrollment,
           familyId: currentState.familyId,
         })
+      })
+      return true
+
+    case 'UPDATE_ENROLLMENT_REQUEST':
+      // Update pending enrollment with request ID after submission
+      // Story 12.3: Device-to-Device Enrollment Approval - AC1 request tracking
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.pendingEnrollment) {
+          sendResponse({ success: false, error: 'No pending enrollment' })
+          return
+        }
+        const newState: ExtensionState = {
+          ...currentState,
+          pendingEnrollment: {
+            ...currentState.pendingEnrollment,
+            requestId: message.requestId,
+            requestStatus: 'pending',
+            expiresAt: message.expiresAt,
+          },
+        }
+        await chrome.storage.local.set({ state: newState })
+        console.log('[Fledgely] Enrollment request updated:', message.requestId)
+        sendResponse({ success: true })
+      })
+      return true
+
+    case 'UPDATE_ENROLLMENT_STATUS':
+      // Update enrollment status when approved/rejected/expired
+      // Story 12.3: Device-to-Device Enrollment Approval - AC4, AC5, AC6
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+
+        const newStatus = message.status as 'approved' | 'rejected' | 'expired'
+
+        if (newStatus === 'approved') {
+          // AC6: Approval success - transition to enrolled state
+          const newState: ExtensionState = {
+            ...currentState,
+            enrollmentState: 'enrolled',
+            familyId: currentState.pendingEnrollment?.familyId || null,
+            pendingEnrollment: null,
+          }
+          await chrome.storage.local.set({ state: newState })
+          console.log('[Fledgely] Enrollment approved - device enrolled')
+        } else {
+          // AC5: Rejection or AC4: Expiry - clear pending enrollment
+          const newState: ExtensionState = {
+            ...currentState,
+            enrollmentState: 'not_enrolled',
+            pendingEnrollment: null,
+          }
+          await chrome.storage.local.set({ state: newState })
+          console.log(`[Fledgely] Enrollment ${newStatus} - cleared pending state`)
+        }
+
+        sendResponse({ success: true, status: newStatus })
       })
       return true
 

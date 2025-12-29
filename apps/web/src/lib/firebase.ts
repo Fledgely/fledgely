@@ -133,3 +133,6 @@ function getGoogleProvider(): GoogleAuthProvider {
 
 // Export getter functions for lazy initialization
 export { getFirebaseApp, getFirebaseAuth, getFirestoreDb, getFirebaseFunctions, getGoogleProvider }
+
+// Alias for backwards compatibility and clearer naming
+export const getFunctionsInstance = getFirebaseFunctions
