@@ -235,13 +235,13 @@ development_status:
   epic-12-retrospective: done
 
   # Epic 13: Offline OTP Device Unlock
-  epic-13: in-progress
+  epic-13: done
   13-1-totp-secret-generation-at-enrollment: done
   13-2-parent-emergency-code-display: done
   13-3-device-offline-code-entry: done
   13-4-brute-force-protection: done
   13-5-emergency-unlock-audit-trail: done
-  13-6-totp-secret-recovery: backlog
+  13-6-totp-secret-recovery: done
   epic-13-retrospective: optional
 
   # Epic 14: Android Agent Foundation

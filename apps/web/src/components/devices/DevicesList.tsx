@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2
+ * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6
  *
  * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
@@ -14,6 +14,7 @@
  * - AC5 (12.5): Device can be reassigned anytime
  * - AC6 (12.6): Remove Device action
  * - AC1-6 (13.2): Emergency code display with re-auth
+ * - AC1-5 (13.6): Reset emergency codes with confirmation and re-auth
  */
 
 import { useState, useCallback } from 'react'
@@ -25,6 +26,7 @@ import {
   removeDevice,
   getDeviceTotpSecret,
   logEmergencyCodeView,
+  resetTotpSecret,
 } from '../../services/deviceService'
 import { ReauthModal } from '../auth/ReauthModal'
 import { EmergencyCodeModal } from './EmergencyCodeModal'
@@ -231,6 +233,41 @@ const styles = {
     opacity: 0.5,
     cursor: 'not-allowed',
   },
+  resetSecretButton: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid #dc2626',
+    backgroundColor: '#fef2f2',
+    color: '#dc2626',
+    fontSize: '12px',
+    cursor: 'pointer',
+    marginLeft: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  resetSecretButtonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  warningText: {
+    backgroundColor: '#fef3c7',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+    fontSize: '13px',
+    color: '#92400e',
+    textAlign: 'left' as const,
+  },
+  confirmResetButton: {
+    padding: '8px 16px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: '#dc2626',
+    color: '#ffffff',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
 }
 
 function DeviceIcon({ type }: { type: Device['type'] }) {
@@ -360,6 +397,43 @@ function RemoveConfirmModal({ device, onConfirm, onCancel, isRemoving }: RemoveC
   )
 }
 
+/**
+ * Confirmation modal for reset emergency codes
+ * Story 13.6 Task 1.2: Create confirmation dialog with warning
+ */
+interface ResetSecretConfirmModalProps {
+  device: Device
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function ResetSecretConfirmModal({ device, onConfirm, onCancel }: ResetSecretConfirmModalProps) {
+  return (
+    <div style={styles.confirmModal} onClick={onCancel}>
+      <div style={styles.confirmDialog} onClick={(e) => e.stopPropagation()}>
+        <h3 style={styles.confirmTitle}>Reset Emergency Codes?</h3>
+        <div style={styles.warningText}>
+          <strong>Warning:</strong> This will invalidate all current emergency codes for &quot;
+          {device.name}&quot;. Any codes previously shared with your child will stop working
+          immediately.
+        </div>
+        <p style={styles.confirmText}>
+          The device must come online to receive the new codes. Until then, old codes may still work
+          on the device.
+        </p>
+        <div style={styles.confirmButtons}>
+          <button style={styles.cancelButton} onClick={onCancel}>
+            Cancel
+          </button>
+          <button style={styles.confirmResetButton} onClick={onConfirm}>
+            Reset Codes
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function DevicesList({ familyId }: DevicesListProps) {
   const { devices, loading: devicesLoading, error: devicesError } = useDevices({ familyId })
   const { children, loading: childrenLoading, error: childrenError } = useChildren({ familyId })
@@ -375,6 +449,12 @@ export function DevicesList({ familyId }: DevicesListProps) {
   const [emergencyCodeSecret, setEmergencyCodeSecret] = useState<string | null>(null)
   const [emergencyCodeDeviceName, setEmergencyCodeDeviceName] = useState<string>('')
   const [loadingEmergencyCode, setLoadingEmergencyCode] = useState(false)
+
+  // Story 13.6: Reset TOTP secret state
+  const [deviceForReset, setDeviceForReset] = useState<Device | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showResetReauth, setShowResetReauth] = useState(false)
+  const [resettingSecret, setResettingSecret] = useState(false)
 
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
@@ -429,6 +509,60 @@ export function DevicesList({ familyId }: DevicesListProps) {
     setEmergencyCodeSecret(null)
     setEmergencyCodeDeviceName('')
     setDeviceForEmergencyCode(null)
+  }, [])
+
+  /**
+   * Story 13.6: Handle reset emergency codes button click.
+   * Shows confirmation dialog first.
+   */
+  const handleResetSecretClick = useCallback((device: Device) => {
+    setDeviceForReset(device)
+    setShowResetConfirm(true)
+  }, [])
+
+  /**
+   * Story 13.6: Handle reset confirmation.
+   * Shows re-auth modal for security.
+   */
+  const handleResetConfirm = useCallback(() => {
+    setShowResetConfirm(false)
+    setShowResetReauth(true)
+  }, [])
+
+  /**
+   * Story 13.6: Handle successful re-authentication for reset.
+   * Performs the actual TOTP secret reset.
+   */
+  const handleResetReauthSuccess = useCallback(async () => {
+    setShowResetReauth(false)
+
+    if (!deviceForReset || !firebaseUser) return
+
+    setResettingSecret(true)
+    try {
+      await resetTotpSecret(familyId, deviceForReset.deviceId, firebaseUser.uid)
+      // Success - clear state (no need to show the new secret to user)
+      setDeviceForReset(null)
+    } catch (err) {
+      console.error('Failed to reset TOTP secret:', err)
+      setDeviceErrors((prev) => ({
+        ...prev,
+        [deviceForReset.deviceId]:
+          err instanceof Error ? err.message : 'Failed to reset emergency codes',
+      }))
+      setDeviceForReset(null)
+    } finally {
+      setResettingSecret(false)
+    }
+  }, [deviceForReset, familyId, firebaseUser])
+
+  /**
+   * Story 13.6: Cancel reset flow.
+   */
+  const handleResetCancel = useCallback(() => {
+    setShowResetConfirm(false)
+    setShowResetReauth(false)
+    setDeviceForReset(null)
   }, [])
 
   /**
@@ -560,6 +694,17 @@ export function DevicesList({ familyId }: DevicesListProps) {
             </button>
             <button
               style={{
+                ...styles.resetSecretButton,
+                ...(resettingSecret ? styles.resetSecretButtonDisabled : {}),
+              }}
+              onClick={() => handleResetSecretClick(device)}
+              disabled={resettingSecret}
+              aria-label="Reset emergency codes"
+            >
+              🔄 Reset Codes
+            </button>
+            <button
+              style={{
                 ...styles.removeButton,
                 ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
               }}
@@ -604,6 +749,27 @@ export function DevicesList({ familyId }: DevicesListProps) {
           deviceName={emergencyCodeDeviceName}
           isOpen={!!emergencyCodeSecret}
           onClose={handleCloseEmergencyCode}
+        />
+      )}
+
+      {/* Story 13.6: Reset confirmation modal */}
+      {showResetConfirm && deviceForReset && (
+        <ResetSecretConfirmModal
+          device={deviceForReset}
+          onConfirm={handleResetConfirm}
+          onCancel={handleResetCancel}
+        />
+      )}
+
+      {/* Story 13.6: Re-authentication modal for reset */}
+      {showResetReauth && firebaseUser && (
+        <ReauthModal
+          user={firebaseUser}
+          isOpen={showResetReauth}
+          onClose={handleResetCancel}
+          onSuccess={handleResetReauthSuccess}
+          title="Confirm Your Identity"
+          description="For security, please verify your identity before resetting emergency codes."
         />
       )}
     </>
