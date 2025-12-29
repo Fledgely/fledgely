@@ -162,7 +162,7 @@ export function TemplateLibrary({
   }, [])
 
   return (
-    <div className="space-y-6">
+    <main aria-label="Template Library" className="space-y-6">
       {/* Search bar */}
       <div className="relative">
         <label htmlFor="template-search" className="sr-only">
@@ -217,19 +217,21 @@ export function TemplateLibrary({
         </div>
       </div>
 
-      {/* Age group tabs */}
-      <div
-        role="tablist"
-        aria-label="Filter templates by age group"
-        className="border-b border-gray-200"
-      >
-        <div className="flex flex-wrap gap-1">
-          <button
-            role="tab"
-            type="button"
-            aria-selected={selectedAgeGroup === null}
-            onClick={() => handleAgeGroupChange(null)}
-            className={`
+      {/* Story 4.6: Navigation landmark for filters (AC2) */}
+      <nav aria-label="Template filters">
+        {/* Age group tabs */}
+        <div
+          role="tablist"
+          aria-label="Filter templates by age group"
+          className="border-b border-gray-200"
+        >
+          <div className="flex flex-wrap gap-1">
+            <button
+              role="tab"
+              type="button"
+              aria-selected={selectedAgeGroup === null}
+              onClick={() => handleAgeGroupChange(null)}
+              className={`
               px-4 py-2 text-sm font-medium rounded-t-lg transition-colors
               focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
               min-h-[44px]
@@ -239,17 +241,17 @@ export function TemplateLibrary({
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }
             `}
-          >
-            All Ages
-          </button>
-          {AGE_GROUPS.map((ageGroup) => (
-            <button
-              key={ageGroup}
-              role="tab"
-              type="button"
-              aria-selected={selectedAgeGroup === ageGroup}
-              onClick={() => handleAgeGroupChange(ageGroup)}
-              className={`
+            >
+              All Ages
+            </button>
+            {AGE_GROUPS.map((ageGroup) => (
+              <button
+                key={ageGroup}
+                role="tab"
+                type="button"
+                aria-selected={selectedAgeGroup === ageGroup}
+                onClick={() => handleAgeGroupChange(ageGroup)}
+                className={`
                 px-4 py-2 text-sm font-medium rounded-t-lg transition-colors
                 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
                 min-h-[44px]
@@ -259,23 +261,23 @@ export function TemplateLibrary({
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }
               `}
-            >
-              {AGE_GROUP_LABELS[ageGroup]}
-            </button>
-          ))}
+              >
+                {AGE_GROUP_LABELS[ageGroup]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Category filters and compare mode toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
-          {TEMPLATE_CATEGORIES.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => handleCategoryToggle(category)}
-              aria-pressed={selectedCategories.includes(category)}
-              className={`
+        {/* Category filters and compare mode toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+            {TEMPLATE_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => handleCategoryToggle(category)}
+                aria-pressed={selectedCategories.includes(category)}
+                className={`
                 px-3 py-1.5 text-sm font-medium rounded-full border transition-colors
                 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
                 min-h-[44px]
@@ -285,28 +287,28 @@ export function TemplateLibrary({
                     : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
                 }
               `}
-            >
-              {CATEGORY_LABELS[category]}
-            </button>
-          ))}
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 underline min-h-[44px]"
-              aria-label="Clear all filters"
-            >
-              Clear filters
-            </button>
-          )}
-        </div>
+              >
+                {CATEGORY_LABELS[category]}
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 underline min-h-[44px]"
+                aria-label="Clear all filters"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
 
-        {/* Story 4.3: Compare mode toggle */}
-        <button
-          type="button"
-          onClick={handleToggleCompareMode}
-          aria-pressed={showCompareMode}
-          className={`
+          {/* Story 4.3: Compare mode toggle */}
+          <button
+            type="button"
+            onClick={handleToggleCompareMode}
+            aria-pressed={showCompareMode}
+            className={`
             px-4 py-2 text-sm font-medium rounded-lg border transition-colors
             focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
             min-h-[44px]
@@ -316,26 +318,27 @@ export function TemplateLibrary({
                 : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
             }
           `}
-        >
-          <span className="flex items-center gap-2">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-            {showCompareMode ? 'Exit Compare' : 'Compare Templates'}
-          </span>
-        </button>
-      </div>
+          >
+            <span className="flex items-center gap-2">
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              {showCompareMode ? 'Exit Compare' : 'Compare Templates'}
+            </span>
+          </button>
+        </div>
+      </nav>
 
       {/* Story 4.3: Compare selected button */}
       {showCompareMode && comparisonTemplates.length > 0 && (
@@ -444,9 +447,9 @@ export function TemplateLibrary({
         </div>
       )}
 
-      {/* Template grid */}
+      {/* Story 4.6: Template grid section landmark (AC2) */}
       {!isLoading && !error && templates && templates.length > 0 && (
-        <div>
+        <section aria-label="Template results">
           <p className="text-sm text-gray-500 mb-4" aria-live="polite">
             {templates.length} template{templates.length === 1 ? '' : 's'} found
           </p>
@@ -469,7 +472,7 @@ export function TemplateLibrary({
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Story 4.3: Preview Modal */}
@@ -488,7 +491,7 @@ export function TemplateLibrary({
           onSelect={handleSelectFromPreview}
         />
       )}
-    </div>
+    </main>
   )
 }
 

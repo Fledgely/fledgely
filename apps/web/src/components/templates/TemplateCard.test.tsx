@@ -221,6 +221,73 @@ describe('TemplateCard', () => {
       const button = screen.getByRole('button')
       expect(button).toHaveClass('min-h-[180px]')
     })
+
+    // Story 4.6: Template Accessibility - AC1, AC3, AC6
+    it('uses h2 for proper heading hierarchy (AC1)', () => {
+      render(<TemplateCard template={mockTemplate} />)
+
+      const heading = screen.getByRole('heading', { level: 2 })
+      expect(heading).toHaveTextContent('Test Template')
+    })
+
+    it('has visible focus indicator classes (AC3)', () => {
+      render(<TemplateCard template={mockTemplate} />)
+
+      const button = screen.getByRole('button', { name: /Select Test Template/ })
+      expect(button).toHaveClass('focus:ring-2')
+      expect(button).toHaveClass('focus:ring-primary')
+      expect(button).toHaveClass('focus:ring-offset-2')
+    })
+
+    it('has focus:outline-none to prevent double focus ring (AC3)', () => {
+      render(<TemplateCard template={mockTemplate} />)
+
+      const button = screen.getByRole('button', { name: /Select Test Template/ })
+      expect(button).toHaveClass('focus:outline-none')
+    })
+
+    it('compare button has visible focus indicator (AC3)', () => {
+      render(<TemplateCard template={mockTemplate} showCompare />)
+
+      const button = screen.getByLabelText('Add to comparison')
+      expect(button).toHaveClass('focus:ring-2')
+      expect(button).toHaveClass('focus:ring-primary')
+      expect(button).toHaveClass('focus:ring-offset-2')
+    })
+
+    it('all icons are marked aria-hidden (AC1)', () => {
+      render(<TemplateCard template={mockTemplate} showCompare />)
+
+      const { container } = render(<TemplateCard template={mockTemplate} />)
+      const svgs = container.querySelectorAll('svg')
+      svgs.forEach((svg) => {
+        expect(svg).toHaveAttribute('aria-hidden', 'true')
+      })
+    })
+
+    // Story 4.6: Color Contrast (AC7) - verify info not conveyed by color alone
+    it('monitoring level badge has text label, not just color (AC7)', () => {
+      render(<TemplateCard template={mockTemplate} />)
+      // Verify the monitoring level is communicated via text, not just color
+      expect(screen.getByText('Medium Monitoring')).toBeInTheDocument()
+    })
+
+    it('variation badge has text label, not just color (AC7)', () => {
+      render(<TemplateCard template={mockTemplate} />)
+      // Verify variation is communicated via text, not just color
+      expect(screen.getByText('Balanced')).toBeInTheDocument()
+    })
+
+    it('age-appropriate indicators have text labels (AC7)', () => {
+      const youngChildTemplate = {
+        ...mockTemplate,
+        ageGroup: '5-7' as const,
+        simpleRules: [{ text: 'Test rule', isAllowed: true }],
+      }
+      render(<TemplateCard template={youngChildTemplate} />)
+      // Verify the indicator has text, not just an icon
+      expect(screen.getByText('Simple Yes/No Rules')).toBeInTheDocument()
+    })
   })
 
   describe('different age groups', () => {

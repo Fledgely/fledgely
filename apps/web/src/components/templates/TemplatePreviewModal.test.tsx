@@ -384,6 +384,81 @@ describe('TemplatePreviewModal', () => {
       const useButton = screen.getByRole('button', { name: 'Use This Template' })
       expect(useButton).toHaveClass('min-h-[44px]')
     })
+
+    // Story 4.6: Modal Focus Management (AC5)
+    it('closes modal on Escape key (AC5)', () => {
+      const onClose = vi.fn()
+      render(
+        <TemplatePreviewModal
+          template={mockTemplate}
+          isOpen={true}
+          onClose={onClose}
+          onSelect={vi.fn()}
+        />
+      )
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('dialog has focus outline none for custom focus styling (AC5)', () => {
+      render(
+        <TemplatePreviewModal
+          template={mockTemplate}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      )
+
+      const dialog = screen.getByRole('dialog')
+      expect(dialog).toHaveClass('focus:outline-none')
+    })
+
+    it('close button has visible focus ring (AC5)', () => {
+      render(
+        <TemplatePreviewModal
+          template={mockTemplate}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      )
+
+      const closeButton = screen.getByRole('button', { name: 'Close preview' })
+      expect(closeButton).toHaveClass('focus:ring-2')
+      expect(closeButton).toHaveClass('focus:ring-primary')
+    })
+
+    it('cancel button has visible focus ring (AC5)', () => {
+      render(
+        <TemplatePreviewModal
+          template={mockTemplate}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      )
+
+      const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+      expect(cancelButton).toHaveClass('focus:ring-2')
+      expect(cancelButton).toHaveClass('focus:ring-primary')
+    })
+
+    it('use template button has visible focus ring (AC5)', () => {
+      render(
+        <TemplatePreviewModal
+          template={mockTemplate}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelect={vi.fn()}
+        />
+      )
+
+      const useButton = screen.getByRole('button', { name: 'Use This Template' })
+      expect(useButton).toHaveClass('focus:ring-2')
+      expect(useButton).toHaveClass('focus:ring-primary')
+    })
   })
 
   describe('age-specific content', () => {

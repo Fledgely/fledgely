@@ -388,5 +388,71 @@ describe('TemplateLibrary', () => {
       const tab = screen.getByRole('tab', { name: 'All Ages' })
       expect(tab).toHaveClass('min-h-[44px]')
     })
+
+    // Story 4.6: Landmark Region Tests (AC2)
+    it('has main landmark with accessible name (AC2)', () => {
+      render(<TemplateLibrary />)
+      expect(screen.getByRole('main', { name: 'Template Library' })).toBeInTheDocument()
+    })
+
+    it('has nav landmark for filters (AC2)', () => {
+      render(<TemplateLibrary />)
+      expect(screen.getByRole('navigation', { name: 'Template filters' })).toBeInTheDocument()
+    })
+
+    it('has section landmark for template results (AC2)', () => {
+      render(<TemplateLibrary />)
+      expect(screen.getByRole('region', { name: 'Template results' })).toBeInTheDocument()
+    })
+
+    it('tablist is inside navigation landmark (AC2)', () => {
+      render(<TemplateLibrary />)
+      const nav = screen.getByRole('navigation', { name: 'Template filters' })
+      const tablist = screen.getByRole('tablist', { name: 'Filter templates by age group' })
+      expect(nav).toContainElement(tablist)
+    })
+
+    it('category filter group is inside navigation landmark (AC2)', () => {
+      render(<TemplateLibrary />)
+      const nav = screen.getByRole('navigation', { name: 'Template filters' })
+      const categoryGroup = screen.getByRole('group', { name: 'Filter by category' })
+      expect(nav).toContainElement(categoryGroup)
+    })
+
+    it('template list is inside section landmark (AC2)', () => {
+      render(<TemplateLibrary />)
+      const section = screen.getByRole('region', { name: 'Template results' })
+      const list = screen.getByRole('list', { name: 'Available templates' })
+      expect(section).toContainElement(list)
+    })
+
+    // Story 4.6: Accessible Filter Tests (AC4)
+    it('age group tabs convey current filter state via aria-selected (AC4)', () => {
+      render(<TemplateLibrary />)
+      const allAgesTab = screen.getByRole('tab', { name: 'All Ages' })
+      expect(allAgesTab).toHaveAttribute('aria-selected', 'true')
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Ages 8-10' }))
+      expect(allAgesTab).toHaveAttribute('aria-selected', 'false')
+      expect(screen.getByRole('tab', { name: 'Ages 8-10' })).toHaveAttribute(
+        'aria-selected',
+        'true'
+      )
+    })
+
+    it('category filters convey state via aria-pressed (AC4)', () => {
+      render(<TemplateLibrary />)
+      const gamingButton = screen.getByRole('button', { name: 'Gaming' })
+      expect(gamingButton).toHaveAttribute('aria-pressed', 'false')
+
+      fireEvent.click(gamingButton)
+      expect(gamingButton).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('template count has aria-live for screen reader announcements (AC4)', () => {
+      render(<TemplateLibrary />)
+      const countElement = screen.getByText(/templates? found/)
+      expect(countElement).toHaveAttribute('aria-live', 'polite')
+    })
   })
 })

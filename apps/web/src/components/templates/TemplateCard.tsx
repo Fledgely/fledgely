@@ -195,7 +195,7 @@ export function TemplateCard({
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
-          <h3 className="font-semibold text-gray-900 text-lg leading-tight">{template.name}</h3>
+          <h2 className="font-semibold text-gray-900 text-lg leading-tight">{template.name}</h2>
           <span
             className={`
             inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border
