@@ -1185,6 +1185,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'GET_TOTP_SECRET':
+      // Story 13.3: Get decrypted TOTP secret for emergency unlock
+      getTotpSecret().then((secret) => {
+        sendResponse({ secret })
+      })
+      return true
+
+    case 'EMERGENCY_UNLOCK_SUCCESS':
+      // Story 13.3: Handle successful emergency unlock
+      console.log('[Fledgely] Emergency unlock successful')
+      // Future: Could trigger temporary unlock state changes
+      sendResponse({ success: true })
+      return true
+
+    case 'EMERGENCY_UNLOCK_LOCKOUT':
+      // Story 13.3: Handle lockout from too many failed attempts
+      console.log('[Fledgely] Emergency unlock lockout triggered until:', message.lockoutEnd)
+      // Future: Could queue notification for parent
+      sendResponse({ success: true })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
       return false

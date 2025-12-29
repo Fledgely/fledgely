@@ -105,6 +105,12 @@ export default defineConfig({
           path.resolve(__dirname, 'dist/onboarding.html')
         )
 
+        // Copy emergency-unlock.html to dist (Story 13.3)
+        copyFileSync(
+          path.resolve(__dirname, 'emergency-unlock.html'),
+          path.resolve(__dirname, 'dist/emergency-unlock.html')
+        )
+
         // Create icons directory and placeholder icons
         const iconsDir = path.resolve(__dirname, 'dist/icons')
         if (!existsSync(iconsDir)) {
@@ -136,6 +142,7 @@ export default defineConfig({
       input: {
         background: path.resolve(__dirname, 'src/background.ts'),
         popup: path.resolve(__dirname, 'src/popup.ts'),
+        'emergency-unlock': path.resolve(__dirname, 'src/emergency-unlock.ts'),
       },
       output: {
         entryFileNames: '[name].js',

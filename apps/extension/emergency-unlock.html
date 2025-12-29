@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emergency Unlock - Fledgely</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          Oxygen,
+          Ubuntu,
+          sans-serif;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .container {
+        background: white;
+        border-radius: 24px;
+        padding: 32px;
+        max-width: 400px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: #fef3c7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
+      .title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 24px;
+        line-height: 1.5;
+      }
+      .code-display {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+      .code-digit {
+        width: 48px;
+        height: 56px;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: 700;
+        color: #1a1a1a;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: #f9fafb;
+        transition: all 0.15s;
+      }
+      .code-digit.filled {
+        border-color: #7c3aed;
+        background: #f5f3ff;
+      }
+      .code-digit.error {
+        border-color: #ef4444;
+        background: #fef2f2;
+        animation: shake 0.5s ease-in-out;
+      }
+      .code-digit.success {
+        border-color: #22c55e;
+        background: #f0fdf4;
+      }
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+      }
+      .separator {
+        display: flex;
+        align-items: center;
+        font-size: 24px;
+        color: #9ca3af;
+        font-weight: bold;
+      }
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        max-width: 280px;
+        margin: 0 auto 24px;
+      }
+      .key {
+        height: 56px;
+        border: none;
+        border-radius: 12px;
+        font-size: 24px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+        background: #f3f4f6;
+        color: #1a1a1a;
+      }
+      .key:hover {
+        background: #e5e7eb;
+      }
+      .key:active {
+        transform: scale(0.95);
+        background: #d1d5db;
+      }
+      .key:focus {
+        outline: 2px solid #7c3aed;
+        outline-offset: 2px;
+      }
+      .key.action {
+        background: transparent;
+        color: #6b7280;
+        font-size: 14px;
+      }
+      .key.action:hover {
+        background: #f3f4f6;
+      }
+      .key.submit {
+        background: #7c3aed;
+        color: white;
+      }
+      .key.submit:hover {
+        background: #6d28d9;
+      }
+      .key.submit:disabled {
+        background: #d1d5db;
+        cursor: not-allowed;
+      }
+      .message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        margin-bottom: 16px;
+        display: none;
+      }
+      .message.error {
+        display: block;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #b91c1c;
+      }
+      .message.success {
+        display: block;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+      }
+      .attempts {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 16px;
+      }
+      .attempts.warning {
+        color: #d97706;
+      }
+      .attempts.danger {
+        color: #dc2626;
+      }
+      .cancel-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        color: #6b7280;
+        transition: all 0.15s;
+      }
+      .cancel-btn:hover {
+        background: #f3f4f6;
+        color: #374151;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .success-container {
+        text-align: center;
+        padding: 20px 0;
+      }
+      .success-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: #dcfce7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
+      .success-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #166534;
+        margin-bottom: 8px;
+      }
+      .success-message {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 20px;
+      }
+      .lockout-container {
+        text-align: center;
+        padding: 20px 0;
+      }
+      .lockout-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        background: #fee2e2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
+      .lockout-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #b91c1c;
+        margin-bottom: 8px;
+      }
+      .lockout-message {
+        font-size: 14px;
+        color: #6b7280;
+        margin-bottom: 16px;
+      }
+      .lockout-timer {
+        font-size: 32px;
+        font-weight: 700;
+        color: #dc2626;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Main Entry View -->
+      <div id="entry-view">
+        <div class="icon">&#128275;</div>
+        <h1 class="title">Emergency Unlock</h1>
+        <p class="subtitle">
+          Enter the 6-digit code from your parent to unlock this device.
+        </p>
+
+        <div class="code-display" id="code-display" role="group" aria-label="Code entry">
+          <div class="code-digit" data-index="0" aria-label="Digit 1"></div>
+          <div class="code-digit" data-index="1" aria-label="Digit 2"></div>
+          <div class="code-digit" data-index="2" aria-label="Digit 3"></div>
+          <div class="separator">-</div>
+          <div class="code-digit" data-index="3" aria-label="Digit 4"></div>
+          <div class="code-digit" data-index="4" aria-label="Digit 5"></div>
+          <div class="code-digit" data-index="5" aria-label="Digit 6"></div>
+        </div>
+
+        <div id="message" class="message" role="alert" aria-live="polite"></div>
+
+        <div id="attempts-display" class="attempts hidden">
+          <span id="attempts-text"></span>
+        </div>
+
+        <div class="keypad" role="group" aria-label="Numeric keypad">
+          <button type="button" class="key" data-key="1" aria-label="1">1</button>
+          <button type="button" class="key" data-key="2" aria-label="2">2</button>
+          <button type="button" class="key" data-key="3" aria-label="3">3</button>
+          <button type="button" class="key" data-key="4" aria-label="4">4</button>
+          <button type="button" class="key" data-key="5" aria-label="5">5</button>
+          <button type="button" class="key" data-key="6" aria-label="6">6</button>
+          <button type="button" class="key" data-key="7" aria-label="7">7</button>
+          <button type="button" class="key" data-key="8" aria-label="8">8</button>
+          <button type="button" class="key" data-key="9" aria-label="9">9</button>
+          <button type="button" class="key action" id="clear-btn" aria-label="Clear">Clear</button>
+          <button type="button" class="key" data-key="0" aria-label="0">0</button>
+          <button type="button" class="key action" id="backspace-btn" aria-label="Backspace">&#9003;</button>
+        </div>
+
+        <button type="button" class="cancel-btn" id="cancel-btn" aria-label="Cancel and close">
+          Cancel
+        </button>
+      </div>
+
+      <!-- Success View -->
+      <div id="success-view" class="hidden">
+        <div class="success-container">
+          <div class="success-icon">&#10004;</div>
+          <h1 class="success-title">Device Unlocked!</h1>
+          <p class="success-message">
+            Your device has been temporarily unlocked. This window will close automatically.
+          </p>
+        </div>
+      </div>
+
+      <!-- Lockout View -->
+      <div id="lockout-view" class="hidden">
+        <div class="lockout-container">
+          <div class="lockout-icon">&#128274;</div>
+          <h1 class="lockout-title">Too Many Attempts</h1>
+          <p class="lockout-message">
+            Emergency unlock is temporarily disabled. Please try again in:
+          </p>
+          <div class="lockout-timer" id="lockout-timer" aria-live="polite">--:--</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="emergency-unlock.js"></script>
+  </body>
+</html>
