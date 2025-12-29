@@ -222,7 +222,7 @@ development_status:
   11-4-fuzzy-url-matching: done
   11-5-decoy-mode-for-crisis-browsing: done
   11-6-crisis-protection-testing: done
-  epic-11-retrospective: optional
+  epic-11-retrospective: done
 
   # Epic 12: Chromebook Device Enrollment
   epic-12: backlog
