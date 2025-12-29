@@ -31,6 +31,7 @@ const mockUseChildren = vi.mocked(useChildrenModule.useChildren)
 const mockAssignDeviceToChild = vi.mocked(deviceService.assignDeviceToChild)
 
 describe('DevicesList', () => {
+  // Story 19.3: Added lastScreenshotAt field to mock devices
   const mockDevices: useDevicesModule.Device[] = [
     {
       deviceId: 'device-1',
@@ -40,6 +41,7 @@ describe('DevicesList', () => {
       childId: null,
       name: 'Chromebook device-1',
       lastSeen: new Date(),
+      lastScreenshotAt: new Date(Date.now() - 300000), // 5 min ago
       status: 'active',
       metadata: {
         platform: 'Chrome OS',
@@ -54,7 +56,8 @@ describe('DevicesList', () => {
       enrolledBy: 'parent-uid',
       childId: 'child-A',
       name: 'Chromebook device-2',
-      lastSeen: new Date(Date.now() - 3600000), // 1 hour ago
+      lastSeen: new Date(Date.now() - 1800000), // 30 min ago (Active status)
+      lastScreenshotAt: null, // No screenshots yet
       status: 'active',
       metadata: {
         platform: 'Chrome OS',
@@ -91,12 +94,24 @@ describe('DevicesList', () => {
     })
 
     // Mock formatLastSeen
-    vi.spyOn(useDevicesModule, 'formatLastSeen').mockImplementation((date: Date) => {
-      const diff = Date.now() - date.getTime()
-      if (diff < 60000) return 'Just now'
-      if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`
-      return `${Math.floor(diff / 3600000)} hour ago`
-    })
+    vi.spyOn(useDevicesModule, 'formatLastSeen').mockImplementation(
+      (date: Date | null | undefined) => {
+        if (!date) return 'Never synced'
+        const diff = Date.now() - date.getTime()
+        if (diff < 60000) return 'Just now'
+        if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`
+        return `${Math.floor(diff / 3600000)} hour ago`
+      }
+    )
+
+    // Story 19.3: Mock isValidDate
+    vi.spyOn(useDevicesModule, 'isValidDate').mockImplementation(
+      (date: Date | null | undefined): boolean => {
+        if (!date) return false
+        const time = date.getTime()
+        return !isNaN(time) && time > 0
+      }
+    )
   })
 
   describe('Device list display (Story 12.4)', () => {
@@ -117,12 +132,12 @@ describe('DevicesList', () => {
     it('displays status badges based on health status (Story 19.2)', () => {
       render(<DevicesList familyId="family-123" />)
 
-      // Story 19.2: Status badges now calculate health from lastSeen
+      // Story 19.2/19.3: Status badges now calculate health from lastSeen
       // Device 1: lastSeen = now → Active (< 1 hour)
-      // Device 2: lastSeen = 1 hour ago → Warning (1-24 hours, at boundary)
-      // Note: The 3600000ms (exactly 1 hour) may be warning or active depending on timing
+      // Device 2: lastSeen = 30 min ago → Active (< 1 hour)
+      // Both devices should show Active status
       const activeBadges = screen.getAllByText('Active')
-      expect(activeBadges.length).toBeGreaterThanOrEqual(1)
+      expect(activeBadges).toHaveLength(2)
 
       // Should have status badges for both devices
       const allStatusBadges = screen.getAllByRole('button', { name: /Device status:/ })

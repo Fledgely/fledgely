@@ -22,7 +22,7 @@
  */
 
 import { useState, useCallback } from 'react'
-import { useDevices, formatLastSeen, type Device } from '../../hooks/useDevices'
+import { useDevices, formatLastSeen, isValidDate, type Device } from '../../hooks/useDevices'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -585,6 +585,7 @@ const DAY_MS = 24 * HOUR_MS
 
 /**
  * Story 19.2: Calculate device health status based on last sync time
+ * Story 19.3 Task 1.2: Handle never-synced devices as critical
  * Task 1.1-1.5: Status calculation utility
  *
  * @param device - The device to check
@@ -596,6 +597,9 @@ export function getDeviceHealthStatus(device: Device): HealthStatus {
 
   // Offline status from device takes precedence
   if (device.status === 'offline') return 'offline'
+
+  // Story 19.3 AC4: Never-synced devices are critical
+  if (!isValidDate(device.lastSeen)) return 'critical'
 
   const now = Date.now()
   const lastSeenMs = device.lastSeen.getTime()
@@ -682,12 +686,15 @@ function StatusBadge({ device, onClick }: StatusBadgeProps) {
   return (
     <div style={styles.tooltipContainer}>
       {/* Task 3.1-3.5: Tooltip on hover */}
+      {/* Story 19.3 Task 1.4: Handle never-synced state in tooltip */}
       {showTooltip && (
         <div style={styles.tooltip} role="tooltip">
           <div>Last sync: {formatLastSeen(device.lastSeen)}</div>
-          <div style={{ opacity: 0.8, fontSize: '11px' }}>
-            {formatExactTimestamp(device.lastSeen)}
-          </div>
+          {isValidDate(device.lastSeen) && (
+            <div style={{ opacity: 0.8, fontSize: '11px' }}>
+              {formatExactTimestamp(device.lastSeen)}
+            </div>
+          )}
           <div style={styles.tooltipArrow} />
         </div>
       )}
@@ -1100,66 +1107,94 @@ export function DevicesList({ familyId }: DevicesListProps) {
    * Story 19.1: Render a single device item
    * Extracted to avoid code duplication across groups
    */
-  const renderDeviceItem = (device: Device) => (
-    <div key={device.deviceId} style={styles.deviceItem}>
-      <DeviceIcon type={device.type} />
-      <div style={styles.deviceInfo}>
-        <div style={styles.deviceName}>{device.name}</div>
-        <div style={styles.deviceMeta}>
-          {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
-          {formatLastSeen(device.lastSeen)}
+  /**
+   * Story 19.3 Task 2.3-2.5: Display last screenshot timestamp
+   */
+  const formatScreenshotTime = (date: Date | null): string => {
+    if (!date || !isValidDate(date)) {
+      return 'No screenshots yet'
+    }
+    return formatLastSeen(date)
+  }
+
+  const renderDeviceItem = (device: Device) => {
+    const healthStatus = getDeviceHealthStatus(device)
+
+    return (
+      <div key={device.deviceId} style={styles.deviceItem}>
+        <DeviceIcon type={device.type} />
+        <div style={styles.deviceInfo}>
+          <div style={styles.deviceName}>{device.name}</div>
+          <div style={styles.deviceMeta}>
+            {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
+            {formatLastSeen(device.lastSeen)} &middot; Screenshot{' '}
+            {formatScreenshotTime(device.lastScreenshotAt)}
+          </div>
         </div>
+        {/* Story 19.3 Task 3: Warning icon for delayed sync */}
+        {(healthStatus === 'warning' || healthStatus === 'critical') && (
+          <span
+            style={{
+              marginRight: '8px',
+              fontSize: '16px',
+            }}
+            aria-label={`Device has ${healthStatus} status - sync delayed`}
+            role="img"
+          >
+            ⚠️
+          </span>
+        )}
+        <ChildAssignment
+          device={device}
+          childList={children}
+          onAssignmentChange={handleAssignmentChange}
+          isUpdating={updatingDevices.has(device.deviceId)}
+          error={deviceErrors[device.deviceId] || null}
+        />
+        <StatusBadge
+          device={device}
+          onClick={(dev) => {
+            // Task 4.3: Wire to state setter for future health panel modal (Story 19.4)
+            console.log('Health details clicked for device:', dev.deviceId)
+            // TODO: Story 19.4 will implement the detailed health breakdown panel
+          }}
+        />
+        <button
+          style={{
+            ...styles.emergencyCodeButton,
+            ...(loadingEmergencyCode ? styles.emergencyCodeButtonDisabled : {}),
+          }}
+          onClick={() => handleEmergencyCodeClick(device)}
+          disabled={loadingEmergencyCode}
+          aria-label="Show emergency unlock code"
+        >
+          🔓 Emergency Code
+        </button>
+        <button
+          style={{
+            ...styles.resetSecretButton,
+            ...(resettingSecret ? styles.resetSecretButtonDisabled : {}),
+          }}
+          onClick={() => handleResetSecretClick(device)}
+          disabled={resettingSecret}
+          aria-label="Reset emergency codes"
+        >
+          🔄 Reset Codes
+        </button>
+        <button
+          style={{
+            ...styles.removeButton,
+            ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
+          }}
+          onClick={() => setDeviceToRemove(device)}
+          disabled={updatingDevices.has(device.deviceId)}
+          aria-label="Remove device"
+        >
+          Remove
+        </button>
       </div>
-      <ChildAssignment
-        device={device}
-        childList={children}
-        onAssignmentChange={handleAssignmentChange}
-        isUpdating={updatingDevices.has(device.deviceId)}
-        error={deviceErrors[device.deviceId] || null}
-      />
-      <StatusBadge
-        device={device}
-        onClick={(dev) => {
-          // Task 4.3: Wire to state setter for future health panel modal (Story 19.4)
-          console.log('Health details clicked for device:', dev.deviceId)
-          // TODO: Story 19.4 will implement the detailed health breakdown panel
-        }}
-      />
-      <button
-        style={{
-          ...styles.emergencyCodeButton,
-          ...(loadingEmergencyCode ? styles.emergencyCodeButtonDisabled : {}),
-        }}
-        onClick={() => handleEmergencyCodeClick(device)}
-        disabled={loadingEmergencyCode}
-        aria-label="Show emergency unlock code"
-      >
-        🔓 Emergency Code
-      </button>
-      <button
-        style={{
-          ...styles.resetSecretButton,
-          ...(resettingSecret ? styles.resetSecretButtonDisabled : {}),
-        }}
-        onClick={() => handleResetSecretClick(device)}
-        disabled={resettingSecret}
-        aria-label="Reset emergency codes"
-      >
-        🔄 Reset Codes
-      </button>
-      <button
-        style={{
-          ...styles.removeButton,
-          ...(updatingDevices.has(device.deviceId) ? styles.removeButtonDisabled : {}),
-        }}
-        onClick={() => setDeviceToRemove(device)}
-        disabled={updatingDevices.has(device.deviceId)}
-        aria-label="Remove device"
-      >
-        Remove
-      </button>
-    </div>
-  )
+    )
+  }
 
   return (
     <>

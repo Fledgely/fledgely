@@ -303,7 +303,7 @@ development_status:
   epic-19: in-progress
   19-1-device-list-view: done
   19-2-device-status-indicators: done
-  19-3-last-sync-timestamp-display: backlog
+  19-3-last-sync-timestamp-display: done
   19-4-monitoring-health-details: backlog
   19-5-monitoring-disabled-alert: backlog
   19-6-device-removal-flow: backlog

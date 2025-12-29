@@ -22,6 +22,7 @@
  * - AC7: Click for health details
  */
 
+import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { groupDevicesByChild, getDeviceHealthStatus } from './DevicesList'
@@ -29,6 +30,7 @@ import type { Device } from '../../hooks/useDevices'
 import type { ChildSummary } from '../../hooks/useChildren'
 
 // Mock device data factory
+// Story 19.3: Added lastScreenshotAt field
 function createDevice(overrides: Partial<Device> = {}): Device {
   return {
     deviceId: `device-${Math.random().toString(36).slice(2, 8)}`,
@@ -38,6 +40,7 @@ function createDevice(overrides: Partial<Device> = {}): Device {
     childId: null,
     name: 'Test Device',
     lastSeen: new Date(),
+    lastScreenshotAt: null,
     status: 'active',
     metadata: {
       platform: 'Chrome OS',
@@ -234,7 +237,13 @@ describe('groupDevicesByChild', () => {
 // Mock the hooks for component rendering tests
 vi.mock('../../hooks/useDevices', () => ({
   useDevices: vi.fn(),
-  formatLastSeen: vi.fn((_date: Date) => '2 hours ago'),
+  formatLastSeen: vi.fn((_date: Date | null | undefined) => '2 hours ago'),
+  // Story 19.3: Add isValidDate mock - check if date is valid
+  isValidDate: vi.fn((date: Date | null | undefined): boolean => {
+    if (!date) return false
+    const time = date.getTime()
+    return !isNaN(time) && time > 0
+  }),
 }))
 
 vi.mock('../../hooks/useChildren', () => ({
@@ -860,6 +869,176 @@ describe('StatusBadge Component - Story 19.2', () => {
       render(<DevicesList familyId="family-123" />)
 
       expect(screen.getByText('Offline')).toBeInTheDocument()
+    })
+  })
+})
+
+/**
+ * Story 19.3: Last Sync Timestamp Display
+ * Tests for handling null/undefined dates and never-synced devices
+ */
+describe('Story 19.3 - Last Sync Timestamp Display', () => {
+  describe('AC4: getDeviceHealthStatus - Never-synced devices', () => {
+    it('should return critical for device with null lastSeen', () => {
+      const device = createDevice({
+        lastSeen: null as unknown as Date, // Force null for test
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+
+    it('should return critical for device with epoch 0 lastSeen', () => {
+      const device = createDevice({
+        lastSeen: new Date(0), // Epoch 0 represents invalid date
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+
+    it('should return critical for device with invalid date (NaN timestamp)', () => {
+      const device = createDevice({
+        lastSeen: new Date('invalid'), // Creates Invalid Date
+        status: 'active',
+      })
+
+      expect(getDeviceHealthStatus(device)).toBe('critical')
+    })
+  })
+
+  describe('AC5: Screenshot timestamp display', () => {
+    it('should display screenshot timestamp in device metadata', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        lastScreenshotAt: new Date(Date.now() - 300000), // 5 min ago
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Should show Screenshot in metadata
+      expect(screen.getByText(/Screenshot/)).toBeInTheDocument()
+    })
+
+    it('should show "No screenshots yet" for device without screenshots', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        lastScreenshotAt: null,
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      expect(screen.getByText(/No screenshots yet/)).toBeInTheDocument()
+    })
+  })
+
+  describe('AC6: Warning icon for delayed sync', () => {
+    it('should show warning icon for device with warning status', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago = warning
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Warning icon should be present with aria-label
+      expect(screen.getByRole('img', { name: /sync delayed/i })).toBeInTheDocument()
+    })
+
+    it('should show warning icon for device with critical status', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(Date.now() - 48 * 60 * 60 * 1000), // 48 hours ago = critical
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Warning icon should be present
+      expect(screen.getByRole('img', { name: /sync delayed/i })).toBeInTheDocument()
+    })
+
+    it('should NOT show warning icon for device with active status', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(), // Just now = active
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Warning icon should NOT be present
+      expect(screen.queryByRole('img', { name: /sync delayed/i })).not.toBeInTheDocument()
     })
   })
 })
