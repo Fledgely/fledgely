@@ -215,13 +215,13 @@ development_status:
   epic-10-retrospective: done
 
   # Epic 11: Chromebook Crisis Protection
-  epic-11: in-progress
+  epic-11: done
   11-1-pre-capture-allowlist-check: done
   11-2-cached-allowlist-with-fail-safe: done
   11-3-protected-site-visual-indicator: done
   11-4-fuzzy-url-matching: done
   11-5-decoy-mode-for-crisis-browsing: done
-  11-6-crisis-protection-testing: backlog
+  11-6-crisis-protection-testing: done
   epic-11-retrospective: optional
 
   # Epic 12: Chromebook Device Enrollment

@@ -350,3 +350,14 @@ export async function getAllowlistAge(): Promise<string> {
 
 // Export default sites for testing
 export const DEFAULT_CRISIS_DOMAINS = DEFAULT_CRISIS_SITES
+
+// Export internal functions for testing (Story 11.6)
+// These are NOT part of the public API but needed for comprehensive testing
+export const _testExports = {
+  extractDomain,
+  buildDomainSet,
+  resetCache: () => {
+    cachedDomainSet = null
+    cachedAllowlistVersion = null
+  },
+}
