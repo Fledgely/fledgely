@@ -76,6 +76,20 @@ const DEFAULT_CRISIS_SITES: string[] = [
   'befrienders.org',
   'samaritans.org',
   'iasp.info', // International Association for Suicide Prevention
+
+  // URL shorteners - Story 11.4: Over-blocking to prevent crisis link exposure
+  // Note: This blocks ALL links from these services, which is acceptable
+  // per AC7 (false positives preferred to false negatives)
+  'bit.ly',
+  't.co', // Twitter/X
+  'tinyurl.com',
+  'goo.gl',
+  'ow.ly',
+  'is.gd',
+  'buff.ly',
+  'tiny.cc',
+  'rb.gy',
+  'cutt.ly',
 ]
 
 // Cached allowlist for fast lookups
