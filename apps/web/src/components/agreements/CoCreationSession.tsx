@@ -2,6 +2,7 @@
  * Co-Creation Session Component.
  *
  * Story 5.1: Co-Creation Session Initiation - AC1, AC2, AC3, AC4, AC5, AC6
+ * Story 5.2: Visual Agreement Builder - Integration
  *
  * Main component for managing the agreement co-creation session.
  * Integrates session start prompt, timeout warning, and session state management.
@@ -11,9 +12,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { AgreementTemplate } from '@fledgely/shared/contracts'
+import type {
+  AgreementTemplate,
+  AgreementTerm,
+  ContributionParty,
+} from '@fledgely/shared/contracts'
 import { SessionStartPrompt } from './SessionStartPrompt'
 import { SessionTimeoutWarning } from './SessionTimeoutWarning'
+import { VisualAgreementBuilder } from './VisualAgreementBuilder'
 import { useCoCreationSession } from '../../hooks/useCoCreationSession'
 import { useSessionTimeout } from '../../hooks/useSessionTimeout'
 
@@ -47,6 +53,7 @@ export function CoCreationSession({
   onCancel,
 }: CoCreationSessionProps) {
   const [showStartPrompt, setShowStartPrompt] = useState(true)
+  const [terms, setTerms] = useState<AgreementTerm[]>([])
 
   const {
     session,
@@ -57,6 +64,7 @@ export function CoCreationSession({
     createSession,
     pauseSession,
     resumeSession,
+    addContribution,
     updateActivity,
   } = useCoCreationSession()
 
@@ -116,6 +124,32 @@ export function CoCreationSession({
     await resumeSession()
     resetActivity()
   }, [resumeSession, resetActivity])
+
+  /**
+   * Handle contribution from agreement builder.
+   */
+  const handleContribution = useCallback(
+    (party: ContributionParty, type: string, content: unknown) => {
+      addContribution({
+        party,
+        type: type as 'add_term' | 'modify_term' | 'remove_term',
+        content,
+      })
+      updateActivity()
+    },
+    [addContribution, updateActivity]
+  )
+
+  /**
+   * Handle terms change from agreement builder.
+   */
+  const handleTermsChange = useCallback(
+    (newTerms: AgreementTerm[]) => {
+      setTerms(newTerms)
+      updateActivity()
+    },
+    [updateActivity]
+  )
 
   // Show start prompt if not started
   if (showStartPrompt) {
@@ -287,12 +321,17 @@ export function CoCreationSession({
         </div>
       </div>
 
-      {/* Session Content - Placeholder for Story 5.2 Visual Agreement Builder */}
+      {/* Session Content - Visual Agreement Builder (Story 5.2) */}
       <div className="p-6">
-        <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
-          <p className="text-gray-500">Visual Agreement Builder will be added in Story 5.2.</p>
-          <p className="text-sm text-gray-400 mt-2">Session ID: {session?.id}</p>
-        </div>
+        {session && (
+          <VisualAgreementBuilder
+            session={session}
+            terms={terms}
+            onTermsChange={handleTermsChange}
+            onContribution={handleContribution}
+            childName={child.name}
+          />
+        )}
       </div>
 
       {/* Timeout Warning Modal */}

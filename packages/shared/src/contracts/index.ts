@@ -467,3 +467,39 @@ export const coCreationSessionSchema = z.object({
   createdByUid: z.string(), // Parent who initiated the session
 })
 export type CoCreationSession = z.infer<typeof coCreationSessionSchema>
+
+/**
+ * Agreement term category.
+ *
+ * Story 5.2: Visual Agreement Builder - AC5
+ * Categories for color-coding agreement terms.
+ */
+export const termCategorySchema = z.enum(['time', 'apps', 'monitoring', 'rewards', 'general'])
+export type TermCategory = z.infer<typeof termCategorySchema>
+
+/**
+ * Agreement term schema.
+ *
+ * Story 5.2: Visual Agreement Builder - AC1, AC3, AC4, AC5, AC6
+ * Represents a single term/condition in an agreement.
+ * Maximum 100 terms per agreement (NFR60).
+ */
+export const agreementTermSchema = z.object({
+  id: z.string(),
+  text: z.string().min(1).max(500),
+  category: termCategorySchema,
+  party: contributionPartySchema, // Who suggested this term
+  order: z.number().int().min(0), // Display order
+  explanation: z.string().max(300), // Child-friendly explanation (6th-grade level)
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type AgreementTerm = z.infer<typeof agreementTermSchema>
+
+/**
+ * Maximum terms allowed per agreement.
+ *
+ * Story 5.2: Visual Agreement Builder - AC6
+ * NFR60: Maximum 100 conditions per agreement.
+ */
+export const MAX_AGREEMENT_TERMS = 100
