@@ -528,3 +528,54 @@ export const termReactionSchema = z.object({
   createdAt: z.date(),
 })
 export type TermReaction = z.infer<typeof termReactionSchema>
+
+/**
+ * Discussion status for agreement terms.
+ *
+ * Story 5.4: Negotiation & Discussion Support - AC1, AC4
+ * Tracks whether a term needs discussion or has been resolved.
+ */
+export const discussionStatusSchema = z.enum(['none', 'needs_discussion', 'resolved'])
+export type DiscussionStatus = z.infer<typeof discussionStatusSchema>
+
+/**
+ * Discussion note schema.
+ *
+ * Story 5.4: Negotiation & Discussion Support - AC3
+ * Records a note added during term discussion.
+ * Maximum 500 characters per note.
+ */
+export const discussionNoteSchema = z.object({
+  id: z.string(),
+  party: contributionPartySchema,
+  content: z.string().min(1).max(500),
+  createdAt: z.date(),
+})
+export type DiscussionNote = z.infer<typeof discussionNoteSchema>
+
+/**
+ * Discussion resolution record.
+ *
+ * Story 5.4: Negotiation & Discussion Support - AC4
+ * Records when and how a discussion was resolved.
+ */
+export const discussionResolutionSchema = z.object({
+  resolvedAt: z.date(),
+  resolvedBy: contributionPartySchema, // Who marked it resolved
+  finalValue: z.string().max(500).nullable(), // The agreed-upon value/compromise
+  summary: z.string().max(300).nullable(), // Brief summary of resolution
+})
+export type DiscussionResolution = z.infer<typeof discussionResolutionSchema>
+
+/**
+ * Extended agreement term schema with discussion support.
+ *
+ * Story 5.4: Negotiation & Discussion Support - AC1, AC3, AC4
+ * Adds discussion status, notes, and resolution to agreement terms.
+ */
+export const agreementTermWithDiscussionSchema = agreementTermSchema.extend({
+  discussionStatus: discussionStatusSchema.default('none'),
+  discussionNotes: z.array(discussionNoteSchema).default([]),
+  resolution: discussionResolutionSchema.nullable().default(null),
+})
+export type AgreementTermWithDiscussion = z.infer<typeof agreementTermWithDiscussionSchema>
