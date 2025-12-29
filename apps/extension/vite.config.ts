@@ -99,6 +99,12 @@ export default defineConfig({
           path.resolve(__dirname, 'dist/popup.html')
         )
 
+        // Copy onboarding.html to dist
+        copyFileSync(
+          path.resolve(__dirname, 'onboarding.html'),
+          path.resolve(__dirname, 'dist/onboarding.html')
+        )
+
         // Create icons directory and placeholder icons
         const iconsDir = path.resolve(__dirname, 'dist/icons')
         if (!existsSync(iconsDir)) {

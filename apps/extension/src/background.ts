@@ -31,17 +31,52 @@ const DEFAULT_STATE: ExtensionState = {
   monitoringEnabled: false,
 }
 
+// Update toolbar icon title based on state
+async function updateActionTitle(state: ExtensionState): Promise<void> {
+  const title = state.isAuthenticated
+    ? state.childId
+      ? `Fledgely - Monitoring Active`
+      : 'Fledgely - Not Connected to Child'
+    : 'Fledgely - Not Signed In'
+
+  await chrome.action.setTitle({ title })
+
+  // Set badge for quick status indication
+  if (state.monitoringEnabled) {
+    await chrome.action.setBadgeText({ text: '●' })
+    await chrome.action.setBadgeBackgroundColor({ color: '#22c55e' }) // Green
+  } else if (state.isAuthenticated) {
+    await chrome.action.setBadgeText({ text: '○' })
+    await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b' }) // Amber
+  } else {
+    await chrome.action.setBadgeText({ text: '' })
+  }
+}
+
 // Initialize extension state on install
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('[Fledgely] Extension installed:', details.reason)
 
   if (details.reason === 'install') {
-    // First installation - initialize state
+    // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
     console.log('[Fledgely] Initialized extension state')
+
+    // Open onboarding page
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL('onboarding.html'),
+    })
+    console.log('[Fledgely] Opened onboarding page')
+
+    // Set initial toolbar state
+    await updateActionTitle(DEFAULT_STATE)
   } else if (details.reason === 'update') {
     // Extension updated - preserve existing state
     console.log('[Fledgely] Extension updated from', details.previousVersion)
+
+    // Update toolbar with current state
+    const { state } = await chrome.storage.local.get('state')
+    await updateActionTitle(state || DEFAULT_STATE)
   }
 })
 
