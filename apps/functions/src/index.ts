@@ -39,3 +39,4 @@ export { cleanupExpiredScreenshots } from './scheduled'
 
 // Export HTTP functions
 export { uploadScreenshot } from './http/sync'
+export { viewScreenshot } from './http/screenshots'

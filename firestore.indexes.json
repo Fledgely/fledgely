@@ -54,6 +54,19 @@
       "collectionGroup": "screenshots",
       "queryScope": "COLLECTION_GROUP",
       "fields": [{ "fieldPath": "retentionExpiresAt", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "screenshotViews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewerId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshotViews",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "timestamp", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []
