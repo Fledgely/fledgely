@@ -14,13 +14,31 @@ import { AskQuestionButton } from './AskQuestionButton'
 import { StatusSummary } from './StatusSummary'
 
 /**
+ * Category configuration type for display styling.
+ */
+interface CategoryConfig {
+  label: string
+  emoji: string
+  bgColor: string
+  borderColor: string
+}
+
+/**
+ * Default fallback for unknown categories.
+ */
+const DEFAULT_CATEGORY_CONFIG: CategoryConfig = {
+  label: 'Other',
+  emoji: '💡',
+  bgColor: 'bg-gray-50',
+  borderColor: 'border-gray-200',
+}
+
+/**
  * Category display configuration with friendly labels and icons.
  * Designed for 6th-grade reading level (NFR65).
+ * Exported for testing and reuse.
  */
-const CATEGORY_CONFIG: Record<
-  TermCategory,
-  { label: string; emoji: string; bgColor: string; borderColor: string }
-> = {
+export const CATEGORY_CONFIG: Record<TermCategory, CategoryConfig> = {
   time: {
     label: 'Screen Time',
     emoji: '📺',
@@ -45,12 +63,14 @@ const CATEGORY_CONFIG: Record<
     bgColor: 'bg-purple-50',
     borderColor: 'border-purple-200',
   },
-  general: {
-    label: 'Other',
-    emoji: '💡',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200',
-  },
+  general: DEFAULT_CATEGORY_CONFIG,
+}
+
+/**
+ * Safe getter for category config with fallback.
+ */
+function getCategoryConfig(category: string): CategoryConfig {
+  return CATEGORY_CONFIG[category as TermCategory] ?? DEFAULT_CATEGORY_CONFIG
 }
 
 interface ChildAgreementViewProps {
@@ -173,7 +193,7 @@ export function ChildAgreementView({
       {/* Terms grouped by category */}
       <div className="space-y-6">
         {Object.entries(termsByCategory).map(([category, categoryTerms]) => {
-          const config = CATEGORY_CONFIG[category as TermCategory]
+          const config = getCategoryConfig(category)
           return (
             <section
               key={category}

@@ -139,6 +139,12 @@ describe('StatusSummary', () => {
 
       expect(screen.getByTestId('status-message')).toHaveTextContent(/over/i)
     })
+
+    it('should personalize messages with child name', () => {
+      render(<StatusSummary {...defaultProps} screenTimeUsed={45} screenTimeLimit={120} />)
+
+      expect(screen.getByTestId('status-message')).toHaveTextContent(/Alex/i)
+    })
   })
 
   describe('refresh functionality', () => {
@@ -173,6 +179,18 @@ describe('StatusSummary', () => {
           childName="Alex"
         />
       )
+
+      expect(screen.getByTestId('no-data-message')).toBeInTheDocument()
+    })
+
+    it('should show placeholder when limit is zero', () => {
+      render(<StatusSummary screenTimeUsed={30} screenTimeLimit={0} childName="Alex" />)
+
+      expect(screen.getByTestId('no-data-message')).toBeInTheDocument()
+    })
+
+    it('should show placeholder when limit is negative', () => {
+      render(<StatusSummary screenTimeUsed={30} screenTimeLimit={-10} childName="Alex" />)
 
       expect(screen.getByTestId('no-data-message')).toBeInTheDocument()
     })

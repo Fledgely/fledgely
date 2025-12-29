@@ -27,13 +27,13 @@ interface StatusSummaryProps {
 export function StatusSummary({
   screenTimeUsed,
   screenTimeLimit,
-  childName: _childName,
+  childName,
   onRefresh,
   isRefreshing = false,
   className = '',
 }: StatusSummaryProps) {
-  // Handle null/undefined values
-  if (screenTimeUsed == null || screenTimeLimit == null) {
+  // Handle null/undefined values or zero limit
+  if (screenTimeUsed == null || screenTimeLimit == null || screenTimeLimit <= 0) {
     return (
       <section
         role="region"
@@ -82,22 +82,22 @@ export function StatusSummary({
   }
 
   /**
-   * Get friendly status message for the child.
+   * Get friendly status message for the child (personalized with name).
    */
   const getStatusMessage = (): string => {
     if (isOverLimit) {
-      return "You've gone over your screen time today."
+      return `${childName}, you've gone over your screen time today.`
     }
     if (percentage >= 90) {
-      return "You're almost at your limit for today!"
+      return `${childName}, you're almost at your limit for today!`
     }
     if (percentage >= 75) {
-      return 'Getting close to your screen time limit.'
+      return `Getting close to your screen time limit, ${childName}.`
     }
     if (percentage >= 50) {
-      return "You're doing great! About halfway through."
+      return `You're doing great, ${childName}! About halfway through.`
     }
-    return 'Great job! You have lots of time left.'
+    return `Great job, ${childName}! You have lots of time left.`
   }
 
   /**

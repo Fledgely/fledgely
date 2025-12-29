@@ -4,9 +4,9 @@
  * Story 5.8: Child Agreement Viewing - AC1, AC2, AC3, AC4
  */
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import { ChildAgreementView } from '../ChildAgreementView'
+import { ChildAgreementView, CATEGORY_CONFIG } from '../ChildAgreementView'
 import type { AgreementTerm } from '@fledgely/shared/contracts'
 
 const createTerm = (overrides: Partial<AgreementTerm> = {}): AgreementTerm => ({
@@ -218,6 +218,109 @@ describe('ChildAgreementView', () => {
       render(<ChildAgreementView {...defaultProps} className="custom-class" />)
 
       expect(screen.getByTestId('child-agreement-view')).toHaveClass('custom-class')
+    })
+  })
+
+  describe('ask question callback (AC5)', () => {
+    it('should call onAskQuestion when question button is clicked', () => {
+      const onAskQuestion = vi.fn()
+      render(<ChildAgreementView {...defaultProps} onAskQuestion={onAskQuestion} />)
+
+      // Click the question button for the first term
+      const questionButtons = screen.getAllByRole('button', { name: /ask.*question/i })
+      fireEvent.click(questionButtons[0])
+
+      expect(onAskQuestion).toHaveBeenCalledWith('term-1', 'No phones at dinner')
+    })
+
+    it('should pass loading state to question button', () => {
+      render(
+        <ChildAgreementView
+          {...defaultProps}
+          isQuestionLoading={true}
+          questionSentTermId="term-1"
+        />
+      )
+
+      expect(screen.getByText('Sending...')).toBeInTheDocument()
+    })
+
+    it('should pass hasSent state to question button', () => {
+      render(
+        <ChildAgreementView
+          {...defaultProps}
+          isQuestionLoading={false}
+          questionSentTermId="term-1"
+        />
+      )
+
+      expect(screen.getByText(/sent/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('status summary integration (AC6)', () => {
+    it('should display StatusSummary when screen time data provided', () => {
+      render(<ChildAgreementView {...defaultProps} screenTimeUsed={45} screenTimeLimit={120} />)
+
+      expect(screen.getByTestId('status-summary')).toBeInTheDocument()
+    })
+
+    it('should not display StatusSummary when no screen time data', () => {
+      render(<ChildAgreementView {...defaultProps} />)
+
+      expect(screen.queryByTestId('status-summary')).not.toBeInTheDocument()
+    })
+
+    it('should pass refresh callback to StatusSummary', () => {
+      const onRefreshStatus = vi.fn()
+      render(
+        <ChildAgreementView
+          {...defaultProps}
+          screenTimeUsed={45}
+          screenTimeLimit={120}
+          onRefreshStatus={onRefreshStatus}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
+      expect(onRefreshStatus).toHaveBeenCalled()
+    })
+  })
+
+  describe('category config export', () => {
+    it('should export CATEGORY_CONFIG with all required categories', () => {
+      expect(CATEGORY_CONFIG).toBeDefined()
+      expect(CATEGORY_CONFIG.time).toBeDefined()
+      expect(CATEGORY_CONFIG.apps).toBeDefined()
+      expect(CATEGORY_CONFIG.monitoring).toBeDefined()
+      expect(CATEGORY_CONFIG.rewards).toBeDefined()
+      expect(CATEGORY_CONFIG.general).toBeDefined()
+    })
+
+    it('should have labels for all categories', () => {
+      expect(CATEGORY_CONFIG.time.label).toBe('Screen Time')
+      expect(CATEGORY_CONFIG.apps.label).toBe('Apps & Games')
+      expect(CATEGORY_CONFIG.monitoring.label).toBe('Rules')
+      expect(CATEGORY_CONFIG.rewards.label).toBe('Rewards')
+      expect(CATEGORY_CONFIG.general.label).toBe('Other')
+    })
+  })
+
+  describe('unknown category handling', () => {
+    it('should handle unknown category gracefully with fallback styling', () => {
+      const unknownCategoryTerms = [
+        createTerm({
+          id: 'term-unknown',
+          text: 'Some unknown category term',
+          category: 'unknown-category' as 'time',
+          party: 'parent',
+          order: 0,
+        }),
+      ]
+      render(<ChildAgreementView {...defaultProps} terms={unknownCategoryTerms} />)
+
+      // Should render without crashing and show the term
+      expect(screen.getByText('Some unknown category term')).toBeInTheDocument()
     })
   })
 })
