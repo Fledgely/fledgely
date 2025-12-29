@@ -59,6 +59,11 @@ const ERROR_BADGE_COLOR = '#ef4444' // Red
 const CONSECUTIVE_ERRORS_THRESHOLD = 3
 const CONSECUTIVE_SUCCESSES_TO_CLEAR = 5
 
+// Protected site indicator constants (Story 11.3)
+const PROTECTED_BADGE_TEXT = '✓' // Checkmark
+const PROTECTED_BADGE_COLOR = '#8b5cf6' // Purple (calming)
+const PROTECTED_TITLE = 'Fledgely - Private Site (not monitored)'
+
 /**
  * Validate and clamp capture interval to allowed range
  */
@@ -76,6 +81,7 @@ interface ExtensionState {
   monitoringEnabled: boolean
   captureIntervalMinutes: number
   idleThresholdSeconds: number
+  showProtectedIndicator: boolean // Story 11.3: Optional visual indicator
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -87,6 +93,7 @@ const DEFAULT_STATE: ExtensionState = {
   monitoringEnabled: false,
   captureIntervalMinutes: DEFAULT_CAPTURE_INTERVAL_MINUTES,
   idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
+  showProtectedIndicator: true, // Story 11.3: Default to showing indicator
 }
 
 /**
@@ -456,6 +463,67 @@ async function setErrorBadge(): Promise<void> {
 }
 
 /**
+ * Set protected site badge on extension icon
+ * Story 11.3: Protected Site Visual Indicator
+ * NOTE: This does NOT log anything - privacy requirement (AC6)
+ * @param tabId - The tab ID to set badge for (tab-specific)
+ */
+async function setProtectedBadge(tabId: number): Promise<void> {
+  await chrome.action.setBadgeText({ text: PROTECTED_BADGE_TEXT, tabId })
+  await chrome.action.setBadgeBackgroundColor({ color: PROTECTED_BADGE_COLOR, tabId })
+  await chrome.action.setTitle({ title: PROTECTED_TITLE, tabId })
+}
+
+/**
+ * Clear protected site badge (restore normal badge state)
+ * Story 11.3: Protected Site Visual Indicator
+ * NOTE: This does NOT log anything - privacy requirement (AC6)
+ * @param tabId - The tab ID to clear badge for (tab-specific)
+ */
+async function clearProtectedBadge(tabId: number, state: ExtensionState): Promise<void> {
+  // Restore normal badge state for this tab
+  const title = state.isAuthenticated
+    ? state.childId
+      ? 'Fledgely - Monitoring Active'
+      : 'Fledgely - Not Connected to Child'
+    : 'Fledgely - Not Signed In'
+
+  await chrome.action.setTitle({ title, tabId })
+
+  if (state.monitoringEnabled) {
+    await chrome.action.setBadgeText({ text: '●', tabId })
+    await chrome.action.setBadgeBackgroundColor({ color: '#22c55e', tabId })
+  } else if (state.isAuthenticated) {
+    await chrome.action.setBadgeText({ text: '○', tabId })
+    await chrome.action.setBadgeBackgroundColor({ color: '#f59e0b', tabId })
+  } else {
+    await chrome.action.setBadgeText({ text: '', tabId })
+  }
+}
+
+/**
+ * Check if a tab URL is protected and update badge accordingly
+ * Story 11.3: Protected Site Visual Indicator
+ * NOTE: This does NOT log anything - privacy requirement (AC6)
+ */
+async function updateProtectedBadge(tabId: number, url: string): Promise<void> {
+  const { state } = await chrome.storage.local.get('state')
+  const currentState = state || DEFAULT_STATE
+
+  // Only show indicator if enabled in settings
+  if (!currentState.showProtectedIndicator) {
+    return
+  }
+
+  const isProtected = isUrlProtected(url)
+  if (isProtected) {
+    await setProtectedBadge(tabId)
+  } else {
+    await clearProtectedBadge(tabId, currentState)
+  }
+}
+
+/**
  * Check and update error badge based on event log
  * Called after logging events to show/clear error badge
  * Story 10.6: Capture Event Logging
@@ -723,6 +791,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'UPDATE_PROTECTED_INDICATOR':
+      // Update protected site indicator setting
+      // Story 11.3: Protected Site Visual Indicator - AC5 optional setting
+      // NOTE: This does NOT log anything - privacy requirement (AC6)
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          showProtectedIndicator: Boolean(message.showIndicator),
+        }
+        await chrome.storage.local.set({ state: newState })
+        // Note: No logging of this setting change (AC6)
+        sendResponse({ success: true, showIndicator: newState.showProtectedIndicator })
+      })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
   }
@@ -785,6 +869,34 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
       const queueSize = await getQueueSize()
       await logCaptureEvent('idle_resume', true, { queueSize })
     }
+  }
+})
+
+// Tab navigation listener (Story 11.3: Protected Site Visual Indicator)
+// Updates badge when user navigates to/from protected sites
+// NOTE: This does NOT log anything - privacy requirement (AC6)
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only check on complete load to avoid flickering
+  if (changeInfo.status === 'complete' && tab.url) {
+    try {
+      await updateProtectedBadge(tabId, tab.url)
+    } catch {
+      // Silently fail - badge updates are non-critical
+    }
+  }
+})
+
+// Tab activation listener (Story 11.3: Protected Site Visual Indicator)
+// Updates badge when user switches to a different tab
+// NOTE: This does NOT log anything - privacy requirement (AC6)
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId)
+    if (tab.url) {
+      await updateProtectedBadge(activeInfo.tabId, tab.url)
+    }
+  } catch {
+    // Silently fail - badge updates are non-critical
   }
 })
 
