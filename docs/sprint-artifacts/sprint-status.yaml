@@ -123,8 +123,8 @@ development_status:
   5-4-negotiation-discussion-support: done
   5-5-agreement-preview-summary: done
   5-6-agreement-only-mode-selection: done
-  5-7-draft-saving-version-history: backlog
-  5-8-child-agreement-viewing: backlog
+  5-7-draft-saving-version-history: done
+  5-8-child-agreement-viewing: done
   epic-5-retrospective: optional
 
   # Epic 6: Agreement Signing & Activation
