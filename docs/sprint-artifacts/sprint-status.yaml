@@ -239,7 +239,7 @@ development_status:
   13-1-totp-secret-generation-at-enrollment: done
   13-2-parent-emergency-code-display: done
   13-3-device-offline-code-entry: done
-  13-4-brute-force-protection: backlog
+  13-4-brute-force-protection: done
   13-5-emergency-unlock-audit-trail: backlog
   13-6-totp-secret-recovery: backlog
   epic-13-retrospective: optional

@@ -1,26 +1,41 @@
 /**
- * Emergency Unlock Page - Story 13.3
+ * Emergency Unlock Page - Story 13.3, 13.4
  *
  * Handles emergency code entry for offline device unlock.
  * Validates TOTP codes locally without network connectivity.
  *
- * Requirements:
+ * Requirements (Story 13.3):
  * - AC1: Emergency unlock button shows numeric keypad
  * - AC2: Local code validation against stored TOTP secret
  * - AC3: Valid code unlocks device immediately
  * - AC4: Invalid code shows error with remaining attempts
  * - AC5: Unlock event queued for sync when online
  * - AC6: Works without network connectivity
+ *
+ * Requirements (Story 13.4):
+ * - AC1-3: Tiered lockout (3→5min, 6→30min, 10→24hr)
+ * - AC4: Lockout persistence across restarts
+ * - AC5: Lockout timer display
+ * - AC6: Successful unlock resets counter
+ * - AC7: Lockout event queuing for parent notification
  */
 
 import { verifyTotpCode } from './totp-utils'
 
 /**
- * Constants for brute force protection (prepared for Story 13.4)
+ * Tiered brute force protection thresholds (Story 13.4)
+ * - 3 attempts: 5 minute lockout
+ * - 6 attempts: 30 minute lockout
+ * - 10 attempts: 24 hour lockout
  */
-const MAX_ATTEMPTS_BEFORE_FIRST_LOCKOUT = 3
+const LOCKOUT_THRESHOLDS = [
+  { attempts: 3, duration: 5 * 60 * 1000 }, // 5 minutes
+  { attempts: 6, duration: 30 * 60 * 1000 }, // 30 minutes
+  { attempts: 10, duration: 24 * 60 * 60 * 1000 }, // 24 hours
+]
 const LOCKOUT_STORAGE_KEY = 'emergencyUnlockLockout'
 const ATTEMPTS_STORAGE_KEY = 'emergencyUnlockAttempts'
+const LOCKOUT_EVENTS_KEY = 'lockoutEventQueue'
 
 /**
  * Unlock event structure for sync queue
@@ -33,11 +48,51 @@ interface UnlockEvent {
 }
 
 /**
+ * Lockout event structure for parent notification (Story 13.4 AC7)
+ */
+interface LockoutEvent {
+  type: 'lockout_triggered'
+  deviceId: string
+  timestamp: number
+  lockoutDuration: number
+  attemptCount: number
+}
+
+/**
  * Attempt tracking for brute force protection
  */
 interface AttemptTracker {
   count: number
   lastAttempt: number
+}
+
+/**
+ * Get the lockout duration based on attempt count (Story 13.4 AC1-3)
+ * - 3 attempts: 5 minutes
+ * - 6 attempts: 30 minutes
+ * - 10+ attempts: 24 hours
+ */
+function getLockoutDuration(attemptCount: number): number {
+  // Find the highest matching threshold
+  for (let i = LOCKOUT_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (attemptCount >= LOCKOUT_THRESHOLDS[i].attempts) {
+      return LOCKOUT_THRESHOLDS[i].duration
+    }
+  }
+  return 0
+}
+
+/**
+ * Get remaining attempts until next lockout threshold
+ */
+function getAttemptsUntilNextLockout(attemptCount: number): number {
+  for (const threshold of LOCKOUT_THRESHOLDS) {
+    if (attemptCount < threshold.attempts) {
+      return threshold.attempts - attemptCount
+    }
+  }
+  // Already at max lockout, but still count remaining until next trigger
+  return 1 // Always show at least 1 remaining
 }
 
 /**
@@ -174,9 +229,16 @@ function showLockout(lockoutEnd: number): void {
       return
     }
 
-    const minutes = Math.floor(remaining / 60000)
+    // Story 13.4 AC5: Format as HH:MM:SS for long lockouts, MM:SS for short
+    const hours = Math.floor(remaining / 3600000)
+    const minutes = Math.floor((remaining % 3600000) / 60000)
     const seconds = Math.floor((remaining % 60000) / 1000)
-    lockoutTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+
+    if (hours > 0) {
+      lockoutTimer.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    } else {
+      lockoutTimer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    }
 
     setTimeout(updateTimer, 1000)
   }
@@ -262,8 +324,8 @@ function updateCodeDisplay(): void {
  */
 function updateAttemptsDisplay(): void {
   if (attemptCount > 0) {
-    const remaining = MAX_ATTEMPTS_BEFORE_FIRST_LOCKOUT - attemptCount
-    attemptsText.textContent = `${remaining} attempt${remaining !== 1 ? 's' : ''} remaining`
+    const remaining = getAttemptsUntilNextLockout(attemptCount)
+    attemptsText.textContent = `${remaining} attempt${remaining !== 1 ? 's' : ''} until lockout`
     attemptsDisplay.classList.remove('hidden')
 
     if (remaining <= 1) {
@@ -451,21 +513,30 @@ async function handleInvalidCode(): Promise<void> {
   attemptCount++
   await saveAttemptCount()
 
-  const remaining = MAX_ATTEMPTS_BEFORE_FIRST_LOCKOUT - attemptCount
+  // Story 13.4: Get tiered lockout duration based on attempt count
+  const lockoutDuration = getLockoutDuration(attemptCount)
 
-  if (remaining <= 0) {
-    // Trigger lockout (Story 13.4 will expand on this)
-    const lockoutDuration = 5 * 60 * 1000 // 5 minutes
+  if (lockoutDuration > 0) {
+    // Trigger tiered lockout (Story 13.4 AC1-3)
     const lockoutEnd = Date.now() + lockoutDuration
 
     await chrome.storage.local.set({ [LOCKOUT_STORAGE_KEY]: lockoutEnd })
     showLockout(lockoutEnd)
 
+    // Story 13.4 AC7: Queue lockout event for parent notification
+    await queueLockoutEvent(lockoutDuration, attemptCount)
+
     // Notify background script of lockout
-    chrome.runtime.sendMessage({ type: 'EMERGENCY_UNLOCK_LOCKOUT', lockoutEnd })
+    chrome.runtime.sendMessage({
+      type: 'EMERGENCY_UNLOCK_LOCKOUT',
+      lockoutEnd,
+      attemptCount,
+      lockoutDuration,
+    })
   } else {
+    const remaining = getAttemptsUntilNextLockout(attemptCount)
     showMessage(
-      `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`,
+      `Invalid code. ${remaining} attempt${remaining !== 1 ? 's' : ''} until lockout.`,
       'error'
     )
     updateAttemptsDisplay()
@@ -475,6 +546,31 @@ async function handleInvalidCode(): Promise<void> {
       currentCode = ''
       updateCodeDisplay()
     }, 1500)
+  }
+}
+
+/**
+ * Queue lockout event for parent notification (Story 13.4 AC7)
+ */
+async function queueLockoutEvent(lockoutDuration: number, attempts: number): Promise<void> {
+  const deviceId = await getDeviceId()
+  if (!deviceId) return
+
+  const event: LockoutEvent = {
+    type: 'lockout_triggered',
+    deviceId,
+    timestamp: Date.now(),
+    lockoutDuration,
+    attemptCount: attempts,
+  }
+
+  try {
+    const result = await chrome.storage.local.get(LOCKOUT_EVENTS_KEY)
+    const queue: LockoutEvent[] = result[LOCKOUT_EVENTS_KEY] || []
+    queue.push(event)
+    await chrome.storage.local.set({ [LOCKOUT_EVENTS_KEY]: queue })
+  } catch (error) {
+    // Non-critical: event queuing failure shouldn't block lockout
   }
 }
 

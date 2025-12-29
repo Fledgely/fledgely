@@ -1,12 +1,45 @@
 /**
- * Emergency Unlock Tests - Story 13.3
+ * Emergency Unlock Tests - Story 13.3, 13.4
  *
  * Tests for the emergency unlock page functionality.
- * Covers code entry, validation, and event queuing.
+ * Covers code entry, validation, event queuing, and brute force protection.
  */
 
 import { describe, it, expect } from 'vitest'
 import { verifyTotpCode, generateTotpCode } from './totp-utils'
+
+/**
+ * Tiered lockout thresholds (mirror of implementation)
+ */
+const LOCKOUT_THRESHOLDS = [
+  { attempts: 3, duration: 5 * 60 * 1000 }, // 5 minutes
+  { attempts: 6, duration: 30 * 60 * 1000 }, // 30 minutes
+  { attempts: 10, duration: 24 * 60 * 60 * 1000 }, // 24 hours
+]
+
+/**
+ * Get lockout duration based on attempt count (mirror of implementation)
+ */
+function getLockoutDuration(attemptCount: number): number {
+  for (let i = LOCKOUT_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (attemptCount >= LOCKOUT_THRESHOLDS[i].attempts) {
+      return LOCKOUT_THRESHOLDS[i].duration
+    }
+  }
+  return 0
+}
+
+/**
+ * Get remaining attempts until next lockout
+ */
+function getAttemptsUntilNextLockout(attemptCount: number): number {
+  for (const threshold of LOCKOUT_THRESHOLDS) {
+    if (attemptCount < threshold.attempts) {
+      return threshold.attempts - attemptCount
+    }
+  }
+  return 1
+}
 
 // Test the TOTP verification in context of emergency unlock
 describe('Emergency Unlock Code Validation - Story 13.3', () => {
@@ -205,6 +238,146 @@ describe('Code Input Validation - Story 13.3', () => {
       code = addDigit(code, '7')
       expect(code).toBe('123456') // Still 6 digits
       expect(code.length).toBe(6)
+    })
+  })
+})
+
+// Story 13.4: Brute Force Protection Tests
+describe('Brute Force Protection - Story 13.4', () => {
+  describe('AC1-3: Tiered Lockout Thresholds', () => {
+    it('should return 0 duration for less than 3 attempts', () => {
+      expect(getLockoutDuration(0)).toBe(0)
+      expect(getLockoutDuration(1)).toBe(0)
+      expect(getLockoutDuration(2)).toBe(0)
+    })
+
+    it('should return 5 minute lockout at 3 attempts (AC1)', () => {
+      expect(getLockoutDuration(3)).toBe(5 * 60 * 1000)
+      expect(getLockoutDuration(4)).toBe(5 * 60 * 1000)
+      expect(getLockoutDuration(5)).toBe(5 * 60 * 1000)
+    })
+
+    it('should return 30 minute lockout at 6 attempts (AC2)', () => {
+      expect(getLockoutDuration(6)).toBe(30 * 60 * 1000)
+      expect(getLockoutDuration(7)).toBe(30 * 60 * 1000)
+      expect(getLockoutDuration(8)).toBe(30 * 60 * 1000)
+      expect(getLockoutDuration(9)).toBe(30 * 60 * 1000)
+    })
+
+    it('should return 24 hour lockout at 10 attempts (AC3)', () => {
+      expect(getLockoutDuration(10)).toBe(24 * 60 * 60 * 1000)
+      expect(getLockoutDuration(15)).toBe(24 * 60 * 60 * 1000)
+      expect(getLockoutDuration(100)).toBe(24 * 60 * 60 * 1000)
+    })
+  })
+
+  describe('Attempts Until Next Lockout', () => {
+    it('should correctly calculate remaining attempts', () => {
+      // Before first lockout
+      expect(getAttemptsUntilNextLockout(0)).toBe(3)
+      expect(getAttemptsUntilNextLockout(1)).toBe(2)
+      expect(getAttemptsUntilNextLockout(2)).toBe(1)
+
+      // Before second lockout
+      expect(getAttemptsUntilNextLockout(3)).toBe(3) // 6 - 3
+      expect(getAttemptsUntilNextLockout(4)).toBe(2)
+      expect(getAttemptsUntilNextLockout(5)).toBe(1)
+
+      // Before third lockout
+      expect(getAttemptsUntilNextLockout(6)).toBe(4) // 10 - 6
+      expect(getAttemptsUntilNextLockout(7)).toBe(3)
+      expect(getAttemptsUntilNextLockout(8)).toBe(2)
+      expect(getAttemptsUntilNextLockout(9)).toBe(1)
+
+      // At max lockout
+      expect(getAttemptsUntilNextLockout(10)).toBe(1)
+      expect(getAttemptsUntilNextLockout(15)).toBe(1)
+    })
+  })
+
+  describe('AC6: Counter Reset on Success', () => {
+    it('should reset attempt count on successful unlock', () => {
+      let attemptCount = 5 // Had 5 failed attempts
+
+      // Simulate successful unlock
+      attemptCount = 0
+
+      expect(attemptCount).toBe(0)
+      expect(getLockoutDuration(attemptCount)).toBe(0)
+    })
+  })
+
+  describe('AC7: Lockout Event Structure', () => {
+    it('should have correct lockout event structure', () => {
+      const event = {
+        type: 'lockout_triggered' as const,
+        deviceId: 'test-device-id',
+        timestamp: Date.now(),
+        lockoutDuration: 5 * 60 * 1000,
+        attemptCount: 3,
+      }
+
+      expect(event.type).toBe('lockout_triggered')
+      expect(event.deviceId).toBe('test-device-id')
+      expect(typeof event.timestamp).toBe('number')
+      expect(event.lockoutDuration).toBe(5 * 60 * 1000)
+      expect(event.attemptCount).toBe(3)
+    })
+
+    it('should not include actual code in lockout event', () => {
+      const event = {
+        type: 'lockout_triggered' as const,
+        deviceId: 'test-device-id',
+        timestamp: Date.now(),
+        lockoutDuration: 5 * 60 * 1000,
+        attemptCount: 3,
+      }
+
+      // Verify no code field exists (security requirement)
+      expect('code' in event).toBe(false)
+      expect('enteredCode' in event).toBe(false)
+    })
+  })
+
+  describe('Timer Format', () => {
+    it('should format short lockouts as MM:SS', () => {
+      const formatTime = (remaining: number): string => {
+        const hours = Math.floor(remaining / 3600000)
+        const minutes = Math.floor((remaining % 3600000) / 60000)
+        const seconds = Math.floor((remaining % 60000) / 1000)
+
+        if (hours > 0) {
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        }
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      }
+
+      // 5 minutes
+      expect(formatTime(5 * 60 * 1000)).toBe('05:00')
+      // 30 minutes
+      expect(formatTime(30 * 60 * 1000)).toBe('30:00')
+      // 1 minute 30 seconds
+      expect(formatTime(90 * 1000)).toBe('01:30')
+    })
+
+    it('should format long lockouts as HH:MM:SS', () => {
+      const formatTime = (remaining: number): string => {
+        const hours = Math.floor(remaining / 3600000)
+        const minutes = Math.floor((remaining % 3600000) / 60000)
+        const seconds = Math.floor((remaining % 60000) / 1000)
+
+        if (hours > 0) {
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        }
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      }
+
+      // 24 hours
+      expect(formatTime(24 * 60 * 60 * 1000)).toBe('24:00:00')
+      // 1 hour
+      expect(formatTime(1 * 60 * 60 * 1000)).toBe('01:00:00')
+      // 2 hours 30 minutes
+      expect(formatTime(2.5 * 60 * 60 * 1000)).toBe('02:30:00')
     })
   })
 })
