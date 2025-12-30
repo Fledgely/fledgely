@@ -569,6 +569,47 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // STORY 6.6: CONSENT WITHDRAWAL REQUESTS
+    // =========================================================================
+    //
+    // SECURITY DESIGN:
+    // Withdrawal requests are child-initiated with a 24-hour cooling period.
+    // Only Cloud Functions can create/execute withdrawals.
+    // Guardians can view but cannot cancel on child's behalf.
+    //
+    // Key rules:
+    // - Cloud Functions create withdrawals (no direct client creation)
+    // - Family guardians can read withdrawal requests for their family
+    // - Only Cloud Functions can update status (pending -> cancelled/executed)
+    // - Requests are preserved for audit trail
+    //
+    match /withdrawalRequests/{requestId} {
+      // Helper: Check if user is a guardian of the family
+      function isWithdrawalFamilyGuardian() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardianUids;
+      }
+
+      // Read: Family guardians can view withdrawal requests
+      // DATA SYMMETRY: Both co-parents see same requests
+      // Allows parents to see pending withdrawal and discuss with child
+      allow read: if isWithdrawalFamilyGuardian();
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // Ensures proper validation of device assignment and active agreement
+      allow create: if false;
+
+      // Update: Only Cloud Functions can update (via Admin SDK)
+      // Status changes (pending -> cancelled/executed) are controlled
+      allow update: if false;
+
+      // Delete: Not allowed (keep audit trail)
+      // Withdrawal history is preserved for compliance
+      allow delete: if false;
+    }
+
+    // =========================================================================
     // EPIC 0.5: SAFE ACCOUNT ESCAPE
     // Story 0.5.1: Secure Safety Contact Channel
     // =========================================================================

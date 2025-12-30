@@ -20,7 +20,7 @@ import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
 import { AddDeviceModal, DevicesList } from '../../components/devices'
-import { FamilyStatusCard } from '../../components/dashboard'
+import { FamilyStatusCard, WithdrawalPendingAlert } from '../../components/dashboard'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -414,6 +414,9 @@ export default function DashboardPage() {
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}
 
+        {/* Story 6.6: Withdrawal Pending Alerts - urgent notification for parents */}
+        {family && <WithdrawalPendingAlert familyId={family.id} />}
+
         {/* Family Card */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>Family</h2>
@@ -516,6 +519,7 @@ export default function DashboardPage() {
                         })
                         setSafetyChangesRefreshTrigger((t) => t + 1)
                         // AC2: Notification placeholder (Story 41)
+                        // eslint-disable-next-line no-console
                         console.log(
                           `[Notification] Safety setting change approved: ${change.settingType}`
                         )
@@ -528,6 +532,7 @@ export default function DashboardPage() {
                         })
                         setSafetyChangesRefreshTrigger((t) => t + 1)
                         // AC2: Notification placeholder (Story 41)
+                        // eslint-disable-next-line no-console
                         console.log(
                           `[Notification] Safety setting change declined: ${change.settingType}`
                         )

@@ -21,6 +21,14 @@ import {
   registerDevice,
   EnrollmentRequestStatus,
 } from './enrollment-service'
+import {
+  initiateWithdrawal,
+  checkPendingWithdrawal,
+  cancelWithdrawal,
+  formatCountdown,
+  isCountdownExpired,
+  type WithdrawalRequest,
+} from './withdrawal'
 
 // Enrollment state type (matches background.ts)
 type EnrollmentState = 'not_enrolled' | 'pending' | 'enrolled'
@@ -46,6 +54,8 @@ let selectedChildId: string | null = null
 let connectedChild: Child | null = null
 let isScanning = false
 let stopPolling: (() => void) | null = null // Story 12.3: Cleanup function for polling
+let pendingWithdrawal: WithdrawalRequest | null = null // Story 6.6: Pending withdrawal request
+let countdownInterval: ReturnType<typeof setInterval> | null = null // Story 6.6: Countdown timer
 
 // DOM Elements - Not Enrolled (Story 12.2)
 const stateNotEnrolled = document.getElementById('state-not-enrolled')!
@@ -98,6 +108,29 @@ const consentPendingChangeChild = document.getElementById(
   'consent-pending-change-child'
 ) as HTMLButtonElement
 
+// Story 6.6: DOM Elements - Withdrawal UI
+const withdrawConsentLink = document.getElementById('withdraw-consent-link') as HTMLButtonElement
+const withdrawalModal = document.getElementById('withdrawal-modal')!
+const confirmWithdrawalBtn = document.getElementById('confirm-withdrawal-btn') as HTMLButtonElement
+const confirmWithdrawalText = document.getElementById('confirm-withdrawal-text')!
+const confirmWithdrawalSpinner = document.getElementById('confirm-withdrawal-spinner')!
+const cancelModalBtn = document.getElementById('cancel-modal-btn') as HTMLButtonElement
+
+// Story 6.6: DOM Elements - Withdrawal Pending State
+const stateWithdrawalPending = document.getElementById('state-withdrawal-pending')!
+const withdrawalPendingChildAvatar = document.getElementById('withdrawal-pending-child-avatar')!
+const withdrawalPendingChildName = document.getElementById('withdrawal-pending-child-name')!
+const withdrawalCountdownTime = document.getElementById('withdrawal-countdown-time')!
+const cancelWithdrawalBtn = document.getElementById('cancel-withdrawal-btn') as HTMLButtonElement
+const cancelWithdrawalText = document.getElementById('cancel-withdrawal-text')!
+const cancelWithdrawalSpinner = document.getElementById('cancel-withdrawal-spinner')!
+
+// Story 6.6: DOM Elements - Consent Withdrawn State
+const stateConsentWithdrawn = document.getElementById('state-consent-withdrawn')!
+const withdrawnChildAvatar = document.getElementById('withdrawn-child-avatar')!
+const withdrawnChildName = document.getElementById('withdrawn-child-name')!
+const withdrawnChangeChild = document.getElementById('withdrawn-change-child') as HTMLButtonElement
+
 /**
  * Hide all state sections
  */
@@ -108,6 +141,15 @@ function hideAllStates(): void {
   stateAuthNoChild.classList.add('hidden')
   stateAuthConnected.classList.add('hidden')
   stateConsentPending.classList.add('hidden') // Story 6.5
+  stateWithdrawalPending.classList.add('hidden') // Story 6.6
+  stateConsentWithdrawn.classList.add('hidden') // Story 6.6
+  withdrawalModal.classList.add('hidden') // Story 6.6
+
+  // Story 6.6: Clear countdown interval when changing states
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+    countdownInterval = null
+  }
 }
 
 /**
@@ -174,6 +216,158 @@ async function handleRefreshConsent(): Promise<void> {
   } finally {
     setRefreshConsentLoading(false)
   }
+}
+
+/**
+ * Story 6.6: Show withdrawal modal
+ */
+function showWithdrawalModal(): void {
+  withdrawalModal.classList.remove('hidden')
+  confirmWithdrawalBtn.focus()
+}
+
+/**
+ * Story 6.6: Hide withdrawal modal
+ */
+function hideWithdrawalModal(): void {
+  withdrawalModal.classList.add('hidden')
+}
+
+/**
+ * Story 6.6: Set confirm withdrawal button loading state
+ */
+function setConfirmWithdrawalLoading(loading: boolean): void {
+  confirmWithdrawalBtn.disabled = loading
+  cancelModalBtn.disabled = loading
+  if (loading) {
+    confirmWithdrawalText.classList.add('hidden')
+    confirmWithdrawalSpinner.classList.remove('hidden')
+  } else {
+    confirmWithdrawalText.classList.remove('hidden')
+    confirmWithdrawalSpinner.classList.add('hidden')
+  }
+}
+
+/**
+ * Story 6.6: Set cancel withdrawal button loading state
+ */
+function setCancelWithdrawalLoading(loading: boolean): void {
+  cancelWithdrawalBtn.disabled = loading
+  if (loading) {
+    cancelWithdrawalText.classList.add('hidden')
+    cancelWithdrawalSpinner.classList.remove('hidden')
+  } else {
+    cancelWithdrawalText.classList.remove('hidden')
+    cancelWithdrawalSpinner.classList.add('hidden')
+  }
+}
+
+/**
+ * Story 6.6: Start countdown timer for withdrawal pending state
+ */
+function startCountdownTimer(expiresAt: number): void {
+  // Clear existing timer
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+  }
+
+  // Update immediately
+  withdrawalCountdownTime.textContent = formatCountdown(expiresAt)
+
+  // Update every second
+  countdownInterval = setInterval(async () => {
+    if (isCountdownExpired(expiresAt)) {
+      if (countdownInterval) {
+        clearInterval(countdownInterval)
+        countdownInterval = null
+      }
+      // Refresh UI to show withdrawn state
+      await updateUI(await getAuthState())
+    } else {
+      withdrawalCountdownTime.textContent = formatCountdown(expiresAt)
+    }
+  }, 1000)
+}
+
+/**
+ * Story 6.6: Handle confirm withdrawal button click
+ */
+async function handleConfirmWithdrawal(): Promise<void> {
+  setConfirmWithdrawalLoading(true)
+
+  try {
+    // Get current state for IDs
+    const { state } = await chrome.storage.local.get('state')
+    if (!state?.childId || !state?.familyId || !state?.deviceId) {
+      console.error('[Fledgely Popup] Missing IDs for withdrawal')
+      return
+    }
+
+    const result = await initiateWithdrawal(state.childId, state.familyId, state.deviceId)
+
+    if (result.success && result.request) {
+      pendingWithdrawal = result.request
+      hideWithdrawalModal()
+      await updateUI(await getAuthState())
+    } else {
+      // Show error (in production, would display in UI)
+      console.error('[Fledgely Popup] Withdrawal initiation failed:', result.error)
+      alert(result.error || 'Failed to submit withdrawal request. Please try again.')
+    }
+  } catch (error) {
+    console.error('[Fledgely Popup] Withdrawal error:', error)
+  } finally {
+    setConfirmWithdrawalLoading(false)
+  }
+}
+
+/**
+ * Story 6.6: Handle cancel withdrawal button click
+ */
+async function handleCancelWithdrawal(): Promise<void> {
+  if (!pendingWithdrawal) return
+
+  setCancelWithdrawalLoading(true)
+
+  try {
+    const { state } = await chrome.storage.local.get('state')
+    if (!state?.childId) {
+      console.error('[Fledgely Popup] Missing childId for cancellation')
+      return
+    }
+
+    const result = await cancelWithdrawal(pendingWithdrawal.requestId, state.childId)
+
+    if (result.success) {
+      pendingWithdrawal = null
+      // Force refresh consent status
+      await refreshConsentStatus()
+      await updateUI(await getAuthState())
+    } else {
+      console.error('[Fledgely Popup] Withdrawal cancellation failed:', result.error)
+      alert(result.error || 'Failed to cancel withdrawal request. Please try again.')
+    }
+  } catch (error) {
+    console.error('[Fledgely Popup] Cancel withdrawal error:', error)
+  } finally {
+    setCancelWithdrawalLoading(false)
+  }
+}
+
+/**
+ * Story 6.6: Check for pending withdrawal request
+ */
+async function checkForPendingWithdrawal(): Promise<WithdrawalRequest | null> {
+  const { state } = await chrome.storage.local.get('state')
+  if (!state?.childId || !state?.familyId) {
+    return null
+  }
+
+  const result = await checkPendingWithdrawal(state.childId, state.familyId)
+  if (result.success && result.request && result.request.status === 'pending') {
+    return result.request
+  }
+  return null
 }
 
 /**
@@ -651,8 +845,28 @@ async function updateUI(authState: AuthState): Promise<void> {
     // Story 6.5: Check consent status before showing monitoring active
     const consentStatus = await getConsentStatus()
 
-    if (consentStatus.consentStatus === 'pending' || consentStatus.consentStatus === 'withdrawn') {
-      // Story 6.5 AC3: Show consent pending state
+    // Story 6.6: Check for pending withdrawal first
+    pendingWithdrawal = await checkForPendingWithdrawal()
+
+    if (pendingWithdrawal && pendingWithdrawal.status === 'pending') {
+      // Story 6.6 AC5: Show withdrawal pending state with countdown
+      stateWithdrawalPending.classList.remove('hidden')
+
+      withdrawalPendingChildAvatar.style.background = connectedChild.color
+      withdrawalPendingChildAvatar.textContent = connectedChild.name[0]
+      withdrawalPendingChildName.textContent = connectedChild.name
+
+      // Start countdown timer
+      startCountdownTimer(pendingWithdrawal.expiresAt)
+    } else if (consentStatus.consentStatus === 'withdrawn') {
+      // Story 6.6 AC8: Show consent withdrawn state
+      stateConsentWithdrawn.classList.remove('hidden')
+
+      withdrawnChildAvatar.style.background = connectedChild.color
+      withdrawnChildAvatar.textContent = connectedChild.name[0]
+      withdrawnChildName.textContent = connectedChild.name
+    } else if (consentStatus.consentStatus === 'pending') {
+      // Story 6.5 AC3: Show consent pending state (waiting for agreement)
       stateConsentPending.classList.remove('hidden')
 
       // Update child info in consent pending view
@@ -803,6 +1017,27 @@ async function init(): Promise<void> {
   // Story 6.5: Set up event listeners - Consent Pending
   refreshConsentBtn.addEventListener('click', handleRefreshConsent)
   consentPendingChangeChild.addEventListener('click', disconnectChild)
+
+  // Story 6.6: Set up event listeners - Consent Withdrawal
+  withdrawConsentLink.addEventListener('click', showWithdrawalModal)
+  confirmWithdrawalBtn.addEventListener('click', handleConfirmWithdrawal)
+  cancelModalBtn.addEventListener('click', hideWithdrawalModal)
+  cancelWithdrawalBtn.addEventListener('click', handleCancelWithdrawal)
+  withdrawnChangeChild.addEventListener('click', disconnectChild)
+
+  // Story 6.6: Close modal when clicking outside
+  withdrawalModal.addEventListener('click', (e) => {
+    if (e.target === withdrawalModal) {
+      hideWithdrawalModal()
+    }
+  })
+
+  // Story 6.6: Close modal with Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !withdrawalModal.classList.contains('hidden')) {
+      hideWithdrawalModal()
+    }
+  })
 }
 
 // Run on load

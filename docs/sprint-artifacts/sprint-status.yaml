@@ -134,7 +134,7 @@ development_status:
   6-3-agreement-activation: done
   6-4-signing-ceremony-celebration: done
   6-5-device-consent-gate: done
-  6-6-consent-withdrawal-handling: blocked # Depends on Epic 9+ (device enrollment)
+  6-6-consent-withdrawal-handling: done # Child consent withdrawal with 24-hour cooling period
   6-7-signature-accessibility: done
   epic-6-retrospective: done
 

@@ -66,10 +66,15 @@ export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'
-export { cleanupExpiredScreenshots } from './scheduled'
+export { cleanupExpiredScreenshots, executeExpiredWithdrawals } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 
 // Export HTTP functions
 export { uploadScreenshot, syncDeviceHealth } from './http/sync'
 export { viewScreenshot } from './http/screenshots'
-export { checkConsentStatus } from './http/consent'
+export {
+  checkConsentStatus,
+  initiateConsentWithdrawal,
+  checkWithdrawalStatus,
+  cancelConsentWithdrawal,
+} from './http/consent'

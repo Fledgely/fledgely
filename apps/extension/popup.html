@@ -524,6 +524,233 @@
         color: #065f46;
         line-height: 1.4;
       }
+
+      /* Story 6.6: Consent Withdrawal Styles */
+      .withdraw-section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e2e8f0;
+      }
+      .withdraw-link {
+        color: #6b7280;
+        font-size: 12px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 4px;
+      }
+      .withdraw-link:hover {
+        color: #4b5563;
+      }
+      .withdraw-link:focus {
+        outline: 2px solid #4f46e5;
+        outline-offset: 2px;
+      }
+
+      /* Story 6.6: Withdrawal Modal */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal-content {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 290px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .modal-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .modal-title-icon {
+        font-size: 20px;
+      }
+      .modal-text {
+        font-size: 13px;
+        color: #4b5563;
+        line-height: 1.5;
+        margin-bottom: 16px;
+      }
+      .consequences-list {
+        background: #fef3c7;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      .consequences-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #92400e;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .consequences-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        color: #78350f;
+        margin-bottom: 6px;
+      }
+      .consequences-item:last-child {
+        margin-bottom: 0;
+      }
+      .consequences-icon {
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .cooling-period-info {
+        background: #dbeafe;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      .cooling-period-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1e40af;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .cooling-period-text {
+        font-size: 13px;
+        color: #1e3a8a;
+        line-height: 1.4;
+      }
+      .reassurance-note {
+        background: #ecfdf5;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+      .reassurance-text {
+        font-size: 13px;
+        color: #065f46;
+        line-height: 1.4;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .reassurance-icon {
+        flex-shrink: 0;
+        font-size: 16px;
+      }
+      .modal-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .btn-withdraw {
+        background: #fef2f2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+      }
+      .btn-withdraw:hover {
+        background: #fee2e2;
+        border-color: #fca5a5;
+      }
+      .btn-cancel-modal {
+        background: #f3f4f6;
+        color: #374151;
+      }
+      .btn-cancel-modal:hover {
+        background: #e5e7eb;
+      }
+
+      /* Story 6.6: Withdrawal Pending State */
+      .withdrawal-pending-info {
+        background: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        text-align: left;
+      }
+      .withdrawal-pending-title {
+        font-weight: 600;
+        color: #92400e;
+        font-size: 14px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .withdrawal-pending-text {
+        font-size: 13px;
+        color: #78350f;
+        line-height: 1.5;
+        margin-bottom: 12px;
+      }
+      .withdrawal-countdown {
+        background: #fffbeb;
+        border-radius: 6px;
+        padding: 10px;
+        text-align: center;
+      }
+      .withdrawal-countdown-label {
+        font-size: 11px;
+        color: #92400e;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+      }
+      .withdrawal-countdown-time {
+        font-size: 24px;
+        font-weight: 700;
+        color: #78350f;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Story 6.6: Consent Withdrawn State */
+      .status-withdrawn {
+        background: #f3f4f6;
+        border: 1px solid #9ca3af;
+        color: #4b5563;
+      }
+      .status-withdrawn .status-dot {
+        background: #9ca3af;
+      }
+      .consent-withdrawn-info {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        text-align: left;
+      }
+      .consent-withdrawn-title {
+        font-weight: 600;
+        color: #374151;
+        font-size: 14px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .consent-withdrawn-text {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
@@ -781,6 +1008,171 @@
         >
           Sign Out
         </button>
+
+        <!-- Story 6.6: Withdraw Consent Link -->
+        <div class="withdraw-section">
+          <button
+            type="button"
+            class="withdraw-link"
+            id="withdraw-consent-link"
+            aria-label="Learn about withdrawing your consent"
+          >
+            What if I don't want monitoring anymore?
+          </button>
+        </div>
+      </div>
+
+      <!-- Story 6.6: Withdrawal Pending State -->
+      <div id="state-withdrawal-pending" class="hidden">
+        <div class="status status-consent-pending">
+          <span class="status-dot"></span>
+          Withdrawal Pending
+        </div>
+
+        <div class="connected-child">
+          <div class="child-avatar" id="withdrawal-pending-child-avatar" style="background: #f59e0b" aria-hidden="true">?</div>
+          <div class="child-details">
+            <div class="connected-label">Device for</div>
+            <div class="child-name" id="withdrawal-pending-child-name">Child Name</div>
+          </div>
+        </div>
+
+        <div class="withdrawal-pending-info" role="region" aria-labelledby="withdrawal-pending-heading">
+          <div class="withdrawal-pending-title" id="withdrawal-pending-heading">
+            <span aria-hidden="true">⏳</span>
+            Withdrawal Request Submitted
+          </div>
+          <p class="withdrawal-pending-text">
+            You've asked to stop monitoring. There's a 24-hour waiting period so your family can talk about this together.
+          </p>
+          <div class="withdrawal-countdown" aria-live="polite">
+            <div class="withdrawal-countdown-label">Time remaining</div>
+            <div class="withdrawal-countdown-time" id="withdrawal-countdown-time">--:--:--</div>
+          </div>
+        </div>
+
+        <p class="message">
+          Monitoring continues during the waiting period. You can cancel this request anytime before it completes.
+        </p>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          id="cancel-withdrawal-btn"
+          aria-label="Cancel withdrawal request"
+        >
+          <span id="cancel-withdrawal-text">Cancel Withdrawal</span>
+          <span id="cancel-withdrawal-spinner" class="spinner hidden"></span>
+        </button>
+      </div>
+
+      <!-- Story 6.6: Consent Withdrawn State -->
+      <div id="state-consent-withdrawn" class="hidden">
+        <div class="status status-withdrawn">
+          <span class="status-dot"></span>
+          Monitoring Stopped
+        </div>
+
+        <div class="connected-child">
+          <div class="child-avatar" id="withdrawn-child-avatar" style="background: #9ca3af" aria-hidden="true">?</div>
+          <div class="child-details">
+            <div class="connected-label">Device for</div>
+            <div class="child-name" id="withdrawn-child-name">Child Name</div>
+          </div>
+        </div>
+
+        <div class="consent-withdrawn-info" role="region" aria-labelledby="consent-withdrawn-heading">
+          <div class="consent-withdrawn-title" id="consent-withdrawn-heading">
+            <span aria-hidden="true">✓</span>
+            Consent Withdrawn
+          </div>
+          <p class="consent-withdrawn-text">
+            You've withdrawn your consent and monitoring has stopped. Your device still works normally - only the monitoring features are off.
+          </p>
+        </div>
+
+        <div class="device-functional-note" role="note">
+          <span class="device-functional-icon" aria-hidden="true">✅</span>
+          <span class="device-functional-text">
+            Your device works normally. If you change your mind, talk to your family about signing a new agreement.
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-link"
+          id="withdrawn-change-child"
+          aria-label="Switch to different child"
+        >
+          Switch Child
+        </button>
+      </div>
+
+      <!-- Story 6.6: Withdrawal Confirmation Modal -->
+      <div id="withdrawal-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-content">
+          <div class="modal-title" id="modal-title">
+            <span class="modal-title-icon" aria-hidden="true">💬</span>
+            Want to stop monitoring?
+          </div>
+
+          <p class="modal-text">
+            That's okay! It's your choice. Before you decide, here's what will happen:
+          </p>
+
+          <div class="consequences-list" role="region" aria-label="What will change">
+            <div class="consequences-title">What will change</div>
+            <div class="consequences-item">
+              <span class="consequences-icon" aria-hidden="true">📸</span>
+              <span>No more screenshots will be taken</span>
+            </div>
+            <div class="consequences-item">
+              <span class="consequences-icon" aria-hidden="true">📊</span>
+              <span>Activity won't be tracked anymore</span>
+            </div>
+            <div class="consequences-item">
+              <span class="consequences-icon" aria-hidden="true">👪</span>
+              <span>Your parents will be notified</span>
+            </div>
+          </div>
+
+          <div class="cooling-period-info" role="region" aria-label="24-hour waiting period">
+            <div class="cooling-period-title">
+              <span aria-hidden="true">⏰</span>
+              24-Hour Waiting Period
+            </div>
+            <p class="cooling-period-text">
+              There's a 24-hour wait before this takes effect. This gives your family time to talk about it together.
+            </p>
+          </div>
+
+          <div class="reassurance-note" role="note">
+            <div class="reassurance-text">
+              <span class="reassurance-icon" aria-hidden="true">✅</span>
+              <span>Your device will still work normally. You can cancel this anytime during the 24 hours.</span>
+            </div>
+          </div>
+
+          <div class="modal-buttons">
+            <button
+              type="button"
+              class="btn btn-withdraw"
+              id="confirm-withdrawal-btn"
+              aria-label="Confirm withdrawal request"
+            >
+              <span id="confirm-withdrawal-text">Yes, I understand</span>
+              <span id="confirm-withdrawal-spinner" class="spinner hidden"></span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-cancel-modal"
+              id="cancel-modal-btn"
+              aria-label="Cancel and go back"
+            >
+              Never mind, go back
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="version">v0.1.0</div>
