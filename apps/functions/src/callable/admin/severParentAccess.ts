@@ -4,6 +4,7 @@
  * Story 0.5.4: Parent Access Severing
  * Story 0.5.7: 72-Hour Notification Stealth (integration)
  * Story 0.5.8: Audit Trail Sealing (integration)
+ * Story 0.5.9: Domestic Abuse Resource Referral (integration)
  *
  * CRITICAL SAFETY DESIGN:
  * - Requires safety-team custom claim
@@ -31,6 +32,7 @@ import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
 import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
 import { sealEscapeRelatedEntries } from '../../lib/audit/escapeAuditSealer'
+import { sendSafetyResourceEmail } from '../../lib/safety/sendSafetyResourceEmail'
 
 const db = getFirestore()
 
@@ -218,6 +220,22 @@ export const severParentAccess = onCall<
       agentEmail: context.agentEmail,
       ipAddress: context.ipAddress,
     })
+
+    // Story 0.5.9: Send safety resource email to victim's safe contact address
+    // This happens AFTER sealing - sends resources to help with next steps
+    // CRITICAL: Email failure does NOT fail the sever operation
+    // The email is sent to the SAFE contact email from the ticket, NOT the account email
+    try {
+      await sendSafetyResourceEmail({
+        ticketId,
+        agentId: context.agentId,
+        agentEmail: context.agentEmail,
+        ipAddress: context.ipAddress,
+      })
+    } catch (emailError) {
+      // Log but don't fail - the sever operation completed successfully
+      console.error('Failed to send safety resource email:', emailError)
+    }
 
     return {
       success: true,

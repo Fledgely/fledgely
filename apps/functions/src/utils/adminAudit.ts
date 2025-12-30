@@ -29,6 +29,7 @@ const db = getFirestore()
  * Story 0.5.6: Location Feature Emergency Disable (added disable_location_features_for_safety)
  * Story 0.5.7: 72-Hour Notification Stealth (added activate_stealth_window, cleanup_stealth_queue)
  * Story 0.5.8: Audit Trail Sealing (added seal_audit_entries, access_sealed_audit)
+ * Story 0.5.9: Domestic Abuse Resource Referral (added send_safety_resource_email)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -48,6 +49,7 @@ export type AdminAuditAction =
   | 'cleanup_stealth_queue' // Story 0.5.7
   | 'seal_audit_entries' // Story 0.5.8
   | 'access_sealed_audit' // Story 0.5.8
+  | 'send_safety_resource_email' // Story 0.5.9
 
 /**
  * Resource types for admin audit logging.
@@ -58,6 +60,7 @@ export type AdminAuditAction =
  * Story 0.5.6: Location Feature Emergency Disable (added location_settings)
  * Story 0.5.7: 72-Hour Notification Stealth (added stealth_window)
  * Story 0.5.8: Audit Trail Sealing (added sealed_audit)
+ * Story 0.5.9: Domestic Abuse Resource Referral (added safety_resource_email)
  */
 export type AdminAuditResourceType =
   | 'safety_ticket'
@@ -68,6 +71,7 @@ export type AdminAuditResourceType =
   | 'location_settings' // Story 0.5.6
   | 'stealth_window' // Story 0.5.7
   | 'sealed_audit' // Story 0.5.8
+  | 'safety_resource_email' // Story 0.5.9
 
 /**
  * Admin audit log entry structure.
