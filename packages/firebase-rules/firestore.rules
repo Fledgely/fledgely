@@ -529,6 +529,46 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // STORY 6.3 & 6.5: ACTIVE AGREEMENTS
+    // Story 6.3: Agreement Activation
+    // Story 6.5: Device Consent Gate
+    // =========================================================================
+    //
+    // SECURITY DESIGN:
+    // Active agreements control whether device monitoring is allowed.
+    // Only guardians of the family can view their active agreements.
+    // Write operations are controlled via Cloud Functions (Admin SDK).
+    //
+    // Key rules:
+    // - Guardians can read active agreements for their family
+    // - Only Cloud Functions can create/update (prevents manipulation)
+    // - Device consent checks go through Cloud Function (Admin SDK)
+    //
+    match /activeAgreements/{agreementId} {
+      // Helper: Check if user is a guardian of the family
+      function isActiveAgreementGuardian() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardianUids;
+      }
+
+      // Read: Family guardians can view their active agreements
+      // DATA SYMMETRY: Both co-parents see same agreements
+      allow read: if isActiveAgreementGuardian();
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // This ensures proper validation and workflow enforcement
+      allow create: if false;
+
+      // Update: Only Cloud Functions can update (via Admin SDK)
+      // Status changes (active -> archived) are controlled by workflow
+      allow update: if false;
+
+      // Delete: Not allowed (agreements are archived, not deleted)
+      allow delete: if false;
+    }
+
+    // =========================================================================
     // EPIC 0.5: SAFE ACCOUNT ESCAPE
     // Story 0.5.1: Secure Safety Contact Channel
     // =========================================================================

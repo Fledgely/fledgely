@@ -31,9 +31,15 @@ export interface DeviceHealthMetrics {
 }
 
 /**
+ * Story 6.5: Consent status for device
+ */
+export type DeviceConsentStatus = 'pending' | 'granted' | 'withdrawn'
+
+/**
  * Device document from Firestore
  * Story 19.3 Task 2.1: Added lastScreenshotAt field
  * Story 19.4: Added healthMetrics field
+ * Story 6.5: Added consent status fields
  */
 export interface Device {
   deviceId: string
@@ -51,6 +57,10 @@ export interface Device {
     enrollmentRequestId: string
   }
   healthMetrics?: DeviceHealthMetrics // Story 19.4: Health metrics from extension
+  // Story 6.5: Consent status from extension
+  consentStatus?: DeviceConsentStatus
+  activeAgreementId?: string | null
+  activeAgreementVersion?: string | null
 }
 
 interface UseDevicesOptions {
@@ -137,6 +147,10 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
               enrollmentRequestId: '',
             },
             healthMetrics, // Story 19.4
+            // Story 6.5: Consent status from device
+            consentStatus: data.consentStatus as DeviceConsentStatus | undefined,
+            activeAgreementId: data.activeAgreementId ?? null,
+            activeAgreementVersion: data.activeAgreementVersion ?? null,
           })
         })
 

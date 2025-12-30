@@ -1,12 +1,13 @@
 'use client'
 
 /**
- * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6, 19.1, 19.2
+ * DevicesList Component - Story 12.4, 12.5, 12.6, 13.2, 13.6, 19.1, 19.2, 6.5
  *
  * Displays the list of enrolled devices for a family with child assignment and removal.
  * Uses real-time Firestore listener via useDevices hook.
  * Story 19.1: Groups devices by assigned child with section headers.
  * Story 19.2: Visual health status indicators based on last sync time.
+ * Story 6.5: Consent pending badge for devices awaiting signed agreement.
  *
  * Requirements:
  * - AC5 (12.4): Dashboard device list refresh
@@ -19,6 +20,7 @@
  * - AC1-5 (13.6): Reset emergency codes with confirmation and re-auth
  * - AC1-6 (19.1): Device list grouped by child
  * - AC1-7 (19.2): Device health status indicators with tooltip
+ * - AC4 (6.5): Dashboard shows consent pending devices
  */
 
 import { useState, useCallback, useEffect } from 'react'
@@ -133,6 +135,19 @@ const styles = {
   },
   statusDotOffline: {
     backgroundColor: '#9ca3af',
+  },
+  // Story 6.5: Consent pending badge styles
+  consentBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '4px 8px',
+    borderRadius: '9999px',
+    fontSize: '11px',
+    fontWeight: 500,
+    backgroundColor: '#fef3c7',
+    color: '#92400e',
+    marginRight: '8px',
+    gap: '4px',
   },
   // Story 19.2: Tooltip styles
   tooltipContainer: {
@@ -1183,6 +1198,18 @@ export function DevicesList({ familyId }: DevicesListProps) {
           isUpdating={updatingDevices.has(device.deviceId)}
           error={deviceErrors[device.deviceId] || null}
         />
+        {/* Story 6.5: Consent pending badge */}
+        {device.consentStatus === 'pending' && (
+          <span
+            style={styles.consentBadge}
+            title="A signed Family Agreement is required before monitoring can begin"
+          >
+            <span role="img" aria-label="Needs agreement">
+              📝
+            </span>
+            Needs Agreement
+          </span>
+        )}
         <StatusBadge
           device={device}
           onClick={(dev) => {

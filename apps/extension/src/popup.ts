@@ -87,6 +87,17 @@ const lastSyncTime = document.getElementById('last-sync-time')!
 const changeChildBtn = document.getElementById('change-child-btn') as HTMLButtonElement
 const signOutBtn2 = document.getElementById('sign-out-btn-2') as HTMLButtonElement
 
+// Story 6.5: DOM Elements - Consent Pending State
+const stateConsentPending = document.getElementById('state-consent-pending')!
+const consentPendingChildAvatar = document.getElementById('consent-pending-child-avatar')!
+const consentPendingChildName = document.getElementById('consent-pending-child-name')!
+const refreshConsentBtn = document.getElementById('refresh-consent-btn') as HTMLButtonElement
+const refreshConsentText = document.getElementById('refresh-consent-text')!
+const refreshConsentSpinner = document.getElementById('refresh-consent-spinner')!
+const consentPendingChangeChild = document.getElementById(
+  'consent-pending-change-child'
+) as HTMLButtonElement
+
 /**
  * Hide all state sections
  */
@@ -96,6 +107,73 @@ function hideAllStates(): void {
   stateNotAuth.classList.add('hidden')
   stateAuthNoChild.classList.add('hidden')
   stateAuthConnected.classList.add('hidden')
+  stateConsentPending.classList.add('hidden') // Story 6.5
+}
+
+/**
+ * Story 6.5: Get consent status from background
+ */
+interface ConsentStatusResponse {
+  consentStatus: 'pending' | 'granted' | 'withdrawn' | null
+  activeAgreementId: string | null
+  activeAgreementVersion: string | null
+  childId: string | null
+  monitoringEnabled: boolean
+}
+
+async function getConsentStatus(): Promise<ConsentStatusResponse> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'GET_CONSENT_STATUS' }, (response) => {
+      resolve({
+        consentStatus: response?.consentStatus || null,
+        activeAgreementId: response?.activeAgreementId || null,
+        activeAgreementVersion: response?.activeAgreementVersion || null,
+        childId: response?.childId || null,
+        monitoringEnabled: response?.monitoringEnabled || false,
+      })
+    })
+  })
+}
+
+/**
+ * Story 6.5: Refresh consent status from server
+ */
+async function refreshConsentStatus(): Promise<void> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'REFRESH_CONSENT_STATUS' }, () => {
+      resolve()
+    })
+  })
+}
+
+/**
+ * Story 6.5: Set refresh consent button loading state
+ */
+function setRefreshConsentLoading(loading: boolean): void {
+  refreshConsentBtn.disabled = loading
+  if (loading) {
+    refreshConsentText.classList.add('hidden')
+    refreshConsentSpinner.classList.remove('hidden')
+  } else {
+    refreshConsentText.classList.remove('hidden')
+    refreshConsentSpinner.classList.add('hidden')
+  }
+}
+
+/**
+ * Story 6.5: Handle refresh consent button click
+ */
+async function handleRefreshConsent(): Promise<void> {
+  setRefreshConsentLoading(true)
+  try {
+    await refreshConsentStatus()
+    // Re-check UI state after refresh
+    await updateUI(await getAuthState())
+  } catch (error) {
+    console.error('[Fledgely Popup] Consent refresh error:', error)
+  } finally {
+    setRefreshConsentLoading(false)
+  }
 }
 
 /**
@@ -570,15 +648,36 @@ async function updateUI(authState: AuthState): Promise<void> {
     stateNotAuth.classList.remove('hidden')
     hideError()
   } else if (connectedChild) {
-    // Authenticated and connected to child
-    stateAuthConnected.classList.remove('hidden')
+    // Story 6.5: Check consent status before showing monitoring active
+    const consentStatus = await getConsentStatus()
 
-    connectedChildAvatar.style.background = connectedChild.color
-    connectedChildAvatar.textContent = connectedChild.name[0]
-    connectedChildName.textContent = connectedChild.name
+    if (consentStatus.consentStatus === 'pending' || consentStatus.consentStatus === 'withdrawn') {
+      // Story 6.5 AC3: Show consent pending state
+      stateConsentPending.classList.remove('hidden')
 
-    // Update last sync time
-    await updateLastSyncDisplay()
+      // Update child info in consent pending view
+      consentPendingChildAvatar.style.background = connectedChild.color
+      consentPendingChildAvatar.textContent = connectedChild.name[0]
+      consentPendingChildName.textContent = connectedChild.name
+    } else if (consentStatus.consentStatus === 'granted') {
+      // Authenticated and connected to child with consent granted
+      stateAuthConnected.classList.remove('hidden')
+
+      connectedChildAvatar.style.background = connectedChild.color
+      connectedChildAvatar.textContent = connectedChild.name[0]
+      connectedChildName.textContent = connectedChild.name
+
+      // Update last sync time
+      await updateLastSyncDisplay()
+    } else {
+      // Consent status not yet determined - show consent pending as default for safety
+      // Story 6.5 AC2: No monitoring without consent
+      stateConsentPending.classList.remove('hidden')
+
+      consentPendingChildAvatar.style.background = connectedChild.color
+      consentPendingChildAvatar.textContent = connectedChild.name[0]
+      consentPendingChildName.textContent = connectedChild.name
+    }
   } else {
     // Authenticated but no child selected
     stateAuthNoChild.classList.remove('hidden')
@@ -700,6 +799,10 @@ async function init(): Promise<void> {
   signOutBtn2.addEventListener('click', handleSignOut)
   connectBtn.addEventListener('click', connectToChild)
   changeChildBtn.addEventListener('click', disconnectChild)
+
+  // Story 6.5: Set up event listeners - Consent Pending
+  refreshConsentBtn.addEventListener('click', handleRefreshConsent)
+  consentPendingChangeChild.addEventListener('click', disconnectChild)
 }
 
 // Run on load

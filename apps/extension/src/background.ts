@@ -34,6 +34,11 @@ import {
 import { validateEnrollmentState, isEnrolled } from './enrollment-state'
 import { verifyDeviceEnrollment } from './enrollment-service'
 import { setupHealthSyncAlarm } from './health-metrics'
+import {
+  checkConsentStatusWithCache,
+  clearConsentCache,
+  shouldEnableMonitoring,
+} from './consent-gate'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -85,6 +90,10 @@ function xorDecrypt(hexData: string, key: string): string {
 const ALARM_SCREENSHOT_CAPTURE = 'screenshot-capture'
 const ALARM_SYNC_QUEUE = 'sync-queue'
 const ALARM_ALLOWLIST_SYNC = 'allowlist-sync' // Story 11.2
+const ALARM_CONSENT_CHECK = 'consent-check' // Story 6.5: Periodic consent verification
+
+// Consent check interval (15 minutes)
+const CONSENT_CHECK_INTERVAL_MINUTES = 15
 
 // Allowlist sync interval (24 hours)
 const ALLOWLIST_SYNC_INTERVAL_HOURS = 24
@@ -163,6 +172,10 @@ interface ExtensionState {
   deviceId: string | null // Story 12.4: Registered device ID
   // Story 13.1: TOTP secret for offline emergency unlock
   totpSecret: string | null // Base32 encoded secret (XOR encrypted with deviceId)
+  // Story 6.5: Device Consent Gate - consent status tracking
+  consentStatus: 'pending' | 'granted' | 'withdrawn' | null
+  activeAgreementId: string | null
+  activeAgreementVersion: string | null
 }
 
 const DEFAULT_STATE: ExtensionState = {
@@ -180,6 +193,10 @@ const DEFAULT_STATE: ExtensionState = {
   pendingEnrollment: null, // Story 12.2: No pending enrollment initially
   deviceId: null, // Story 12.4: No device ID initially
   totpSecret: null, // Story 13.1: No TOTP secret initially
+  // Story 6.5: Device Consent Gate
+  consentStatus: null, // Not checked yet
+  activeAgreementId: null,
+  activeAgreementVersion: null,
 }
 
 /**
@@ -240,6 +257,120 @@ async function stopMonitoringAlarms(): Promise<void> {
   await chrome.alarms.clear(ALARM_SCREENSHOT_CAPTURE)
   await chrome.alarms.clear(ALARM_SYNC_QUEUE)
   console.log('[Fledgely] Monitoring alarms cleared')
+}
+
+/**
+ * Setup consent check alarm for periodic verification
+ * Story 6.5: Device Consent Gate - AC1
+ *
+ * Consent is checked periodically to detect:
+ * - Agreement becoming active (start monitoring)
+ * - Agreement being revoked (stop monitoring)
+ */
+async function setupConsentCheckAlarm(): Promise<void> {
+  await chrome.alarms.clear(ALARM_CONSENT_CHECK)
+  await chrome.alarms.create(ALARM_CONSENT_CHECK, {
+    delayInMinutes: 1, // First check after 1 minute
+    periodInMinutes: CONSENT_CHECK_INTERVAL_MINUTES,
+  })
+  console.log(
+    `[Fledgely] Consent check alarm created (${CONSENT_CHECK_INTERVAL_MINUTES}min interval)`
+  )
+}
+
+/**
+ * Clear consent check alarm
+ */
+async function clearConsentCheckAlarm(): Promise<void> {
+  await chrome.alarms.clear(ALARM_CONSENT_CHECK)
+}
+
+/**
+ * Check consent status and update monitoring state accordingly.
+ *
+ * Story 6.5: Device Consent Gate
+ * - AC1: Check happens on startup and periodically
+ * - AC2: No agreement = no monitoring
+ * - AC6: Automatic monitoring start when consent granted
+ *
+ * @param forceRefresh - Skip cache and fetch from server
+ */
+async function checkAndUpdateConsentStatus(forceRefresh = false): Promise<void> {
+  const { state } = await chrome.storage.local.get('state')
+  const currentState = state || DEFAULT_STATE
+
+  // Only check consent if device is enrolled with a child
+  if (
+    currentState.enrollmentState !== 'enrolled' ||
+    !currentState.familyId ||
+    !currentState.childId ||
+    !currentState.deviceId
+  ) {
+    console.log('[Fledgely] Consent check skipped - device not fully enrolled')
+    return
+  }
+
+  const result = await checkConsentStatusWithCache(
+    currentState.childId,
+    currentState.familyId,
+    currentState.deviceId,
+    forceRefresh
+  )
+
+  if (!result.success) {
+    console.warn('[Fledgely] Consent check failed:', result.error)
+    // On error, preserve current state (offline-first approach)
+    return
+  }
+
+  const consentStatus = result.status
+
+  // Check if consent status changed
+  const previousConsentStatus = currentState.consentStatus
+  const newConsentStatus = consentStatus.consentStatus
+  const consentChanged = previousConsentStatus !== newConsentStatus
+
+  // Update state with new consent info
+  const newState: ExtensionState = {
+    ...currentState,
+    consentStatus: newConsentStatus,
+    activeAgreementId: consentStatus.agreementId,
+    activeAgreementVersion: consentStatus.agreementVersion,
+  }
+
+  if (consentChanged) {
+    console.log(
+      `[Fledgely] Consent status changed: ${previousConsentStatus} -> ${newConsentStatus}`
+    )
+
+    if (shouldEnableMonitoring(consentStatus)) {
+      // Story 6.5 AC6: Consent granted - start monitoring automatically
+      console.log('[Fledgely] Consent granted - enabling monitoring')
+      newState.monitoringEnabled = true
+      await chrome.storage.local.set({ state: newState })
+      await updateActionTitle(newState)
+      await startMonitoringAlarms(newState.captureIntervalMinutes, newState.idleThresholdSeconds)
+    } else {
+      // Story 6.5 AC2: No consent - stop monitoring
+      console.log('[Fledgely] Consent not granted - disabling monitoring')
+      newState.monitoringEnabled = false
+      await chrome.storage.local.set({ state: newState })
+      await updateActionTitle(newState)
+      await stopMonitoringAlarms()
+    }
+  } else {
+    // No change, just update state
+    await chrome.storage.local.set({ state: newState })
+  }
+}
+
+/**
+ * Handle consent check alarm trigger
+ * Story 6.5: Device Consent Gate - AC1
+ */
+async function handleConsentCheckAlarm(): Promise<void> {
+  console.log('[Fledgely] Consent check alarm triggered')
+  await checkAndUpdateConsentStatus(false) // Use cache when available
 }
 
 /**
@@ -795,13 +926,33 @@ chrome.runtime.onStartup.addListener(async () => {
   // Update toolbar with current state
   await updateActionTitle(state || DEFAULT_STATE)
 
-  if (state?.isAuthenticated && state?.monitoringEnabled && state?.childId) {
-    // Resume monitoring alarms if they were active
-    console.log('[Fledgely] Resuming monitoring for child:', state.childId)
+  // Story 6.5: Set up consent check alarm for enrolled devices
+  if (isEnrolled(enrollmentValidation) && enrollmentValidation.childId) {
+    await setupConsentCheckAlarm()
+
+    // Story 6.5 AC1: Check consent on startup (force refresh to get latest)
+    console.log('[Fledgely] Checking consent status on startup')
+    await checkAndUpdateConsentStatus(true)
+  }
+
+  // Story 6.5: Only resume monitoring if consent is granted
+  // The checkAndUpdateConsentStatus call above will handle starting monitoring if consent is valid
+  // We no longer auto-start based on monitoringEnabled flag alone
+  const updatedState = (await chrome.storage.local.get('state')).state || DEFAULT_STATE
+  if (
+    updatedState?.isAuthenticated &&
+    updatedState?.monitoringEnabled &&
+    updatedState?.childId &&
+    updatedState?.consentStatus === 'granted'
+  ) {
+    // Resume monitoring alarms if they were active AND consent is granted
+    console.log('[Fledgely] Resuming monitoring for child (consent granted):', updatedState.childId)
     await startMonitoringAlarms(
-      state.captureIntervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES,
-      state.idleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS
+      updatedState.captureIntervalMinutes || DEFAULT_CAPTURE_INTERVAL_MINUTES,
+      updatedState.idleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS
     )
+  } else if (updatedState?.monitoringEnabled && updatedState?.consentStatus !== 'granted') {
+    console.log('[Fledgely] Monitoring was enabled but consent not granted - waiting for consent')
   }
 })
 
@@ -837,18 +988,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
 
     case 'CHILD_CONNECTED':
-      // Update state when child is connected and start monitoring alarms
+      // Update state when child is connected
+      // Story 6.5: Do NOT start monitoring immediately - check consent first
       chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
         const newState: ExtensionState = {
-          ...(state || DEFAULT_STATE),
+          ...currentState,
           childId: message.childId,
-          monitoringEnabled: true,
+          // Story 6.5 AC2: Don't enable monitoring until consent is verified
+          monitoringEnabled: false, // Will be set to true by checkAndUpdateConsentStatus if consent granted
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
 
-        // Start monitoring alarms for screenshot capture and sync
-        await startMonitoringAlarms(newState.captureIntervalMinutes, newState.idleThresholdSeconds)
+        // Story 6.5: Set up consent check alarm and check consent now
+        await setupConsentCheckAlarm()
+
+        // Force refresh to get latest consent status
+        await checkAndUpdateConsentStatus(true)
 
         console.log('[Fledgely] Connected to child:', message.childName)
         sendResponse({ success: true })
@@ -862,12 +1019,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           ...(state || DEFAULT_STATE),
           childId: null,
           monitoringEnabled: false,
+          // Story 6.5: Clear consent status when child disconnected
+          consentStatus: null,
+          activeAgreementId: null,
+          activeAgreementVersion: null,
         }
         await chrome.storage.local.set({ state: newState })
         await updateActionTitle(newState)
 
         // Stop monitoring alarms
         await stopMonitoringAlarms()
+
+        // Story 6.5: Clear consent check alarm and cache
+        await clearConsentCheckAlarm()
+        await clearConsentCache()
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
@@ -1054,6 +1219,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'GET_CONSENT_STATUS':
+      // Get current consent status
+      // Story 6.5: Device Consent Gate - AC3 consent status for popup
+      chrome.storage.local.get('state').then(({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        sendResponse({
+          consentStatus: currentState.consentStatus,
+          activeAgreementId: currentState.activeAgreementId,
+          activeAgreementVersion: currentState.activeAgreementVersion,
+          childId: currentState.childId,
+          monitoringEnabled: currentState.monitoringEnabled,
+        })
+      })
+      return true
+
+    case 'REFRESH_CONSENT_STATUS':
+      // Force refresh consent status from server
+      // Story 6.5: Device Consent Gate - AC6 manual refresh option
+      checkAndUpdateConsentStatus(true)
+        .then(() => chrome.storage.local.get('state'))
+        .then(({ state }) => {
+          const currentState = state || DEFAULT_STATE
+          sendResponse({
+            success: true,
+            consentStatus: currentState.consentStatus,
+            activeAgreementId: currentState.activeAgreementId,
+            activeAgreementVersion: currentState.activeAgreementVersion,
+            monitoringEnabled: currentState.monitoringEnabled,
+          })
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
     case 'UPDATE_ENROLLMENT_REQUEST':
       // Update pending enrollment with request ID after submission
       // Story 12.3: Device-to-Device Enrollment Approval - AC1 request tracking
@@ -1230,10 +1430,24 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return
   }
 
+  // Story 6.5: Consent check runs regardless of monitoring state
+  // (it controls whether monitoring should be enabled/disabled)
+  if (alarm.name === ALARM_CONSENT_CHECK) {
+    await handleConsentCheckAlarm()
+    return
+  }
+
   // Check if monitoring is still enabled before processing capture/upload alarms
   const { state } = await chrome.storage.local.get('state')
   if (!state?.monitoringEnabled) {
     console.log('[Fledgely] Monitoring disabled, ignoring alarm')
+    return
+  }
+
+  // Story 6.5 AC2: Double-check consent before any capture
+  // This is a safety net - consent should already be checked periodically
+  if (state?.consentStatus !== 'granted') {
+    console.log('[Fledgely] Consent not granted, skipping capture')
     return
   }
 

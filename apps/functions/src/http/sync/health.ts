@@ -33,12 +33,21 @@ interface DeviceHealthMetrics {
 }
 
 /**
+ * Story 6.5: Consent status for device
+ */
+type ConsentStatus = 'pending' | 'granted' | 'withdrawn'
+
+/**
  * Request body from extension
  */
 interface SyncHealthRequest {
   deviceId: string
   familyId: string
   metrics: DeviceHealthMetrics
+  // Story 6.5: Optional consent status from extension
+  consentStatus?: ConsentStatus
+  activeAgreementId?: string | null
+  activeAgreementVersion?: string | null
 }
 
 /**
@@ -80,7 +89,14 @@ export const syncDeviceHealth = onRequest(
       return
     }
 
-    const { deviceId, familyId, metrics } = req.body
+    const {
+      deviceId,
+      familyId,
+      metrics,
+      consentStatus,
+      activeAgreementId,
+      activeAgreementVersion,
+    } = req.body
 
     try {
       // Verify device exists in family
@@ -92,14 +108,29 @@ export const syncDeviceHealth = onRequest(
         return
       }
 
-      // Update device with health metrics
-      await deviceRef.update({
+      // Build update object
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: Record<string, any> = {
         healthMetrics: {
           ...metrics,
           lastHealthSync: FieldValue.serverTimestamp(),
         },
         lastSeen: FieldValue.serverTimestamp(),
-      })
+      }
+
+      // Story 6.5: Include consent status if provided
+      if (consentStatus) {
+        updateData.consentStatus = consentStatus
+      }
+      if (activeAgreementId !== undefined) {
+        updateData.activeAgreementId = activeAgreementId
+      }
+      if (activeAgreementVersion !== undefined) {
+        updateData.activeAgreementVersion = activeAgreementVersion
+      }
+
+      // Update device with health metrics and consent status
+      await deviceRef.update(updateData)
 
       res.status(200).json({ success: true })
     } catch (error) {

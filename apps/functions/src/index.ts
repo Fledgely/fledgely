@@ -72,3 +72,4 @@ export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 // Export HTTP functions
 export { uploadScreenshot, syncDeviceHealth } from './http/sync'
 export { viewScreenshot } from './http/screenshots'
+export { checkConsentStatus } from './http/consent'

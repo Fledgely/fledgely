@@ -444,6 +444,86 @@
       .scanner-status.success {
         color: #22c55e;
       }
+
+      /* Story 6.5: Consent Pending Styles */
+      .status-consent-pending {
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        color: #92400e;
+      }
+      .status-consent-pending .status-dot {
+        background: #f59e0b;
+        animation: pulse 2s infinite;
+      }
+      .consent-pending-info {
+        background: #fffbeb;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        text-align: left;
+      }
+      .consent-pending-title {
+        font-weight: 600;
+        color: #92400e;
+        font-size: 14px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .consent-pending-title-icon {
+        font-size: 18px;
+      }
+      .consent-pending-text {
+        font-size: 13px;
+        color: #78350f;
+        line-height: 1.5;
+      }
+      .consent-pending-steps {
+        margin-top: 12px;
+        padding-left: 8px;
+      }
+      .consent-pending-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        color: #78350f;
+        margin-bottom: 6px;
+      }
+      .consent-pending-step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        background: #fbbf24;
+        color: #78350f;
+        font-weight: 600;
+        font-size: 11px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .device-functional-note {
+        background: #ecfdf5;
+        border: 1px solid #34d399;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .device-functional-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .device-functional-text {
+        font-size: 13px;
+        color: #065f46;
+        line-height: 1.4;
+      }
     </style>
   </head>
   <body>
@@ -521,6 +601,72 @@
           aria-label="Cancel enrollment"
         >
           Cancel
+        </button>
+      </div>
+
+      <!-- Story 6.5: Consent Pending State -->
+      <div id="state-consent-pending" class="hidden">
+        <div class="status status-consent-pending">
+          <span class="status-dot"></span>
+          Waiting for Agreement
+        </div>
+
+        <div class="connected-child">
+          <div class="child-avatar" id="consent-pending-child-avatar" style="background: #f59e0b" aria-hidden="true">?</div>
+          <div class="child-details">
+            <div class="connected-label">Device for</div>
+            <div class="child-name" id="consent-pending-child-name">Child Name</div>
+          </div>
+        </div>
+
+        <div class="consent-pending-info" role="region" aria-labelledby="consent-pending-heading">
+          <div class="consent-pending-title" id="consent-pending-heading">
+            <span class="consent-pending-title-icon" aria-hidden="true">📝</span>
+            Waiting for Family Agreement
+          </div>
+          <p class="consent-pending-text">
+            Before monitoring can start, your family needs to complete and sign a family agreement together.
+          </p>
+          <div class="consent-pending-steps">
+            <div class="consent-pending-step">
+              <span class="consent-pending-step-number">1</span>
+              <span>Your parent creates an agreement on the dashboard</span>
+            </div>
+            <div class="consent-pending-step">
+              <span class="consent-pending-step-number">2</span>
+              <span>You work together to set fair rules</span>
+            </div>
+            <div class="consent-pending-step">
+              <span class="consent-pending-step-number">3</span>
+              <span>Everyone signs to agree</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="device-functional-note" role="note">
+          <span class="device-functional-icon" aria-hidden="true">✅</span>
+          <span class="device-functional-text">
+            Your device works normally. Only monitoring is waiting for the agreement.
+          </span>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          id="refresh-consent-btn"
+          aria-label="Check if agreement is ready"
+        >
+          <span id="refresh-consent-text">Check for Agreement</span>
+          <span id="refresh-consent-spinner" class="spinner hidden"></span>
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-link"
+          id="consent-pending-change-child"
+          aria-label="Switch to different child"
+        >
+          Switch Child
         </button>
       </div>
 

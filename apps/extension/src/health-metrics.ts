@@ -135,6 +135,31 @@ export async function syncHealthMetrics(): Promise<boolean> {
 
     const metrics = await collectHealthMetrics()
 
+    // Story 6.5: Build request body with consent status
+    const requestBody: {
+      deviceId: string
+      familyId: string
+      metrics: DeviceHealthMetrics
+      consentStatus?: 'pending' | 'granted' | 'withdrawn'
+      activeAgreementId?: string | null
+      activeAgreementVersion?: string | null
+    } = {
+      deviceId: state.deviceId,
+      familyId: state.familyId,
+      metrics,
+    }
+
+    // Story 6.5: Include consent status if available
+    if (state.consentStatus) {
+      requestBody.consentStatus = state.consentStatus
+    }
+    if (state.activeAgreementId !== undefined) {
+      requestBody.activeAgreementId = state.activeAgreementId
+    }
+    if (state.activeAgreementVersion !== undefined) {
+      requestBody.activeAgreementVersion = state.activeAgreementVersion
+    }
+
     // Use the sync endpoint
     const response = await fetch(
       'https://us-central1-fledgely-cns-me.cloudfunctions.net/syncDeviceHealth',
@@ -143,11 +168,7 @@ export async function syncHealthMetrics(): Promise<boolean> {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          deviceId: state.deviceId,
-          familyId: state.familyId,
-          metrics,
-        }),
+        body: JSON.stringify(requestBody),
       }
     )
 

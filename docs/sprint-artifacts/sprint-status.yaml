@@ -101,7 +101,7 @@ development_status:
   3a-2-safety-settings-two-parent-approval: done
   3a-3-agreement-changes-two-parent-approval: blocked # Depends on Epic 5/6 (agreements)
   3a-4-safety-rule-48-hour-cooling-period: done
-  3a-5-screenshot-viewing-rate-alert: blocked # Depends on Epic 10/15 (screenshots)
+  3a-5-screenshot-viewing-rate-alert: done # Implemented as part of Story 18.6
   3a-6-co-parent-removal-prevention: blocked # Security rules done in 3.4, UI blocked pending agreements
   epic-3a-retrospective: done
 
@@ -133,7 +133,7 @@ development_status:
   6-2-parent-digital-signature: done
   6-3-agreement-activation: done
   6-4-signing-ceremony-celebration: done
-  6-5-device-consent-gate: blocked # Depends on Epic 9+ (device enrollment)
+  6-5-device-consent-gate: done
   6-6-consent-withdrawal-handling: blocked # Depends on Epic 9+ (device enrollment)
   6-7-signature-accessibility: done
   epic-6-retrospective: done
@@ -300,7 +300,7 @@ development_status:
   epic-18-retrospective: done
 
   # Epic 19: Device Status & Monitoring Health
-  epic-19: in-progress
+  epic-19: done
   19-1-device-list-view: done
   19-2-device-status-indicators: done
   19-3-last-sync-timestamp-display: done
