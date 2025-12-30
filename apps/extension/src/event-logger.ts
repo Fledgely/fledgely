@@ -24,6 +24,7 @@ export type CaptureEventType =
   | 'idle_resume'
   | 'queue_overflow'
   | 'retry_exhausted'
+  | 'vpn_detected' // Story 8.7: VPN Detection Transparency
 
 /**
  * Capture event interface for logging
@@ -65,6 +66,9 @@ export const ERROR_CODES = {
   MAX_RETRIES_EXCEEDED: 'E009_MAX_RETRIES',
   CRISIS_URL_PROTECTED: 'E010_CRISIS_PROTECTED', // Story 11.1: Zero data path
   ALLOWLIST_CHECK_ERROR: 'E011_ALLOWLIST_ERROR', // Story 11.1: Fail-safe triggered
+  VPN_DETECTED_HIGH: 'E012_VPN_HIGH_CONFIDENCE', // Story 8.7: VPN Detection
+  VPN_DETECTED_MEDIUM: 'E013_VPN_MEDIUM_CONFIDENCE', // Story 8.7: VPN Detection
+  VPN_DETECTED_LOW: 'E014_VPN_LOW_CONFIDENCE', // Story 8.7: VPN Detection
 } as const
 
 /**

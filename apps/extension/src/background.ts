@@ -42,6 +42,7 @@ import {
 import { isCrisisSearch, getRelevantResources } from './crisis-keywords'
 import { extractSearchQuery } from './search-detector'
 import { getOrGenerateSchedule, isInPrivacyGap, clearSchedule } from './privacy-gaps'
+import { checkAndUpdateVpnStatus, clearVpnState } from './vpn-detection'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -171,6 +172,7 @@ interface ExtensionState {
   showProtectedIndicator: boolean // Story 11.3: Optional visual indicator
   decoyModeEnabled: boolean // Story 11.5: Generate decoys for crisis sites
   privacyGapsEnabled: boolean // Story 7.8: Random screenshot gaps for privacy
+  vpnDetected: boolean // Story 8.7: VPN Detection Transparency
   enrollmentState: EnrollmentState // Story 12.2: Device enrollment status
   pendingEnrollment: EnrollmentPending | null // Story 12.2: Pending enrollment data
   deviceId: string | null // Story 12.4: Registered device ID
@@ -194,6 +196,7 @@ const DEFAULT_STATE: ExtensionState = {
   showProtectedIndicator: true, // Story 11.3: Default to showing indicator
   decoyModeEnabled: false, // Story 11.5: Default to off (opt-in)
   privacyGapsEnabled: true, // Story 7.8: Default to enabled for privacy
+  vpnDetected: false, // Story 8.7: No VPN detected initially
   enrollmentState: 'not_enrolled', // Story 12.2: Device starts as not enrolled
   pendingEnrollment: null, // Story 12.2: No pending enrollment initially
   deviceId: null, // Story 12.4: No device ID initially
@@ -654,6 +657,32 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
     return
   }
 
+  // Story 8.7: VPN Detection Transparency
+  // Check for VPN and log if detected (non-blocking, continues capture)
+  try {
+    const vpnResult = await checkAndUpdateVpnStatus()
+    if (vpnResult && vpnResult.vpnDetected) {
+      // Update state
+      const newState: ExtensionState = { ...state, vpnDetected: true }
+      await chrome.storage.local.set({ state: newState })
+
+      // Log VPN detection event (informational only)
+      const vpnErrorCode =
+        vpnResult.confidence === 'high'
+          ? ERROR_CODES.VPN_DETECTED_HIGH
+          : vpnResult.confidence === 'medium'
+            ? ERROR_CODES.VPN_DETECTED_MEDIUM
+            : ERROR_CODES.VPN_DETECTED_LOW
+      await logCaptureEvent('vpn_detected', true, { errorCode: vpnErrorCode })
+    } else if (state.vpnDetected && vpnResult && !vpnResult.vpnDetected) {
+      // VPN was previously detected but now isn't - update state
+      const newState: ExtensionState = { ...state, vpnDetected: false }
+      await chrome.storage.local.set({ state: newState })
+    }
+  } catch {
+    // VPN detection failure is not critical - continue with capture
+  }
+
   const startTime = Date.now()
   const result = await captureScreenshot({ quality: 80 })
   const duration = Date.now() - startTime
@@ -1058,6 +1087,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Story 7.8: Clear privacy gap schedule
         await clearSchedule()
+
+        // Story 8.7: Clear VPN detection state
+        await clearVpnState()
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
