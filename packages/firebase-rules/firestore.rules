@@ -39,17 +39,18 @@ service cloud.firestore {
     }
 
     // Family documents: only guardians can access their family
+    // NOTE: Documents must include 'guardianUids' array (list of UID strings) for permission checks
     match /families/{familyId} {
       // Helper function to check if user is a guardian of this family
       function isGuardian() {
         return request.auth != null &&
-          request.auth.uid in resource.data.guardians[].uid;
+          request.auth.uid in resource.data.guardianUids;
       }
 
       // Helper function to check if user is creating themselves as guardian
       function isCreatingAsGuardian() {
         return request.auth != null &&
-          request.auth.uid in request.resource.data.guardians[].uid;
+          request.auth.uid in request.resource.data.guardianUids;
       }
 
       // Read: only guardians can read family data
@@ -89,7 +90,7 @@ service cloud.firestore {
         function isFamilyDeviceGuardian() {
           let family = get(/databases/$(database)/documents/families/$(familyId));
           return request.auth != null &&
-            request.auth.uid in family.data.guardians[].uid;
+            request.auth.uid in family.data.guardianUids;
         }
 
         // Read: Guardians can view enrolled devices
@@ -115,7 +116,7 @@ service cloud.firestore {
         function isEnrollmentTokenGuardian() {
           let family = get(/databases/$(database)/documents/families/$(familyId));
           return request.auth != null &&
-            request.auth.uid in family.data.guardians[].uid;
+            request.auth.uid in family.data.guardianUids;
         }
 
         // Read: Guardians can view their tokens
@@ -141,7 +142,7 @@ service cloud.firestore {
         function isEnrollmentRequestGuardian() {
           let family = get(/databases/$(database)/documents/families/$(familyId));
           return request.auth != null &&
-            request.auth.uid in family.data.guardians[].uid;
+            request.auth.uid in family.data.guardianUids;
         }
 
         // Read: Guardians can view enrollment requests
@@ -176,19 +177,19 @@ service cloud.firestore {
       // DATA SYMMETRY: All guardians in guardians[] have identical access
       function isChildGuardian() {
         return request.auth != null &&
-          request.auth.uid in resource.data.guardians[].uid;
+          request.auth.uid in resource.data.guardianUids;
       }
 
       // Helper function to check if user is creating themselves as guardian
       function isCreatingAsGuardian() {
         return request.auth != null &&
-          request.auth.uid in request.resource.data.guardians[].uid;
+          request.auth.uid in request.resource.data.guardianUids;
       }
 
       // Helper function to verify user is guardian of the family
       function isFamilyGuardian() {
         let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
-        return request.auth.uid in family.data.guardians[].uid;
+        return request.auth.uid in family.data.guardianUids;
       }
 
       // Read: only child guardians can read
@@ -223,7 +224,7 @@ service cloud.firestore {
         function isScreenshotChildGuardian() {
           let child = get(/databases/$(database)/documents/children/$(childId));
           return request.auth != null &&
-            request.auth.uid in child.data.guardians[].uid;
+            request.auth.uid in child.data.guardianUids;
         }
 
         // Read: Only child's guardians can view screenshots
@@ -251,7 +252,7 @@ service cloud.firestore {
         function isActivityChildGuardian() {
           let child = get(/databases/$(database)/documents/children/$(childId));
           return request.auth != null &&
-            request.auth.uid in child.data.guardians[].uid;
+            request.auth.uid in child.data.guardianUids;
         }
 
         // Read: Only child's guardians can view activity
@@ -278,7 +279,7 @@ service cloud.firestore {
         function isAgreementChildGuardian() {
           let child = get(/databases/$(database)/documents/children/$(childId));
           return request.auth != null &&
-            request.auth.uid in child.data.guardians[].uid;
+            request.auth.uid in child.data.guardianUids;
         }
 
         // Read: Guardians and the child themselves can read
@@ -305,7 +306,7 @@ service cloud.firestore {
         function isFlagChildGuardian() {
           let child = get(/databases/$(database)/documents/children/$(childId));
           return request.auth != null &&
-            request.auth.uid in child.data.guardians[].uid;
+            request.auth.uid in child.data.guardianUids;
         }
 
         // Read: Only child's guardians can view flags
@@ -331,7 +332,7 @@ service cloud.firestore {
         function isDeviceChildGuardian() {
           let child = get(/databases/$(database)/documents/children/$(childId));
           return request.auth != null &&
-            request.auth.uid in child.data.guardians[].uid;
+            request.auth.uid in child.data.guardianUids;
         }
 
         // Read: Guardians can view enrolled devices
@@ -360,7 +361,7 @@ service cloud.firestore {
       function isFamilyGuardian() {
         let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
         return request.auth != null &&
-          request.auth.uid in family.data.guardians[].uid;
+          request.auth.uid in family.data.guardianUids;
       }
 
       // Read: Allow public read for pending invitations (Story 3.3 - AC1)
@@ -397,14 +398,14 @@ service cloud.firestore {
       function isFamilyGuardianForAudit() {
         let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
         return request.auth != null &&
-          request.auth.uid in family.data.guardians[].uid;
+          request.auth.uid in family.data.guardianUids;
       }
 
       // Helper: Check if user is guardian of family for existing audit log
       function canReadFamilyAudit() {
         let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
         return request.auth != null &&
-          request.auth.uid in family.data.guardians[].uid;
+          request.auth.uid in family.data.guardianUids;
       }
 
       // Read: Family guardians can read audit logs for their family
@@ -443,14 +444,14 @@ service cloud.firestore {
       function isFamilyGuardianForCreate() {
         let family = get(/databases/$(database)/documents/families/$(request.resource.data.familyId));
         return request.auth != null &&
-          request.auth.uid in family.data.guardians[].uid;
+          request.auth.uid in family.data.guardianUids;
       }
 
       // Helper: Check if user is a guardian of the family for existing changes
       function isFamilyGuardian() {
         let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
         return request.auth != null &&
-          request.auth.uid in family.data.guardians[].uid;
+          request.auth.uid in family.data.guardianUids;
       }
 
       // Helper: Check if user is the OTHER guardian (not the proposer)

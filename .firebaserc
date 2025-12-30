@@ -1,13 +1,13 @@
 {
   "projects": {
-    "default": "fledgely",
-    "staging": "fledgely",
-    "production": "fledgely"
+    "default": "fledgely-cns-me",
+    "staging": "fledgely-cns-me",
+    "production": "fledgely-cns-me"
   },
   "targets": {
-    "fledgely": {
+    "fledgely-cns-me": {
       "hosting": {
-        "web": ["fledgely"]
+        "web": ["fledgely-cns-me"]
       }
     }
   }
