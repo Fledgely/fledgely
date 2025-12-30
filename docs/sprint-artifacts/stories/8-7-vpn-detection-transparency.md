@@ -106,50 +106,22 @@ Story 8.7 adds VPN detection to provide transparency about potential monitoring 
 
 1. **VPN Detection Module** (`apps/extension/src/vpn-detection.ts`):
 
+Uses WebRTC IP enumeration to detect VPN usage by checking for multiple private IP addresses (suggests VPN adapter) or IPs in typical VPN ranges (OpenVPN defaults: 10.8.x.x, 10.9.x.x).
+
 ```typescript
 export interface VpnDetectionResult {
   vpnDetected: boolean
   confidence: 'high' | 'medium' | 'low'
-  method: 'interface_name' | 'none'
+  method: 'webrtc_ip_mismatch' | 'known_vpn_ip' | 'connection_timing' | 'none'
   message: string
 }
 
-// Known VPN interface name patterns
-const VPN_INTERFACE_PATTERNS = [
-  'tun', // TUN device (OpenVPN, etc.)
-  'tap', // TAP device
-  'ppp', // Point-to-Point Protocol
-  'vpn', // Generic VPN
-  'wg', // WireGuard
-  'wireguard', // WireGuard full name
-  'utun', // macOS/iOS VPN
-  'ipsec', // IPsec VPN
-  'nordlynx', // NordVPN
-]
-
-export async function detectVpn(): Promise<VpnDetectionResult> {
-  try {
-    // Check for VPN network interface names
-    // Note: chrome.system.network requires "system.network" permission
-    // For extension context, we use a different approach
-
-    // In Chrome extension, we can check navigator.connection
-    // and look for signs of VPN usage
-
-    return {
-      vpnDetected: false,
-      confidence: 'high',
-      method: 'none',
-      message: 'No VPN detected',
-    }
-  } catch {
-    return {
-      vpnDetected: false,
-      confidence: 'low',
-      method: 'none',
-      message: 'Unable to check VPN status',
-    }
-  }
+// Non-accusatory messages
+const VPN_MESSAGES = {
+  detected: 'VPN detected - monitoring may be limited',
+  notDetected: 'No VPN detected',
+  checkFailed: 'Unable to check VPN status',
+  limitations: 'Some VPN types may not be detected',
 }
 ```
 
@@ -185,7 +157,7 @@ This limitation MUST be documented for parents.
 - NO traffic analysis
 - NO logging of VPN provider name
 - NO blocking of VPN usage
-- Detection uses only network interface characteristics
+- Detection uses only WebRTC IP enumeration (privacy-safe)
 
 ### Project Structure Notes
 
@@ -197,8 +169,8 @@ Files to create:
 Files to modify:
 
 - `apps/extension/src/background.ts` - Add VPN check to capture flow
-- `apps/extension/src/popup.tsx` - Add VPN indicator
 - `apps/extension/src/event-logger.ts` - Add VPN_DETECTED event type
+- `apps/extension/src/popup.tsx` - Add VPN indicator (deferred to Task 4.4)
 
 ### Previous Story Learnings
 
