@@ -314,7 +314,7 @@ development_status:
   # Epic 19A: Quick Status View (Focus Group)
   epic-19a: in-progress
   19a-1-family-status-summary-card: done
-  19a-2-per-child-status-row: backlog
+  19a-2-per-child-status-row: done
   19a-3-caregiver-quick-view: backlog
   19a-4-status-push-notifications: backlog
   19a-5-status-widget-mobile: backlog

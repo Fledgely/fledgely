@@ -49,8 +49,9 @@ export interface FamilyStatusResult {
 
 /**
  * Thresholds for status calculation
+ * Exported for reuse in useChildStatus
  */
-const THRESHOLDS = {
+export const THRESHOLDS = {
   /** Hours before a device is considered critically offline */
   OFFLINE_CRITICAL_HOURS: 24,
   /** Minutes before sync delay triggers a warning */
@@ -104,8 +105,9 @@ function getStatusMessage(
 
 /**
  * Calculate issues for a single device
+ * Exported for reuse in useChildStatus
  */
-function calculateDeviceIssues(device: Device): StatusIssue[] {
+export function calculateDeviceIssues(device: Device): StatusIssue[] {
   const issues: StatusIssue[] = []
   const now = Date.now()
 
@@ -193,8 +195,9 @@ function calculateDeviceIssues(device: Device): StatusIssue[] {
 
 /**
  * Calculate overall status from all issues
+ * Exported for reuse in useChildStatus
  */
-function calculateOverallStatus(issues: StatusIssue[]): FamilyStatus {
+export function calculateOverallStatus(issues: StatusIssue[]): FamilyStatus {
   if (issues.some((issue) => issue.type === 'critical')) {
     return 'action'
   }

@@ -1,5 +1,5 @@
 /**
- * FamilyStatusCard Component Tests - Story 19A.1
+ * FamilyStatusCard Component Tests - Story 19A.1 & 19A.2
  *
  * Tests for the Family Status Summary Card component.
  * Covers all acceptance criteria:
@@ -8,7 +8,7 @@
  * - AC3: Yellow "Needs Attention" state
  * - AC4: Red "Action Required" state
  * - AC5: Last update timestamp
- * - AC6: Tap to expand details
+ * - AC6: Tap to expand details (now shows ChildStatusList)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -16,9 +16,11 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { FamilyStatusCard } from './FamilyStatusCard'
 import * as useFamilyStatusModule from '../../hooks/useFamilyStatus'
 import * as useDevicesModule from '../../hooks/useDevices'
+import * as useChildStatusModule from '../../hooks/useChildStatus'
 
 // Mock the hooks
 vi.mock('../../hooks/useFamilyStatus')
+vi.mock('../../hooks/useChildStatus')
 vi.mock('../../hooks/useDevices', async () => {
   const actual = await vi.importActual<typeof useDevicesModule>('../../hooks/useDevices')
   return {
@@ -31,10 +33,18 @@ vi.mock('../../hooks/useDevices', async () => {
 })
 
 const mockUseFamilyStatus = vi.mocked(useFamilyStatusModule.useFamilyStatus)
+const mockUseChildStatus = vi.mocked(useChildStatusModule.useChildStatus)
 
 describe('FamilyStatusCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+
+    // Default mock for useChildStatus (used by ChildStatusList in expanded view)
+    mockUseChildStatus.mockReturnValue({
+      childStatuses: [],
+      loading: false,
+      error: null,
+    })
   })
 
   describe('AC1: Status card visibility', () => {
@@ -383,30 +393,34 @@ describe('FamilyStatusCard', () => {
   })
 
   describe('AC6: Tap to expand details', () => {
-    it('should expand on click to show details', () => {
+    it('should expand on click to show child status list', () => {
       mockUseFamilyStatus.mockReturnValue({
         status: 'attention',
         message: '2 items need attention',
         childCount: 1,
         deviceCount: 2,
         activeDeviceCount: 2,
-        issues: [
+        issues: [],
+        lastUpdated: new Date(),
+        loading: false,
+        error: null,
+      })
+
+      // Mock child status for expanded view
+      mockUseChildStatus.mockReturnValue({
+        childStatuses: [
           {
-            deviceId: 'dev-1',
-            deviceName: 'Chromebook',
             childId: 'child-1',
-            type: 'warning',
-            message: 'Chromebook sync delayed',
-          },
-          {
-            deviceId: 'dev-2',
-            deviceName: 'Tablet',
-            childId: 'child-1',
-            type: 'warning',
-            message: 'Tablet battery low',
+            childName: 'Emma',
+            photoURL: null,
+            status: 'attention',
+            deviceCount: 2,
+            activeDeviceCount: 2,
+            lastActivity: new Date(),
+            devices: [],
+            issues: [],
           },
         ],
-        lastUpdated: new Date(),
         loading: false,
         error: null,
       })
@@ -424,8 +438,9 @@ describe('FamilyStatusCard', () => {
 
       expect(card).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByTestId('status-details')).toBeInTheDocument()
-      expect(screen.getByText('Chromebook sync delayed')).toBeInTheDocument()
-      expect(screen.getByText('Tablet battery low')).toBeInTheDocument()
+      // Now shows ChildStatusList instead of issue messages
+      expect(screen.getByTestId('child-status-list')).toBeInTheDocument()
+      expect(screen.getByText('Emma')).toBeInTheDocument()
     })
 
     it('should collapse on second click', () => {
@@ -435,15 +450,7 @@ describe('FamilyStatusCard', () => {
         childCount: 1,
         deviceCount: 1,
         activeDeviceCount: 1,
-        issues: [
-          {
-            deviceId: 'dev-1',
-            deviceName: 'Chromebook',
-            childId: 'child-1',
-            type: 'warning',
-            message: 'Test issue',
-          },
-        ],
+        issues: [],
         lastUpdated: new Date(),
         loading: false,
         error: null,
@@ -510,7 +517,7 @@ describe('FamilyStatusCard', () => {
       expect(card).toHaveAttribute('aria-expanded', 'true')
     })
 
-    it('should show "all operating normally" when expanded with no issues', () => {
+    it('should show child status list when expanded with healthy children', () => {
       mockUseFamilyStatus.mockReturnValue({
         status: 'good',
         message: 'All Good',
@@ -523,12 +530,61 @@ describe('FamilyStatusCard', () => {
         error: null,
       })
 
+      // Mock child status for expanded view
+      mockUseChildStatus.mockReturnValue({
+        childStatuses: [
+          {
+            childId: 'child-1',
+            childName: 'Emma',
+            photoURL: null,
+            status: 'good',
+            deviceCount: 1,
+            activeDeviceCount: 1,
+            lastActivity: new Date(),
+            devices: [],
+            issues: [],
+          },
+        ],
+        loading: false,
+        error: null,
+      })
+
       render(<FamilyStatusCard familyId="family-123" />)
 
       const card = screen.getByTestId('family-status-card')
       fireEvent.click(card)
 
-      expect(screen.getByText('All devices are operating normally.')).toBeInTheDocument()
+      // Now shows ChildStatusList with child rows
+      expect(screen.getByTestId('child-status-list')).toBeInTheDocument()
+      expect(screen.getByText('Emma')).toBeInTheDocument()
+    })
+
+    it('should show empty state when no children', () => {
+      mockUseFamilyStatus.mockReturnValue({
+        status: 'good',
+        message: 'Ready to enroll devices',
+        childCount: 0,
+        deviceCount: 0,
+        activeDeviceCount: 0,
+        issues: [],
+        lastUpdated: new Date(),
+        loading: false,
+        error: null,
+      })
+
+      // Mock empty child status
+      mockUseChildStatus.mockReturnValue({
+        childStatuses: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<FamilyStatusCard familyId="family-123" />)
+
+      const card = screen.getByTestId('family-status-card')
+      fireEvent.click(card)
+
+      expect(screen.getByTestId('child-status-empty')).toBeInTheDocument()
     })
   })
 

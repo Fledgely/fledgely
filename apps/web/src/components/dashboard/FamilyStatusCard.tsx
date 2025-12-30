@@ -16,44 +16,13 @@
  */
 
 import { useState } from 'react'
-import { useFamilyStatus, FamilyStatus, StatusIssue } from '../../hooks/useFamilyStatus'
+import { useFamilyStatus, FamilyStatus } from '../../hooks/useFamilyStatus'
 import { formatLastSeen } from '../../hooks/useDevices'
+import { ChildStatusList } from './ChildStatusList'
+import { statusColors, statusLabels } from './statusConstants'
 
 interface FamilyStatusCardProps {
   familyId: string
-}
-
-/**
- * Color scheme for each status level
- */
-const statusColors = {
-  good: {
-    bg: '#dcfce7',
-    border: '#22c55e',
-    text: '#166534',
-    icon: '#22c55e',
-  },
-  attention: {
-    bg: '#fef9c3',
-    border: '#eab308',
-    text: '#854d0e',
-    icon: '#eab308',
-  },
-  action: {
-    bg: '#fee2e2',
-    border: '#ef4444',
-    text: '#991b1b',
-    icon: '#ef4444',
-  },
-}
-
-/**
- * Status labels for display
- */
-const statusLabels: Record<FamilyStatus, string> = {
-  good: 'All Good',
-  attention: 'Needs Attention',
-  action: 'Action Required',
 }
 
 /**
@@ -208,66 +177,6 @@ function StatusIndicator({ status }: { status: FamilyStatus }) {
 }
 
 /**
- * Expanded details section showing per-issue breakdown
- */
-function ExpandedDetails({ issues }: { issues: StatusIssue[] }) {
-  if (issues.length === 0) {
-    return (
-      <div
-        style={{
-          marginTop: '16px',
-          paddingTop: '16px',
-          borderTop: '1px solid rgba(0, 0, 0, 0.1)',
-        }}
-      >
-        <p style={{ color: '#166534', fontSize: '14px', margin: 0 }}>
-          All devices are operating normally.
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      style={{
-        marginTop: '16px',
-        paddingTop: '16px',
-        borderTop: '1px solid rgba(0, 0, 0, 0.1)',
-      }}
-      data-testid="status-details"
-    >
-      <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-        {issues.map((issue, index) => (
-          <li
-            key={`${issue.deviceId}-${index}`}
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '8px',
-              padding: '8px 0',
-              borderBottom: index < issues.length - 1 ? '1px solid rgba(0, 0, 0, 0.05)' : 'none',
-            }}
-          >
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: issue.type === 'critical' ? '#ef4444' : '#eab308',
-                marginTop: '6px',
-                flexShrink: 0,
-              }}
-              aria-hidden="true"
-            />
-            <span style={{ fontSize: '14px', color: '#374151' }}>{issue.message}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/**
  * Main FamilyStatusCard component
  */
 export function FamilyStatusCard({ familyId }: FamilyStatusCardProps) {
@@ -278,7 +187,6 @@ export function FamilyStatusCard({ familyId }: FamilyStatusCardProps) {
     childCount,
     deviceCount,
     activeDeviceCount,
-    issues,
     lastUpdated,
     loading,
     error,
@@ -383,8 +291,19 @@ export function FamilyStatusCard({ familyId }: FamilyStatusCardProps) {
         </div>
       </div>
 
-      {/* Expanded details */}
-      {isExpanded && <ExpandedDetails issues={issues} />}
+      {/* Expanded details - Story 19A.2: Show per-child status rows */}
+      {isExpanded && (
+        <div
+          style={{
+            marginTop: '16px',
+            paddingTop: '16px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.1)',
+          }}
+          data-testid="status-details"
+        >
+          <ChildStatusList familyId={familyId} />
+        </div>
+      )}
     </div>
   )
 }
