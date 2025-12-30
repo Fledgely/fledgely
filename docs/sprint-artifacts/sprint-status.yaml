@@ -141,7 +141,7 @@ development_status:
   # Epic 7: Crisis Allowlist Foundation
   epic-7: done # 2/9 stories done, 7 blocked on Epic 9+ or backend infrastructure
   7-1-crisis-allowlist-data-structure: done
-  7-2-crisis-visit-zero-data-path: blocked # Depends on Epic 9+ (device monitoring)
+  7-2-crisis-visit-zero-data-path: done # Zero-data-path implemented in Story 11.1
   7-3-child-allowlist-visibility: done
   7-4-emergency-allowlist-push: blocked # Depends on backend/API infrastructure
   7-5-fuzzy-domain-matching: blocked # Depends on Epic 9+ (device monitoring)
