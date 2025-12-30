@@ -53,7 +53,7 @@ development_status:
   0-5-4-parent-access-severing: done
   0-5-5-remote-device-unenrollment: done
   0-5-6-location-feature-emergency-disable: done
-  0-5-7-72-hour-notification-stealth: backlog
+  0-5-7-72-hour-notification-stealth: in-progress
   0-5-8-audit-trail-sealing: backlog
   0-5-9-domestic-abuse-resource-referral: backlog
   epic-0-5-retrospective: optional

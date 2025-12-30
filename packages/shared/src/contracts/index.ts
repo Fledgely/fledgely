@@ -1739,3 +1739,76 @@ export const disableLocationFeaturesForSafetyResponseSchema = z.object({
 export type DisableLocationFeaturesForSafetyResponse = z.infer<
   typeof disableLocationFeaturesForSafetyResponseSchema
 >
+
+// ============================================================================
+// Story 0.5.7: 72-Hour Notification Stealth Schemas
+// ============================================================================
+
+/**
+ * Stealth duration constant.
+ *
+ * Story 0.5.7: 72-Hour Notification Stealth
+ * The duration in hours that notifications are suppressed after an escape action.
+ */
+export const STEALTH_DURATION_HOURS = 72
+export const STEALTH_DURATION_MS = STEALTH_DURATION_HOURS * 60 * 60 * 1000
+
+/**
+ * Critical notification types that bypass stealth.
+ *
+ * Story 0.5.7: 72-Hour Notification Stealth - AC4
+ * These notification types are NEVER suppressed, even during stealth window.
+ */
+export const CRITICAL_NOTIFICATION_TYPES = [
+  'crisis_resource_accessed',
+  'mandatory_report_filed',
+  'child_safety_signal',
+  'emergency_unlock_used',
+] as const
+export type CriticalNotificationType = (typeof CRITICAL_NOTIFICATION_TYPES)[number]
+
+/**
+ * Stealth queue entry schema.
+ *
+ * Story 0.5.7: 72-Hour Notification Stealth - AC1, AC3
+ * Schema for notifications captured and held in the stealth queue.
+ */
+export const stealthQueueEntrySchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  notificationType: z.string(),
+  targetUserId: z.string(),
+  notificationPayload: z.record(z.unknown()),
+  capturedAt: z.date(),
+  expiresAt: z.date(),
+  ticketId: z.string(),
+})
+export type StealthQueueEntry = z.infer<typeof stealthQueueEntrySchema>
+
+/**
+ * Stealth window schema for family document fields.
+ *
+ * Story 0.5.7: 72-Hour Notification Stealth - AC6
+ * Fields added to family documents to track stealth window.
+ */
+export const stealthWindowSchema = z.object({
+  stealthActive: z.boolean(),
+  stealthWindowStart: z.date().nullable(),
+  stealthWindowEnd: z.date().nullable(),
+  stealthTicketId: z.string().nullable(),
+  stealthAffectedUserIds: z.array(z.string()),
+})
+export type StealthWindow = z.infer<typeof stealthWindowSchema>
+
+/**
+ * Activate stealth window input schema.
+ *
+ * Story 0.5.7: 72-Hour Notification Stealth - AC6, AC7
+ * Input for activating stealth window on a family.
+ */
+export const activateStealthWindowInputSchema = z.object({
+  familyId: z.string().min(1),
+  ticketId: z.string().min(1),
+  affectedUserIds: z.array(z.string().min(1)),
+})
+export type ActivateStealthWindowInput = z.infer<typeof activateStealthWindowInputSchema>

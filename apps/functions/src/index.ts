@@ -56,6 +56,7 @@ export { disableLocationFeaturesForSafety } from './callable/admin/disableLocati
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'
 export { cleanupExpiredScreenshots } from './scheduled'
+export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 
 // Export HTTP functions
 export { uploadScreenshot, syncDeviceHealth } from './http/sync'

@@ -47,3 +47,17 @@ export {
   type RetentionDays,
   type RetentionPolicy,
 } from './contracts'
+
+// Stealth notification exports (Story 0.5.7)
+export {
+  STEALTH_DURATION_HOURS,
+  STEALTH_DURATION_MS,
+  CRITICAL_NOTIFICATION_TYPES,
+  stealthQueueEntrySchema,
+  stealthWindowSchema,
+  activateStealthWindowInputSchema,
+  type StealthQueueEntry,
+  type StealthWindow,
+  type ActivateStealthWindowInput,
+  type CriticalNotificationType,
+} from './contracts'

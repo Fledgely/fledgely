@@ -606,6 +606,38 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // =========================================================================
+    // EPIC 0.5: SAFE ACCOUNT ESCAPE
+    // Story 0.5.7: 72-Hour Notification Stealth
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Stealth queue entries hold suppressed notifications during the 72-hour
+    // escape window. These entries are COMPLETELY INVISIBLE to family members.
+    //
+    // Key protections:
+    // - NO read access for regular users (only scheduled cleanup via Admin SDK)
+    // - NO write access for regular users (only Cloud Functions)
+    // - Entries are automatically deleted after 72 hours by scheduled function
+    // - NO cross-references to family-visible audit logs
+    //
+    match /stealthQueueEntries/{entryId} {
+      // CRITICAL: Regular users CANNOT read stealth queue entries
+      // Scheduled cleanup and admin functions access via Admin SDK
+      allow read: if false;
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // Notifications are captured when stealth window is active
+      allow create: if false;
+
+      // Update: Not allowed - entries are immutable until deleted
+      allow update: if false;
+
+      // Delete: Only scheduled cleanup via Admin SDK
+      // Entries are deleted after 72-hour window expires
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

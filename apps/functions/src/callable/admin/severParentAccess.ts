@@ -2,6 +2,7 @@
  * Cloud Function for severing parent access from a family (admin only).
  *
  * Story 0.5.4: Parent Access Severing
+ * Story 0.5.7: 72-Hour Notification Stealth (integration)
  *
  * CRITICAL SAFETY DESIGN:
  * - Requires safety-team custom claim
@@ -10,6 +11,7 @@
  * - Logged to admin audit ONLY (NO family audit)
  * - NO notification to any party
  * - Severed parent still sees "No families found" (not "You've been removed")
+ * - Activates 72-hour stealth window on success (Story 0.5.7)
  *
  * Implements acceptance criteria:
  * - AC1: Parent access immediately revoked
@@ -25,6 +27,7 @@ import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
+import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
 
 const db = getFirestore()
 
@@ -188,6 +191,16 @@ export const severParentAccess = onCall<
     // CRITICAL: NO notification to any party
     // CRITICAL: NO family audit log entry
     // Child documents are NOT modified (they reference familyId, not specific parents)
+
+    // Story 0.5.7: Activate 72-hour stealth window
+    await activateStealthWindow({
+      familyId,
+      ticketId,
+      affectedUserIds: [parentUid], // The severed parent
+      agentId: context.agentId,
+      agentEmail: context.agentEmail,
+      ipAddress: context.ipAddress,
+    })
 
     return {
       success: true,

@@ -23,6 +23,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
+import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
 
 const db = getFirestore()
 
@@ -186,6 +187,22 @@ export const unenrollDevicesForSafety = onCall<
 
     // CRITICAL: NO notification to any party
     // CRITICAL: NO family audit log entry
+
+    // Story 0.5.7: Activate 72-hour stealth window if any devices were unenrolled
+    if (unenrolledCount > 0) {
+      // Get affected guardian UIDs from family
+      const familyData = familyDoc.data()
+      const affectedUserIds = familyData?.guardianUids || []
+
+      await activateStealthWindow({
+        familyId,
+        ticketId,
+        affectedUserIds,
+        agentId: context.agentId,
+        agentEmail: context.agentEmail,
+        ipAddress: context.ipAddress,
+      })
+    }
 
     return {
       success: true,

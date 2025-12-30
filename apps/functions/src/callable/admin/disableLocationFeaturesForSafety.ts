@@ -21,6 +21,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
+import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
 
 const db = getFirestore()
 
@@ -188,6 +189,17 @@ export const disableLocationFeaturesForSafety = onCall<
 
   // CRITICAL: NO notification to any party
   // CRITICAL: NO family audit log entry
+
+  // Story 0.5.7: Activate 72-hour stealth window
+  const affectedUserIds = familyData?.guardianUids || []
+  await activateStealthWindow({
+    familyId,
+    ticketId,
+    affectedUserIds,
+    agentId: context.agentId,
+    agentEmail: context.agentEmail,
+    ipAddress: context.ipAddress,
+  })
 
   // 12. Update ticket with internal note
   const now = new Date()
