@@ -419,7 +419,7 @@ describe('DevicesList Component', () => {
   })
 
   describe('AC1: All enrolled devices listed', () => {
-    it('should filter out unenrolled devices', () => {
+    it('should show unenrolled devices with monitoring disabled banner (Story 19.5)', () => {
       const activeDevice = createDevice({
         deviceId: 'dev-active',
         name: 'Active Device',
@@ -446,11 +446,14 @@ describe('DevicesList Component', () => {
 
       render(<DevicesList familyId="family-123" />)
 
+      // Active device shows in the device list
       expect(screen.getByText('Active Device')).toBeInTheDocument()
-      expect(screen.queryByText('Unenrolled Device')).not.toBeInTheDocument()
+      // Unenrolled device shows in the monitoring disabled banner (Story 19.5)
+      expect(screen.getByText('Unenrolled Device')).toBeInTheDocument()
+      expect(screen.getByTestId('monitoring-disabled-banner')).toBeInTheDocument()
     })
 
-    it('should show empty state when all devices are unenrolled', () => {
+    it('should show monitoring disabled banners when all devices are unenrolled (Story 19.5)', () => {
       const unenrolledDevice1 = createDevice({
         deviceId: 'dev-unenrolled-1',
         name: 'Unenrolled Device 1',
@@ -477,7 +480,28 @@ describe('DevicesList Component', () => {
 
       render(<DevicesList familyId="family-123" />)
 
-      // Should show empty state even though devices array is not empty
+      // Story 19.5: Should show monitoring disabled banners for unenrolled devices
+      const banners = screen.getAllByTestId('monitoring-disabled-banner')
+      expect(banners).toHaveLength(2)
+      expect(screen.getByText('Unenrolled Device 1')).toBeInTheDocument()
+      expect(screen.getByText('Unenrolled Device 2')).toBeInTheDocument()
+    })
+
+    it('should show empty state only when no devices at all', () => {
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Empty state should only show when there are truly no devices
       expect(screen.getByText('No devices enrolled yet.')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /add your first device/i })).toBeInTheDocument()
     })
@@ -1069,5 +1093,117 @@ describe('Story 19.3 - Last Sync Timestamp Display', () => {
       // Warning icon should NOT be present
       expect(screen.queryByRole('img', { name: /sync delayed/i })).not.toBeInTheDocument()
     })
+  })
+})
+
+/**
+ * Story 19.5: Monitoring Disabled Alert Integration Tests
+ */
+describe('Story 19.5 - MonitoringDisabledBanner and Modal Integration', () => {
+  it('should open MonitoringAlertDetailModal when View Details is clicked on banner', () => {
+    const unenrolledDevice = createDevice({
+      deviceId: 'dev-unenrolled',
+      name: 'Stopped Device',
+      status: 'unenrolled',
+      childId: null,
+    })
+
+    vi.mocked(useDevices).mockReturnValue({
+      devices: [unenrolledDevice],
+      loading: false,
+      error: null,
+    })
+    vi.mocked(useChildren).mockReturnValue({
+      children: [],
+      loading: false,
+      error: null,
+    })
+
+    render(<DevicesList familyId="family-123" />)
+
+    // Banner should be visible
+    expect(screen.getByTestId('monitoring-disabled-banner')).toBeInTheDocument()
+
+    // Modal should NOT be visible initially
+    expect(screen.queryByTestId('alert-modal')).not.toBeInTheDocument()
+
+    // Click View Details button on the banner
+    const viewDetailsButton = screen.getByRole('button', { name: /view details/i })
+    fireEvent.click(viewDetailsButton)
+
+    // Modal should now be visible with proper dialog role
+    const modal = screen.getByTestId('alert-modal')
+    expect(modal).toBeInTheDocument()
+    expect(modal).toHaveAttribute('role', 'dialog')
+    // Check modal title contains the device name
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/Stopped Device/i)
+  })
+
+  it('should close MonitoringAlertDetailModal when close button is clicked', () => {
+    const unenrolledDevice = createDevice({
+      deviceId: 'dev-unenrolled',
+      name: 'Stopped Device',
+      status: 'unenrolled',
+      childId: null,
+    })
+
+    vi.mocked(useDevices).mockReturnValue({
+      devices: [unenrolledDevice],
+      loading: false,
+      error: null,
+    })
+    vi.mocked(useChildren).mockReturnValue({
+      children: [],
+      loading: false,
+      error: null,
+    })
+
+    render(<DevicesList familyId="family-123" />)
+
+    // Open the modal
+    const viewDetailsButton = screen.getByRole('button', { name: /view details/i })
+    fireEvent.click(viewDetailsButton)
+    expect(screen.getByTestId('alert-modal')).toBeInTheDocument()
+
+    // Close the modal
+    const closeButton = screen.getByTestId('alert-modal-close')
+    fireEvent.click(closeButton)
+
+    // Modal should be closed
+    expect(screen.queryByTestId('alert-modal')).not.toBeInTheDocument()
+  })
+
+  it('should trigger remove device flow from modal Remove Device button', () => {
+    const unenrolledDevice = createDevice({
+      deviceId: 'dev-unenrolled',
+      name: 'Stopped Device',
+      status: 'unenrolled',
+      childId: null,
+    })
+
+    vi.mocked(useDevices).mockReturnValue({
+      devices: [unenrolledDevice],
+      loading: false,
+      error: null,
+    })
+    vi.mocked(useChildren).mockReturnValue({
+      children: [],
+      loading: false,
+      error: null,
+    })
+
+    render(<DevicesList familyId="family-123" />)
+
+    // Open the alert modal
+    const viewDetailsButton = screen.getByRole('button', { name: /view details/i })
+    fireEvent.click(viewDetailsButton)
+
+    // Click Remove Device in the modal
+    const removeButton = screen.getByRole('button', { name: /remove device/i })
+    fireEvent.click(removeButton)
+
+    // Alert modal should close and remove confirmation should open
+    expect(screen.queryByTestId('alert-modal')).not.toBeInTheDocument()
+    expect(screen.getByText(/Remove Device\?/i)).toBeInTheDocument()
   })
 })

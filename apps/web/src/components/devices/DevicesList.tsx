@@ -36,6 +36,8 @@ import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
 import { ReauthModal } from '../auth/ReauthModal'
 import { EmergencyCodeModal } from './EmergencyCodeModal'
 import { DeviceHealthModal } from './DeviceHealthModal'
+import { MonitoringDisabledBanner } from './MonitoringDisabledBanner'
+import { MonitoringAlertDetailModal } from './MonitoringAlertDetailModal'
 
 interface DevicesListProps {
   familyId: string
@@ -889,6 +891,9 @@ export function DevicesList({ familyId }: DevicesListProps) {
   // Story 19.4: Device health modal state
   const [deviceForHealth, setDeviceForHealth] = useState<Device | null>(null)
 
+  // Story 19.5: Monitoring disabled alert state
+  const [deviceForAlert, setDeviceForAlert] = useState<Device | null>(null)
+
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
 
@@ -1102,12 +1107,14 @@ export function DevicesList({ familyId }: DevicesListProps) {
     return <p style={styles.error}>{error}</p>
   }
 
-  // Filter out unenrolled devices - they shouldn't appear in the list (AC1)
+  // Filter active devices vs unenrolled devices
+  // Story 19.5: Unenrolled devices now show with warning banner
   const activeDevices = devices.filter((d) => d.status !== 'unenrolled')
+  const unenrolledDevices = devices.filter((d) => d.status === 'unenrolled')
 
   // Story 19.1: Empty state with CTA (AC6)
-  // Check activeDevices to handle edge case where all devices are unenrolled
-  if (activeDevices.length === 0) {
+  // Story 19.5: Show unenrolled devices even if no active devices
+  if (activeDevices.length === 0 && unenrolledDevices.length === 0) {
     return (
       <div style={styles.emptyState} role="status" aria-live="polite">
         <p>No devices enrolled yet.</p>
@@ -1222,6 +1229,19 @@ export function DevicesList({ familyId }: DevicesListProps) {
 
   return (
     <>
+      {/* Story 19.5: Monitoring disabled banners for unenrolled devices (AC2) */}
+      {unenrolledDevices.map((device) => (
+        <MonitoringDisabledBanner
+          key={`banner-${device.deviceId}`}
+          device={device}
+          onViewDetails={() => setDeviceForAlert(device)}
+          onReEnroll={() => {
+            // TODO: Story 20.x - Navigate to re-enrollment flow
+            // This will be implemented when the enrollment UI story is complete
+          }}
+        />
+      ))}
+
       <div style={styles.deviceList}>
         {/* Story 19.1: Child-grouped sections (AC3) */}
         {childGroups.map(({ child, devices: childDevices }) => (
@@ -1306,6 +1326,23 @@ export function DevicesList({ familyId }: DevicesListProps) {
       {/* Story 19.4: Device health details modal */}
       {deviceForHealth && (
         <DeviceHealthModal device={deviceForHealth} onClose={() => setDeviceForHealth(null)} />
+      )}
+
+      {/* Story 19.5: Monitoring alert detail modal */}
+      {deviceForAlert && (
+        <MonitoringAlertDetailModal
+          device={deviceForAlert}
+          onClose={() => setDeviceForAlert(null)}
+          onReEnroll={() => {
+            // TODO: Story 20.x - Navigate to re-enrollment flow
+            setDeviceForAlert(null)
+          }}
+          onRemoveDevice={() => {
+            // Trigger the existing remove device flow
+            setDeviceToRemove(deviceForAlert)
+            setDeviceForAlert(null)
+          }}
+        />
       )}
     </>
   )

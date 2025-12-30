@@ -1470,6 +1470,88 @@ initAuditSync().catch((error) => {
   console.error('[Fledgely] Failed to initialize audit sync:', error)
 })
 
+/**
+ * Story 19.5: Extension Tamper Detection (AC6)
+ *
+ * Detect when the extension is being disabled, suspended, or has permissions revoked.
+ * Send final status update to mark device as 'unenrolled' before losing ability to communicate.
+ */
+
+/**
+ * Send final status update to Firestore to mark device as unenrolled
+ * Best-effort - may fail if network unavailable
+ */
+async function syncFinalStatus(
+  reason: 'disabled' | 'permissions_revoked' | 'suspended'
+): Promise<void> {
+  try {
+    const { state } = await chrome.storage.local.get('state')
+    if (!state?.deviceId || !state?.familyId) {
+      console.log('[Fledgely] No enrollment - skipping final status sync')
+      return
+    }
+
+    // Use the health sync endpoint to update status
+    const response = await fetch(
+      'https://us-central1-fledgely-cns-me.cloudfunctions.net/syncDeviceHealth',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deviceId: state.deviceId,
+          familyId: state.familyId,
+          metrics: {
+            status: 'unenrolled',
+            unenrollReason: reason,
+            collectedAt: Date.now(),
+          },
+        }),
+      }
+    )
+
+    if (response.ok) {
+      console.log(`[Fledgely] Final status sent: ${reason}`)
+    } else {
+      console.error('[Fledgely] Final status sync failed:', response.status)
+    }
+  } catch (error) {
+    // Best effort - may fail if network unavailable
+    console.error('[Fledgely] Failed to send final status:', error)
+  }
+}
+
+// Story 19.5 AC6 Task 4.1: Detect extension being disabled/suspended
+// Note: onSuspend is called when service worker is being terminated
+// This is our last chance to send a status update before losing communication
+chrome.runtime.onSuspend.addListener(async () => {
+  console.log('[Fledgely] Extension being suspended/disabled')
+
+  try {
+    // Send final status update - best effort
+    await syncFinalStatus('suspended')
+  } catch (error) {
+    // Best effort - nothing we can do if this fails during shutdown
+    console.error('[Fledgely] Failed to send suspend notification:', error)
+  }
+})
+
+// Story 19.5 AC6 Task 4.3: Handle permission revocation
+// If critical permissions are removed, we can no longer monitor effectively
+chrome.permissions.onRemoved.addListener(async (permissions) => {
+  console.log('[Fledgely] Permissions removed:', permissions)
+
+  // Check if critical permissions were removed
+  const criticalPermissions = ['tabs', 'activeTab']
+  const removedCritical = permissions.permissions?.some((p) => criticalPermissions.includes(p))
+
+  if (removedCritical) {
+    console.log('[Fledgely] Critical permissions revoked - marking as unenrolled')
+    await syncFinalStatus('permissions_revoked')
+  }
+})
+
 // Export for testing
 export type { ExtensionState }
-export { DEFAULT_STATE, xorEncrypt, xorDecrypt, checkAndSyncEventQueues }
+export { DEFAULT_STATE, xorEncrypt, xorDecrypt, checkAndSyncEventQueues, syncFinalStatus }
