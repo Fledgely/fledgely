@@ -56,7 +56,7 @@ development_status:
   0-5-7-72-hour-notification-stealth: done
   0-5-8-audit-trail-sealing: done
   0-5-9-domestic-abuse-resource-referral: done
-  epic-0-5-retrospective: optional
+  epic-0-5-retrospective: done
 
   # Epic 1: Parent Account Creation & Authentication
   epic-1: done
