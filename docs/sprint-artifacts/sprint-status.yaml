@@ -312,8 +312,8 @@ development_status:
   epic-19-retrospective: done
 
   # Epic 19A: Quick Status View (Focus Group)
-  epic-19a: backlog
-  19a-1-family-status-summary-card: backlog
+  epic-19a: in-progress
+  19a-1-family-status-summary-card: done
   19a-2-per-child-status-row: backlog
   19a-3-caregiver-quick-view: backlog
   19a-4-status-push-notifications: backlog

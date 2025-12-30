@@ -20,6 +20,7 @@ import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
 import { AddDeviceModal, DevicesList } from '../../components/devices'
+import { FamilyStatusCard } from '../../components/dashboard'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -377,6 +378,9 @@ export default function DashboardPage() {
             Unable to load your profile. Some features may be limited.
           </div>
         )}
+
+        {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
+        {family && <FamilyStatusCard familyId={family.id} />}
 
         {/* Family Card */}
         <div style={styles.card}>
