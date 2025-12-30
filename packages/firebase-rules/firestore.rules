@@ -638,6 +638,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // =========================================================================
+    // EPIC 0.5: SAFE ACCOUNT ESCAPE
+    // Story 0.5.8: Audit Trail Sealing
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Sealed audit entries are COMPLETELY ISOLATED from all family data.
+    // They are preserved for compliance/legal needs after escape actions.
+    //
+    // Key protections:
+    // - NO read access for regular users (only legal/compliance via Admin SDK)
+    // - NO write access for regular users (only Cloud Functions)
+    // - Entries retained indefinitely for legal compliance
+    // - All access logged to entry's accessLog and admin audit
+    //
+    match /sealedAuditEntries/{entryId} {
+      // CRITICAL: Regular users CANNOT read sealed audit entries
+      // Legal/compliance access via Admin SDK (bypasses security rules)
+      // This prevents abuser from discovering sealed entries exist
+      allow read: if false;
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // Entries are created when escape actions seal audit logs
+      allow create: if false;
+
+      // Update: Only Admin SDK for access logging
+      // Regular users cannot modify sealed entries
+      allow update: if false;
+
+      // Delete: NEVER allowed (legal compliance requirement)
+      // Sealed entries are preserved indefinitely
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

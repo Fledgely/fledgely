@@ -1812,3 +1812,118 @@ export const activateStealthWindowInputSchema = z.object({
   affectedUserIds: z.array(z.string().min(1)),
 })
 export type ActivateStealthWindowInput = z.infer<typeof activateStealthWindowInputSchema>
+
+// ============================================================================
+// Story 0.5.8: Audit Trail Sealing
+// ============================================================================
+
+/**
+ * Seal reason types.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC2
+ * Tracks why audit entries were sealed.
+ */
+export const sealReasonSchema = z.enum(['escape_action'])
+export type SealReason = z.infer<typeof sealReasonSchema>
+
+/**
+ * Sealed audit entry access log schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC3
+ * Records every access to sealed entries for compliance.
+ */
+export const sealedEntryAccessLogSchema = z.object({
+  accessedAt: z.date(),
+  accessedByAgentId: z.string(),
+  accessedByAgentEmail: z.string().nullable(),
+  accessReason: z.string(),
+})
+export type SealedEntryAccessLog = z.infer<typeof sealedEntryAccessLogSchema>
+
+/**
+ * Original audit entry schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC2
+ * Preserves original audit entry data verbatim.
+ */
+export const originalAuditEntrySchema = z.object({
+  viewerUid: z.string(),
+  childId: z.string().nullable(),
+  dataType: z.string(),
+  viewedAt: z.date(),
+  sessionId: z.string().nullable(),
+  deviceId: z.string().nullable(),
+  metadata: z.record(z.unknown()).nullable(),
+})
+export type OriginalAuditEntry = z.infer<typeof originalAuditEntrySchema>
+
+/**
+ * Sealed audit entry schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC2, AC3, AC5
+ *
+ * CRITICAL SAFETY DESIGN:
+ * - Sealed entries are stored in a SEPARATE collection from auditLogs
+ * - Original entries are DELETED from auditLogs after sealing
+ * - This prevents any metadata leakage to family members
+ * - Entries retained indefinitely for legal/compliance needs
+ *
+ * Stored in Firestore at /sealedAuditEntries/{entryId}.
+ */
+export const sealedAuditEntrySchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+
+  // Original entry data (verbatim copy)
+  originalEntry: originalAuditEntrySchema,
+
+  // Sealing metadata
+  sealedAt: z.date(),
+  sealedByTicketId: z.string(),
+  sealedByAgentId: z.string(),
+  sealReason: sealReasonSchema,
+
+  // Legal hold
+  legalHold: z.boolean(),
+  accessLog: z.array(sealedEntryAccessLogSchema),
+})
+export type SealedAuditEntry = z.infer<typeof sealedAuditEntrySchema>
+
+/**
+ * Seal audit entries input schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC6
+ * Input schema for sealing audit entries.
+ */
+export const sealAuditEntriesInputSchema = z.object({
+  familyId: z.string().min(1),
+  escapedUserIds: z.array(z.string().min(1)),
+  ticketId: z.string().min(1),
+})
+export type SealAuditEntriesInput = z.infer<typeof sealAuditEntriesInputSchema>
+
+/**
+ * Get sealed audit entries input schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC3
+ * Input schema for admin access to sealed entries.
+ */
+export const getSealedAuditEntriesInputSchema = z.object({
+  ticketId: z.string().min(1),
+  familyId: z.string().min(1),
+  authorizationReason: z.string().min(1),
+})
+export type GetSealedAuditEntriesInput = z.infer<typeof getSealedAuditEntriesInputSchema>
+
+/**
+ * Get sealed audit entries response schema.
+ *
+ * Story 0.5.8: Audit Trail Sealing - AC3
+ * Response schema for admin access to sealed entries.
+ */
+export const getSealedAuditEntriesResponseSchema = z.object({
+  entries: z.array(sealedAuditEntrySchema),
+  totalCount: z.number(),
+  accessLoggedAt: z.date(),
+})
+export type GetSealedAuditEntriesResponse = z.infer<typeof getSealedAuditEntriesResponseSchema>

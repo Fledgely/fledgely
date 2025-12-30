@@ -2,6 +2,7 @@
  * Disable location features for safety callable function.
  *
  * Story 0.5.6: Location Feature Emergency Disable
+ * Story 0.5.8: Audit Trail Sealing (integration)
  *
  * CRITICAL SAFETY DESIGN:
  * - Disables ALL location-revealing features for victim protection
@@ -9,6 +10,7 @@
  * - NO notification to any party
  * - NO family audit log entry
  * - Admin audit logging only
+ * - Seals audit entries related to escape action (Story 0.5.8)
  *
  * This story creates the INFRASTRUCTURE for location feature disable.
  * The actual location features (FR139, FR145, FR160) are not yet implemented
@@ -22,6 +24,7 @@ import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
 import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
+import { sealEscapeRelatedEntries } from '../../lib/audit/escapeAuditSealer'
 
 const db = getFirestore()
 
@@ -196,6 +199,17 @@ export const disableLocationFeaturesForSafety = onCall<
     familyId,
     ticketId,
     affectedUserIds,
+    agentId: context.agentId,
+    agentEmail: context.agentEmail,
+    ipAddress: context.ipAddress,
+  })
+
+  // Story 0.5.8: Seal audit entries related to escape action
+  // This happens AFTER stealth window activation
+  await sealEscapeRelatedEntries({
+    familyId,
+    escapedUserIds: affectedUserIds,
+    ticketId,
     agentId: context.agentId,
     agentEmail: context.agentEmail,
     ipAddress: context.ipAddress,

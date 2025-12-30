@@ -61,3 +61,21 @@ export {
   type ActivateStealthWindowInput,
   type CriticalNotificationType,
 } from './contracts'
+
+// Sealed audit exports (Story 0.5.8)
+export {
+  sealReasonSchema,
+  sealedEntryAccessLogSchema,
+  originalAuditEntrySchema,
+  sealedAuditEntrySchema,
+  sealAuditEntriesInputSchema,
+  getSealedAuditEntriesInputSchema,
+  getSealedAuditEntriesResponseSchema,
+  type SealReason,
+  type SealedEntryAccessLog,
+  type OriginalAuditEntry,
+  type SealedAuditEntry,
+  type SealAuditEntriesInput,
+  type GetSealedAuditEntriesInput,
+  type GetSealedAuditEntriesResponse,
+} from './contracts'

@@ -3,6 +3,7 @@
  *
  * Story 0.5.4: Parent Access Severing
  * Story 0.5.7: 72-Hour Notification Stealth (integration)
+ * Story 0.5.8: Audit Trail Sealing (integration)
  *
  * CRITICAL SAFETY DESIGN:
  * - Requires safety-team custom claim
@@ -12,6 +13,7 @@
  * - NO notification to any party
  * - Severed parent still sees "No families found" (not "You've been removed")
  * - Activates 72-hour stealth window on success (Story 0.5.7)
+ * - Seals audit entries related to escape action (Story 0.5.8)
  *
  * Implements acceptance criteria:
  * - AC1: Parent access immediately revoked
@@ -28,6 +30,7 @@ import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
 import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
+import { sealEscapeRelatedEntries } from '../../lib/audit/escapeAuditSealer'
 
 const db = getFirestore()
 
@@ -197,6 +200,20 @@ export const severParentAccess = onCall<
       familyId,
       ticketId,
       affectedUserIds: [parentUid], // The severed parent
+      agentId: context.agentId,
+      agentEmail: context.agentEmail,
+      ipAddress: context.ipAddress,
+    })
+
+    // Story 0.5.8: Seal audit entries related to escape action
+    // This happens AFTER stealth window activation
+    // CRITICAL: Seal entries by REMAINING guardians (victims), not the severed parent (abuser)
+    // This removes evidence of victim's recent activity from the abuser's view
+    const remainingGuardianUids = updatedGuardians.map((g: Guardian) => g.uid)
+    await sealEscapeRelatedEntries({
+      familyId,
+      escapedUserIds: remainingGuardianUids,
+      ticketId,
       agentId: context.agentId,
       agentEmail: context.agentEmail,
       ipAddress: context.ipAddress,

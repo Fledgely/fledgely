@@ -28,6 +28,7 @@ const db = getFirestore()
  * Story 0.5.5: Remote Device Unenrollment (added get_devices_for_family, unenroll_devices_for_safety)
  * Story 0.5.6: Location Feature Emergency Disable (added disable_location_features_for_safety)
  * Story 0.5.7: 72-Hour Notification Stealth (added activate_stealth_window, cleanup_stealth_queue)
+ * Story 0.5.8: Audit Trail Sealing (added seal_audit_entries, access_sealed_audit)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -45,6 +46,8 @@ export type AdminAuditAction =
   | 'disable_location_features_for_safety' // Story 0.5.6
   | 'activate_stealth_window' // Story 0.5.7
   | 'cleanup_stealth_queue' // Story 0.5.7
+  | 'seal_audit_entries' // Story 0.5.8
+  | 'access_sealed_audit' // Story 0.5.8
 
 /**
  * Resource types for admin audit logging.
@@ -54,6 +57,7 @@ export type AdminAuditAction =
  * Story 0.5.5: Remote Device Unenrollment (added device)
  * Story 0.5.6: Location Feature Emergency Disable (added location_settings)
  * Story 0.5.7: 72-Hour Notification Stealth (added stealth_window)
+ * Story 0.5.8: Audit Trail Sealing (added sealed_audit)
  */
 export type AdminAuditResourceType =
   | 'safety_ticket'
@@ -63,6 +67,7 @@ export type AdminAuditResourceType =
   | 'device' // Story 0.5.5
   | 'location_settings' // Story 0.5.6
   | 'stealth_window' // Story 0.5.7
+  | 'sealed_audit' // Story 0.5.8
 
 /**
  * Admin audit log entry structure.

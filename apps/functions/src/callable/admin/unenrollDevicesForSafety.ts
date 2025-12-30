@@ -2,6 +2,7 @@
  * Cloud Function for safely unenrolling devices (admin only).
  *
  * Story 0.5.5: Remote Device Unenrollment
+ * Story 0.5.8: Audit Trail Sealing (integration)
  *
  * CRITICAL SAFETY DESIGN:
  * - Requires safety-team custom claim
@@ -10,6 +11,7 @@
  * - Admin audit only
  * - Supports batch unenrollment
  * - Requires minimum 2 of 4 identity verification checks
+ * - Seals audit entries related to escape action (Story 0.5.8)
  *
  * Implements acceptance criteria:
  * - AC1: Silent device unenrollment command
@@ -24,6 +26,7 @@ import { z } from 'zod'
 import { requireSafetyTeamRole } from '../../utils/safetyTeamAuth'
 import { logAdminAction } from '../../utils/adminAudit'
 import { activateStealthWindow } from '../../lib/notifications/stealthWindow'
+import { sealEscapeRelatedEntries } from '../../lib/audit/escapeAuditSealer'
 
 const db = getFirestore()
 
@@ -198,6 +201,17 @@ export const unenrollDevicesForSafety = onCall<
         familyId,
         ticketId,
         affectedUserIds,
+        agentId: context.agentId,
+        agentEmail: context.agentEmail,
+        ipAddress: context.ipAddress,
+      })
+
+      // Story 0.5.8: Seal audit entries related to escape action
+      // This happens AFTER stealth window activation
+      await sealEscapeRelatedEntries({
+        familyId,
+        escapedUserIds: affectedUserIds,
+        ticketId,
         agentId: context.agentId,
         agentEmail: context.agentEmail,
         ipAddress: context.ipAddress,
