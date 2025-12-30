@@ -1324,3 +1324,109 @@ export function createScreenshotMetadata(params: {
     retentionExpiresAt,
   }
 }
+
+// ============================================================================
+// EPIC 0.5: SAFE ACCOUNT ESCAPE
+// Story 0.5.1: Secure Safety Contact Channel
+// ============================================================================
+
+/**
+ * Safety contact urgency levels.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC4
+ * Uses neutral language to avoid triggering an abuser's suspicion.
+ */
+export const safetyContactUrgencySchema = z.enum([
+  'when_you_can', // Default - no rush ("Whenever convenient")
+  'soon', // Within a day or two
+  'urgent', // As soon as possible
+])
+export type SafetyContactUrgency = z.infer<typeof safetyContactUrgencySchema>
+
+/**
+ * Safe contact information schema.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC4
+ * Optional contact details for support to reach the victim safely.
+ */
+export const safeContactInfoSchema = z
+  .object({
+    phone: z.string().nullable(),
+    email: z.string().email().nullable(),
+    preferredMethod: z.enum(['phone', 'email', 'either']).nullable(),
+    safeTimeToContact: z.string().max(200).nullable(),
+  })
+  .nullable()
+export type SafeContactInfo = z.infer<typeof safeContactInfoSchema>
+
+/**
+ * Safety ticket status.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC5
+ * Tracks the lifecycle of a safety support ticket.
+ */
+export const safetyTicketStatusSchema = z.enum([
+  'pending', // Newly submitted, awaiting review
+  'in_review', // Support agent is reviewing
+  'resolved', // Issue has been addressed
+  'closed', // Ticket closed
+])
+export type SafetyTicketStatus = z.infer<typeof safetyTicketStatusSchema>
+
+/**
+ * Safety ticket schema.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC5, AC6
+ *
+ * CRITICAL SAFETY DESIGN:
+ * - Stored in SEPARATE /safetyTickets collection (isolated from family data)
+ * - familyId is intentionally NOT populated (prevents data linkage)
+ * - ipHash used for rate limiting only (not tracking)
+ * - No Firestore indexes on sensitive fields (prevents search exposure)
+ *
+ * Represents a safety support ticket submitted by a potential abuse victim.
+ * Stored in Firestore at /safetyTickets/{ticketId}.
+ */
+export const safetyTicketSchema = z.object({
+  id: z.string(),
+  message: z.string().min(1).max(5000),
+  safeContactInfo: safeContactInfoSchema,
+  urgency: safetyContactUrgencySchema,
+  // User context (if logged in) - for support team identification only
+  userId: z.string().nullable(),
+  userEmail: z.string().email().nullable(),
+  familyId: z.string().nullable(), // Intentionally NOT populated for data isolation
+  // Metadata
+  createdAt: z.date(),
+  ipHash: z.string(), // Hashed IP for rate limiting, NOT for tracking
+  userAgent: z.string().nullable(),
+  // Ticket lifecycle
+  status: safetyTicketStatusSchema,
+  assignedTo: z.string().nullable(),
+})
+export type SafetyTicket = z.infer<typeof safetyTicketSchema>
+
+/**
+ * Safety contact input schema.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC4
+ * Input schema for the submitSafetyContact callable function.
+ */
+export const safetyContactInputSchema = z.object({
+  message: z.string().min(1).max(5000),
+  safeContactInfo: safeContactInfoSchema,
+  urgency: safetyContactUrgencySchema.default('when_you_can'),
+})
+export type SafetyContactInput = z.infer<typeof safetyContactInputSchema>
+
+/**
+ * Safety contact response schema.
+ *
+ * Story 0.5.1: Secure Safety Contact Channel - AC5
+ * Neutral response returned after form submission.
+ */
+export const safetyContactResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+})
+export type SafetyContactResponse = z.infer<typeof safetyContactResponseSchema>

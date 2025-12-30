@@ -17,6 +17,7 @@ initializeApp()
 // Export callable functions here as they are implemented
 export { sendInvitation } from './callable/sendInvitation'
 export { acceptInvitation } from './callable/acceptInvitation'
+export { submitSafetyContact } from './callable/submitSafetyContact'
 export {
   submitEnrollmentRequest,
   getEnrollmentRequestStatus,

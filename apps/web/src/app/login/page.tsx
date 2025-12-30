@@ -231,6 +231,20 @@ export default function LoginPage() {
         <a href="/" style={styles.backLink} className="back-link">
           &larr; Back to home
         </a>
+
+        {/* Story 0.5.1: Safety contact link (subtle, neutral language) */}
+        <a
+          href="/safety"
+          style={{
+            ...styles.backLink,
+            color: '#9ca3af',
+            fontSize: '13px',
+          }}
+          className="back-link"
+          aria-label="Contact support for help"
+        >
+          Need help?
+        </a>
       </div>
     </main>
   )

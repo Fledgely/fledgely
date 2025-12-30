@@ -320,6 +320,19 @@ export default function DashboardPage() {
           .add-device-button:hover {
             background-color: #1d4ed8;
           }
+          .get-help-link {
+            color: #6b7280;
+            font-size: 14px;
+            text-decoration: none;
+          }
+          .get-help-link:hover {
+            color: #374151;
+            text-decoration: underline;
+          }
+          .get-help-link:focus {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+          }
           .child-item {
             display: flex;
             align-items: center;
@@ -769,11 +782,20 @@ export default function DashboardPage() {
             <span style={styles.infoValue}>{uid}</span>
           </div>
           {userProfile && (
-            <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+            <div style={styles.infoRow}>
               <span style={styles.infoLabel}>Member since</span>
               <span style={styles.infoValue}>{userProfile.createdAt.toLocaleDateString()}</span>
             </div>
           )}
+          {/* Story 0.5.1: Safety contact link (buried in account section, neutral language) */}
+          <div style={{ ...styles.infoRow, borderBottom: 'none' }}>
+            <span style={styles.infoLabel}>Support</span>
+            <span style={styles.infoValue}>
+              <a href="/safety" className="get-help-link" aria-label="Contact support for help">
+                Get Help
+              </a>
+            </span>
+          </div>
         </div>
       </div>
 

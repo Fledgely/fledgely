@@ -528,6 +528,48 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // =========================================================================
+    // EPIC 0.5: SAFE ACCOUNT ESCAPE
+    // Story 0.5.1: Secure Safety Contact Channel
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Safety tickets are COMPLETELY ISOLATED from all other family data.
+    // This prevents an abuser from discovering that a victim contacted support.
+    //
+    // Key protections:
+    // - NO read access for regular users (only support via Admin SDK)
+    // - Create allowed from callable function (no direct client writes)
+    // - NO cross-references to family documents
+    // - NO audit trail entries created for these submissions
+    //
+    match /safetyTickets/{ticketId} {
+      // CRITICAL: Regular users CANNOT read safety tickets
+      // Support agents access via Admin SDK (bypasses security rules)
+      // This prevents an abuser from discovering a victim's support request
+      allow read: if false;
+
+      // Create: Only callable functions can create (via Admin SDK)
+      // Direct client creation is denied for security
+      // The submitSafetyContact callable function handles creation
+      allow create: if false;
+
+      // Update: Only support agents via Admin SDK
+      // Regular users cannot modify tickets
+      allow update: if false;
+
+      // Delete: NEVER allowed (audit trail preservation)
+      // Support tickets are retained for legal/safety documentation
+      allow delete: if false;
+    }
+
+    // Rate limiting collection for safety contact submissions
+    // Used to prevent abuse while allowing legitimate requests
+    match /safetyRateLimits/{ipHash} {
+      // Only callable functions can read/write (via Admin SDK)
+      allow read, write: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;
