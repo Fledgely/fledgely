@@ -26,6 +26,7 @@ import {
   type GuardianInfoForSevering,
 } from '../../../../hooks/useSeverParentAccess'
 import { SafetyDeviceUnenrollSection } from '../../../../components/admin/SafetyDeviceUnenrollSection'
+import { SafetyLocationDisableSection } from '../../../../components/admin/SafetyLocationDisableSection'
 
 /**
  * Format date for display.
@@ -105,6 +106,28 @@ export default function SafetyTicketDetailPage() {
       loadTicket()
     }
   }, [firebaseUser, authLoading, ticketId, loadTicket])
+
+  // Story 0.5.6: Auto-load family data for location disable when verification threshold is met
+  useEffect(() => {
+    const loadFamilyForLocation = async () => {
+      if (!ticket || familyForSevering) return
+
+      const verificationCount = [
+        ticket.verification.phoneVerified,
+        ticket.verification.idDocumentVerified,
+        ticket.verification.accountMatchVerified,
+        ticket.verification.securityQuestionsVerified,
+      ].filter(Boolean).length
+
+      if (verificationCount >= 2) {
+        const result = await getFamilyForSevering(ticketId)
+        if (result?.family) {
+          setFamilyForSevering(result.family)
+        }
+      }
+    }
+    loadFamilyForLocation()
+  }, [ticket, ticketId, familyForSevering, getFamilyForSevering])
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -387,6 +410,21 @@ export default function SafetyTicketDetailPage() {
           {getVerificationCount() >= 2 && (
             <SafetyDeviceUnenrollSection
               ticketId={ticketId}
+              verificationStatus={{
+                phoneVerified: ticket.verification.phoneVerified,
+                idDocumentVerified: ticket.verification.idDocumentVerified,
+                accountMatchVerified: ticket.verification.accountMatchVerified,
+                securityQuestionsVerified: ticket.verification.securityQuestionsVerified,
+              }}
+              onSuccess={loadTicket}
+            />
+          )}
+
+          {/* Story 0.5.6: Location Feature Disable Section */}
+          {getVerificationCount() >= 2 && (
+            <SafetyLocationDisableSection
+              ticketId={ticketId}
+              familyId={familyForSevering?.id || null}
               verificationStatus={{
                 phoneVerified: ticket.verification.phoneVerified,
                 idDocumentVerified: ticket.verification.idDocumentVerified,

@@ -26,6 +26,7 @@ const db = getFirestore()
  * Story 0.5.3: Support Agent Escape Dashboard
  * Story 0.5.4: Parent Access Severing (added sever_parent_access, get_family_for_severing)
  * Story 0.5.5: Remote Device Unenrollment (added get_devices_for_family, unenroll_devices_for_safety)
+ * Story 0.5.6: Location Feature Emergency Disable (added disable_location_features_for_safety)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -40,6 +41,7 @@ export type AdminAuditAction =
   | 'get_family_for_severing' // Story 0.5.4
   | 'get_devices_for_family' // Story 0.5.5
   | 'unenroll_devices_for_safety' // Story 0.5.5
+  | 'disable_location_features_for_safety' // Story 0.5.6
 
 /**
  * Resource types for admin audit logging.
@@ -47,6 +49,7 @@ export type AdminAuditAction =
  * Story 0.5.3: Support Agent Escape Dashboard
  * Story 0.5.4: Parent Access Severing (added family)
  * Story 0.5.5: Remote Device Unenrollment (added device)
+ * Story 0.5.6: Location Feature Emergency Disable (added location_settings)
  */
 export type AdminAuditResourceType =
   | 'safety_ticket'
@@ -54,6 +57,7 @@ export type AdminAuditResourceType =
   | 'safety_dashboard'
   | 'family'
   | 'device' // Story 0.5.5
+  | 'location_settings' // Story 0.5.6
 
 /**
  * Admin audit log entry structure.

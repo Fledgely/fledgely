@@ -1704,3 +1704,38 @@ export const unenrollDevicesForSafetyResponseSchema = z.object({
 export type UnenrollDevicesForSafetyResponse = z.infer<
   typeof unenrollDevicesForSafetyResponseSchema
 >
+
+// ============================================================================
+// Story 0.5.6: Location Feature Emergency Disable Schemas
+// ============================================================================
+
+/**
+ * Disable location features for safety input schema.
+ *
+ * Story 0.5.6: Location Feature Emergency Disable - AC1-7
+ * Input schema for the disableLocationFeaturesForSafety callable function.
+ */
+export const disableLocationFeaturesForSafetyInputSchema = z.object({
+  ticketId: z.string().min(1),
+  familyId: z.string().min(1),
+  userId: z.string().min(1).optional(), // Optional: for user-specific disable
+})
+export type DisableLocationFeaturesForSafetyInput = z.infer<
+  typeof disableLocationFeaturesForSafetyInputSchema
+>
+
+/**
+ * Disable location features for safety response schema.
+ *
+ * Story 0.5.6: Location Feature Emergency Disable - AC1-7
+ * Returns result of location feature disable operation.
+ */
+export const disableLocationFeaturesForSafetyResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  featuresDisabledCount: z.number(),
+  notificationsDeleted: z.number(),
+})
+export type DisableLocationFeaturesForSafetyResponse = z.infer<
+  typeof disableLocationFeaturesForSafetyResponseSchema
+>

@@ -47,6 +47,9 @@ export { getFamilyForSevering } from './callable/admin/getFamilyForSevering'
 export { getDevicesForFamily } from './callable/admin/getDevicesForFamily'
 export { unenrollDevicesForSafety } from './callable/admin/unenrollDevicesForSafety'
 
+// Admin callable functions (Story 0.5.6)
+export { disableLocationFeaturesForSafety } from './callable/admin/disableLocationFeaturesForSafety'
+
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 
