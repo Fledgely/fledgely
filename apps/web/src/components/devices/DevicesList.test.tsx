@@ -782,7 +782,7 @@ describe('StatusBadge Component - Story 19.2', () => {
   })
 
   describe('AC7: Click for health details', () => {
-    it('should be clickable as a button', () => {
+    it('should open health modal when status badge is clicked', () => {
       const device = createDevice({
         deviceId: 'dev-1',
         name: 'Test Device',
@@ -802,21 +802,50 @@ describe('StatusBadge Component - Story 19.2', () => {
         error: null,
       })
 
-      // Mock console.log to verify click handler is called
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
       render(<DevicesList familyId="family-123" />)
+
+      // Verify health modal is not initially visible
+      expect(screen.queryByTestId('health-modal')).not.toBeInTheDocument()
 
       const statusBadge = screen.getByRole('button', { name: /Device status:/ })
       fireEvent.click(statusBadge)
 
-      // Click handler should log the device ID (placeholder for Story 19.4 modal)
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'Health details clicked for device:',
-        expect.any(String)
-      )
+      // Story 19.4: Clicking status badge should open the health details modal
+      expect(screen.getByTestId('health-modal')).toBeInTheDocument()
+      expect(screen.getByText('Device Health: Test Device')).toBeInTheDocument()
+    })
 
-      consoleSpy.mockRestore()
+    it('should close health modal when close button is clicked', () => {
+      const device = createDevice({
+        deviceId: 'dev-1',
+        name: 'Test Device',
+        lastSeen: new Date(),
+        status: 'active',
+        childId: null,
+      })
+
+      vi.mocked(useDevices).mockReturnValue({
+        devices: [device],
+        loading: false,
+        error: null,
+      })
+      vi.mocked(useChildren).mockReturnValue({
+        children: [],
+        loading: false,
+        error: null,
+      })
+
+      render(<DevicesList familyId="family-123" />)
+
+      // Open the modal
+      const statusBadge = screen.getByRole('button', { name: /Device status:/ })
+      fireEvent.click(statusBadge)
+      expect(screen.getByTestId('health-modal')).toBeInTheDocument()
+
+      // Close the modal
+      const closeButton = screen.getByTestId('health-modal-close')
+      fireEvent.click(closeButton)
+      expect(screen.queryByTestId('health-modal')).not.toBeInTheDocument()
     })
   })
 

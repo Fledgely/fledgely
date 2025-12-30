@@ -4,3 +4,4 @@
  */
 
 export { uploadScreenshot } from './screenshots'
+export { syncDeviceHealth } from './health'

@@ -33,6 +33,7 @@ import {
 } from './crisis-allowlist'
 import { validateEnrollmentState, isEnrolled } from './enrollment-state'
 import { verifyDeviceEnrollment } from './enrollment-service'
+import { setupHealthSyncAlarm } from './health-metrics'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -679,6 +680,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   })
   console.log('[Fledgely] Allowlist sync alarm created')
 
+  // Story 19.4: Set up health metrics sync alarm (5 min interval)
+  setupHealthSyncAlarm()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -716,6 +720,9 @@ chrome.runtime.onStartup.addListener(async () => {
     periodInMinutes: ALLOWLIST_SYNC_INTERVAL_HOURS * 60,
   })
   console.log('[Fledgely] Allowlist sync alarm created')
+
+  // Story 19.4: Set up health metrics sync alarm (5 min interval)
+  setupHealthSyncAlarm()
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {

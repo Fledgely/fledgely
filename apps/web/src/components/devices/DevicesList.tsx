@@ -35,6 +35,7 @@ import {
 import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
 import { ReauthModal } from '../auth/ReauthModal'
 import { EmergencyCodeModal } from './EmergencyCodeModal'
+import { DeviceHealthModal } from './DeviceHealthModal'
 
 interface DevicesListProps {
   familyId: string
@@ -885,6 +886,9 @@ export function DevicesList({ familyId }: DevicesListProps) {
   const [showResetReauth, setShowResetReauth] = useState(false)
   const [resettingSecret, setResettingSecret] = useState(false)
 
+  // Story 19.4: Device health modal state
+  const [deviceForHealth, setDeviceForHealth] = useState<Device | null>(null)
+
   const loading = devicesLoading || childrenLoading
   const error = devicesError || childrenError
 
@@ -1175,9 +1179,8 @@ export function DevicesList({ familyId }: DevicesListProps) {
         <StatusBadge
           device={device}
           onClick={(dev) => {
-            // Task 4.3: Wire to state setter for future health panel modal (Story 19.4)
-            console.log('Health details clicked for device:', dev.deviceId)
-            // TODO: Story 19.4 will implement the detailed health breakdown panel
+            // Story 19.4: Open health details modal
+            setDeviceForHealth(dev)
           }}
         />
         <button
@@ -1298,6 +1301,11 @@ export function DevicesList({ familyId }: DevicesListProps) {
           title="Confirm Your Identity"
           description="For security, please verify your identity before resetting emergency codes."
         />
+      )}
+
+      {/* Story 19.4: Device health details modal */}
+      {deviceForHealth && (
+        <DeviceHealthModal device={deviceForHealth} onClose={() => setDeviceForHealth(null)} />
       )}
     </>
   )

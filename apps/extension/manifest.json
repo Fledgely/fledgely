@@ -7,7 +7,8 @@
   "host_permissions": [
     "https://*.fledgely.app/*",
     "https://*.firebaseapp.com/*",
-    "https://*.googleapis.com/*"
+    "https://*.googleapis.com/*",
+    "https://*.cloudfunctions.net/*"
   ],
   "optional_permissions": ["notifications"],
   "background": {

@@ -15,8 +15,25 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 
 /**
+ * Health metrics from extension
+ * Story 19.4: Monitoring Health Details
+ */
+export interface DeviceHealthMetrics {
+  captureSuccessRate24h: number | null
+  uploadQueueSize: number
+  networkStatus: 'online' | 'offline'
+  batteryLevel: number | null
+  batteryCharging: boolean | null
+  appVersion: string
+  updateAvailable: boolean | null
+  collectedAt: number
+  lastHealthSync: Date | null
+}
+
+/**
  * Device document from Firestore
  * Story 19.3 Task 2.1: Added lastScreenshotAt field
+ * Story 19.4: Added healthMetrics field
  */
 export interface Device {
   deviceId: string
@@ -33,6 +50,7 @@ export interface Device {
     userAgent: string
     enrollmentRequestId: string
   }
+  healthMetrics?: DeviceHealthMetrics // Story 19.4: Health metrics from extension
 }
 
 interface UseDevicesOptions {
@@ -86,6 +104,23 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
           // Story 19.3 Task 2.2: Include lastScreenshotAt from Firestore
           const lastScreenshotAt = data.lastScreenshotAt?.toDate?.() || null
 
+          // Story 19.4: Parse healthMetrics from Firestore
+          let healthMetrics: DeviceHealthMetrics | undefined
+          if (data.healthMetrics) {
+            const hm = data.healthMetrics
+            healthMetrics = {
+              captureSuccessRate24h: hm.captureSuccessRate24h ?? null,
+              uploadQueueSize: hm.uploadQueueSize ?? 0,
+              networkStatus: hm.networkStatus ?? 'offline',
+              batteryLevel: hm.batteryLevel ?? null,
+              batteryCharging: hm.batteryCharging ?? null,
+              appVersion: hm.appVersion ?? '',
+              updateAvailable: hm.updateAvailable ?? null,
+              collectedAt: hm.collectedAt ?? 0,
+              lastHealthSync: hm.lastHealthSync?.toDate?.() || null,
+            }
+          }
+
           deviceList.push({
             deviceId: data.deviceId || doc.id,
             type: data.type || 'chromebook',
@@ -101,6 +136,7 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
               userAgent: '',
               enrollmentRequestId: '',
             },
+            healthMetrics, // Story 19.4
           })
         })
 
