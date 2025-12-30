@@ -223,7 +223,7 @@ export function MonitoringCapabilitiesCard({
             </li>
             <li style={listItemStyles}>
               <span style={bulletStyles('#ef4444')}>•</span>
-              <span>Private or incognito browsing content</span>
+              <span>Browser history from private/incognito mode</span>
             </li>
             <li style={listItemStyles}>
               <span style={bulletStyles('#ef4444')}>•</span>

@@ -50,7 +50,7 @@ describe('MonitoringCapabilitiesCard (Story 8.8)', () => {
       expect(screen.getByTestId('what-we-cannot-see')).toBeInTheDocument()
       expect(screen.getByText(/Encrypted message content/)).toBeInTheDocument()
       expect(screen.getByText(/Passwords or login inputs/)).toBeInTheDocument()
-      expect(screen.getByText(/Private or incognito browsing content/)).toBeInTheDocument()
+      expect(screen.getByText(/Browser history from private\/incognito mode/)).toBeInTheDocument()
       expect(screen.getByText(/End-to-end encrypted apps/)).toBeInTheDocument()
     })
 
