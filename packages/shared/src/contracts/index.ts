@@ -2152,3 +2152,44 @@ export const denyLegalParentPetitionResponseSchema = z.object({
   message: z.string(),
 })
 export type DenyLegalParentPetitionResponse = z.infer<typeof denyLegalParentPetitionResponseSchema>
+
+// ============================================================================
+// Story 2.8: Unilateral Self-Removal (Survivor Escape)
+// ============================================================================
+
+/**
+ * Self-removal confirmation phrase.
+ *
+ * Story 2.8: Unilateral Self-Removal - AC2
+ * Explicit confirmation phrase to prevent accidental removal.
+ */
+export const SELF_REMOVAL_CONFIRMATION_PHRASE = 'I understand this is immediate'
+
+/**
+ * Self-remove from family input schema.
+ *
+ * Story 2.8: Unilateral Self-Removal - AC1, AC2
+ * Input schema for the selfRemoveFromFamily callable function.
+ *
+ * CRITICAL SAFETY DESIGN:
+ * - Requires explicit confirmation phrase to prevent accidental removal
+ * - User can only remove themselves, not others
+ * - No admin involvement required
+ */
+export const selfRemoveFromFamilyInputSchema = z.object({
+  familyId: z.string().min(1),
+  confirmationPhrase: z.literal(SELF_REMOVAL_CONFIRMATION_PHRASE),
+})
+export type SelfRemoveFromFamilyInput = z.infer<typeof selfRemoveFromFamilyInputSchema>
+
+/**
+ * Self-remove from family response schema.
+ *
+ * Story 2.8: Unilateral Self-Removal - AC3
+ * Neutral response returned after self-removal.
+ */
+export const selfRemoveFromFamilyResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+})
+export type SelfRemoveFromFamilyResponse = z.infer<typeof selfRemoveFromFamilyResponseSchema>

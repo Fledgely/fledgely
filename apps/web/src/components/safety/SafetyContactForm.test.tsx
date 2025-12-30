@@ -170,9 +170,11 @@ describe('SafetyContactForm', () => {
 
       await waitFor(() => {
         expect(mockSubmit).toHaveBeenCalledWith({
+          type: 'safety_request',
           message: 'I need help',
           safeContactInfo: null,
           urgency: 'when_you_can',
+          petitionInfo: null,
         })
       })
     })
@@ -193,12 +195,14 @@ describe('SafetyContactForm', () => {
 
       await waitFor(() => {
         expect(mockSubmit).toHaveBeenCalledWith({
+          type: 'safety_request',
           message: 'I need help',
           safeContactInfo: expect.objectContaining({
             phone: '555-1234',
             email: 'test@example.com',
           }),
           urgency: 'when_you_can',
+          petitionInfo: null,
         })
       })
     })
@@ -217,9 +221,11 @@ describe('SafetyContactForm', () => {
 
       await waitFor(() => {
         expect(mockSubmit).toHaveBeenCalledWith({
+          type: 'safety_request',
           message: 'I need help',
           safeContactInfo: null,
           urgency: 'urgent',
+          petitionInfo: null,
         })
       })
     })

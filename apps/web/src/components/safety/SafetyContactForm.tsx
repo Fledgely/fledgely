@@ -285,9 +285,11 @@ export function SafetyContactForm({
       : null
 
     const formData: SafetyContactInput = {
+      type: 'safety_request', // Default type for safety contact form
       message: trimmedMessage,
       safeContactInfo,
       urgency,
+      petitionInfo: null, // Not a legal parent petition
     }
 
     await submit(formData)

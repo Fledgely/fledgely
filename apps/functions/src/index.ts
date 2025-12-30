@@ -57,6 +57,9 @@ export { getSealedAuditEntries } from './callable/admin/getSealedAuditEntries'
 export { grantLegalParentAccess } from './callable/admin/grantLegalParentAccess'
 export { denyLegalParentPetition } from './callable/admin/denyLegalParentPetition'
 
+// User callable functions (Story 2.8)
+export { selfRemoveFromFamily } from './callable/selfRemoveFromFamily'
+
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 

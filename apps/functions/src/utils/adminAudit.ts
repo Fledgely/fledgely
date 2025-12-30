@@ -31,6 +31,7 @@ const db = getFirestore()
  * Story 0.5.8: Audit Trail Sealing (added seal_audit_entries, access_sealed_audit)
  * Story 0.5.9: Domestic Abuse Resource Referral (added send_safety_resource_email)
  * Story 3.6: Legal Parent Petition for Access (added grant_legal_parent_access, deny_legal_parent_petition)
+ * Story 2.8: Unilateral Self-Removal (added self_remove_from_family)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -53,6 +54,7 @@ export type AdminAuditAction =
   | 'send_safety_resource_email' // Story 0.5.9
   | 'grant_legal_parent_access' // Story 3.6
   | 'deny_legal_parent_petition' // Story 3.6
+  | 'self_remove_from_family' // Story 2.8
 
 /**
  * Resource types for admin audit logging.
@@ -65,6 +67,7 @@ export type AdminAuditAction =
  * Story 0.5.8: Audit Trail Sealing (added sealed_audit)
  * Story 0.5.9: Domestic Abuse Resource Referral (added safety_resource_email)
  * Story 3.6: Legal Parent Petition for Access (added legal_parent_petition)
+ * Story 2.8: Unilateral Self-Removal (added self_removal)
  */
 export type AdminAuditResourceType =
   | 'safety_ticket'
@@ -77,6 +80,7 @@ export type AdminAuditResourceType =
   | 'sealed_audit' // Story 0.5.8
   | 'safety_resource_email' // Story 0.5.9
   | 'legal_parent_petition' // Story 3.6
+  | 'self_removal' // Story 2.8
 
 /**
  * Admin audit log entry structure.

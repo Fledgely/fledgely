@@ -153,9 +153,15 @@ export const grantLegalParentAccess = onCall<
         .collection('children')
         .get()
 
-      const familyChildren = childrenSnapshot.docs.map((doc) => ({
+      interface ChildData {
+        id: string
+        name?: string
+        firstName?: string
+        [key: string]: unknown
+      }
+      const familyChildren: ChildData[] = childrenSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...doc.data(),
+        ...(doc.data() as Omit<ChildData, 'id'>),
       }))
 
       // Check if any child name matches (case-insensitive, partial match)

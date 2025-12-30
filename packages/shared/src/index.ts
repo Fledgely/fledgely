@@ -79,3 +79,12 @@ export {
   type GetSealedAuditEntriesInput,
   type GetSealedAuditEntriesResponse,
 } from './contracts'
+
+// Self-removal exports (Story 2.8)
+export {
+  SELF_REMOVAL_CONFIRMATION_PHRASE,
+  selfRemoveFromFamilyInputSchema,
+  selfRemoveFromFamilyResponseSchema,
+  type SelfRemoveFromFamilyInput,
+  type SelfRemoveFromFamilyResponse,
+} from './contracts'

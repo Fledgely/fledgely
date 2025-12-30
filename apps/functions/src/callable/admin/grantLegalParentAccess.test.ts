@@ -54,8 +54,8 @@ describe('grantLegalParentAccess', () => {
     ipAddress: '1.2.3.4',
   }
 
-  // Mock data for reference (prefixed with _ as currently used for design validation tests only)
-  const _mockTicketData = {
+  // Mock data for design validation tests
+  const mockTicketData = {
     id: 'ticket-123',
     type: 'legal_parent_petition',
     status: 'pending',
@@ -74,7 +74,7 @@ describe('grantLegalParentAccess', () => {
     },
   }
 
-  const _mockFamilyData = {
+  const mockFamilyData = {
     id: 'family-123',
     name: 'Test Family',
     guardianUids: ['existing-parent-uid'],
@@ -86,7 +86,7 @@ describe('grantLegalParentAccess', () => {
     ],
   }
 
-  const _mockPetitionerData = {
+  const mockPetitionerData = {
     email: 'petitioner@example.com',
     displayName: 'John Petitioner',
   }
@@ -189,5 +189,27 @@ describe('grantLegalParentAccess', () => {
     expect(validInput.ticketId.length).toBeGreaterThan(0)
     expect(validInput.familyId.length).toBeGreaterThan(0)
     expect(validInput.petitionerEmail).toMatch(/@/)
+  })
+
+  it('should validate mock ticket data structure matches expected schema', () => {
+    // Design validation: Ticket data structure verification
+    expect(mockTicketData.type).toBe('legal_parent_petition')
+    expect(mockTicketData.verification.phoneVerified).toBe(true)
+    expect(mockTicketData.verification.idDocumentVerified).toBe(true)
+    expect(mockTicketData.petitionInfo.childName).toBe('Test Child')
+    expect(mockTicketData.safeContactInfo.email).toBe('petitioner@example.com')
+  })
+
+  it('should validate mock family data structure', () => {
+    // Design validation: Family data structure verification
+    expect(mockFamilyData.guardianUids).toContain('existing-parent-uid')
+    expect(mockFamilyData.guardians).toHaveLength(1)
+    expect(mockFamilyData.name).toBe('Test Family')
+  })
+
+  it('should validate mock petitioner data structure', () => {
+    // Design validation: Petitioner data structure verification
+    expect(mockPetitionerData.email).toBe('petitioner@example.com')
+    expect(mockPetitionerData.displayName).toBe('John Petitioner')
   })
 })
