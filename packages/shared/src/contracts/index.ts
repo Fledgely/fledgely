@@ -68,6 +68,8 @@ export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),
   guardians: z.array(familyGuardianSchema).min(1),
+  /** Array of guardian UIDs for efficient Firestore security rule checks */
+  guardianUids: z.array(z.string()).min(1),
   createdAt: z.date(),
   updatedAt: z.date(),
 })
@@ -134,6 +136,8 @@ export const childProfileSchema = z.object({
   birthdate: z.date(),
   photoURL: z.string().url().nullable(),
   guardians: z.array(childGuardianSchema).min(1),
+  /** Array of guardian UIDs for efficient Firestore security rule checks */
+  guardianUids: z.array(z.string()).min(1),
   custody: custodyArrangementSchema.nullable(), // Optional custody declaration
   createdAt: z.date(),
   updatedAt: z.date(),

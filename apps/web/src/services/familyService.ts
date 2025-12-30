@@ -121,6 +121,8 @@ export async function createFamily(
         addedAt: serverTimestamp(),
       },
     ],
+    // guardianUids for efficient Firestore security rule checks
+    guardianUids: [guardian.uid],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })

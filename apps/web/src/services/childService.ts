@@ -191,6 +191,8 @@ export async function addChild(
           addedAt: serverTimestamp(),
         },
       ],
+      // guardianUids for efficient Firestore security rule checks
+      guardianUids: [guardian.uid],
       custody: null, // Custody must be declared separately
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

@@ -156,7 +156,7 @@ describe('Storage Status Endpoint', () => {
         usageBytes: 500 * 1024 * 1024, // 500 MB
         quotaBytes: 1024 * 1024 * 1024, // 1 GB
         percentUsed: 50,
-        plan: 'free',
+        plan: 'free' as const,
         isWarningLevel: false,
         isQuotaExceeded: false,
       }
@@ -183,7 +183,7 @@ describe('Storage Status Endpoint', () => {
         usageBytes: 500 * 1024 * 1024, // 500 MB
         quotaBytes: 1024 * 1024 * 1024, // 1 GB
         percentUsed: 50,
-        plan: 'free',
+        plan: 'free' as const,
         isWarningLevel: false,
         isQuotaExceeded: false,
       }
@@ -204,7 +204,7 @@ describe('Storage Status Endpoint', () => {
         usageBytes: 850 * 1024 * 1024, // 850 MB
         quotaBytes: 1024 * 1024 * 1024, // 1 GB
         percentUsed: 83,
-        plan: 'free',
+        plan: 'free' as const,
         isWarningLevel: true,
         isQuotaExceeded: false,
       }
@@ -225,7 +225,7 @@ describe('Storage Status Endpoint', () => {
         usageBytes: 1024 * 1024 * 1024, // 1 GB
         quotaBytes: 1024 * 1024 * 1024, // 1 GB
         percentUsed: 100,
-        plan: 'free',
+        plan: 'free' as const,
         isWarningLevel: true,
         isQuotaExceeded: true,
       }
