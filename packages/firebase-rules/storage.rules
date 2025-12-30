@@ -38,6 +38,25 @@ service firebase.storage {
       allow delete: if false;
     }
 
+    // Safety Documents - CRITICAL: Isolated from family data
+    // Story 0.5.2: Safety Request Documentation Upload
+    // Path: safetyDocuments/{ticketId}/{filename}
+    //
+    // NOTE: All access is via Cloud Functions with Admin SDK.
+    // These rules provide defense-in-depth to prevent any client access.
+    match /safetyDocuments/{ticketId}/{filename} {
+      // All writes via Cloud Functions with Admin SDK only
+      // Block all client writes
+      allow write: if false;
+
+      // All reads via Cloud Functions with Admin SDK only
+      // Block all client reads (support dashboard uses Admin SDK)
+      allow read: if false;
+
+      // No client-side deletes
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{allPaths=**} {
       allow read, write: if false;

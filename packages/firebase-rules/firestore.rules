@@ -570,6 +570,42 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // =========================================================================
+    // EPIC 0.5: SAFE ACCOUNT ESCAPE
+    // Story 0.5.2: Safety Request Documentation Upload
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Safety documents are COMPLETELY ISOLATED from all other family data.
+    // This prevents an abuser from discovering uploaded documentation.
+    //
+    // Key protections:
+    // - NO read access for regular users (only support via Admin SDK)
+    // - Create/delete allowed only via callable functions
+    // - NO cross-references to family documents
+    // - Legal hold protection to preserve evidence
+    //
+    match /safetyDocuments/{documentId} {
+      // CRITICAL: Regular users CANNOT read safety documents
+      // Support agents access via Admin SDK (bypasses security rules)
+      allow read: if false;
+
+      // Create: Only callable functions can create (via Admin SDK)
+      allow create: if false;
+
+      // Update: Only Admin SDK for support/legal operations
+      allow update: if false;
+
+      // Delete: Only Admin SDK (callable function) with proper checks
+      allow delete: if false;
+    }
+
+    // Rate limiting collection for safety document uploads
+    match /safetyDocumentRateLimits/{ipHash} {
+      // Only callable functions can read/write (via Admin SDK)
+      allow read, write: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

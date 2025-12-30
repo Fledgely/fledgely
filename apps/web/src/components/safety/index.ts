@@ -10,3 +10,6 @@
 
 export { SafetyContactForm } from './SafetyContactForm'
 export type { SafetyContactFormProps } from './SafetyContactForm'
+
+export { SafetyDocumentUpload } from './SafetyDocumentUpload'
+export type { SafetyDocumentUploadProps } from './SafetyDocumentUpload'

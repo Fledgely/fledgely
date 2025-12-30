@@ -18,6 +18,8 @@ initializeApp()
 export { sendInvitation } from './callable/sendInvitation'
 export { acceptInvitation } from './callable/acceptInvitation'
 export { submitSafetyContact } from './callable/submitSafetyContact'
+export { uploadSafetyDocument } from './callable/uploadSafetyDocument'
+export { deleteSafetyDocument } from './callable/deleteSafetyDocument'
 export {
   submitEnrollmentRequest,
   getEnrollmentRequestStatus,

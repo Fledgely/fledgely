@@ -1430,3 +1430,124 @@ export const safetyContactResponseSchema = z.object({
   message: z.string(),
 })
 export type SafetyContactResponse = z.infer<typeof safetyContactResponseSchema>
+
+// ============================================================================
+// EPIC 0.5: SAFE ACCOUNT ESCAPE
+// Story 0.5.2: Safety Request Documentation Upload
+// ============================================================================
+
+/**
+ * Allowed MIME types for safety document uploads.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC1
+ * Accepts PDF, images, and common document formats.
+ */
+export const safetyDocumentMimeTypeSchema = z.enum([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+export type SafetyDocumentMimeType = z.infer<typeof safetyDocumentMimeTypeSchema>
+
+/**
+ * Maximum file size for safety documents (25MB).
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC3
+ */
+export const SAFETY_DOCUMENT_MAX_SIZE_BYTES = 25 * 1024 * 1024 // 25MB
+
+/**
+ * Maximum total upload size per ticket (100MB).
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC3
+ */
+export const SAFETY_DOCUMENT_MAX_TOTAL_SIZE_BYTES = 100 * 1024 * 1024 // 100MB
+
+/**
+ * Default retention period for safety documents in years.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC5
+ * Legal hold default of 7 years.
+ */
+export const SAFETY_DOCUMENT_RETENTION_YEARS = 7
+
+/**
+ * Safety document metadata schema.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC2, AC5
+ *
+ * CRITICAL SAFETY DESIGN:
+ * - Stored in SEPARATE /safetyDocuments collection (isolated from family data)
+ * - Storage path uses UUID to prevent enumeration
+ * - Retention follows legal hold requirements
+ * - All access via Admin SDK only
+ *
+ * Represents document metadata stored in Firestore at /safetyDocuments/{documentId}.
+ */
+export const safetyDocumentSchema = z.object({
+  id: z.string(),
+  ticketId: z.string(),
+  filename: z.string().max(255),
+  originalFilename: z.string().max(255),
+  mimeType: safetyDocumentMimeTypeSchema,
+  sizeBytes: z.number().max(SAFETY_DOCUMENT_MAX_SIZE_BYTES),
+  storagePath: z.string(),
+  uploadedAt: z.date(),
+  // Retention management
+  retentionUntil: z.date(),
+  legalHold: z.boolean().default(false),
+  markedForDeletion: z.boolean().default(false),
+  // Uploader context (if logged in)
+  userId: z.string().nullable(),
+})
+export type SafetyDocument = z.infer<typeof safetyDocumentSchema>
+
+/**
+ * Safety document upload input schema.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC1
+ * Input schema for the uploadSafetyDocument callable function.
+ */
+export const safetyDocumentUploadInputSchema = z.object({
+  ticketId: z.string().min(1),
+  filename: z.string().min(1).max(255),
+  fileData: z.string(), // Base64 encoded
+  mimeType: safetyDocumentMimeTypeSchema,
+})
+export type SafetyDocumentUploadInput = z.infer<typeof safetyDocumentUploadInputSchema>
+
+/**
+ * Safety document upload response schema.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC4
+ * Neutral response returned after upload.
+ */
+export const safetyDocumentUploadResponseSchema = z.object({
+  success: z.boolean(),
+  documentId: z.string().optional(),
+  message: z.string(),
+})
+export type SafetyDocumentUploadResponse = z.infer<typeof safetyDocumentUploadResponseSchema>
+
+/**
+ * Safety document delete input schema.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC6
+ * Input schema for the deleteSafetyDocument callable function.
+ */
+export const safetyDocumentDeleteInputSchema = z.object({
+  documentId: z.string().min(1),
+})
+export type SafetyDocumentDeleteInput = z.infer<typeof safetyDocumentDeleteInputSchema>
+
+/**
+ * Safety document delete response schema.
+ *
+ * Story 0.5.2: Safety Request Documentation Upload - AC6
+ */
+export const safetyDocumentDeleteResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+})
