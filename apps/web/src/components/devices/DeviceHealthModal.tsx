@@ -4,6 +4,7 @@
  * Device Health Modal Component
  *
  * Story 19.4: Monitoring Health Details
+ * Story 8.8: Added MonitoringCapabilitiesCard integration
  *
  * Displays detailed health metrics for a device including:
  * - Capture success rate
@@ -11,10 +12,12 @@
  * - Network status
  * - Battery level (if available)
  * - App version
+ * - Monitoring capabilities and limitations (Story 8.8)
  */
 
 import { Device, DeviceHealthMetrics } from '../../hooks/useDevices'
 import { formatLastSeen } from '../../hooks/useDevices'
+import { MonitoringCapabilitiesCard } from './MonitoringCapabilitiesCard'
 
 interface DeviceHealthModalProps {
   device: Device
@@ -326,6 +329,11 @@ export function DeviceHealthModal({ device, onClose }: DeviceHealthModalProps) {
             appear after the first sync.
           </div>
         )}
+
+        {/* Story 8.8: Monitoring Capabilities Card */}
+        <div style={{ marginTop: '16px' }}>
+          <MonitoringCapabilitiesCard healthMetrics={metrics} />
+        </div>
       </div>
     </div>
   )

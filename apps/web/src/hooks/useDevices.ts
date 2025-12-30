@@ -17,6 +17,7 @@ import { getFirestoreDb } from '../lib/firebase'
 /**
  * Health metrics from extension
  * Story 19.4: Monitoring Health Details
+ * Story 8.8: Added encryptedTrafficPercent
  */
 export interface DeviceHealthMetrics {
   captureSuccessRate24h: number | null
@@ -28,6 +29,8 @@ export interface DeviceHealthMetrics {
   updateAvailable: boolean | null
   collectedAt: number
   lastHealthSync: Date | null
+  /** Story 8.8: Percentage of HTTPS traffic (encrypted) */
+  encryptedTrafficPercent: number | null
 }
 
 /**
@@ -115,6 +118,7 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
           const lastScreenshotAt = data.lastScreenshotAt?.toDate?.() || null
 
           // Story 19.4: Parse healthMetrics from Firestore
+          // Story 8.8: Added encryptedTrafficPercent
           let healthMetrics: DeviceHealthMetrics | undefined
           if (data.healthMetrics) {
             const hm = data.healthMetrics
@@ -128,6 +132,7 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
               updateAvailable: hm.updateAvailable ?? null,
               collectedAt: hm.collectedAt ?? 0,
               lastHealthSync: hm.lastHealthSync?.toDate?.() || null,
+              encryptedTrafficPercent: hm.encryptedTrafficPercent ?? null,
             }
           }
 

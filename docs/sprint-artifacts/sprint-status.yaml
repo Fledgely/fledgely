@@ -171,7 +171,7 @@ development_status:
   8-5-negative-capability-no-advertising-use: done
   8-6-negative-capability-no-identifiable-ai-training: done
   8-7-vpn-detection-transparency: done
-  8-8-encrypted-traffic-display: backlog # Unblocked - Epic 9+ complete
+  8-8-encrypted-traffic-display: done
   8-9-jurisdiction-based-defaults: done
   8-10-adult-pattern-detection: blocked # Depends on Epic 9+ (device monitoring, AI classification)
   8-11-no-law-enforcement-integration: done
