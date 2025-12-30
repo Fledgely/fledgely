@@ -1631,3 +1631,76 @@ export const getFamilyForSeveringResponseSchema = z.object({
   requestingUserEmail: z.string().email().nullable(),
 })
 export type GetFamilyForSeveringResponse = z.infer<typeof getFamilyForSeveringResponseSchema>
+
+// ============================================================================
+// Story 0.5.5: Remote Device Unenrollment Schemas
+// ============================================================================
+
+/**
+ * Get devices for family input schema.
+ *
+ * Story 0.5.5: Remote Device Unenrollment - AC7
+ * Input schema for the getDevicesForFamily callable function.
+ */
+export const getDevicesForFamilyInputSchema = z.object({
+  ticketId: z.string().min(1),
+})
+export type GetDevicesForFamilyInput = z.infer<typeof getDevicesForFamilyInputSchema>
+
+/**
+ * Device info for unenrollment display.
+ *
+ * Story 0.5.5: Remote Device Unenrollment - AC7
+ * Device info for display in safety dashboard device list.
+ */
+export const deviceInfoForSafetySchema = z.object({
+  deviceId: z.string(),
+  name: z.string(),
+  type: z.enum(['chromebook', 'android']),
+  childId: z.string().nullable(),
+  lastSeen: z.number().nullable(),
+  status: z.enum(['active', 'offline', 'unenrolled']),
+})
+export type DeviceInfoForSafety = z.infer<typeof deviceInfoForSafetySchema>
+
+/**
+ * Get devices for family response schema.
+ *
+ * Story 0.5.5: Remote Device Unenrollment - AC7
+ * Returns family's device list for safety dashboard display.
+ */
+export const getDevicesForFamilyResponseSchema = z.object({
+  familyId: z.string().nullable(),
+  familyName: z.string().nullable(),
+  devices: z.array(deviceInfoForSafetySchema),
+})
+export type GetDevicesForFamilyResponse = z.infer<typeof getDevicesForFamilyResponseSchema>
+
+/**
+ * Unenroll devices for safety input schema.
+ *
+ * Story 0.5.5: Remote Device Unenrollment - AC1, AC8
+ * Input schema for the unenrollDevicesForSafety callable function.
+ */
+export const unenrollDevicesForSafetyInputSchema = z.object({
+  ticketId: z.string().min(1),
+  familyId: z.string().min(1),
+  deviceIds: z.array(z.string().min(1)).min(1).max(50),
+})
+export type UnenrollDevicesForSafetyInput = z.infer<typeof unenrollDevicesForSafetyInputSchema>
+
+/**
+ * Unenroll devices for safety response schema.
+ *
+ * Story 0.5.5: Remote Device Unenrollment - AC1, AC8
+ * Returns result of batch device unenrollment.
+ */
+export const unenrollDevicesForSafetyResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  unenrolledCount: z.number(),
+  skippedCount: z.number(),
+})
+export type UnenrollDevicesForSafetyResponse = z.infer<
+  typeof unenrollDevicesForSafetyResponseSchema
+>

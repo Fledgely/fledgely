@@ -25,6 +25,7 @@ import {
   type FamilyForSevering,
   type GuardianInfoForSevering,
 } from '../../../../hooks/useSeverParentAccess'
+import { SafetyDeviceUnenrollSection } from '../../../../components/admin/SafetyDeviceUnenrollSection'
 
 /**
  * Format date for display.
@@ -381,6 +382,20 @@ export default function SafetyTicketDetailPage() {
               </button>
             </div>
           </section>
+
+          {/* Story 0.5.5: Device Unenrollment Section */}
+          {getVerificationCount() >= 2 && (
+            <SafetyDeviceUnenrollSection
+              ticketId={ticketId}
+              verificationStatus={{
+                phoneVerified: ticket.verification.phoneVerified,
+                idDocumentVerified: ticket.verification.idDocumentVerified,
+                accountMatchVerified: ticket.verification.accountMatchVerified,
+                securityQuestionsVerified: ticket.verification.securityQuestionsVerified,
+              }}
+              onSuccess={loadTicket}
+            />
+          )}
         </div>
 
         {/* Sidebar */}
