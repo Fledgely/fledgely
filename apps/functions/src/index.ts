@@ -53,6 +53,10 @@ export { disableLocationFeaturesForSafety } from './callable/admin/disableLocati
 // Admin callable functions (Story 0.5.8)
 export { getSealedAuditEntries } from './callable/admin/getSealedAuditEntries'
 
+// Admin callable functions (Story 3.6)
+export { grantLegalParentAccess } from './callable/admin/grantLegalParentAccess'
+export { denyLegalParentPetition } from './callable/admin/denyLegalParentPetition'
+
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 

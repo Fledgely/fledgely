@@ -1363,6 +1363,7 @@ export type SafeContactInfo = z.infer<typeof safeContactInfoSchema>
  * Safety ticket status.
  *
  * Story 0.5.1: Secure Safety Contact Channel - AC5
+ * Story 3.6: Legal Parent Petition - Added 'denied' status
  * Tracks the lifecycle of a safety support ticket.
  */
 export const safetyTicketStatusSchema = z.enum([
@@ -1370,13 +1371,60 @@ export const safetyTicketStatusSchema = z.enum([
   'in_review', // Support agent is reviewing
   'resolved', // Issue has been addressed
   'closed', // Ticket closed
+  'denied', // Story 3.6: Petition denied (for legal_parent_petition type)
 ])
 export type SafetyTicketStatus = z.infer<typeof safetyTicketStatusSchema>
+
+/**
+ * Safety ticket type.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC1
+ * Distinguishes between safety escape requests and legal parent petitions.
+ */
+export const safetyTicketTypeSchema = z.enum([
+  'safety_request', // Default: domestic abuse escape request
+  'legal_parent_petition', // Story 3.6: Legal parent access petition
+])
+export type SafetyTicketType = z.infer<typeof safetyTicketTypeSchema>
+
+/**
+ * Legal parent petition info schema.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC1
+ * Additional fields for legal parent access petitions.
+ */
+export const legalParentPetitionInfoSchema = z
+  .object({
+    childName: z.string().min(1).max(100), // Name of child petitioner claims
+    childBirthdate: z.string().nullable(), // Approximate birthdate if known
+    relationshipClaim: z.enum(['biological_parent', 'adoptive_parent', 'legal_guardian']),
+    existingParentEmail: z.string().email().nullable(), // Email of existing parent if known
+    courtOrderReference: z.string().max(200).nullable(), // Court case number if available
+  })
+  .nullable()
+export type LegalParentPetitionInfo = z.infer<typeof legalParentPetitionInfoSchema>
+
+/**
+ * Verification status schema for safety tickets.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC3
+ * Tracks identity verification checks for petitions.
+ */
+export const verificationStatusSchema = z
+  .object({
+    phoneVerified: z.boolean().default(false),
+    idDocumentVerified: z.boolean().default(false),
+    accountMatchVerified: z.boolean().default(false),
+    securityQuestionsVerified: z.boolean().default(false),
+  })
+  .nullable()
+export type VerificationStatus = z.infer<typeof verificationStatusSchema>
 
 /**
  * Safety ticket schema.
  *
  * Story 0.5.1: Secure Safety Contact Channel - AC5, AC6
+ * Story 3.6: Legal Parent Petition for Access - AC1
  *
  * CRITICAL SAFETY DESIGN:
  * - Stored in SEPARATE /safetyTickets collection (isolated from family data)
@@ -1384,11 +1432,14 @@ export type SafetyTicketStatus = z.infer<typeof safetyTicketStatusSchema>
  * - ipHash used for rate limiting only (not tracking)
  * - No Firestore indexes on sensitive fields (prevents search exposure)
  *
- * Represents a safety support ticket submitted by a potential abuse victim.
+ * Represents a safety support ticket submitted by a potential abuse victim
+ * OR a legal parent petition for access.
  * Stored in Firestore at /safetyTickets/{ticketId}.
  */
 export const safetyTicketSchema = z.object({
   id: z.string(),
+  // Story 3.6: Ticket type to distinguish safety requests from legal parent petitions
+  type: safetyTicketTypeSchema.default('safety_request'),
   message: z.string().min(1).max(5000),
   safeContactInfo: safeContactInfoSchema,
   urgency: safetyContactUrgencySchema,
@@ -1403,6 +1454,20 @@ export const safetyTicketSchema = z.object({
   // Ticket lifecycle
   status: safetyTicketStatusSchema,
   assignedTo: z.string().nullable(),
+  // Story 3.6: Verification tracking for identity checks
+  verification: verificationStatusSchema,
+  // Story 3.6: Legal parent petition specific fields
+  petitionInfo: legalParentPetitionInfoSchema,
+  // Story 3.6: SLA tracking (business days from submission)
+  slaDeadline: z.date().nullable(), // 5 business days from submission
+  // Story 3.6: Denial tracking
+  denialReason: z.string().max(1000).nullable(), // Internal only
+  deniedAt: z.date().nullable(),
+  deniedByAgentId: z.string().nullable(),
+  // Story 3.6: Grant tracking
+  grantedAt: z.date().nullable(),
+  grantedByAgentId: z.string().nullable(),
+  grantedFamilyId: z.string().nullable(), // Family the petitioner was added to
 })
 export type SafetyTicket = z.infer<typeof safetyTicketSchema>
 
@@ -1410,14 +1475,122 @@ export type SafetyTicket = z.infer<typeof safetyTicketSchema>
  * Safety contact input schema.
  *
  * Story 0.5.1: Secure Safety Contact Channel - AC4
+ * Story 3.6: Legal Parent Petition for Access - AC1
  * Input schema for the submitSafetyContact callable function.
  */
 export const safetyContactInputSchema = z.object({
+  // Story 3.6: Ticket type - defaults to safety_request
+  type: safetyTicketTypeSchema.default('safety_request'),
   message: z.string().min(1).max(5000),
   safeContactInfo: safeContactInfoSchema,
   urgency: safetyContactUrgencySchema.default('when_you_can'),
+  // Story 3.6: Legal parent petition specific fields
+  petitionInfo: legalParentPetitionInfoSchema,
 })
 export type SafetyContactInput = z.infer<typeof safetyContactInputSchema>
+
+/**
+ * SLA deadline days for legal parent petitions.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC7
+ * Processing SLA of 5 business days.
+ */
+export const PETITION_SLA_BUSINESS_DAYS = 5
+
+/**
+ * Calculate SLA deadline in business days from a start date.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC7
+ * Excludes weekends (Saturday and Sunday).
+ *
+ * @param startDate - Start date
+ * @param businessDays - Number of business days
+ * @returns Deadline date
+ */
+export function calculateBusinessDayDeadline(startDate: Date, businessDays: number): Date {
+  // Validate inputs to prevent infinite loops or invalid calculations
+  if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+    throw new Error('Invalid start date provided')
+  }
+  if (typeof businessDays !== 'number' || !Number.isFinite(businessDays)) {
+    throw new Error('Business days must be a finite number')
+  }
+  if (businessDays < 0) {
+    throw new Error('Business days cannot be negative')
+  }
+  // Reasonable upper limit to prevent excessive loops
+  if (businessDays > 365) {
+    throw new Error('Business days cannot exceed 365')
+  }
+
+  const result = new Date(startDate)
+  let daysAdded = 0
+
+  while (daysAdded < businessDays) {
+    result.setDate(result.getDate() + 1)
+    const dayOfWeek = result.getDay()
+    // Skip Saturday (6) and Sunday (0)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      daysAdded++
+    }
+  }
+
+  return result
+}
+
+/**
+ * Check if a petition is overdue based on SLA deadline.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC7
+ *
+ * @param slaDeadline - SLA deadline date
+ * @returns true if overdue
+ */
+export function isPetitionOverdue(slaDeadline: Date | null): boolean {
+  if (!slaDeadline) return false
+  return new Date() > slaDeadline
+}
+
+/**
+ * Get remaining business days until SLA deadline.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC7
+ *
+ * @param slaDeadline - SLA deadline date
+ * @returns Number of business days remaining (negative if overdue)
+ */
+export function getBusinessDaysRemaining(slaDeadline: Date | null): number {
+  if (!slaDeadline) return 0
+
+  const now = new Date()
+  const deadline = new Date(slaDeadline)
+
+  if (now > deadline) {
+    // Count negative business days if overdue
+    let days = 0
+    const cursor = new Date(deadline)
+    while (cursor < now) {
+      cursor.setDate(cursor.getDate() + 1)
+      const dayOfWeek = cursor.getDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        days--
+      }
+    }
+    return days
+  }
+
+  // Count positive business days remaining
+  let days = 0
+  const cursor = new Date(now)
+  while (cursor < deadline) {
+    cursor.setDate(cursor.getDate() + 1)
+    const dayOfWeek = cursor.getDay()
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      days++
+    }
+  }
+  return days
+}
 
 /**
  * Safety contact response schema.
@@ -1927,3 +2100,55 @@ export const getSealedAuditEntriesResponseSchema = z.object({
   accessLoggedAt: z.date(),
 })
 export type GetSealedAuditEntriesResponse = z.infer<typeof getSealedAuditEntriesResponseSchema>
+
+// ============================================================================
+// Story 3.6: Legal Parent Petition for Access
+// ============================================================================
+
+/**
+ * Grant legal parent access input schema.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC4
+ * Input schema for the grantLegalParentAccess callable function.
+ */
+export const grantLegalParentAccessInputSchema = z.object({
+  ticketId: z.string().min(1),
+  familyId: z.string().min(1),
+  petitionerEmail: z.string().email(),
+})
+export type GrantLegalParentAccessInput = z.infer<typeof grantLegalParentAccessInputSchema>
+
+/**
+ * Grant legal parent access response schema.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC4
+ */
+export const grantLegalParentAccessResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  familyId: z.string().optional(),
+})
+export type GrantLegalParentAccessResponse = z.infer<typeof grantLegalParentAccessResponseSchema>
+
+/**
+ * Deny legal parent petition input schema.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC6
+ * Input schema for the denyLegalParentPetition callable function.
+ */
+export const denyLegalParentPetitionInputSchema = z.object({
+  ticketId: z.string().min(1),
+  reason: z.string().min(1).max(1000),
+})
+export type DenyLegalParentPetitionInput = z.infer<typeof denyLegalParentPetitionInputSchema>
+
+/**
+ * Deny legal parent petition response schema.
+ *
+ * Story 3.6: Legal Parent Petition for Access - AC6
+ */
+export const denyLegalParentPetitionResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+})
+export type DenyLegalParentPetitionResponse = z.infer<typeof denyLegalParentPetitionResponseSchema>

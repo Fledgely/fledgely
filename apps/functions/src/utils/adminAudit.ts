@@ -30,6 +30,7 @@ const db = getFirestore()
  * Story 0.5.7: 72-Hour Notification Stealth (added activate_stealth_window, cleanup_stealth_queue)
  * Story 0.5.8: Audit Trail Sealing (added seal_audit_entries, access_sealed_audit)
  * Story 0.5.9: Domestic Abuse Resource Referral (added send_safety_resource_email)
+ * Story 3.6: Legal Parent Petition for Access (added grant_legal_parent_access, deny_legal_parent_petition)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -50,6 +51,8 @@ export type AdminAuditAction =
   | 'seal_audit_entries' // Story 0.5.8
   | 'access_sealed_audit' // Story 0.5.8
   | 'send_safety_resource_email' // Story 0.5.9
+  | 'grant_legal_parent_access' // Story 3.6
+  | 'deny_legal_parent_petition' // Story 3.6
 
 /**
  * Resource types for admin audit logging.
@@ -61,6 +64,7 @@ export type AdminAuditAction =
  * Story 0.5.7: 72-Hour Notification Stealth (added stealth_window)
  * Story 0.5.8: Audit Trail Sealing (added sealed_audit)
  * Story 0.5.9: Domestic Abuse Resource Referral (added safety_resource_email)
+ * Story 3.6: Legal Parent Petition for Access (added legal_parent_petition)
  */
 export type AdminAuditResourceType =
   | 'safety_ticket'
@@ -72,6 +76,7 @@ export type AdminAuditResourceType =
   | 'stealth_window' // Story 0.5.7
   | 'sealed_audit' // Story 0.5.8
   | 'safety_resource_email' // Story 0.5.9
+  | 'legal_parent_petition' // Story 3.6
 
 /**
  * Admin audit log entry structure.
