@@ -312,13 +312,13 @@ development_status:
   epic-19-retrospective: done
 
   # Epic 19A: Quick Status View (Focus Group)
-  epic-19a: in-progress
+  epic-19a: done # 4/5 stories done, 1 blocked (19a-5 requires native mobile app)
   19a-1-family-status-summary-card: done
   19a-2-per-child-status-row: done
   19a-3-caregiver-quick-view: done
   19a-4-status-push-notifications: done
-  19a-5-status-widget-mobile: backlog
-  epic-19a-retrospective: optional
+  19a-5-status-widget-mobile: blocked # Requires native mobile app (Epic 14+)
+  epic-19a-retrospective: done
 
   # Epic 19B: Child Dashboard - My Screenshots
   epic-19b: backlog
