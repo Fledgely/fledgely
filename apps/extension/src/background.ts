@@ -39,6 +39,8 @@ import {
   clearConsentCache,
   shouldEnableMonitoring,
 } from './consent-gate'
+import { isCrisisSearch, getRelevantResources } from './crisis-keywords'
+import { extractSearchQuery } from './search-detector'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -1518,6 +1520,58 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     }
   } catch {
     // Silently fail - badge updates are non-critical
+  }
+})
+
+/**
+ * Story 7.6: Crisis Search Redirection
+ *
+ * Detects when child searches for crisis-related terms and shows
+ * an optional interstitial with helpful crisis resources.
+ *
+ * CRITICAL PRIVACY:
+ * - Search query is NEVER stored or logged
+ * - Only detection result (category) is used
+ * - No parent notification is generated
+ */
+chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+  // Only process main frame navigations
+  if (details.frameId !== 0) {
+    return
+  }
+
+  try {
+    // Check if this is a search URL and extract the query
+    const searchResult = extractSearchQuery(details.url)
+    if (!searchResult.isSearch || !searchResult.query) {
+      return
+    }
+
+    // Check if query indicates crisis intent
+    // PRIVACY: Query is checked in memory only - NEVER stored
+    const crisisResult = isCrisisSearch(searchResult.query)
+    if (!crisisResult.isCrisis || !crisisResult.category) {
+      return
+    }
+
+    // Get relevant resources for this crisis category
+    const resources = getRelevantResources(crisisResult.category)
+
+    // Send message to content script to show interstitial
+    // NOTE: We do NOT log this - privacy requirement (AC4)
+    try {
+      await chrome.tabs.sendMessage(details.tabId, {
+        type: 'SHOW_CRISIS_INTERSTITIAL',
+        category: crisisResult.category,
+        resources,
+      })
+    } catch {
+      // Content script may not be ready yet - silently ignore
+      // This is non-critical functionality
+    }
+  } catch {
+    // Silently fail - crisis redirect is optional functionality
+    // We never want this to break the browsing experience
   }
 })
 

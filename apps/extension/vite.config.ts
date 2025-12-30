@@ -143,6 +143,10 @@ export default defineConfig({
         background: path.resolve(__dirname, 'src/background.ts'),
         popup: path.resolve(__dirname, 'src/popup.ts'),
         'emergency-unlock': path.resolve(__dirname, 'src/emergency-unlock.ts'),
+        'content-scripts/crisis-redirect': path.resolve(
+          __dirname,
+          'src/content-scripts/crisis-redirect.ts'
+        ),
       },
       output: {
         entryFileNames: '[name].js',

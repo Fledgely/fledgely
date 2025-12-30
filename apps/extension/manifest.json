@@ -3,7 +3,7 @@
   "name": "Fledgely",
   "version": "0.1.0",
   "description": "Family digital safety and trust building for Chromebook monitoring",
-  "permissions": ["storage", "alarms", "tabs", "activeTab", "identity", "idle"],
+  "permissions": ["storage", "alarms", "tabs", "activeTab", "identity", "idle", "webNavigation"],
   "host_permissions": [
     "https://*.fledgely.app/*",
     "https://*.firebaseapp.com/*",
@@ -38,5 +38,27 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.google.com/*",
+        "*://*.google.co.uk/*",
+        "*://*.google.ca/*",
+        "*://*.google.com.au/*",
+        "*://*.google.de/*",
+        "*://*.google.fr/*",
+        "*://*.bing.com/*",
+        "*://*.duckduckgo.com/*",
+        "*://duckduckgo.com/*",
+        "*://*.search.yahoo.com/*",
+        "*://search.yahoo.com/*",
+        "*://*.ecosia.org/*",
+        "*://*.search.brave.com/*",
+        "*://*.startpage.com/*"
+      ],
+      "js": ["content-scripts/crisis-redirect.js"],
+      "run_at": "document_start"
+    }
+  ],
   "minimum_chrome_version": "100"
 }
