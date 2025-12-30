@@ -62,6 +62,7 @@ export { selfRemoveFromFamily } from './callable/selfRemoveFromFamily'
 
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
+export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'

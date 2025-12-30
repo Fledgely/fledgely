@@ -33,6 +33,7 @@ import {
   declineSafetySettingChange,
 } from '../../services/safetySettingService'
 import SafetySettingProposalCard from '../../components/SafetySettingProposalCard'
+import { usePushNotifications } from '../../hooks/usePushNotifications'
 
 const styles = {
   main: {
@@ -155,6 +156,24 @@ export default function DashboardPage() {
   const [invitationRefreshTrigger, setInvitationRefreshTrigger] = useState(0)
   const [pendingSafetyChanges, setPendingSafetyChanges] = useState<SafetySettingChange[]>([])
   const [safetyChangesRefreshTrigger, setSafetyChangesRefreshTrigger] = useState(0)
+
+  // Push notifications setup (Story 19A.4)
+  const { permissionStatus, requestPermission } = usePushNotifications({
+    userId: firebaseUser?.uid ?? null,
+  })
+
+  // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
+  // Only prompts once per browser session and respects user's previous choice
+  useEffect(() => {
+    if (firebaseUser && permissionStatus === 'default') {
+      // Small delay to avoid overwhelming user immediately on page load
+      const timer = setTimeout(() => {
+        requestPermission()
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [firebaseUser, permissionStatus, requestPermission])
 
   // Redirect unauthenticated users to login
   useEffect(() => {
