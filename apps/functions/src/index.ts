@@ -33,6 +33,12 @@ export {
 } from './callable/enrollment'
 // export { flagContent } from './callable/flagContent'
 
+// Admin callable functions (Story 0.5.3)
+export { getSafetyTickets } from './callable/admin/getSafetyTickets'
+export { getSafetyTicketDetail } from './callable/admin/getSafetyTicketDetail'
+export { getSafetyDocument } from './callable/admin/getSafetyDocument'
+export { updateSafetyTicket } from './callable/admin/updateSafetyTicket'
+
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 
