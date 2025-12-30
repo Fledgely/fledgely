@@ -39,6 +39,10 @@ export { getSafetyTicketDetail } from './callable/admin/getSafetyTicketDetail'
 export { getSafetyDocument } from './callable/admin/getSafetyDocument'
 export { updateSafetyTicket } from './callable/admin/updateSafetyTicket'
 
+// Admin callable functions (Story 0.5.4)
+export { severParentAccess } from './callable/admin/severParentAccess'
+export { getFamilyForSevering } from './callable/admin/getFamilyForSevering'
+
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 

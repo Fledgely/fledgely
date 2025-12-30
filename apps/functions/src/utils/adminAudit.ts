@@ -22,6 +22,9 @@ const db = getFirestore()
 
 /**
  * Action types for admin audit logging.
+ *
+ * Story 0.5.3: Support Agent Escape Dashboard
+ * Story 0.5.4: Parent Access Severing (added sever_parent_access, get_family_for_severing)
  */
 export type AdminAuditAction =
   | 'view_ticket_list'
@@ -32,11 +35,20 @@ export type AdminAuditAction =
   | 'update_verification'
   | 'escalate_ticket'
   | 'access_denied'
+  | 'sever_parent_access' // Story 0.5.4
+  | 'get_family_for_severing' // Story 0.5.4
 
 /**
  * Resource types for admin audit logging.
+ *
+ * Story 0.5.3: Support Agent Escape Dashboard
+ * Story 0.5.4: Parent Access Severing (added family)
  */
-export type AdminAuditResourceType = 'safety_ticket' | 'safety_document' | 'safety_dashboard'
+export type AdminAuditResourceType =
+  | 'safety_ticket'
+  | 'safety_document'
+  | 'safety_dashboard'
+  | 'family'
 
 /**
  * Admin audit log entry structure.

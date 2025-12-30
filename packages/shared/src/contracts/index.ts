@@ -1551,3 +1551,83 @@ export const safetyDocumentDeleteResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 })
+
+// ============================================================================
+// EPIC 0.5: SAFE ACCOUNT ESCAPE
+// Story 0.5.4: Parent Access Severing
+// ============================================================================
+
+/**
+ * Sever parent access input schema.
+ *
+ * Story 0.5.4: Parent Access Severing - AC1, AC7, AC8
+ * Input schema for the severParentAccess callable function.
+ *
+ * CRITICAL SAFETY DESIGN:
+ * - Requires confirmation phrase to prevent accidental severing
+ * - Confirmation phrase format: "SEVER {parentEmail}"
+ * - Linked to safety ticket for audit trail
+ */
+export const severParentAccessInputSchema = z.object({
+  ticketId: z.string().min(1),
+  familyId: z.string().min(1),
+  parentUid: z.string().min(1),
+  confirmationPhrase: z.string().min(1),
+})
+export type SeverParentAccessInput = z.infer<typeof severParentAccessInputSchema>
+
+/**
+ * Sever parent access response schema.
+ *
+ * Story 0.5.4: Parent Access Severing - AC1
+ * Minimal response to confirm severing (no sensitive details).
+ */
+export const severParentAccessResponseSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+})
+export type SeverParentAccessResponse = z.infer<typeof severParentAccessResponseSchema>
+
+/**
+ * Get family for severing input schema.
+ *
+ * Story 0.5.4: Parent Access Severing - AC7
+ * Input schema for the getFamilyForSevering callable function.
+ */
+export const getFamilyForSeveringInputSchema = z.object({
+  ticketId: z.string().min(1),
+})
+export type GetFamilyForSeveringInput = z.infer<typeof getFamilyForSeveringInputSchema>
+
+/**
+ * Guardian info for severing display.
+ *
+ * Story 0.5.4: Parent Access Severing - AC7
+ * Minimal guardian info for display in severing modal.
+ */
+export const guardianInfoForSeveringSchema = z.object({
+  uid: z.string(),
+  email: z.string(), // Not .email() - can be 'Unknown' if guardian email not set
+  displayName: z.string().nullable(),
+  role: z.string(),
+})
+export type GuardianInfoForSevering = z.infer<typeof guardianInfoForSeveringSchema>
+
+/**
+ * Get family for severing response schema.
+ *
+ * Story 0.5.4: Parent Access Severing - AC7
+ * Returns family info with guardians for severing modal display.
+ */
+export const getFamilyForSeveringResponseSchema = z.object({
+  family: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      guardians: z.array(guardianInfoForSeveringSchema),
+    })
+    .nullable(),
+  requestingUserUid: z.string().nullable(), // Which parent is requesting escape
+  requestingUserEmail: z.string().email().nullable(),
+})
+export type GetFamilyForSeveringResponse = z.infer<typeof getFamilyForSeveringResponseSchema>

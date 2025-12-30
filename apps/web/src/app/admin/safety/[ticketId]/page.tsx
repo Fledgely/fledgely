@@ -2,6 +2,7 @@
  * Safety Ticket Detail Page.
  *
  * Story 0.5.3: Support Agent Escape Dashboard
+ * Story 0.5.4: Parent Access Severing (added severing functionality)
  *
  * Admin-only page for viewing and managing individual safety tickets.
  * Includes: full ticket details, documents, verification checklist, internal notes.
@@ -18,6 +19,12 @@ import {
   type VerificationField,
 } from '../../../../hooks/useSafetyAdmin'
 import { SafetyDocumentViewer } from '../../../../components/admin/SafetyDocumentViewer'
+import { SafetySeverParentModal } from '../../../../components/admin/SafetySeverParentModal'
+import {
+  useSeverParentAccess,
+  type FamilyForSevering,
+  type GuardianInfoForSevering,
+} from '../../../../hooks/useSeverParentAccess'
 
 /**
  * Format date for display.
@@ -72,6 +79,12 @@ export default function SafetyTicketDetailPage() {
   const [documentUrl, setDocumentUrl] = useState<string | null>(null)
   const [escalationReason, setEscalationReason] = useState('')
   const [showEscalationModal, setShowEscalationModal] = useState(false)
+
+  // Story 0.5.4: Parent Access Severing state
+  const [showSeveringModal, setShowSeveringModal] = useState(false)
+  const [familyForSevering, setFamilyForSevering] = useState<FamilyForSevering | null>(null)
+  const [parentToSever, setParentToSever] = useState<GuardianInfoForSevering | null>(null)
+  const { getFamilyForSevering, loading: severingLoading } = useSeverParentAccess()
 
   /**
    * Load ticket detail.
@@ -156,6 +169,50 @@ export default function SafetyTicketDetailPage() {
       setEscalationReason('')
       await loadTicket()
     }
+  }
+
+  /**
+   * Story 0.5.4: Handle initiating parent access severing.
+   * Gets family info and opens the severing modal.
+   */
+  const handleInitiateSevering = async () => {
+    const result = await getFamilyForSevering(ticketId)
+    if (result?.family && result.family.guardians.length > 0) {
+      setFamilyForSevering(result.family)
+      // Find the parent who is NOT the requesting user (the one to sever)
+      // If requestingUserUid is null, show all guardians for selection
+      const parentToRemove = result.requestingUserUid
+        ? result.family.guardians.find((g) => g.uid !== result.requestingUserUid)
+        : result.family.guardians[0]
+
+      if (parentToRemove) {
+        setParentToSever(parentToRemove)
+        setShowSeveringModal(true)
+      }
+    }
+  }
+
+  /**
+   * Story 0.5.4: Handle successful severing.
+   */
+  const handleSeveringSuccess = async () => {
+    await loadTicket() // Reload to show internal note
+    setShowSeveringModal(false)
+    setFamilyForSevering(null)
+    setParentToSever(null)
+  }
+
+  /**
+   * Story 0.5.4: Count verification checks completed.
+   */
+  const getVerificationCount = (): number => {
+    if (!ticket) return 0
+    return [
+      ticket.verification.phoneVerified,
+      ticket.verification.idDocumentVerified,
+      ticket.verification.accountMatchVerified,
+      ticket.verification.securityQuestionsVerified,
+    ].filter(Boolean).length
   }
 
   // Handle loading states
@@ -362,6 +419,29 @@ export default function SafetyTicketDetailPage() {
             </div>
           </section>
 
+          {/* Story 0.5.4: Parent Access Severing */}
+          <section style={styles.sidebarSection}>
+            <h3 style={styles.sidebarTitle}>Account Actions</h3>
+            <div style={styles.statusButtons}>
+              <button
+                onClick={handleInitiateSevering}
+                disabled={loading || severingLoading || getVerificationCount() < 2}
+                style={{
+                  ...styles.statusButton,
+                  backgroundColor: getVerificationCount() >= 2 ? '#7c3aed' : '#c4b5fd',
+                  cursor: getVerificationCount() >= 2 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {severingLoading ? 'Loading...' : 'Sever Parent Access'}
+              </button>
+              {getVerificationCount() < 2 && (
+                <p style={styles.severingWarning}>
+                  Requires minimum 2 verification checks ({getVerificationCount()}/4 completed)
+                </p>
+              )}
+            </div>
+          </section>
+
           {/* Verification Checklist */}
           <section style={styles.sidebarSection}>
             <h3 style={styles.sidebarTitle}>Identity Verification</h3>
@@ -458,6 +538,37 @@ export default function SafetyTicketDetailPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Story 0.5.4: Parent Access Severing Modal */}
+      {showSeveringModal && familyForSevering && parentToSever && (
+        <SafetySeverParentModal
+          isOpen={showSeveringModal}
+          onClose={() => {
+            setShowSeveringModal(false)
+            setFamilyForSevering(null)
+            setParentToSever(null)
+          }}
+          ticketId={ticketId}
+          family={familyForSevering}
+          parentToSever={parentToSever}
+          verificationStatus={
+            ticket
+              ? {
+                  phoneVerified: ticket.verification.phoneVerified,
+                  idDocumentVerified: ticket.verification.idDocumentVerified,
+                  accountMatchVerified: ticket.verification.accountMatchVerified,
+                  securityQuestionsVerified: ticket.verification.securityQuestionsVerified,
+                }
+              : {
+                  phoneVerified: false,
+                  idDocumentVerified: false,
+                  accountMatchVerified: false,
+                  securityQuestionsVerified: false,
+                }
+          }
+          onSuccess={handleSeveringSuccess}
+        />
       )}
     </div>
   )
@@ -784,5 +895,32 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '6px',
     fontSize: '14px',
     cursor: 'pointer',
+  },
+  // Story 0.5.4: Parent Access Severing styles
+  severingSection: {
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e5e7eb',
+  },
+  severButton: {
+    width: '100%',
+    padding: '10px 16px',
+    backgroundColor: '#7c3aed',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  severButtonDisabled: {
+    backgroundColor: '#c4b5fd',
+    cursor: 'not-allowed',
+  },
+  severingWarning: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginTop: '8px',
+    marginBottom: 0,
   },
 }
