@@ -41,6 +41,7 @@ import {
 } from './consent-gate'
 import { isCrisisSearch, getRelevantResources } from './crisis-keywords'
 import { extractSearchQuery } from './search-detector'
+import { getOrGenerateSchedule, isInPrivacyGap, clearSchedule } from './privacy-gaps'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -169,6 +170,7 @@ interface ExtensionState {
   idleThresholdSeconds: number
   showProtectedIndicator: boolean // Story 11.3: Optional visual indicator
   decoyModeEnabled: boolean // Story 11.5: Generate decoys for crisis sites
+  privacyGapsEnabled: boolean // Story 7.8: Random screenshot gaps for privacy
   enrollmentState: EnrollmentState // Story 12.2: Device enrollment status
   pendingEnrollment: EnrollmentPending | null // Story 12.2: Pending enrollment data
   deviceId: string | null // Story 12.4: Registered device ID
@@ -191,6 +193,7 @@ const DEFAULT_STATE: ExtensionState = {
   idleThresholdSeconds: DEFAULT_IDLE_THRESHOLD_SECONDS,
   showProtectedIndicator: true, // Story 11.3: Default to showing indicator
   decoyModeEnabled: false, // Story 11.5: Default to off (opt-in)
+  privacyGapsEnabled: true, // Story 7.8: Default to enabled for privacy
   enrollmentState: 'not_enrolled', // Story 12.2: Device starts as not enrolled
   pendingEnrollment: null, // Story 12.2: No pending enrollment initially
   deviceId: null, // Story 12.4: No device ID initially
@@ -594,6 +597,23 @@ async function handleScreenshotCapture(state: ExtensionState): Promise<void> {
     console.log('[Fledgely] Device is idle/locked, skipping capture')
     // Note: idle_pause/resume events logged in idle listener, not here
     return
+  }
+
+  // Story 7.8: Privacy Gaps Injection
+  // Skip capture if currently in a random privacy gap
+  // CRITICAL: Do NOT log anything - gaps must be invisible to parents
+  if (state.privacyGapsEnabled !== false) {
+    try {
+      const schedule = await getOrGenerateSchedule(state.childId)
+      if (isInPrivacyGap(schedule, Date.now())) {
+        // Silently skip - NO logging, NO special event
+        // This makes privacy gaps indistinguishable from crisis gaps
+        return
+      }
+    } catch {
+      // Fail-safe: If privacy gap check fails, continue with capture
+      // We don't want privacy gap failures to break monitoring
+    }
   }
 
   // Story 11.1: Check crisis allowlist BEFORE any capture (INV-001 zero data path)
@@ -1036,6 +1056,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await clearConsentCheckAlarm()
         await clearConsentCache()
 
+        // Story 7.8: Clear privacy gap schedule
+        await clearSchedule()
+
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
       })
@@ -1169,6 +1192,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         await chrome.storage.local.set({ state: newState })
         console.log(`[Fledgely] Decoy mode ${newState.decoyModeEnabled ? 'enabled' : 'disabled'}`)
         sendResponse({ success: true, decoyModeEnabled: newState.decoyModeEnabled })
+      })
+      return true
+
+    case 'UPDATE_PRIVACY_GAPS':
+      // Update privacy gaps setting
+      // Story 7.8: Privacy Gaps Injection - AC5 default enabled
+      // NOTE: No logging of this setting change (privacy requirement)
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        const newState: ExtensionState = {
+          ...currentState,
+          privacyGapsEnabled: Boolean(message.enabled),
+        }
+        await chrome.storage.local.set({ state: newState })
+        // Note: We do NOT log this change - privacy requirement
+        sendResponse({ success: true, privacyGapsEnabled: newState.privacyGapsEnabled })
       })
       return true
 
