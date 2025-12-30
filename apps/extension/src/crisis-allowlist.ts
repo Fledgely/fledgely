@@ -5,6 +5,7 @@
  * It ensures the ZERO DATA PATH invariant (INV-001) - crisis sites are NEVER captured.
  *
  * Story 11.1: Pre-Capture Allowlist Check
+ * Story 7.5: Fuzzy Domain Matching (Levenshtein distance for typos)
  *
  * CRITICAL PRIVACY RULES:
  * - Check happens BEFORE any capture attempt
@@ -24,6 +25,15 @@ export interface CrisisAllowlist {
 
 // Storage key for cached allowlist
 const ALLOWLIST_STORAGE_KEY = 'crisisAllowlist'
+
+// Storage key for fuzzy match improvement queue (Story 7.5)
+const FUZZY_MATCH_QUEUE_KEY = 'fuzzyMatchQueue'
+
+// Fuzzy matching constants (Story 7.5)
+const FUZZY_MATCH_THRESHOLD = 2 // Maximum Levenshtein distance for typo detection
+const MIN_DOMAIN_LENGTH_FOR_FUZZY = 10 // Skip fuzzy matching for domains < 10 chars (prevents false positives)
+const MAX_FUZZY_QUEUE_SIZE = 100 // Maximum entries in improvement queue
+const MAX_DOMAIN_LENGTH_FOR_FUZZY = 256 // Max reasonable domain length per RFC 1035 (DoS prevention)
 
 /**
  * Default bundled crisis sites
@@ -138,6 +148,215 @@ function buildDomainSet(domains: string[]): Set<string> {
 }
 
 /**
+ * Calculate Levenshtein distance between two strings
+ * Uses Wagner-Fischer algorithm with early exit optimization
+ *
+ * Story 7.5: Fuzzy Domain Matching
+ *
+ * @param a - First string
+ * @param b - Second string
+ * @param maxDistance - Maximum distance to compute (for early exit optimization)
+ * @returns Levenshtein distance, or maxDistance + 1 if distance exceeds threshold
+ */
+function levenshteinDistance(
+  a: string,
+  b: string,
+  maxDistance: number = FUZZY_MATCH_THRESHOLD
+): number {
+  // CRITICAL: Bounds check to prevent DoS via massive strings
+  if (a.length > MAX_DOMAIN_LENGTH_FOR_FUZZY || b.length > MAX_DOMAIN_LENGTH_FOR_FUZZY) {
+    return maxDistance + 1
+  }
+
+  // Early exit: length difference exceeds max distance
+  if (Math.abs(a.length - b.length) > maxDistance) {
+    return maxDistance + 1
+  }
+
+  // Edge cases
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
+
+  const m = a.length
+  const n = b.length
+
+  // Use two rows for space optimization
+  let prevRow = new Array(n + 1)
+  let currRow = new Array(n + 1)
+
+  // Initialize first row
+  for (let j = 0; j <= n; j++) {
+    prevRow[j] = j
+  }
+
+  for (let i = 1; i <= m; i++) {
+    currRow[0] = i
+    let minInRow = currRow[0]
+
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        currRow[j] = prevRow[j - 1]
+      } else {
+        currRow[j] = 1 + Math.min(prevRow[j], currRow[j - 1], prevRow[j - 1])
+      }
+      minInRow = Math.min(minInRow, currRow[j])
+    }
+
+    // Early exit: if minimum in row exceeds max, no point continuing
+    if (minInRow > maxDistance) {
+      return maxDistance + 1
+    }
+
+    // Swap rows
+    ;[prevRow, currRow] = [currRow, prevRow]
+  }
+
+  return prevRow[n]
+}
+
+/**
+ * Extract base domain (strip subdomains except www)
+ * "chat.rainn.org" → "rainn.org"
+ * "www.rainn.org" → "rainn.org"
+ * "rainn.org" → "rainn.org"
+ *
+ * @param domain - The full domain
+ * @returns Base domain (last two parts), or empty string if invalid
+ */
+function extractBaseDomain(domain: string): string {
+  // Validate input
+  if (!domain || typeof domain !== 'string') {
+    return ''
+  }
+
+  // Remove any trailing/leading dots and normalize
+  const normalized = domain.trim().replace(/^\.+|\.+$/g, '')
+  if (!normalized) {
+    return ''
+  }
+
+  const parts = normalized.split('.')
+
+  // Filter out empty parts (e.g., "rainn..org" -> ["rainn", "", "org"])
+  const validParts = parts.filter((part) => part.length > 0)
+
+  if (validParts.length === 0) {
+    return ''
+  }
+
+  // If it's already 2 parts or less (e.g., "rainn.org"), return as-is
+  if (validParts.length <= 2) {
+    return validParts.join('.')
+  }
+
+  // For multi-level TLDs like .com.au, .co.uk - keep last 3 parts
+  const knownMultiLevelTLDs = ['com.au', 'co.uk', 'org.uk', 'com.br', 'co.nz']
+  const lastTwo = validParts.slice(-2).join('.')
+  if (knownMultiLevelTLDs.includes(lastTwo)) {
+    return validParts.slice(-3).join('.')
+  }
+
+  // Default: return last 2 parts
+  return validParts.slice(-2).join('.')
+}
+
+/**
+ * Check if a domain fuzzy-matches any protected domain
+ * Uses Levenshtein distance with threshold of 2
+ *
+ * Story 7.5: Fuzzy Domain Matching
+ * OPTIMIZATION: First-character pre-filtering for performance
+ *
+ * @param inputDomain - The domain to check (should be base domain)
+ * @returns Object with matched domain and distance, or null if no match
+ */
+function findFuzzyMatch(inputDomain: string): { matchedDomain: string; distance: number } | null {
+  // Skip fuzzy matching for very short domains (high false positive risk)
+  if (inputDomain.length < MIN_DOMAIN_LENGTH_FOR_FUZZY) {
+    return null
+  }
+
+  // Skip fuzzy matching for overly long domains (DoS prevention)
+  if (inputDomain.length > MAX_DOMAIN_LENGTH_FOR_FUZZY) {
+    return null
+  }
+
+  const firstChar = inputDomain[0]?.toLowerCase() || ''
+
+  // Check against all default crisis domains
+  for (const protectedDomain of DEFAULT_CRISIS_SITES) {
+    // Skip URL shorteners - they're already exact-matched and shouldn't fuzzy match
+    if (protectedDomain.length < MIN_DOMAIN_LENGTH_FOR_FUZZY) {
+      continue
+    }
+
+    // PERFORMANCE OPTIMIZATION: First character must match
+    // Levenshtein distance ≤2 means at most 2 edits, so first char usually matches in real typos
+    // This reduces O(n) Levenshtein calls to ~O(1) for most domains
+    const protectedFirstChar = protectedDomain[0]?.toLowerCase() || ''
+    if (firstChar !== protectedFirstChar) {
+      continue
+    }
+
+    const distance = levenshteinDistance(inputDomain, protectedDomain, FUZZY_MATCH_THRESHOLD)
+    if (distance <= FUZZY_MATCH_THRESHOLD && distance > 0) {
+      // Found a fuzzy match (distance > 0 means it's not exact)
+      return { matchedDomain: protectedDomain, distance }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Log a fuzzy match to the improvement queue
+ * Used to identify common typos that could be added as aliases
+ *
+ * Story 7.5: Fuzzy Domain Matching
+ *
+ * PRIVACY: Only logs domain information, NO user/family identifiers
+ *
+ * @param candidateDomain - The domain that was checked
+ * @param matchedDomain - The protected domain it matched
+ * @param distance - Levenshtein distance
+ */
+async function logFuzzyMatch(
+  candidateDomain: string,
+  matchedDomain: string,
+  distance: number
+): Promise<void> {
+  try {
+    // Get existing queue
+    const result = await chrome.storage.local.get(FUZZY_MATCH_QUEUE_KEY)
+    const queue: Array<{
+      candidateDomain: string
+      matchedDomain: string
+      distance: number
+      timestamp: number
+    }> = result[FUZZY_MATCH_QUEUE_KEY] || []
+
+    // Add new entry
+    queue.push({
+      candidateDomain,
+      matchedDomain,
+      distance,
+      timestamp: Date.now(),
+    })
+
+    // Trim to max size (FIFO)
+    while (queue.length > MAX_FUZZY_QUEUE_SIZE) {
+      queue.shift()
+    }
+
+    // Save queue
+    await chrome.storage.local.set({ [FUZZY_MATCH_QUEUE_KEY]: queue })
+  } catch {
+    // Silent fail - don't let logging affect protection
+    console.warn('[Fledgely] Failed to log fuzzy match (non-critical)')
+  }
+}
+
+/**
  * Get the current allowlist (from cache or storage)
  * Falls back to default bundled list if storage fails
  */
@@ -183,6 +402,8 @@ export async function initializeAllowlist(): Promise<void> {
  * - Return true on any error (fail-safe)
  * - NEVER log the URL itself
  *
+ * Story 7.5 Enhancement: Fuzzy matching for typos (Levenshtein distance ≤2)
+ *
  * @param url - The URL to check
  * @returns true if protected (skip capture), false if not protected (proceed)
  */
@@ -206,9 +427,25 @@ export function isUrlProtected(url: string): boolean {
       return false
     }
 
-    // Check if domain matches allowlist
-    // This is O(1) lookup using Set
-    const isProtected = cachedDomainSet.has(domain)
+    // Step 1: Check if domain matches allowlist (O(1) exact match)
+    if (cachedDomainSet.has(domain)) {
+      return true
+    }
+
+    // Step 2: Story 7.5 - Fuzzy matching for typos
+    // Extract base domain for comparison (strip subdomains)
+    const baseDomain = extractBaseDomain(domain)
+
+    // Try fuzzy match against all protected domains
+    const fuzzyMatch = findFuzzyMatch(baseDomain)
+    if (fuzzyMatch) {
+      // Log the fuzzy match for improvement queue (async, non-blocking)
+      // This is fire-and-forget - we don't wait for it
+      logFuzzyMatch(baseDomain, fuzzyMatch.matchedDomain, fuzzyMatch.distance).catch(() => {
+        // Silently ignore logging errors
+      })
+      return true
+    }
 
     // Performance check
     const duration = performance.now() - startTime
@@ -216,7 +453,7 @@ export function isUrlProtected(url: string): boolean {
       console.warn(`[Fledgely] Crisis allowlist check took ${duration.toFixed(2)}ms (target <10ms)`)
     }
 
-    return isProtected
+    return false
   } catch {
     // Any error = fail-safe = skip capture
     console.error('[Fledgely] Crisis allowlist check failed, skipping capture (fail-safe)')
@@ -351,11 +588,19 @@ export async function getAllowlistAge(): Promise<string> {
 // Export default sites for testing
 export const DEFAULT_CRISIS_DOMAINS = DEFAULT_CRISIS_SITES
 
-// Export internal functions for testing (Story 11.6)
+// Export internal functions for testing (Story 11.6, Story 7.5)
 // These are NOT part of the public API but needed for comprehensive testing
 export const _testExports = {
   extractDomain,
   buildDomainSet,
+  levenshteinDistance,
+  extractBaseDomain,
+  findFuzzyMatch,
+  logFuzzyMatch,
+  FUZZY_MATCH_THRESHOLD,
+  MIN_DOMAIN_LENGTH_FOR_FUZZY,
+  MAX_DOMAIN_LENGTH_FOR_FUZZY,
+  FUZZY_MATCH_QUEUE_KEY,
   resetCache: () => {
     cachedDomainSet = null
     cachedAllowlistVersion = null

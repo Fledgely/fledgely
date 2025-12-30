@@ -144,7 +144,7 @@ development_status:
   7-2-crisis-visit-zero-data-path: done # Zero-data-path implemented in Story 11.1
   7-3-child-allowlist-visibility: done
   7-4-emergency-allowlist-push: blocked # Depends on backend/API infrastructure
-  7-5-fuzzy-domain-matching: blocked # Depends on Epic 9+ (device monitoring)
+  7-5-fuzzy-domain-matching: done
   7-6-crisis-search-redirection: blocked # Depends on Epic 9+ (device monitoring)
   7-7-allowlist-distribution-sync: blocked # Depends on backend/API infrastructure
   7-8-privacy-gaps-injection: blocked # Depends on Epic 9+ (device monitoring)

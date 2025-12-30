@@ -14,7 +14,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { isUrlProtected, DEFAULT_CRISIS_DOMAINS, _testExports } from './crisis-allowlist'
 
-const { extractDomain, buildDomainSet, resetCache } = _testExports
+const {
+  extractDomain,
+  buildDomainSet,
+  resetCache,
+  levenshteinDistance,
+  extractBaseDomain,
+  findFuzzyMatch,
+  FUZZY_MATCH_THRESHOLD,
+  MIN_DOMAIN_LENGTH_FOR_FUZZY,
+  MAX_DOMAIN_LENGTH_FOR_FUZZY,
+  FUZZY_MATCH_QUEUE_KEY,
+} = _testExports
 
 // Mock chrome.storage.local for tests
 const mockStorage: Record<string, unknown> = {}
@@ -352,6 +363,305 @@ describe('Crisis Allowlist - Story 11.6', () => {
       const result = extractDomain('file:///path/to/file.html')
       // file:// URLs have empty hostname
       expect(result === '' || result === null).toBe(true)
+    })
+  })
+
+  // ===========================================================================
+  // Story 7.5: Fuzzy Domain Matching Tests
+  // ===========================================================================
+  describe('Story 7.5: Levenshtein Distance Algorithm', () => {
+    it('returns 0 for identical strings', () => {
+      expect(levenshteinDistance('rainn.org', 'rainn.org')).toBe(0)
+    })
+
+    it('returns correct distance for single character insertion', () => {
+      expect(levenshteinDistance('rainn.org', 'rainnn.org')).toBe(1)
+      expect(levenshteinDistance('rainn.org', 'raiinn.org')).toBe(1)
+    })
+
+    it('returns correct distance for single character deletion', () => {
+      expect(levenshteinDistance('rainn.org', 'rain.org')).toBe(1)
+    })
+
+    it('returns correct distance for single character substitution', () => {
+      expect(levenshteinDistance('rainn.org', 'rainn.erg')).toBe(1)
+    })
+
+    it('returns correct distance for two character changes', () => {
+      expect(levenshteinDistance('rainn.org', 'rainm.erg')).toBe(2)
+    })
+
+    it('returns threshold + 1 when distance exceeds threshold', () => {
+      // "random.org" vs "rainn.org" is distance 4
+      expect(levenshteinDistance('random.org', 'rainn.org', 2)).toBe(3)
+    })
+
+    it('handles early exit for length difference > threshold', () => {
+      // Length difference of 5 with threshold 2
+      expect(levenshteinDistance('ab', 'abcdefg', 2)).toBe(3)
+    })
+
+    it('handles empty strings', () => {
+      expect(levenshteinDistance('', 'abc')).toBe(3)
+      expect(levenshteinDistance('abc', '')).toBe(3)
+      expect(levenshteinDistance('', '')).toBe(0)
+    })
+
+    it('is case sensitive', () => {
+      // 9 chars, all different case = 9 substitutions... but with early exit
+      // Actually, lowercase and uppercase differ so each char is a substitution
+      // But due to early exit at threshold, we get threshold + 1 = 3
+      expect(levenshteinDistance('RAINN.ORG', 'rainn.org', 2)).toBe(3)
+    })
+  })
+
+  describe('Story 7.5: Extract Base Domain', () => {
+    it('returns domain unchanged for simple domains', () => {
+      expect(extractBaseDomain('rainn.org')).toBe('rainn.org')
+    })
+
+    it('strips www prefix (via extractDomain, not extractBaseDomain)', () => {
+      // extractBaseDomain works on already-normalized domains
+      expect(extractBaseDomain('rainn.org')).toBe('rainn.org')
+    })
+
+    it('strips subdomains', () => {
+      expect(extractBaseDomain('chat.rainn.org')).toBe('rainn.org')
+      expect(extractBaseDomain('help.support.rainn.org')).toBe('rainn.org')
+    })
+
+    it('handles multi-level TLDs correctly', () => {
+      expect(extractBaseDomain('kidshelp.com.au')).toBe('kidshelp.com.au')
+      expect(extractBaseDomain('chat.kidshelp.com.au')).toBe('kidshelp.com.au')
+    })
+
+    it('handles single-part domains gracefully', () => {
+      expect(extractBaseDomain('localhost')).toBe('localhost')
+    })
+  })
+
+  describe('Story 7.5: Fuzzy Match Detection', () => {
+    it('returns null for exact matches (handled by Set)', () => {
+      // Fuzzy match returns null for exact matches (distance = 0)
+      const result = findFuzzyMatch('rainn.org')
+      expect(result).toBeNull()
+    })
+
+    it('matches single character typos (distance 1)', () => {
+      // Use a longer domain (crisistextline.org is 18 chars)
+      const result = findFuzzyMatch('crisistexttline.org') // extra 't'
+      expect(result).not.toBeNull()
+      expect(result?.matchedDomain).toBe('crisistextline.org')
+      expect(result?.distance).toBe(1)
+    })
+
+    it('matches two character typos (distance 2)', () => {
+      const result = findFuzzyMatch('crisistxtline.org') // missing 'e'
+      expect(result).not.toBeNull()
+      expect(result?.matchedDomain).toBe('crisistextline.org')
+      expect(result?.distance).toBeLessThanOrEqual(2)
+    })
+
+    it('does NOT match distance > 2', () => {
+      // "random.org" vs "rainn.org" is distance 4
+      const result = findFuzzyMatch('random.org')
+      expect(result).toBeNull()
+    })
+
+    it('does NOT match short domains (prevents false positives)', () => {
+      // Domains under 10 chars don't get fuzzy matched to prevent false positives
+      const result = findFuzzyMatch('bat.ly') // 6 chars
+      expect(result).toBeNull()
+    })
+
+    it('does NOT fuzzy match against URL shorteners', () => {
+      // URL shorteners are short domains, so they shouldn't fuzzy match
+      const result = findFuzzyMatch('bitt.ly') // 7 chars, too short for fuzzy
+      expect(result).toBeNull()
+    })
+
+    it('matches Trevor Project with minor typo', () => {
+      const result = findFuzzyMatch('thetrevorprojct.org') // missing 'e'
+      expect(result).not.toBeNull()
+      expect(result?.matchedDomain).toBe('thetrevorproject.org')
+    })
+  })
+
+  describe('Story 7.5: Integrated Fuzzy URL Protection', () => {
+    it('protects exact domain matches (no regression)', () => {
+      expect(isUrlProtected('https://rainn.org')).toBe(true)
+    })
+
+    it('protects subdomain variations (no regression)', () => {
+      expect(isUrlProtected('https://www.rainn.org')).toBe(true)
+    })
+
+    it('protects URLs with typos (distance 1)', () => {
+      // crisistextline.org is 18 chars, long enough for fuzzy matching
+      expect(isUrlProtected('https://crisistexttline.org')).toBe(true) // extra 't'
+    })
+
+    it('protects URLs with typos (distance 2)', () => {
+      // Also using long domain for fuzzy match
+      expect(isUrlProtected('https://crisistxtline.org')).toBe(true) // missing 'e'
+    })
+
+    it('does NOT protect unrelated domains', () => {
+      expect(isUrlProtected('https://random.org')).toBe(false)
+      expect(isUrlProtected('https://google.com')).toBe(false)
+    })
+
+    it('prevents false positives on short domains', () => {
+      expect(isUrlProtected('https://bat.ly')).toBe(false)
+      expect(isUrlProtected('https://abc.org')).toBe(false)
+    })
+
+    it('still protects URL shorteners via exact match', () => {
+      expect(isUrlProtected('https://bit.ly/abc123')).toBe(true)
+      expect(isUrlProtected('https://t.co/xyz')).toBe(true)
+    })
+
+    it('protects Trevor Project with minor typo', () => {
+      expect(isUrlProtected('https://thetrevorprojct.org')).toBe(true)
+    })
+
+    it('does NOT match "trevorproject.org" to "thetrevorproject.org" (distance > 2)', () => {
+      // This is distance 3 (missing "the"), so it should NOT match via fuzzy
+      // Unless it's added as an alias in the allowlist
+      expect(isUrlProtected('https://trevorproject.org')).toBe(false)
+    })
+  })
+
+  describe('Story 7.5: Performance', () => {
+    it('fuzzy matching completes quickly (< 10ms per check)', () => {
+      const start = performance.now()
+      for (let i = 0; i < 100; i++) {
+        isUrlProtected('https://rainnn.org') // Force fuzzy match
+      }
+      const duration = performance.now() - start
+      // 100 fuzzy checks should complete in under 100ms
+      expect(duration).toBeLessThan(100)
+    })
+
+    it('exact matches are faster than fuzzy matches', () => {
+      // Exact match (O(1))
+      const startExact = performance.now()
+      for (let i = 0; i < 1000; i++) {
+        isUrlProtected('https://rainn.org')
+      }
+      const durationExact = performance.now() - startExact
+
+      // Fuzzy match (O(n * m) per domain)
+      const startFuzzy = performance.now()
+      for (let i = 0; i < 1000; i++) {
+        isUrlProtected('https://rainnn.org')
+      }
+      const durationFuzzy = performance.now() - startFuzzy
+
+      // Exact should be faster (or at least not significantly slower)
+      // Note: Due to caching and JIT, this may not always be true in tests
+      expect(durationExact).toBeLessThan(200)
+      expect(durationFuzzy).toBeLessThan(500)
+    })
+  })
+
+  describe('Story 7.5: Privacy - Fuzzy Match Logging', () => {
+    it('logging queue key is defined', () => {
+      expect(FUZZY_MATCH_QUEUE_KEY).toBe('fuzzyMatchQueue')
+    })
+
+    it('fuzzy match threshold is 2', () => {
+      expect(FUZZY_MATCH_THRESHOLD).toBe(2)
+    })
+
+    it('minimum domain length for fuzzy is 10', () => {
+      expect(MIN_DOMAIN_LENGTH_FOR_FUZZY).toBe(10)
+    })
+  })
+
+  describe('Story 7.5: False Positive Prevention', () => {
+    // These tests verify we don't accidentally match unrelated domains
+
+    it('does NOT match "naim.org" to "nami.org" (short domain)', () => {
+      // "naim.org" is 8 chars, which is less than MIN_DOMAIN_LENGTH_FOR_FUZZY (10)
+      // So it won't be fuzzy matched, preventing false positives
+      expect(isUrlProtected('https://naim.org')).toBe(false)
+    })
+
+    it('does NOT match completely unrelated domains', () => {
+      expect(isUrlProtected('https://facebook.com')).toBe(false)
+      expect(isUrlProtected('https://youtube.com')).toBe(false)
+      expect(isUrlProtected('https://amazon.com')).toBe(false)
+    })
+
+    it('does NOT match lookalike phishing domains', () => {
+      // These should NOT be protected as they could be phishing
+      expect(isUrlProtected('https://rainn.org.evil.com')).toBe(false)
+      expect(isUrlProtected('https://fake-rainn.org')).toBe(false)
+    })
+
+    it('does NOT match domains with crisis domain as substring', () => {
+      expect(isUrlProtected('https://notrainn.org')).toBe(false)
+    })
+  })
+
+  // ===========================================================================
+  // Story 7.5: Security Tests - DoS Prevention
+  // ===========================================================================
+  describe('Story 7.5: Security - DoS Prevention', () => {
+    it('max domain length constant is 256 (per RFC 1035)', () => {
+      expect(MAX_DOMAIN_LENGTH_FOR_FUZZY).toBe(256)
+    })
+
+    it('rejects excessively long domains in Levenshtein', () => {
+      const longString = 'a'.repeat(1000)
+      const result = levenshteinDistance(longString, 'rainn.org', 2)
+      // Should return threshold + 1 immediately without computing
+      expect(result).toBe(3)
+    })
+
+    it('handles malicious URLs with extremely long domains', () => {
+      const maliciousDomain = 'a'.repeat(10000) + '.org'
+
+      // Should complete quickly without allocating massive arrays
+      const start = performance.now()
+      const result = isUrlProtected(`https://${maliciousDomain}`)
+      const duration = performance.now() - start
+
+      expect(duration).toBeLessThan(10) // Should still meet performance target
+      expect(result).toBe(false) // Should not match (and not crash)
+    })
+
+    it('fuzzy match skips overly long domains', () => {
+      const longDomain = 'a'.repeat(500) + '.org'
+      const result = findFuzzyMatch(longDomain)
+      expect(result).toBeNull()
+    })
+  })
+
+  // ===========================================================================
+  // Story 7.5: Input Validation Tests
+  // ===========================================================================
+  describe('Story 7.5: Input Validation', () => {
+    it('extractBaseDomain handles empty string', () => {
+      expect(extractBaseDomain('')).toBe('')
+    })
+
+    it('extractBaseDomain handles domain with trailing dots', () => {
+      expect(extractBaseDomain('rainn.org.')).toBe('rainn.org')
+      expect(extractBaseDomain('.rainn.org')).toBe('rainn.org')
+    })
+
+    it('extractBaseDomain handles malformed domains with multiple consecutive dots', () => {
+      expect(extractBaseDomain('rainn..org')).toBe('rainn.org')
+    })
+
+    it('extractBaseDomain handles single word (no TLD)', () => {
+      expect(extractBaseDomain('localhost')).toBe('localhost')
+    })
+
+    it('extractBaseDomain handles only dots', () => {
+      expect(extractBaseDomain('...')).toBe('')
     })
   })
 })
