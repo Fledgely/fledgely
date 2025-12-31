@@ -49,6 +49,26 @@ function getEscalationMessage(reason: EscalationReason | undefined): string {
 }
 
 /**
+ * Story 23.4: Format annotation timestamp in relative format
+ */
+function formatAnnotationTime(timestamp: number | undefined): string {
+  if (!timestamp) return ''
+  const now = Date.now()
+  const diffMs = now - timestamp
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMinutes < 1) return 'just now'
+  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+
+  // For older dates, show the actual date
+  return new Date(timestamp).toLocaleDateString()
+}
+
+/**
  * Parse Firebase Storage error to get user-friendly message
  */
 function getErrorMessage(error: unknown): string {
@@ -267,6 +287,12 @@ const styles = {
   escalationMessage: {
     fontSize: '14px',
     color: '#78350f',
+  },
+  // Story 23.4: Annotation timestamp
+  annotationTimestamp: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginTop: '8px',
   },
 }
 
@@ -527,12 +553,12 @@ export function FlagDetailModal({
             {/* AI Reasoning - AC #2 */}
             <AIReasoningPanel reasoning={flag.reasoning} category={flag.category} />
 
-            {/* Story 23.3: Child Annotation/Escalation Status */}
+            {/* Story 23.3, 23.4: Child Annotation/Escalation Status */}
             {flag.childNotificationStatus === 'annotated' && flag.childAnnotation && (
               <div style={styles.childAnnotationPanel} data-testid="child-annotation-panel">
                 <div style={styles.annotationTitle}>
                   <span>💬</span>
-                  <span>Child&apos;s Context</span>
+                  <span>Child&apos;s Explanation</span>
                 </div>
                 <div style={styles.annotationOption}>
                   <span>{getAnnotationInfo(flag.childAnnotation as AnnotationOption).icon}</span>
@@ -541,6 +567,12 @@ export function FlagDetailModal({
                 {flag.childExplanation && (
                   <div style={styles.annotationExplanation}>
                     &ldquo;{flag.childExplanation}&rdquo;
+                  </div>
+                )}
+                {/* Story 23.4 AC3: Annotation timestamp */}
+                {flag.annotatedAt && (
+                  <div style={styles.annotationTimestamp}>
+                    Explained {formatAnnotationTime(flag.annotatedAt)}
                   </div>
                 )}
               </div>
