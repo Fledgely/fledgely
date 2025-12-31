@@ -15,7 +15,6 @@ const mockFamily: Family = {
   name: 'Test Family',
   createdAt: new Date(),
   updatedAt: new Date(),
-  primaryGuardianUid: 'user-123',
   guardianUids: ['user-123', 'other-parent-456'],
   guardians: [
     {
@@ -29,8 +28,7 @@ const mockFamily: Family = {
       addedAt: new Date(),
     },
   ],
-  childIds: ['child-1'],
-  custodyArrangement: 'shared_physical_legal',
+  showDemoProfile: false,
 }
 
 describe('SelfRemovalModal', () => {

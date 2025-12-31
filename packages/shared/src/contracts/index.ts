@@ -64,12 +64,54 @@ export type FamilyGuardian = z.infer<typeof familyGuardianSchema>
  * Represents a family unit stored in Firestore at /families/{familyId}.
  * Contains guardians (parents) and references to children.
  */
+/**
+ * Caregiver role for limited access users.
+ * Story 19D.1: Caregiver Invitation & Onboarding - AC2
+ * Defined here for use in familySchema.
+ */
+export const caregiverRoleSchema = z.enum(['status_viewer'])
+export type CaregiverRole = z.infer<typeof caregiverRoleSchema>
+
+/**
+ * Access window for caregiver time-based access.
+ * Story 19D.4: Caregiver Access Window Enforcement
+ * Defined here for use in familySchema.
+ */
+export const accessWindowSchema = z.object({
+  dayOfWeek: z.enum(['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/), // HH:MM format
+  endTime: z.string().regex(/^\d{2}:\d{2}$/), // HH:MM format
+  timezone: z.string(), // IANA timezone (e.g., 'America/New_York')
+})
+export type AccessWindow = z.infer<typeof accessWindowSchema>
+
+/**
+ * Caregiver entry in a family document.
+ * Story 19D.1: Caregiver Invitation & Onboarding
+ * Defined here for use in familySchema.
+ */
+export const familyCaregiverSchema = z.object({
+  uid: z.string(),
+  email: z.string().email(),
+  displayName: z.string().nullable(),
+  role: caregiverRoleSchema,
+  childIds: z.array(z.string()), // Which children they can view (AC5)
+  accessWindows: z.array(accessWindowSchema).optional(), // For Story 19D.4
+  addedAt: z.date(),
+  addedByUid: z.string(), // Parent who invited
+})
+export type FamilyCaregiver = z.infer<typeof familyCaregiverSchema>
+
 export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),
   guardians: z.array(familyGuardianSchema).min(1),
   /** Array of guardian UIDs for efficient Firestore security rule checks */
   guardianUids: z.array(z.string()).min(1),
+  /** Story 19D.1: Caregivers with limited access (e.g., grandparents) */
+  caregivers: z.array(familyCaregiverSchema).optional(),
+  /** Array of caregiver UIDs for efficient Firestore security rule checks */
+  caregiverUids: z.array(z.string()).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
   /** Story 8.5.1: Show demo profile for families with no children. Defaults to true for new families. */
@@ -204,6 +246,79 @@ export const acceptInvitationInputSchema = z.object({
 })
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationInputSchema>
 
+// ============================================
+// Caregiver Invitation Schemas - Story 19D.1
+// (Note: caregiverRoleSchema, accessWindowSchema, familyCaregiverSchema
+//  are defined earlier near familySchema)
+// ============================================
+
+/**
+ * Caregiver invitation status.
+ * Story 19D.1: Caregiver Invitation & Onboarding - AC6
+ */
+export const caregiverInvitationStatusSchema = z.enum(['pending', 'accepted', 'expired', 'revoked'])
+export type CaregiverInvitationStatus = z.infer<typeof caregiverInvitationStatusSchema>
+
+/**
+ * Caregiver invitation schema.
+ * Story 19D.1: Caregiver Invitation & Onboarding
+ *
+ * Represents an invitation stored in Firestore at /caregiverInvitations/{invitationId}.
+ * Similar to co-parent invitations but for limited-access caregivers.
+ */
+export const caregiverInvitationSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  inviterUid: z.string(),
+  inviterName: z.string(),
+  familyName: z.string(),
+  token: z.string(), // Secure UUID token for invitation link
+  status: caregiverInvitationStatusSchema,
+  recipientEmail: z.string().email(),
+  caregiverRole: caregiverRoleSchema,
+  childIds: z.array(z.string()), // Which children caregiver will see (AC5)
+  emailSentAt: z.date().nullable(),
+  acceptedAt: z.date().nullable(),
+  acceptedByUid: z.string().nullable(),
+  expiresAt: z.date(), // 7 days from creation (AC6)
+  createdAt: z.date(),
+  updatedAt: z.date(),
+})
+export type CaregiverInvitation = z.infer<typeof caregiverInvitationSchema>
+
+/**
+ * Input for sending a caregiver invitation.
+ * Story 19D.1: Caregiver Invitation & Onboarding - AC1
+ */
+export const sendCaregiverInvitationInputSchema = z.object({
+  familyId: z.string(),
+  recipientEmail: z.string().email(),
+  childIds: z.array(z.string()).min(1), // At least one child (AC5)
+})
+export type SendCaregiverInvitationInput = z.infer<typeof sendCaregiverInvitationInputSchema>
+
+/**
+ * Input for accepting a caregiver invitation.
+ * Story 19D.1: Caregiver Invitation & Onboarding - AC3
+ */
+export const acceptCaregiverInvitationInputSchema = z.object({
+  token: z.string().min(1),
+})
+export type AcceptCaregiverInvitationInput = z.infer<typeof acceptCaregiverInvitationInputSchema>
+
+/**
+ * Result from accepting a caregiver invitation.
+ * Story 19D.1: Caregiver Invitation & Onboarding - AC4
+ */
+export const acceptCaregiverInvitationResultSchema = z.object({
+  success: z.boolean(),
+  familyId: z.string(),
+  familyName: z.string(),
+  childNames: z.array(z.string()), // Names of children caregiver can view
+  role: caregiverRoleSchema,
+})
+export type AcceptCaregiverInvitationResult = z.infer<typeof acceptCaregiverInvitationResultSchema>
+
 /**
  * Data view type for audit logging.
  * Tracks what type of data was viewed by a guardian.
@@ -220,6 +335,7 @@ export const dataViewTypeSchema = z.enum([
   'devices', // Story 19.8: Dashboard view logging for device list
   'device_detail', // Story 19.8: Individual device detail view
   'child_own_screenshot', // Story 19B.6: Child viewing their own screenshot (bilateral transparency)
+  'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
 ])
 export type DataViewType = z.infer<typeof dataViewTypeSchema>
 

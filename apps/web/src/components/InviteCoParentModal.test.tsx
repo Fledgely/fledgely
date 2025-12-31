@@ -48,8 +48,10 @@ describe('InviteCoParentModal', () => {
         addedAt: new Date(),
       },
     ],
+    guardianUids: ['user-123'],
     createdAt: new Date(),
     updatedAt: new Date(),
+    showDemoProfile: false,
   }
 
   // Keep mockFamily reference for future component tests
@@ -65,6 +67,8 @@ describe('InviteCoParentModal', () => {
     status: 'pending',
     recipientEmail: null,
     emailSentAt: null,
+    acceptedAt: null,
+    acceptedByUid: null,
     expiresAt: new Date(Date.now() + 86400000 * 7),
     createdAt: new Date(),
     updatedAt: new Date(),

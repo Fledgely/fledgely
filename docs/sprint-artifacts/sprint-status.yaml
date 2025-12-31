@@ -340,8 +340,8 @@ development_status:
   epic-19c-retrospective: done
 
   # Epic 19D: Basic Caregiver Status View
-  epic-19d: backlog
-  19d-1-caregiver-invitation-onboarding: backlog
+  epic-19d: in-progress
+  19d-1-caregiver-invitation-onboarding: done
   19d-2-caregiver-status-only-view: backlog
   19d-3-caregiver-access-audit-logging: backlog
   19d-4-caregiver-access-window-enforcement: backlog
