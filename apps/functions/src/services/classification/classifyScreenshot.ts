@@ -17,12 +17,14 @@ import {
   type ClassificationResult,
   type ConcernFlag,
   type SuppressedConcernFlag,
+  type ThrottledConcernFlag,
 } from '@fledgely/shared'
 import { createGeminiClient, type DetectedConcern } from './geminiClient'
 import { retryWithBackoff } from './retryWithBackoff'
 import { storeClassificationDebug } from './storeDebug'
 import { isCrisisUrl, isDistressContent, calculateReleasableAfter } from './crisisUrlDetector'
 import { logSuppressionEvent } from './suppressionAudit'
+import { shouldAlertForFlag, recordFlagAlert, recordThrottledFlag } from './flagThrottle'
 
 /**
  * Result of classifyScreenshot operation.
@@ -170,19 +172,88 @@ export async function classifyScreenshot(
       }
     }
 
+    // Story 21.3: Flag Throttling (AC1, AC2, AC5)
+    // Check each flag against throttle rules to determine if parent should be alerted
+    // Throttling only affects notifications - all flags are ALWAYS stored
+    const throttledFlags: ThrottledConcernFlag[] = []
+    const flagsToProcess = suppressedConcernFlags.length > 0 ? suppressedConcernFlags : concernFlags
+
+    if (flagsToProcess.length > 0 && familyId) {
+      let alertedCount = 0
+      let throttledCount = 0
+
+      for (const flag of flagsToProcess) {
+        // Generate unique flag ID for deduplication
+        const flagId = `${screenshotId}_${flag.category}_${flag.detectedAt}`
+
+        // Check if this flag should trigger a parent alert
+        const shouldAlert = await shouldAlertForFlag(familyId, childId, flag.severity, flagId)
+
+        // Create throttled flag with status
+        const throttledFlag: ThrottledConcernFlag = {
+          ...flag,
+          status: (flag as SuppressedConcernFlag).status ?? 'pending',
+          throttled: !shouldAlert,
+          ...(shouldAlert ? {} : { throttledAt: Date.now() }),
+          // Preserve suppression fields if present
+          ...((flag as SuppressedConcernFlag).suppressionReason && {
+            suppressionReason: (flag as SuppressedConcernFlag).suppressionReason,
+          }),
+          ...((flag as SuppressedConcernFlag).releasableAfter && {
+            releasableAfter: (flag as SuppressedConcernFlag).releasableAfter,
+          }),
+        }
+
+        throttledFlags.push(throttledFlag)
+
+        // Record outcome for throttle tracking
+        if (shouldAlert) {
+          await recordFlagAlert(familyId, childId, flagId, flag.severity)
+          alertedCount++
+        } else {
+          await recordThrottledFlag(familyId, childId)
+          throttledCount++
+        }
+      }
+
+      logger.info('Flag throttling applied', {
+        screenshotId,
+        childId,
+        familyId,
+        totalFlags: flagsToProcess.length,
+        alertedCount,
+        throttledCount,
+      })
+    } else if (flagsToProcess.length > 0) {
+      // No familyId - convert flags without throttle processing
+      for (const flag of flagsToProcess) {
+        throttledFlags.push({
+          ...flag,
+          status: (flag as SuppressedConcernFlag).status ?? 'pending',
+          throttled: false,
+          ...((flag as SuppressedConcernFlag).suppressionReason && {
+            suppressionReason: (flag as SuppressedConcernFlag).suppressionReason,
+          }),
+          ...((flag as SuppressedConcernFlag).releasableAfter && {
+            releasableAfter: (flag as SuppressedConcernFlag).releasableAfter,
+          }),
+        })
+      }
+    }
+
     // 3. Build result object
     // Story 20.2: Basic Category Taxonomy - AC5, AC6
     // Story 20.3: Confidence Score Assignment - AC4
     // Story 20.4: Multi-Label Classification - AC1, AC2, AC3
     // Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
     // Story 21.2: Distress Detection Suppression - AC1, AC2, AC3
+    // Story 21.3: Flag Throttling - AC1, AC2, AC5
     // Include isLowConfidence, taxonomyVersion, needsReview, secondaryCategories, concernFlags, crisisProtected
     const classifiedAt = Date.now()
     const modelVersion = geminiClient.getModelVersion()
 
-    // Determine which concern flags to use - suppressed flags if distress detected
-    const finalConcernFlags =
-      suppressedConcernFlags.length > 0 ? suppressedConcernFlags : concernFlags
+    // Use throttled flags which include both suppression and throttle metadata
+    const finalConcernFlags = throttledFlags
 
     const result: ClassificationResult = {
       status: 'completed',
@@ -270,6 +341,9 @@ export async function classifyScreenshot(
       // Story 21.2: Log suppression status
       crisisProtected,
       suppressedCount: suppressedConcernFlags.filter((f) => f.status === 'sensitive_hold').length,
+      // Story 21.3: Log throttle status
+      throttledCount: finalConcernFlags.filter((f) => f.throttled).length,
+      alertedCount: finalConcernFlags.filter((f) => !f.throttled).length,
     })
 
     return { success: true, result }

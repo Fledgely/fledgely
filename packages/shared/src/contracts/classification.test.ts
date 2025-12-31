@@ -33,6 +33,12 @@ import {
   suppressionReasonSchema,
   suppressedConcernFlagSchema,
   distressSuppressionLogSchema,
+  // Story 21.3: False Positive Throttling
+  FLAG_THROTTLE_LEVELS,
+  flagThrottleLevelSchema,
+  FLAG_THROTTLE_LIMITS,
+  flagThrottleStateSchema,
+  throttledConcernFlagSchema,
 } from './index'
 
 describe('Classification Contracts', () => {
@@ -992,6 +998,195 @@ describe('Classification Contracts', () => {
           classifiedAt: Date.now(),
         })
         expect(result.crisisProtected).toBeUndefined()
+      })
+    })
+  })
+
+  // Story 21.3: False Positive Throttling
+  describe('Flag Throttle Schemas (Story 21.3)', () => {
+    describe('FLAG_THROTTLE_LEVELS constant', () => {
+      it('has exactly 4 throttle levels', () => {
+        expect(FLAG_THROTTLE_LEVELS).toHaveLength(4)
+      })
+
+      it('includes minimal, standard, detailed, all levels', () => {
+        expect(FLAG_THROTTLE_LEVELS).toContain('minimal')
+        expect(FLAG_THROTTLE_LEVELS).toContain('standard')
+        expect(FLAG_THROTTLE_LEVELS).toContain('detailed')
+        expect(FLAG_THROTTLE_LEVELS).toContain('all')
+      })
+    })
+
+    describe('flagThrottleLevelSchema', () => {
+      it('accepts all valid throttle levels', () => {
+        expect(flagThrottleLevelSchema.parse('minimal')).toBe('minimal')
+        expect(flagThrottleLevelSchema.parse('standard')).toBe('standard')
+        expect(flagThrottleLevelSchema.parse('detailed')).toBe('detailed')
+        expect(flagThrottleLevelSchema.parse('all')).toBe('all')
+      })
+
+      it('rejects invalid throttle levels', () => {
+        expect(() => flagThrottleLevelSchema.parse('none')).toThrow()
+        expect(() => flagThrottleLevelSchema.parse('maximum')).toThrow()
+        expect(() => flagThrottleLevelSchema.parse('')).toThrow()
+      })
+    })
+
+    describe('FLAG_THROTTLE_LIMITS constant', () => {
+      it('maps minimal to 1 alert/day', () => {
+        expect(FLAG_THROTTLE_LIMITS.minimal).toBe(1)
+      })
+
+      it('maps standard to 3 alerts/day', () => {
+        expect(FLAG_THROTTLE_LIMITS.standard).toBe(3)
+      })
+
+      it('maps detailed to 5 alerts/day', () => {
+        expect(FLAG_THROTTLE_LIMITS.detailed).toBe(5)
+      })
+
+      it('maps all to Infinity (no limit)', () => {
+        expect(FLAG_THROTTLE_LIMITS.all).toBe(Infinity)
+      })
+    })
+
+    describe('flagThrottleStateSchema', () => {
+      const validState = {
+        childId: 'child-123',
+        familyId: 'family-456',
+        date: '2024-01-15',
+        alertsSentToday: 2,
+        throttledToday: 1,
+        alertedFlagIds: ['flag-1', 'flag-2'],
+        severityCounts: {
+          high: 1,
+          medium: 1,
+          low: 0,
+        },
+      }
+
+      it('parses valid throttle state', () => {
+        const state = flagThrottleStateSchema.parse(validState)
+        expect(state.childId).toBe('child-123')
+        expect(state.familyId).toBe('family-456')
+        expect(state.date).toBe('2024-01-15')
+        expect(state.alertsSentToday).toBe(2)
+        expect(state.throttledToday).toBe(1)
+        expect(state.alertedFlagIds).toEqual(['flag-1', 'flag-2'])
+        expect(state.severityCounts.high).toBe(1)
+        expect(state.severityCounts.medium).toBe(1)
+        expect(state.severityCounts.low).toBe(0)
+      })
+
+      it('provides default values', () => {
+        const minimalState = flagThrottleStateSchema.parse({
+          childId: 'child-123',
+          familyId: 'family-456',
+          date: '2024-01-15',
+        })
+        expect(minimalState.alertsSentToday).toBe(0)
+        expect(minimalState.throttledToday).toBe(0)
+        expect(minimalState.alertedFlagIds).toEqual([])
+        expect(minimalState.severityCounts).toEqual({ high: 0, medium: 0, low: 0 })
+      })
+
+      it('validates date format (YYYY-MM-DD)', () => {
+        expect(() =>
+          flagThrottleStateSchema.parse({
+            ...validState,
+            date: '01-15-2024', // Wrong format
+          })
+        ).toThrow()
+
+        expect(() =>
+          flagThrottleStateSchema.parse({
+            ...validState,
+            date: '2024/01/15', // Wrong separator
+          })
+        ).toThrow()
+      })
+
+      it('requires childId and familyId', () => {
+        expect(() =>
+          flagThrottleStateSchema.parse({
+            date: '2024-01-15',
+          })
+        ).toThrow()
+      })
+    })
+
+    describe('throttledConcernFlagSchema', () => {
+      const baseFlag = {
+        category: 'Bullying' as const,
+        severity: 'medium' as const,
+        confidence: 75,
+        reasoning: 'Contains potentially hurtful language directed at another person',
+        detectedAt: Date.now(),
+      }
+
+      it('parses valid throttled flag', () => {
+        const now = Date.now()
+        const flag = throttledConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'pending',
+          throttled: true,
+          throttledAt: now,
+        })
+        expect(flag.category).toBe('Bullying')
+        expect(flag.status).toBe('pending')
+        expect(flag.throttled).toBe(true)
+        expect(flag.throttledAt).toBe(now)
+      })
+
+      it('provides default values for status and throttled', () => {
+        const flag = throttledConcernFlagSchema.parse(baseFlag)
+        expect(flag.status).toBe('pending')
+        expect(flag.throttled).toBe(false)
+        expect(flag.throttledAt).toBeUndefined()
+      })
+
+      it('allows suppression fields from 21-2', () => {
+        const releaseTime = Date.now() + 48 * 60 * 60 * 1000
+        const flag = throttledConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'sensitive_hold',
+          throttled: false,
+          suppressionReason: 'self_harm_detected',
+          releasableAfter: releaseTime,
+        })
+        expect(flag.status).toBe('sensitive_hold')
+        expect(flag.suppressionReason).toBe('self_harm_detected')
+        expect(flag.releasableAfter).toBe(releaseTime)
+      })
+
+      it('allows combining throttle and suppression', () => {
+        const flag = throttledConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'sensitive_hold',
+          throttled: true,
+          throttledAt: Date.now(),
+          suppressionReason: 'distress_signals',
+        })
+        expect(flag.throttled).toBe(true)
+        expect(flag.suppressionReason).toBe('distress_signals')
+      })
+
+      it('rejects invalid status', () => {
+        expect(() =>
+          throttledConcernFlagSchema.parse({
+            ...baseFlag,
+            status: 'invalid_status',
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid suppressionReason', () => {
+        expect(() =>
+          throttledConcernFlagSchema.parse({
+            ...baseFlag,
+            suppressionReason: 'invalid_reason',
+          })
+        ).toThrow()
       })
     })
   })

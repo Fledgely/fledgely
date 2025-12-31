@@ -65,6 +65,16 @@ vi.mock('./storeDebug', () => ({
   storeClassificationDebug: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Mock flagThrottle (Story 21.3)
+const mockShouldAlertForFlag = vi.fn().mockResolvedValue(true) // Default: alert all flags
+const mockRecordFlagAlert = vi.fn().mockResolvedValue(undefined)
+const mockRecordThrottledFlag = vi.fn().mockResolvedValue(undefined)
+vi.mock('./flagThrottle', () => ({
+  shouldAlertForFlag: (...args: unknown[]) => mockShouldAlertForFlag(...args),
+  recordFlagAlert: (...args: unknown[]) => mockRecordFlagAlert(...args),
+  recordThrottledFlag: (...args: unknown[]) => mockRecordThrottledFlag(...args),
+}))
+
 describe('classifyScreenshot helpers', () => {
   describe('needsClassification', () => {
     it('returns false for undefined document', () => {

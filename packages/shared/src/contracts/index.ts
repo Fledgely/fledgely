@@ -2506,6 +2506,76 @@ export const distressSuppressionLogSchema = z.object({
 export type DistressSuppressionLog = z.infer<typeof distressSuppressionLogSchema>
 
 /**
+ * Story 21.3: False Positive Throttling - AC4
+ * Throttle levels for flag alerts per child per day.
+ * - minimal: 1 alert/day (only critical alerts)
+ * - standard: 3 alerts/day (balanced approach, default)
+ * - detailed: 5 alerts/day (more visibility)
+ * - all: No throttling (receive all alerts)
+ */
+export const FLAG_THROTTLE_LEVELS = ['minimal', 'standard', 'detailed', 'all'] as const
+export const flagThrottleLevelSchema = z.enum(FLAG_THROTTLE_LEVELS)
+export type FlagThrottleLevel = z.infer<typeof flagThrottleLevelSchema>
+
+/**
+ * Story 21.3: False Positive Throttling - AC1, AC4
+ * Mapping of throttle levels to maximum alerts per day.
+ */
+export const FLAG_THROTTLE_LIMITS: Record<FlagThrottleLevel, number> = {
+  minimal: 1,
+  standard: 3,
+  detailed: 5,
+  all: Infinity,
+} as const
+
+/**
+ * Story 21.3: False Positive Throttling - AC1, AC2, AC6
+ * State tracking for daily flag throttle counts per child.
+ * Stored at families/{familyId}/flagThrottleState/{childId}
+ */
+export const flagThrottleStateSchema = z.object({
+  /** Child ID this state belongs to */
+  childId: z.string(),
+  /** Family ID for context */
+  familyId: z.string(),
+  /** Date in YYYY-MM-DD format for daily reset */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Number of alerts sent today */
+  alertsSentToday: z.number().default(0),
+  /** Number of flags throttled today (AC6) */
+  throttledToday: z.number().default(0),
+  /** IDs of flags that were alerted (for deduplication) */
+  alertedFlagIds: z.array(z.string()).default([]),
+  /** Count of alerts by severity for priority tracking (AC2) */
+  severityCounts: z
+    .object({
+      high: z.number().default(0),
+      medium: z.number().default(0),
+      low: z.number().default(0),
+    })
+    .default({ high: 0, medium: 0, low: 0 }),
+})
+export type FlagThrottleState = z.infer<typeof flagThrottleStateSchema>
+
+/**
+ * Story 21.3: False Positive Throttling - AC5, AC6
+ * Extended concern flag with throttle metadata.
+ * Throttled flags are stored but not alerted.
+ */
+export const throttledConcernFlagSchema = concernFlagSchema.extend({
+  /** Current status of the flag */
+  status: flagStatusSchema.default('pending'),
+  /** Whether alert for this flag was throttled */
+  throttled: z.boolean().default(false),
+  /** When the flag was throttled (epoch ms) */
+  throttledAt: z.number().optional(),
+  /** Suppression fields from 21-2 */
+  suppressionReason: suppressionReasonSchema.optional(),
+  releasableAfter: z.number().optional(),
+})
+export type ThrottledConcernFlag = z.infer<typeof throttledConcernFlagSchema>
+
+/**
  * Classification result stored on screenshot document.
  *
  * Story 20.1: Classification Service Architecture - AC4

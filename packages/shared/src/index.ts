@@ -166,6 +166,18 @@ export {
   type DistressSuppressionLog,
 } from './contracts'
 
+// Flag throttle exports (Story 21.3)
+export {
+  FLAG_THROTTLE_LEVELS,
+  flagThrottleLevelSchema,
+  FLAG_THROTTLE_LIMITS,
+  flagThrottleStateSchema,
+  throttledConcernFlagSchema,
+  type FlagThrottleLevel,
+  type FlagThrottleState,
+  type ThrottledConcernFlag,
+} from './contracts'
+
 // Concern category definitions exports (Story 21.1)
 export {
   CONCERN_TAXONOMY_VERSION,
