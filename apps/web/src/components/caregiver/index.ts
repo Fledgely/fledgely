@@ -21,3 +21,7 @@ export { default as CaregiverOnboarding } from './CaregiverOnboarding'
 // Story 19D.4: Access Window Enforcement
 export { AccessDenied } from './AccessDenied'
 export type { AccessDeniedProps } from './AccessDenied'
+
+// Story 19D.5: Caregiver Quick Revocation
+export { AccessRevoked } from './AccessRevoked'
+export type { AccessRevokedProps } from './AccessRevoked'

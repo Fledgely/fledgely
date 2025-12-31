@@ -20,6 +20,7 @@ describe('dataViewTypeSchema', () => {
       'device_detail',
       'child_own_screenshot',
       'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
+      'caregiver_revoked', // Story 19D.5: Parent revoked caregiver access
     ]
 
     validTypes.forEach((type) => {
@@ -118,6 +119,7 @@ describe('dataViewAuditSchema', () => {
       'device_detail',
       'child_own_screenshot',
       'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
+      'caregiver_revoked', // Story 19D.5: Parent revoked caregiver access
     ]
 
     dataTypes.forEach((dataType) => {

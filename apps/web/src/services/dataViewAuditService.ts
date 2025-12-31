@@ -27,6 +27,7 @@ const VALID_DATA_VIEW_TYPES = [
   'device_detail', // Story 19.8: Individual device detail view
   'child_own_screenshot', // Story 19B.6: Child viewing their own screenshot
   'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
+  'caregiver_revoked', // Story 19D.5: Parent revoked caregiver access
 ] as const
 
 /**
