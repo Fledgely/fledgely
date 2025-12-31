@@ -2,18 +2,23 @@
 
 /**
  * ChildStatusList Component - Story 19A.2
+ * Updated: Story 8.5.1 - Demo Child Profile Integration
  *
  * Container component that renders all child status rows.
+ * Shows demo profile when no real children exist.
  * Designed for compact layout to fit 6 children without scrolling.
  *
  * Acceptance Criteria:
  * - AC1: Each child shown as a row with status indicator
  * - AC4: Children ordered by status severity
  * - AC5: All children fit on one screen without scrolling (up to 6)
+ * - [8.5.1] Show demo child when no real children and demo not dismissed
  */
 
 import { ChildStatusRow } from './ChildStatusRow'
+import { DemoChildCard } from './DemoChildCard'
 import { useChildStatus, ChildStatus } from '../../hooks/useChildStatus'
+import { useDemo } from '../../hooks/useDemo'
 
 /**
  * Props for ChildStatusList
@@ -83,7 +88,7 @@ function LoadingSkeleton() {
 }
 
 /**
- * Empty state when no children
+ * Empty state when no children and no demo
  */
 function EmptyState() {
   return (
@@ -96,7 +101,7 @@ function EmptyState() {
       }}
       data-testid="child-status-empty"
     >
-      No children in this family yet
+      No children in this family yet. Add a child to get started with monitoring.
     </div>
   )
 }
@@ -123,11 +128,21 @@ function ErrorState({ message }: { message: string }) {
 
 /**
  * ChildStatusList - Container for all child status rows
+ * Story 8.5.1: Shows demo profile when no real children exist
  */
 export function ChildStatusList({ familyId }: ChildStatusListProps) {
   const { childStatuses, loading, error } = useChildStatus(familyId)
+  const hasRealChildren = childStatuses.length > 0
+  const {
+    showDemo,
+    demoChild,
+    activitySummary,
+    dismissDemo,
+    dismissing,
+    loading: demoLoading,
+  } = useDemo(familyId, hasRealChildren)
 
-  if (loading) {
+  if (loading || demoLoading) {
     return <LoadingSkeleton />
   }
 
@@ -135,7 +150,20 @@ export function ChildStatusList({ familyId }: ChildStatusListProps) {
     return <ErrorState message={error} />
   }
 
+  // Story 8.5.1: Show demo when no real children and demo not dismissed
   if (childStatuses.length === 0) {
+    if (showDemo && demoChild) {
+      return (
+        <div data-testid="child-status-list-demo">
+          <DemoChildCard
+            demoChild={demoChild}
+            activitySummary={activitySummary}
+            onDismiss={dismissDemo}
+            dismissing={dismissing}
+          />
+        </div>
+      )
+    }
     return <EmptyState />
   }
 

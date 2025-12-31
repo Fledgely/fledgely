@@ -72,6 +72,8 @@ export const familySchema = z.object({
   guardianUids: z.array(z.string()).min(1),
   createdAt: z.date(),
   updatedAt: z.date(),
+  /** Story 8.5.1: Show demo profile for families with no children. Defaults to true for new families. */
+  showDemoProfile: z.boolean().default(true),
 })
 export type Family = z.infer<typeof familySchema>
 

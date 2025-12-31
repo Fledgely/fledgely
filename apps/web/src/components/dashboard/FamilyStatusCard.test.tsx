@@ -1,5 +1,6 @@
 /**
  * FamilyStatusCard Component Tests - Story 19A.1 & 19A.2
+ * Updated: Story 8.5.1 - Demo Child Profile Integration
  *
  * Tests for the Family Status Summary Card component.
  * Covers all acceptance criteria:
@@ -9,6 +10,7 @@
  * - AC4: Red "Action Required" state
  * - AC5: Last update timestamp
  * - AC6: Tap to expand details (now shows ChildStatusList)
+ * - [8.5.1] ChildStatusList shows demo when no children
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -17,10 +19,12 @@ import { FamilyStatusCard } from './FamilyStatusCard'
 import * as useFamilyStatusModule from '../../hooks/useFamilyStatus'
 import * as useDevicesModule from '../../hooks/useDevices'
 import * as useChildStatusModule from '../../hooks/useChildStatus'
+import * as useDemoModule from '../../hooks/useDemo'
 
 // Mock the hooks
 vi.mock('../../hooks/useFamilyStatus')
 vi.mock('../../hooks/useChildStatus')
+vi.mock('../../hooks/useDemo')
 vi.mock('../../hooks/useDevices', async () => {
   const actual = await vi.importActual<typeof useDevicesModule>('../../hooks/useDevices')
   return {
@@ -34,6 +38,24 @@ vi.mock('../../hooks/useDevices', async () => {
 
 const mockUseFamilyStatus = vi.mocked(useFamilyStatusModule.useFamilyStatus)
 const mockUseChildStatus = vi.mocked(useChildStatusModule.useChildStatus)
+const mockUseDemo = vi.mocked(useDemoModule.useDemo)
+
+// Default mock for useDemo that disables demo mode
+const defaultDemoMock = {
+  showDemo: false,
+  demoChild: null,
+  demoScreenshots: [],
+  activitySummary: {
+    totalScreenshots: 0,
+    lastCaptureTime: 0,
+    topCategories: [],
+    daysWithActivity: 0,
+  },
+  dismissDemo: vi.fn(),
+  dismissing: false,
+  error: null,
+  loading: false,
+}
 
 describe('FamilyStatusCard', () => {
   beforeEach(() => {
@@ -45,6 +67,9 @@ describe('FamilyStatusCard', () => {
       loading: false,
       error: null,
     })
+
+    // Default mock for useDemo (demo disabled)
+    mockUseDemo.mockReturnValue(defaultDemoMock)
   })
 
   describe('AC1: Status card visibility', () => {
