@@ -1,22 +1,53 @@
 'use client'
 
 /**
- * ChildScreenshotDetail Component - Story 19B.1
+ * ChildScreenshotDetail Component - Story 19B.1 & 19B.3
  *
  * Modal for viewing full-size screenshots with navigation.
  * Uses child-friendly language.
  *
- * Task 5: Create ChildScreenshotDetail Modal (AC: #3, #5)
- * - 5.1 Create ChildScreenshotDetail.tsx modal component
- * - 5.2 Display full-size screenshot with zoom support
- * - 5.3 Show metadata: timestamp, device, URL
- * - 5.4 Add "This is what your parent can see" label
- * - 5.5 Add prev/next navigation arrows
- * - 5.6 Support keyboard navigation (arrows, Escape)
+ * Story 19B.1 - Original implementation:
+ * - Full-size screenshot display
+ * - Metadata: timestamp, device, URL
+ * - Transparency label
+ * - Prev/next navigation with keyboard support
+ *
+ * Story 19B.3 - Enhanced with mobile gestures:
+ * - Pinch-to-zoom support (AC: #5)
+ * - Swipe-to-dismiss gesture (AC: #6)
+ * - Double-tap to reset zoom
+ * - Pan support when zoomed in
  */
 
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import type { ChildScreenshot } from '../../hooks/useChildScreenshots'
+
+/**
+ * Touch gesture configuration
+ */
+const GESTURE_CONFIG = {
+  MIN_ZOOM: 1,
+  MAX_ZOOM: 4,
+  SWIPE_THRESHOLD: 100, // pixels to trigger dismiss
+  VELOCITY_THRESHOLD: 0.5, // pixels per ms for quick swipe
+  DOUBLE_TAP_DELAY: 300, // ms
+}
+
+/**
+ * Touch state for gesture handling
+ */
+interface TouchState {
+  scale: number
+  translateX: number
+  translateY: number
+  lastDistance: number | null
+  isDragging: boolean
+  startY: number
+  currentY: number
+  dragStartTime: number
+  lastTapTime: number
+  pinchCenter: { x: number; y: number } | null
+}
 
 /**
  * Props for ChildScreenshotDetail
@@ -53,6 +84,49 @@ function extractDomain(url: string): string {
   } catch {
     return url || 'Unknown'
   }
+}
+
+/**
+ * Touch point with client coordinates (compatible with both React.Touch and Touch)
+ */
+interface TouchPoint {
+  clientX: number
+  clientY: number
+}
+
+/**
+ * Calculate distance between two touch points
+ */
+function getDistance(touch1: TouchPoint, touch2: TouchPoint): number {
+  const dx = touch1.clientX - touch2.clientX
+  const dy = touch1.clientY - touch2.clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+/**
+ * Calculate center point between two touches
+ */
+function getPinchCenter(touch1: TouchPoint, touch2: TouchPoint): { x: number; y: number } {
+  return {
+    x: (touch1.clientX + touch2.clientX) / 2,
+    y: (touch1.clientY + touch2.clientY) / 2,
+  }
+}
+
+/**
+ * Initial touch state
+ */
+const initialTouchState: TouchState = {
+  scale: 1,
+  translateX: 0,
+  translateY: 0,
+  lastDistance: null,
+  isDragging: false,
+  startY: 0,
+  currentY: 0,
+  dragStartTime: 0,
+  lastTapTime: 0,
+  pinchCenter: null,
 }
 
 /**
@@ -128,11 +202,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  image: {
-    maxWidth: '100%',
-    maxHeight: '60vh',
-    objectFit: 'contain' as const,
   },
   placeholder: {
     display: 'flex',
@@ -218,6 +287,46 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffffff',
     fontWeight: 500,
   },
+  zoomableImage: {
+    maxWidth: '100%',
+    maxHeight: '60vh',
+    objectFit: 'contain' as const,
+    touchAction: 'none',
+    userSelect: 'none' as const,
+    WebkitUserSelect: 'none' as const,
+    cursor: 'grab',
+  },
+  zoomControls: {
+    position: 'absolute' as const,
+    bottom: '16px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    display: 'flex',
+    gap: '8px',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    padding: '8px 12px',
+    borderRadius: '24px',
+  },
+  zoomButton: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    border: 'none',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    color: '#ffffff',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomLabel: {
+    fontSize: '0.75rem',
+    color: '#bae6fd',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 8px',
+  },
 }
 
 /**
@@ -230,11 +339,19 @@ export function ChildScreenshotDetail({
   onNavigate,
 }: ChildScreenshotDetailProps) {
   const [imageError, setImageError] = useState(false)
+  const [touchState, setTouchState] = useState<TouchState>(initialTouchState)
+  const [isDismissing, setIsDismissing] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Find current index for navigation
   const currentIndex = screenshots.findIndex((s) => s.id === screenshot.id)
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < screenshots.length - 1
+
+  // Reset touch state when navigating to new screenshot
+  useEffect(() => {
+    setTouchState(initialTouchState)
+  }, [screenshot.id])
 
   const handlePrev = useCallback(() => {
     if (hasPrev) {
@@ -250,7 +367,154 @@ export function ChildScreenshotDetail({
     }
   }, [hasNext, currentIndex, screenshots, onNavigate])
 
-  // Keyboard navigation
+  // Handle touch start for pinch/pan/swipe gestures
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      const now = Date.now()
+
+      // Handle double tap to reset zoom
+      if (e.touches.length === 1) {
+        if (now - touchState.lastTapTime < GESTURE_CONFIG.DOUBLE_TAP_DELAY) {
+          // Double tap detected - reset zoom
+          setTouchState((prev) => ({
+            ...prev,
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            lastTapTime: 0,
+          }))
+          return
+        }
+
+        const touch = e.touches[0]
+        setTouchState((prev) => ({
+          ...prev,
+          isDragging: true,
+          startY: touch.clientY,
+          currentY: touch.clientY,
+          dragStartTime: now,
+          lastTapTime: now,
+        }))
+      }
+
+      // Handle pinch start
+      if (e.touches.length === 2) {
+        const distance = getDistance(e.touches[0], e.touches[1])
+        const center = getPinchCenter(e.touches[0], e.touches[1])
+        setTouchState((prev) => ({
+          ...prev,
+          lastDistance: distance,
+          pinchCenter: center,
+          isDragging: false,
+        }))
+      }
+    },
+    [touchState.lastTapTime]
+  )
+
+  // Handle touch move for pinch zoom and swipe/pan
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      // Handle pinch zoom
+      if (e.touches.length === 2 && touchState.lastDistance !== null) {
+        const newDistance = getDistance(e.touches[0], e.touches[1])
+        const scaleDelta = newDistance / touchState.lastDistance
+        const newScale = Math.min(
+          GESTURE_CONFIG.MAX_ZOOM,
+          Math.max(GESTURE_CONFIG.MIN_ZOOM, touchState.scale * scaleDelta)
+        )
+
+        setTouchState((prev) => ({
+          ...prev,
+          scale: newScale,
+          lastDistance: newDistance,
+        }))
+        return
+      }
+
+      // Handle pan when zoomed or swipe to dismiss when not zoomed
+      if (e.touches.length === 1 && touchState.isDragging) {
+        const touch = e.touches[0]
+        const deltaY = touch.clientY - touchState.startY
+
+        if (touchState.scale > 1) {
+          // Pan mode when zoomed in - track movement relative to last position
+          setTouchState((prev) => ({
+            ...prev,
+            translateX:
+              prev.translateX + (touch.clientX - (prev.pinchCenter?.x || touch.clientX)) * 0.3,
+            translateY: prev.translateY + deltaY * 0.3,
+            startY: touch.clientY,
+            pinchCenter: { x: touch.clientX, y: touch.clientY }, // Update pinch center to track movement
+          }))
+        } else {
+          // Swipe to dismiss mode when not zoomed
+          setTouchState((prev) => ({
+            ...prev,
+            currentY: touch.clientY,
+          }))
+        }
+      }
+    },
+    [
+      touchState.lastDistance,
+      touchState.scale,
+      touchState.isDragging,
+      touchState.startY,
+      touchState.pinchCenter,
+    ]
+  )
+
+  // Handle touch end for swipe dismiss detection
+  const handleTouchEnd = useCallback(() => {
+    const deltaY = touchState.currentY - touchState.startY
+    const duration = Date.now() - touchState.dragStartTime
+    const velocity = Math.abs(deltaY) / duration
+
+    // Check for swipe dismiss (only when not zoomed)
+    if (
+      touchState.scale <= 1 &&
+      deltaY > GESTURE_CONFIG.SWIPE_THRESHOLD &&
+      velocity > GESTURE_CONFIG.VELOCITY_THRESHOLD
+    ) {
+      setIsDismissing(true)
+      setTimeout(() => {
+        onClose()
+      }, 200)
+      return
+    }
+
+    // Reset dragging state
+    setTouchState((prev) => ({
+      ...prev,
+      isDragging: false,
+      lastDistance: null,
+      pinchCenter: null,
+    }))
+  }, [touchState.currentY, touchState.startY, touchState.dragStartTime, touchState.scale, onClose])
+
+  // Zoom control handlers for non-touch users
+  const handleZoomIn = useCallback(() => {
+    setTouchState((prev) => ({
+      ...prev,
+      scale: Math.min(GESTURE_CONFIG.MAX_ZOOM, prev.scale + 0.5),
+    }))
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    setTouchState((prev) => ({
+      ...prev,
+      scale: Math.max(GESTURE_CONFIG.MIN_ZOOM, prev.scale - 0.5),
+      translateX: prev.scale - 0.5 <= 1 ? 0 : prev.translateX,
+      translateY: prev.scale - 0.5 <= 1 ? 0 : prev.translateY,
+    }))
+  }, [])
+
+  const handleResetZoom = useCallback(() => {
+    setTouchState(initialTouchState)
+  }, [])
+
+  // Keyboard navigation and zoom
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -259,12 +523,18 @@ export function ChildScreenshotDetail({
         handlePrev()
       } else if (e.key === 'ArrowRight') {
         handleNext()
+      } else if (e.key === '+' || e.key === '=') {
+        handleZoomIn()
+      } else if (e.key === '-' || e.key === '_') {
+        handleZoomOut()
+      } else if (e.key === '0') {
+        handleResetZoom()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, handlePrev, handleNext])
+  }, [onClose, handlePrev, handleNext, handleZoomIn, handleZoomOut, handleResetZoom])
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -300,6 +570,9 @@ export function ChildScreenshotDetail({
           .close-button:focus { outline: 2px solid #0ea5e9; outline-offset: 2px; }
           .nav-button:hover:not(:disabled) { background-color: rgba(255, 255, 255, 0.3) !important; }
           .nav-button:focus { outline: 2px solid #0ea5e9; outline-offset: 2px; }
+          .zoom-button:hover:not(:disabled) { background-color: rgba(255, 255, 255, 0.3) !important; }
+          .zoom-button:focus { outline: 2px solid #0ea5e9; outline-offset: 2px; }
+          .zoom-button:focus:not(:focus-visible) { outline: none; }
         `}
       </style>
 
@@ -326,8 +599,32 @@ export function ChildScreenshotDetail({
           </button>
         </div>
 
-        {/* Image */}
-        <div style={styles.imageContainer}>
+        {/* Image container with touch gestures */}
+        <div
+          ref={containerRef}
+          style={{
+            ...styles.imageContainer,
+            ...(isDismissing
+              ? {
+                  opacity: 0,
+                  transform: 'translateY(100px)',
+                  transition: 'opacity 0.2s ease, transform 0.2s ease',
+                }
+              : touchState.scale <= 1 && touchState.isDragging
+                ? {
+                    transform: `translateY(${touchState.currentY - touchState.startY}px)`,
+                    opacity: Math.max(
+                      0.5,
+                      1 - Math.abs(touchState.currentY - touchState.startY) / 300
+                    ),
+                  }
+                : {}),
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          data-testid="image-container"
+        >
           {/* Prev button */}
           <button
             type="button"
@@ -349,8 +646,14 @@ export function ChildScreenshotDetail({
             <img
               src={screenshot.imageUrl}
               alt={`Screenshot: ${displayTitle}`}
-              style={styles.image}
+              style={{
+                ...styles.zoomableImage,
+                transform: `scale(${touchState.scale}) translate(${touchState.translateX / touchState.scale}px, ${touchState.translateY / touchState.scale}px)`,
+                transition: touchState.isDragging ? 'none' : 'transform 0.2s ease',
+                cursor: touchState.scale > 1 ? 'grab' : 'default',
+              }}
               onError={() => setImageError(true)}
+              draggable={false}
               data-testid="detail-image"
             />
           ) : (
@@ -376,6 +679,55 @@ export function ChildScreenshotDetail({
           >
             →
           </button>
+
+          {/* Zoom controls for non-touch users */}
+          {screenshot.imageUrl && !imageError && (
+            <div style={styles.zoomControls} data-testid="zoom-controls">
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                disabled={touchState.scale <= GESTURE_CONFIG.MIN_ZOOM}
+                style={{
+                  ...styles.zoomButton,
+                  ...(touchState.scale <= GESTURE_CONFIG.MIN_ZOOM ? { opacity: 0.3 } : {}),
+                }}
+                className="zoom-button"
+                aria-label="Zoom out"
+                data-testid="zoom-out-button"
+              >
+                −
+              </button>
+              <span style={styles.zoomLabel} data-testid="zoom-level">
+                {Math.round(touchState.scale * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                disabled={touchState.scale >= GESTURE_CONFIG.MAX_ZOOM}
+                style={{
+                  ...styles.zoomButton,
+                  ...(touchState.scale >= GESTURE_CONFIG.MAX_ZOOM ? { opacity: 0.3 } : {}),
+                }}
+                className="zoom-button"
+                aria-label="Zoom in"
+                data-testid="zoom-in-button"
+              >
+                +
+              </button>
+              {touchState.scale > 1 && (
+                <button
+                  type="button"
+                  onClick={handleResetZoom}
+                  style={styles.zoomButton}
+                  className="zoom-button"
+                  aria-label="Reset zoom"
+                  data-testid="reset-zoom-button"
+                >
+                  ↺
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

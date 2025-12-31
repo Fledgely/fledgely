@@ -1,7 +1,8 @@
 /**
- * ChildScreenshotDetail Tests - Story 19B.1
+ * ChildScreenshotDetail Tests - Story 19B.1 & 19B.3
  *
- * Task 5.7: Create unit tests
+ * Story 19B.1: Basic modal functionality
+ * Story 19B.3: Pinch-to-zoom and swipe-to-dismiss gestures
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -177,5 +178,112 @@ describe('ChildScreenshotDetail', () => {
 
     expect(screen.getByTestId('detail-placeholder')).toBeInTheDocument()
     expect(screen.getByText('Picture not available')).toBeInTheDocument()
+  })
+
+  // Story 19B.3 - Zoom Controls Tests (AC: #5)
+  describe('Zoom Controls', () => {
+    it('should render zoom controls when image is displayed', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.getByTestId('zoom-controls')).toBeInTheDocument()
+      expect(screen.getByTestId('zoom-in-button')).toBeInTheDocument()
+      expect(screen.getByTestId('zoom-out-button')).toBeInTheDocument()
+      expect(screen.getByTestId('zoom-level')).toBeInTheDocument()
+    })
+
+    it('should display initial zoom level at 100%', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('100%')
+    })
+
+    it('should increase zoom when zoom in button is clicked', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('zoom-in-button'))
+
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('150%')
+    })
+
+    it('should decrease zoom when zoom out button is clicked', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      // First zoom in
+      fireEvent.click(screen.getByTestId('zoom-in-button'))
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('150%')
+
+      // Then zoom out
+      fireEvent.click(screen.getByTestId('zoom-out-button'))
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('100%')
+    })
+
+    it('should not allow zoom below 100%', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      // Try to zoom out at minimum
+      fireEvent.click(screen.getByTestId('zoom-out-button'))
+
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('100%')
+    })
+
+    it('should show reset zoom button when zoomed in', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      // Initially no reset button
+      expect(screen.queryByTestId('reset-zoom-button')).not.toBeInTheDocument()
+
+      // Zoom in
+      fireEvent.click(screen.getByTestId('zoom-in-button'))
+
+      // Reset button should appear
+      expect(screen.getByTestId('reset-zoom-button')).toBeInTheDocument()
+    })
+
+    it('should reset zoom to 100% when reset button is clicked', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      // Zoom in
+      fireEvent.click(screen.getByTestId('zoom-in-button'))
+      fireEvent.click(screen.getByTestId('zoom-in-button'))
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('200%')
+
+      // Click reset
+      fireEvent.click(screen.getByTestId('reset-zoom-button'))
+      expect(screen.getByTestId('zoom-level')).toHaveTextContent('100%')
+    })
+
+    it('should have accessible labels on zoom buttons', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.getByTestId('zoom-in-button')).toHaveAttribute('aria-label', 'Zoom in')
+      expect(screen.getByTestId('zoom-out-button')).toHaveAttribute('aria-label', 'Zoom out')
+    })
+
+    it('should not render zoom controls when showing placeholder', () => {
+      render(
+        <ChildScreenshotDetail
+          {...defaultProps}
+          screenshot={{ ...mockScreenshots[1], imageUrl: '' }}
+        />
+      )
+
+      expect(screen.queryByTestId('zoom-controls')).not.toBeInTheDocument()
+    })
+  })
+
+  // Story 19B.3 - Image Container Tests
+  describe('Image Container', () => {
+    it('should render image container with touch handlers', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.getByTestId('image-container')).toBeInTheDocument()
+    })
+
+    it('should render image with draggable=false for touch support', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      const image = screen.getByTestId('detail-image')
+      expect(image).toHaveAttribute('draggable', 'false')
+    })
   })
 })
