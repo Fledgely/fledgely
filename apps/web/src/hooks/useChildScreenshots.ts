@@ -45,6 +45,16 @@ import { getStorage } from 'firebase/storage'
 import { getFirestoreDb, getFirebaseApp } from '../lib/firebase'
 
 /**
+ * Accessibility description status for screen reader integration.
+ * Story 28.3: Screen Reader Integration - AC1, AC2
+ */
+export interface AccessibilityDescriptionStatus {
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  description?: string
+  wordCount?: number
+}
+
+/**
  * Screenshot with resolved image URL
  */
 export interface ChildScreenshot {
@@ -54,6 +64,11 @@ export interface ChildScreenshot {
   url: string
   title: string
   deviceId: string
+  /**
+   * AI-generated accessibility description for screen readers.
+   * Story 28.3: Screen Reader Integration - AC1, AC2
+   */
+  accessibilityDescription?: AccessibilityDescriptionStatus
 }
 
 /**
@@ -89,6 +104,27 @@ const DEFAULT_PAGE_SIZE = 20
 const DEFAULT_DAYS_TO_SHOW = 7
 
 /**
+ * Parse accessibility description from Firestore document.
+ * Story 28.3: Screen Reader Integration - AC1, AC2
+ */
+function parseAccessibilityDescription(
+  data: DocumentData
+): AccessibilityDescriptionStatus | undefined {
+  const desc = data.accessibilityDescription
+  if (!desc) return undefined
+
+  // Only include if status is valid
+  const validStatuses = ['pending', 'processing', 'completed', 'failed'] as const
+  if (!validStatuses.includes(desc.status)) return undefined
+
+  return {
+    status: desc.status,
+    description: desc.description || undefined,
+    wordCount: typeof desc.wordCount === 'number' ? desc.wordCount : undefined,
+  }
+}
+
+/**
  * Convert Firestore document to ChildScreenshot
  */
 async function convertToChildScreenshot(
@@ -120,6 +156,9 @@ async function convertToChildScreenshot(
       }
     }
 
+    // Story 28.3: Parse accessibility description for screen readers
+    const accessibilityDescription = parseAccessibilityDescription(data)
+
     return {
       id: doc.id,
       imageUrl,
@@ -127,6 +166,7 @@ async function convertToChildScreenshot(
       url: data.url || '',
       title: data.title || 'Screenshot',
       deviceId: data.deviceId || '',
+      accessibilityDescription,
     }
   } catch {
     return null

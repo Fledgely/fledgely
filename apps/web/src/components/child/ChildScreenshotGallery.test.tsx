@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ChildScreenshotGallery } from './ChildScreenshotGallery'
 import type { ChildScreenshot } from '../../hooks/useChildScreenshots'
 
@@ -133,7 +133,10 @@ describe('ChildScreenshotGallery', () => {
       const onSelect = vi.fn()
       render(<ChildScreenshotGallery {...defaultProps} onSelectScreenshot={onSelect} />)
 
-      fireEvent.click(screen.getByTestId('screenshot-card-ss-1'))
+      // Story 28.3: Click the button within the first screenshot card (article)
+      const card = screen.getByTestId('screenshot-card-ss-1')
+      const button = within(card).getByRole('button')
+      fireEvent.click(button)
 
       expect(onSelect).toHaveBeenCalledWith(mockScreenshots[0])
     })

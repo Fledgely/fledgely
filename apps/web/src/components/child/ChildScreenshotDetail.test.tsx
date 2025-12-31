@@ -1,9 +1,10 @@
 /**
- * ChildScreenshotDetail Tests - Story 19B.1 & 19B.3 & 19B.6
+ * ChildScreenshotDetail Tests - Story 19B.1 & 19B.3 & 19B.6 & 28.3
  *
  * Story 19B.1: Basic modal functionality
  * Story 19B.3: Pinch-to-zoom and swipe-to-dismiss gestures
  * Story 19B.6: Child view audit logging (bilateral transparency)
+ * Story 28.3: Screen Reader Integration - AC1, AC2, AC3, AC4, AC5
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -349,6 +350,119 @@ describe('ChildScreenshotDetail', () => {
 
       const call = vi.mocked(auditService.logDataViewNonBlocking).mock.calls[0][0]
       expect(call.dataType).toBe('child_own_screenshot')
+    })
+  })
+
+  // Story 28.3 - Screen Reader Integration Tests
+  describe('Accessibility Description (Story 28.3)', () => {
+    const screenshotWithDescription: ChildScreenshot = {
+      ...mockScreenshots[1],
+      accessibilityDescription: {
+        status: 'completed',
+        description:
+          'The Google search page is displayed showing the search bar at the top. Several search results are visible below with blue links and gray descriptions. The Google logo is visible in the top left corner.',
+        wordCount: 120,
+      },
+    }
+
+    it('should use accessibility description as alt-text when available (AC1)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const img = screen.getByTestId('detail-image')
+      expect(img).toHaveAttribute('alt')
+      expect(img.getAttribute('alt')).toContain('Google search page is displayed')
+    })
+
+    it('should use fallback alt-text when description unavailable (AC1)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      const img = screen.getByTestId('detail-image')
+      expect(img).toHaveAttribute('alt', 'Screenshot: Searching')
+    })
+
+    it('should have proper dialog labeling (AC3)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      const modal = screen.getByTestId('screenshot-detail-modal')
+      expect(modal).toHaveAttribute('aria-labelledby', 'detail-title')
+    })
+
+    it('should show description toggle button when description available (AC4)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      expect(screen.getByTestId('description-toggle')).toBeInTheDocument()
+      expect(screen.getByText(/AI Description/)).toBeInTheDocument()
+    })
+
+    it('should not show description toggle button when description unavailable', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.queryByTestId('description-toggle')).not.toBeInTheDocument()
+    })
+
+    it('should expand description section when toggle is clicked (AC2)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const toggle = screen.getByTestId('description-toggle')
+      fireEvent.click(toggle)
+
+      expect(screen.getByTestId('description-section')).toBeInTheDocument()
+      expect(screen.getByTestId('description-text')).toHaveTextContent('Google search page')
+    })
+
+    it('should collapse description section when toggle is clicked again', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const toggle = screen.getByTestId('description-toggle')
+
+      // Expand
+      fireEvent.click(toggle)
+      expect(screen.getByTestId('description-section')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(toggle)
+      expect(screen.queryByTestId('description-section')).not.toBeInTheDocument()
+    })
+
+    it('should have proper aria-expanded attribute on toggle (AC4)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const toggle = screen.getByTestId('description-toggle')
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+      fireEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('should show skip link for keyboard users when description available (AC5)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      expect(screen.getByTestId('skip-to-description')).toBeInTheDocument()
+    })
+
+    it('should not show skip link when description unavailable', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      expect(screen.queryByTestId('skip-to-description')).not.toBeInTheDocument()
+    })
+
+    it('should use footer element for proper semantic structure (AC3)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} />)
+
+      // Find the footer by looking for the transparency label's parent
+      const transparencyLabel = screen.getByTestId('transparency-label')
+      expect(transparencyLabel.closest('footer')).toBeTruthy()
+    })
+
+    it('should have description section with proper labeling (AC3)', () => {
+      render(<ChildScreenshotDetail {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const toggle = screen.getByTestId('description-toggle')
+      fireEvent.click(toggle)
+
+      const section = screen.getByTestId('description-section')
+      expect(section.tagName).toBe('SECTION')
+      expect(section).toHaveAttribute('aria-labelledby', 'description-heading')
     })
   })
 })

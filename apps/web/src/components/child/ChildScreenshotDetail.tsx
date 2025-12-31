@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ChildScreenshotDetail Component - Story 19B.1 & 19B.3 & 19B.6
+ * ChildScreenshotDetail Component - Story 19B.1 & 19B.3 & 19B.6 & 28.3
  *
  * Modal for viewing full-size screenshots with navigation.
  * Uses child-friendly language.
@@ -21,6 +21,13 @@
  * Story 19B.6 - Bilateral Transparency:
  * - Audit logging when child views their own screenshot (AC: #4)
  * - Logs are separate from parent view logs
+ *
+ * Story 28.3 - Screen Reader Integration:
+ * - AC1: Use accessibility description as alt-text
+ * - AC2: Expandable text description
+ * - AC3: Semantic HTML structure (dialog, header, main, section, footer)
+ * - AC4: "Read full description" button
+ * - AC5: Keyboard navigation and focus management
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react'
@@ -336,10 +343,99 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     padding: '0 8px',
   },
+  // Story 28.3: Screen reader only styles - visually hidden but accessible
+  srOnly: {
+    position: 'absolute' as const,
+    width: '1px',
+    height: '1px',
+    padding: 0,
+    margin: '-1px',
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap' as const,
+    border: 0,
+  },
+  // Story 28.3: Accessibility description section
+  descriptionSection: {
+    padding: '16px',
+    backgroundColor: 'rgba(14, 165, 233, 0.15)', // sky-500 with opacity
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  descriptionHeading: {
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: '#7dd3fc', // sky-300
+    marginBottom: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  descriptionText: {
+    fontSize: '0.875rem',
+    color: '#e0f2fe', // sky-100
+    lineHeight: 1.6,
+    margin: 0,
+  },
+  descriptionToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+    border: 'none',
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    color: '#7dd3fc',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    width: '100%',
+  },
+  skipLink: {
+    position: 'absolute' as const,
+    left: '-9999px',
+    top: '0',
+    padding: '8px 16px',
+    backgroundColor: '#0ea5e9',
+    color: '#ffffff',
+    textDecoration: 'none',
+    zIndex: 10000,
+  },
+  skipLinkFocus: {
+    left: '8px',
+  },
+}
+
+/**
+ * Get the best available alt-text for the screenshot.
+ * Story 28.3: Screen Reader Integration - AC1
+ */
+function getScreenshotAltText(screenshot: ChildScreenshot): string {
+  // Use AI-generated description if available and completed
+  if (
+    screenshot.accessibilityDescription?.status === 'completed' &&
+    screenshot.accessibilityDescription.description
+  ) {
+    return screenshot.accessibilityDescription.description
+  }
+
+  // Fallback to title or generic description
+  const displayTitle = screenshot.title || extractDomain(screenshot.url) || 'Screenshot'
+  return `Screenshot: ${displayTitle}`
+}
+
+/**
+ * Check if we have a full description available.
+ * Story 28.3: Screen Reader Integration - AC2
+ */
+function hasAccessibilityDescription(screenshot: ChildScreenshot): boolean {
+  return (
+    screenshot.accessibilityDescription?.status === 'completed' &&
+    !!screenshot.accessibilityDescription.description
+  )
 }
 
 /**
  * ChildScreenshotDetail - Full-size screenshot viewer
+ * Story 28.3: Enhanced with screen reader support
  */
 export function ChildScreenshotDetail({
   screenshot,
@@ -353,6 +449,10 @@ export function ChildScreenshotDetail({
   const [touchState, setTouchState] = useState<TouchState>(initialTouchState)
   const [isDismissing, setIsDismissing] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Story 28.3: State for expandable description
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
+  const [skipLinkFocused, setSkipLinkFocused] = useState(false)
+  const descriptionRef = useRef<HTMLDivElement>(null)
 
   // Find current index for navigation
   const currentIndex = screenshots.findIndex((s) => s.id === screenshot.id)
@@ -481,13 +581,7 @@ export function ChildScreenshotDetail({
         }
       }
     },
-    [
-      touchState.lastDistance,
-      touchState.scale,
-      touchState.isDragging,
-      touchState.startY,
-      touchState.pinchCenter,
-    ]
+    [touchState.lastDistance, touchState.scale, touchState.isDragging, touchState.startY]
   )
 
   // Handle touch end for swipe dismiss detection
@@ -580,13 +674,30 @@ export function ChildScreenshotDetail({
 
   const displayTitle = screenshot.title || extractDomain(screenshot.url) || 'Screenshot'
 
+  // Story 28.3: Get accessibility description alt-text
+  const altText = getScreenshotAltText(screenshot)
+  const showDescription = hasAccessibilityDescription(screenshot)
+
+  // Story 28.3 AC5: Handle skip link to description
+  const handleSkipToDescription = useCallback(() => {
+    if (descriptionRef.current) {
+      descriptionRef.current.focus()
+      setIsDescriptionExpanded(true)
+    }
+  }, [])
+
+  // Story 28.3 AC2: Toggle description expansion
+  const handleToggleDescription = useCallback(() => {
+    setIsDescriptionExpanded((prev) => !prev)
+  }, [])
+
   return (
     <div
       style={styles.overlay}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Screenshot viewer"
+      aria-labelledby="detail-title"
       data-testid="screenshot-detail-modal"
     >
       <style>
@@ -598,8 +709,32 @@ export function ChildScreenshotDetail({
           .zoom-button:hover:not(:disabled) { background-color: rgba(255, 255, 255, 0.3) !important; }
           .zoom-button:focus { outline: 2px solid #0ea5e9; outline-offset: 2px; }
           .zoom-button:focus:not(:focus-visible) { outline: none; }
+          .description-toggle:hover { background-color: rgba(14, 165, 233, 0.2) !important; }
+          .description-toggle:focus { outline: 2px solid #0ea5e9; outline-offset: -2px; }
+          .skip-link:focus { left: 8px !important; }
         `}
       </style>
+
+      {/* Story 28.3 AC5: Skip link to description for keyboard users */}
+      {showDescription && (
+        <a
+          href="#screenshot-description"
+          style={{
+            ...styles.skipLink,
+            ...(skipLinkFocused ? styles.skipLinkFocus : {}),
+          }}
+          className="skip-link"
+          onClick={(e) => {
+            e.preventDefault()
+            handleSkipToDescription()
+          }}
+          onFocus={() => setSkipLinkFocused(true)}
+          onBlur={() => setSkipLinkFocused(false)}
+          data-testid="skip-to-description"
+        >
+          Skip to description
+        </a>
+      )}
 
       <div style={styles.modal} onClick={(e) => e.stopPropagation()} role="document">
         {/* Header */}
@@ -670,7 +805,7 @@ export function ChildScreenshotDetail({
           {screenshot.imageUrl && !imageError ? (
             <img
               src={screenshot.imageUrl}
-              alt={`Screenshot: ${displayTitle}`}
+              alt={altText}
               style={{
                 ...styles.zoomableImage,
                 transform: `scale(${touchState.scale}) translate(${touchState.translateX / touchState.scale}px, ${touchState.translateY / touchState.scale}px)`,
@@ -755,11 +890,50 @@ export function ChildScreenshotDetail({
           )}
         </div>
 
+        {/* Story 28.3 AC2, AC4: Accessibility description section */}
+        {showDescription && (
+          <>
+            <button
+              type="button"
+              onClick={handleToggleDescription}
+              style={styles.descriptionToggle}
+              className="description-toggle"
+              aria-expanded={isDescriptionExpanded}
+              aria-controls="screenshot-description"
+              data-testid="description-toggle"
+            >
+              <span>📖 {isDescriptionExpanded ? 'Hide' : 'Show'} AI Description</span>
+              <span aria-hidden="true">{isDescriptionExpanded ? '▲' : '▼'}</span>
+            </button>
+
+            {isDescriptionExpanded && (
+              <section
+                id="screenshot-description"
+                ref={descriptionRef}
+                style={styles.descriptionSection}
+                tabIndex={-1}
+                aria-labelledby="description-heading"
+                data-testid="description-section"
+              >
+                <h3 id="description-heading" style={styles.descriptionHeading}>
+                  <span aria-hidden="true">📝</span>
+                  AI-Generated Description
+                </h3>
+                <p style={styles.descriptionText} data-testid="description-text">
+                  {screenshot.accessibilityDescription?.description}
+                </p>
+              </section>
+            )}
+          </>
+        )}
+
         {/* Footer */}
-        <div style={styles.footer}>
+        <footer style={styles.footer}>
           {/* Transparency label - AC5.4 */}
           <div style={styles.transparencyLabel} data-testid="transparency-label">
-            <span style={styles.transparencyIcon}>👀</span>
+            <span style={styles.transparencyIcon} aria-hidden="true">
+              👀
+            </span>
             <p style={styles.transparencyText}>This is what your parent can see. No secrets!</p>
           </div>
 
@@ -788,7 +962,7 @@ export function ChildScreenshotDetail({
               </div>
             )}
           </div>
-        </div>
+        </footer>
       </div>
     </div>
   )

@@ -1,7 +1,8 @@
 /**
- * ChildScreenshotCard Tests - Story 19B.1
+ * ChildScreenshotCard Tests - Story 19B.1 & Story 28.3
  *
- * Task 4.6: Create unit tests
+ * Story 19B.1 - Task 4.6: Create unit tests
+ * Story 28.3 - Screen Reader Integration: AC1, AC2, AC3, AC4, AC5
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -47,7 +48,9 @@ describe('ChildScreenshotCard', () => {
     const onClick = vi.fn()
     render(<ChildScreenshotCard {...defaultProps} onClick={onClick} />)
 
-    fireEvent.click(screen.getByTestId('screenshot-card-ss-1'))
+    // Story 28.3: Click the button within the article element
+    const button = screen.getByRole('button', { name: /screenshot from/i })
+    fireEvent.click(button)
 
     expect(onClick).toHaveBeenCalled()
   })
@@ -56,8 +59,9 @@ describe('ChildScreenshotCard', () => {
     const onClick = vi.fn()
     render(<ChildScreenshotCard {...defaultProps} onClick={onClick} />)
 
-    const card = screen.getByTestId('screenshot-card-ss-1')
-    fireEvent.keyDown(card, { key: 'Enter' })
+    // Story 28.3: Find the button and press Enter
+    const button = screen.getByRole('button', { name: /screenshot from/i })
+    fireEvent.keyDown(button, { key: 'Enter' })
 
     expect(onClick).toHaveBeenCalled()
   })
@@ -66,8 +70,9 @@ describe('ChildScreenshotCard', () => {
     const onClick = vi.fn()
     render(<ChildScreenshotCard {...defaultProps} onClick={onClick} />)
 
-    const card = screen.getByTestId('screenshot-card-ss-1')
-    fireEvent.keyDown(card, { key: ' ' })
+    // Story 28.3: Find the button and press Space
+    const button = screen.getByRole('button', { name: /screenshot from/i })
+    fireEvent.keyDown(button, { key: ' ' })
 
     expect(onClick).toHaveBeenCalled()
   })
@@ -75,17 +80,19 @@ describe('ChildScreenshotCard', () => {
   it('should have correct aria-label for accessibility', () => {
     render(<ChildScreenshotCard {...defaultProps} />)
 
-    const card = screen.getByTestId('screenshot-card-ss-1')
-    expect(card).toHaveAttribute('aria-label')
-    expect(card.getAttribute('aria-label')).toContain('Watching Videos')
+    // Story 28.3: Button has the aria-label
+    const button = screen.getByRole('button', { name: /screenshot from/i })
+    expect(button).toHaveAttribute('aria-label')
+    expect(button.getAttribute('aria-label')).toContain('Watching Videos')
   })
 
   it('should have role button and tabIndex for keyboard navigation', () => {
     render(<ChildScreenshotCard {...defaultProps} />)
 
-    const card = screen.getByTestId('screenshot-card-ss-1')
-    expect(card).toHaveAttribute('role', 'button')
-    expect(card).toHaveAttribute('tabIndex', '0')
+    // Story 28.3: Button is properly accessible
+    const button = screen.getByRole('button', { name: /screenshot from/i })
+    expect(button).toHaveAttribute('role', 'button')
+    expect(button).toHaveAttribute('tabIndex', '0')
   })
 
   it('should show placeholder when image fails to load', () => {
@@ -106,5 +113,94 @@ describe('ChildScreenshotCard', () => {
     render(<ChildScreenshotCard {...defaultProps} screenshot={{ ...mockScreenshot, title: '' }} />)
 
     expect(screen.getByTestId('screenshot-details')).toHaveTextContent('youtube.com')
+  })
+
+  // Story 28.3: Screen Reader Integration Tests
+
+  describe('accessibility description (Story 28.3)', () => {
+    const screenshotWithDescription: ChildScreenshot = {
+      ...mockScreenshot,
+      accessibilityDescription: {
+        status: 'completed',
+        description:
+          'The YouTube app shows a paused video titled "Minecraft Building Tutorial". The video player interface is visible with play controls at the bottom.',
+        wordCount: 150,
+      },
+    }
+
+    it('should use accessibility description as alt-text when available (AC1)', () => {
+      render(<ChildScreenshotCard {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveAttribute('alt')
+      expect(img.getAttribute('alt')).toContain('YouTube app shows a paused video')
+    })
+
+    it('should use fallback alt-text when description unavailable (AC1)', () => {
+      render(<ChildScreenshotCard {...defaultProps} />)
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveAttribute('alt', 'Screenshot: Watching Videos')
+    })
+
+    it('should use fallback alt-text when description is pending (AC1)', () => {
+      const pendingScreenshot: ChildScreenshot = {
+        ...mockScreenshot,
+        accessibilityDescription: {
+          status: 'pending',
+        },
+      }
+      render(<ChildScreenshotCard {...defaultProps} screenshot={pendingScreenshot} />)
+
+      const img = screen.getByRole('img')
+      expect(img).toHaveAttribute('alt', 'Screenshot: Watching Videos')
+    })
+
+    it('should wrap card in article element for semantic structure (AC3)', () => {
+      render(<ChildScreenshotCard {...defaultProps} />)
+
+      const article = screen.getByTestId('screenshot-card-ss-1')
+      expect(article.tagName).toBe('ARTICLE')
+    })
+
+    it('should show "Read full description" button when description available (AC4)', () => {
+      render(<ChildScreenshotCard {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      expect(screen.getByTestId('read-description-button')).toBeInTheDocument()
+    })
+
+    it('should not show "Read full description" button when description unavailable', () => {
+      render(<ChildScreenshotCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('read-description-button')).not.toBeInTheDocument()
+    })
+
+    it('should have full description region for screen readers (AC2)', () => {
+      render(<ChildScreenshotCard {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const descriptionRegion = screen.getByTestId('full-description')
+      expect(descriptionRegion).toHaveAttribute('role', 'region')
+      expect(descriptionRegion).toHaveAttribute('aria-label', 'Full screenshot description')
+    })
+
+    it('should toggle description announcement on button click (AC4)', () => {
+      render(<ChildScreenshotCard {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const button = screen.getByTestId('read-description-button')
+      expect(button).toHaveAttribute('aria-expanded', 'false')
+
+      fireEvent.click(button)
+
+      expect(button).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('should support keyboard activation of description button (AC5)', () => {
+      render(<ChildScreenshotCard {...defaultProps} screenshot={screenshotWithDescription} />)
+
+      const button = screen.getByTestId('read-description-button')
+      fireEvent.keyDown(button, { key: 'Enter' })
+
+      expect(button).toHaveAttribute('aria-expanded', 'true')
+    })
   })
 })
