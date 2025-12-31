@@ -86,6 +86,8 @@ export {
   processAuditFailures,
   analyzeViewingPatternsScheduled,
   sendAccessDigests,
+  generateHealthCheckIns,
+  sendCheckInReminders,
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3
@@ -110,3 +112,12 @@ export {
   getNotificationPreferencesEndpoint,
   updateNotificationPreferencesEndpoint,
 } from './http/notifications'
+
+// Health check-in HTTP handlers (Story 27.5.1)
+export {
+  getCheckInSettingsEndpoint,
+  updateCheckInSettingsEndpoint,
+  getPendingCheckInsEndpoint,
+  submitCheckInResponseEndpoint,
+  skipCheckInEndpoint,
+} from './http/health'

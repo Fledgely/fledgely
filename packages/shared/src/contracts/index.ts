@@ -3687,3 +3687,157 @@ export const accessNotificationSchema = z.object({
   notificationType: z.enum(['immediate', 'digest']),
 })
 export type AccessNotification = z.infer<typeof accessNotificationSchema>
+
+// ============================================================================
+// EPIC 27.5: FAMILY HEALTH CHECK-INS
+// Story 27.5.1: Monthly Health Check-In Prompts
+// ============================================================================
+
+/**
+ * Check-in frequency options.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC5
+ * Configurable frequency for health check-in prompts.
+ */
+export const checkInFrequencySchema = z.enum(['weekly', 'monthly', 'quarterly'])
+export type CheckInFrequency = z.infer<typeof checkInFrequencySchema>
+
+/**
+ * Check-in status tracking.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC1
+ */
+export const checkInStatusSchema = z.enum(['pending', 'completed', 'skipped', 'expired'])
+export type CheckInStatus = z.infer<typeof checkInStatusSchema>
+
+/**
+ * Check-in rating for quick response.
+ *
+ * Story 27.5.2: Check-In Response Interface (referenced for AC4)
+ */
+export const checkInRatingSchema = z.enum(['positive', 'neutral', 'concerned'])
+export type CheckInRating = z.infer<typeof checkInRatingSchema>
+
+/**
+ * Recipient type for check-ins.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC2, AC3
+ */
+export const checkInRecipientTypeSchema = z.enum(['guardian', 'child'])
+export type CheckInRecipientType = z.infer<typeof checkInRecipientTypeSchema>
+
+/**
+ * Check-in response data.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC4
+ * Private response that is not visible to other family members.
+ */
+export const checkInResponseSchema = z.object({
+  /** Rating: positive, neutral, or concerned */
+  rating: checkInRatingSchema.nullable(),
+  /** Follow-up answer based on rating path */
+  followUp: z.string().max(500).nullable(),
+  /** Optional additional notes */
+  additionalNotes: z.string().max(1000).nullable(),
+})
+export type CheckInResponse = z.infer<typeof checkInResponseSchema>
+
+/**
+ * Individual health check-in record.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts
+ * Stored at /healthCheckIns/{checkInId}
+ *
+ * AC1: 30-day eligibility for check-ins
+ * AC2: Parent check-in prompts
+ * AC3: Child check-in prompts (age-appropriate)
+ * AC4: Private responses between parties
+ */
+export const healthCheckInSchema = z.object({
+  /** Unique check-in ID */
+  id: z.string(),
+  /** Family this check-in belongs to */
+  familyId: z.string(),
+  /** User receiving this check-in */
+  recipientUid: z.string(),
+  /** Type of recipient: guardian or child */
+  recipientType: checkInRecipientTypeSchema,
+  /** For child check-ins, the child's ID */
+  childId: z.string().nullable(),
+  /** Start of check-in period (epoch ms) */
+  periodStart: z.number(),
+  /** End of check-in period (epoch ms) */
+  periodEnd: z.number(),
+  /** Current status of check-in */
+  status: checkInStatusSchema,
+  /** When prompt was sent (epoch ms) */
+  promptSentAt: z.number(),
+  /** When reminder was sent (epoch ms), null if not sent */
+  reminderSentAt: z.number().nullable(),
+  /** When user responded (epoch ms), null if not responded */
+  respondedAt: z.number().nullable(),
+  /** User's private response */
+  response: checkInResponseSchema.nullable(),
+  /** When check-in record was created (epoch ms) */
+  createdAt: z.number(),
+})
+export type HealthCheckIn = z.infer<typeof healthCheckInSchema>
+
+/**
+ * Family check-in settings.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC5
+ * Stored at /families/{familyId}/settings/healthCheckIn
+ */
+export const checkInSettingsSchema = z.object({
+  /** Whether check-ins are enabled for this family */
+  enabled: z.boolean().default(true),
+  /** Check-in frequency: weekly, monthly, or quarterly */
+  frequency: checkInFrequencySchema.default('monthly'),
+  /** Start of last check-in period (epoch ms), null if never run */
+  lastCheckInPeriodStart: z.number().nullable(),
+  /** When next check-in is due (epoch ms), null if not calculated */
+  nextCheckInDue: z.number().nullable(),
+  /** When settings were last updated (epoch ms) */
+  updatedAt: z.number(),
+})
+export type CheckInSettings = z.infer<typeof checkInSettingsSchema>
+
+/**
+ * Default check-in settings.
+ *
+ * Story 27.5.1 - AC5: Monthly by default, enabled
+ */
+export const DEFAULT_CHECK_IN_SETTINGS: Omit<CheckInSettings, 'updatedAt'> = {
+  enabled: true,
+  frequency: 'monthly',
+  lastCheckInPeriodStart: null,
+  nextCheckInDue: null,
+}
+
+/**
+ * Check-in frequency intervals in milliseconds.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC5
+ */
+export const CHECK_IN_FREQUENCY_MS: Record<CheckInFrequency, number> = {
+  weekly: 7 * 24 * 60 * 60 * 1000,
+  monthly: 30 * 24 * 60 * 60 * 1000,
+  quarterly: 90 * 24 * 60 * 60 * 1000,
+}
+
+/**
+ * Minimum family age before check-ins are enabled.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC1
+ * Family must be 30+ days old before first check-in.
+ */
+export const CHECK_IN_FAMILY_AGE_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * Reminder delay before sending reminder.
+ *
+ * Story 27.5.1: Monthly Health Check-In Prompts - AC6
+ * Send reminder 3 days after initial prompt if not completed.
+ */
+export const CHECK_IN_REMINDER_DELAY_MS = 3 * 24 * 60 * 60 * 1000

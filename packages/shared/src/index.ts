@@ -305,3 +305,25 @@ export {
   type NotificationPreferences,
   type AccessNotification,
 } from './contracts'
+
+// Health check-in exports (Story 27.5.1)
+export {
+  checkInFrequencySchema,
+  checkInStatusSchema,
+  checkInRatingSchema,
+  checkInRecipientTypeSchema,
+  checkInResponseSchema,
+  healthCheckInSchema,
+  checkInSettingsSchema,
+  DEFAULT_CHECK_IN_SETTINGS,
+  CHECK_IN_FREQUENCY_MS,
+  CHECK_IN_FAMILY_AGE_THRESHOLD_MS,
+  CHECK_IN_REMINDER_DELAY_MS,
+  type CheckInFrequency,
+  type CheckInStatus,
+  type CheckInRating,
+  type CheckInRecipientType,
+  type CheckInResponse,
+  type HealthCheckIn,
+  type CheckInSettings,
+} from './contracts'

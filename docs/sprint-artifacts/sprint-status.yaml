@@ -414,8 +414,8 @@ development_status:
   epic-27-retrospective: completed
 
   # Epic 27.5: Family Health Check-Ins (Family Therapist)
-  epic-27-5: backlog
-  27-5-1-monthly-health-check-in-prompts: backlog
+  epic-27-5: in-progress
+  27-5-1-monthly-health-check-in-prompts: done
   27-5-2-check-in-response-interface: backlog
   27-5-3-flag-triggered-friction-markers: backlog
   27-5-4-friction-indicators-dashboard: backlog
