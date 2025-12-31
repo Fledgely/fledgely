@@ -155,6 +155,30 @@
         { "fieldPath": "classification.concernTaxonomyVersion", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "suppressionAudit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "released", "order": "ASCENDING" },
+        { "fieldPath": "releasableAfter", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "suppressionAudit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "familyId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "suppressionAudit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "childId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

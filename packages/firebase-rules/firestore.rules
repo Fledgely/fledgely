@@ -765,6 +765,40 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // =========================================================================
+    // EPIC 21: AI CLASSIFICATION - CONCERNING CONTENT DETECTION
+    // Story 21.2: Distress Detection Suppression
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Suppression audit entries are COMPLETELY ISOLATED from family data.
+    // They log when distress-related flags are suppressed from parent view.
+    //
+    // Key protections:
+    // - NO read access for regular users (admin-only via Admin SDK)
+    // - NO write access for regular users (only Cloud Functions)
+    // - Entries preserved for internal audit and safety compliance
+    // - NO cross-references to family-visible audit logs
+    //
+    match /suppressionAudit/{entryId} {
+      // CRITICAL: Parents CANNOT read suppression audit entries
+      // These logs are internal-only to protect children seeking help
+      // Admin access via Admin SDK (bypasses security rules)
+      allow read: if false;
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // Entries are created when distress content is detected and suppressed
+      allow create: if false;
+
+      // Update: Only Admin SDK for release tracking
+      // Regular users cannot modify suppression entries
+      allow update: if false;
+
+      // Delete: NEVER allowed (audit trail preservation)
+      // Suppression history is preserved for compliance
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

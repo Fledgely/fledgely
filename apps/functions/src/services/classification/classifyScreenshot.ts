@@ -16,10 +16,13 @@ import {
   type ClassificationJob,
   type ClassificationResult,
   type ConcernFlag,
+  type SuppressedConcernFlag,
 } from '@fledgely/shared'
 import { createGeminiClient, type DetectedConcern } from './geminiClient'
 import { retryWithBackoff } from './retryWithBackoff'
 import { storeClassificationDebug } from './storeDebug'
+import { isCrisisUrl, isDistressContent, calculateReleasableAfter } from './crisisUrlDetector'
+import { logSuppressionEvent } from './suppressionAudit'
 
 /**
  * Result of classifyScreenshot operation.
@@ -47,7 +50,7 @@ export interface ClassificationOperationResult {
 export async function classifyScreenshot(
   job: ClassificationJob
 ): Promise<ClassificationOperationResult> {
-  const { childId, screenshotId, storagePath, url, title, retryCount = 0 } = job
+  const { childId, screenshotId, storagePath, url, title, retryCount = 0, familyId } = job
   const db = getFirestore()
   const screenshotRef = db
     .collection('children')
@@ -61,6 +64,18 @@ export async function classifyScreenshot(
       'classification.status': 'processing',
       'classification.retryCount': retryCount,
     })
+
+    // Story 21.2: Crisis URL Detection (AC3) - Check BEFORE any concern detection
+    // If URL is from crisis resource, set crisisProtected and skip concern detection entirely
+    const crisisProtected = url ? isCrisisUrl(url) : false
+
+    if (crisisProtected) {
+      logger.info('Crisis URL detected - skipping concern detection', {
+        screenshotId,
+        childId,
+        url,
+      })
+    }
 
     // 1. Retrieve image from Firebase Storage
     const imageBase64 = await retrieveImageFromStorage(storagePath)
@@ -76,35 +91,99 @@ export async function classifyScreenshot(
     )
 
     // Story 21.1: Concerning Content Categories - AC1, AC3
-    // Call concern detection SEPARATELY from basic classification
+    // Story 21.2: Crisis URL Detection (AC3) - Skip concern detection if crisis URL
     // Concerns coexist with basic categories (a Gaming screenshot can have Violence concerns)
-    const concernResult = await retryWithBackoff(
-      () => geminiClient.detectConcerns(imageBase64, 'image/jpeg', url, title),
-      {
-        maxRetries: 2, // Inner retries for transient API errors
-        context: `detectConcerns:${screenshotId}`,
-      }
-    )
+    let concernResult: {
+      concerns: DetectedConcern[]
+      hasConcerns: boolean
+      rawResponse: string
+      taxonomyVersion: string
+    } | null = null
+    let concernFlags: ConcernFlag[] = []
+    let suppressedConcernFlags: SuppressedConcernFlag[] = []
 
-    // Convert detected concerns to ConcernFlag format for storage
-    const concernFlags: ConcernFlag[] = concernResult.concerns.map(
-      (concern: DetectedConcern): ConcernFlag => ({
-        category: concern.category,
-        severity: concern.severity,
-        confidence: concern.confidence,
-        reasoning: concern.reasoning,
-        detectedAt: Date.now(),
-      })
-    )
+    if (!crisisProtected) {
+      concernResult = await retryWithBackoff(
+        () => geminiClient.detectConcerns(imageBase64, 'image/jpeg', url, title),
+        {
+          maxRetries: 2, // Inner retries for transient API errors
+          context: `detectConcerns:${screenshotId}`,
+        }
+      )
+
+      // Convert detected concerns to ConcernFlag format for storage
+      concernFlags = concernResult.concerns.map(
+        (concern: DetectedConcern): ConcernFlag => ({
+          category: concern.category,
+          severity: concern.severity,
+          confidence: concern.confidence,
+          reasoning: concern.reasoning,
+          detectedAt: Date.now(),
+        })
+      )
+
+      // Story 21.2: Distress Detection Suppression (AC1, AC2)
+      // Check if any concern is distress-related (Self-Harm Indicators)
+      const hasDistressContent = isDistressContent(concernFlags)
+
+      if (hasDistressContent) {
+        const now = Date.now()
+        const releasableAfter = calculateReleasableAfter(now)
+
+        // Convert to suppressed flags with sensitive_hold status
+        suppressedConcernFlags = concernFlags.map((flag): SuppressedConcernFlag => {
+          if (flag.category === 'Self-Harm Indicators') {
+            return {
+              ...flag,
+              status: 'sensitive_hold',
+              suppressionReason: 'self_harm_detected',
+              releasableAfter,
+            }
+          }
+          // Non-distress concerns remain pending
+          return {
+            ...flag,
+            status: 'pending',
+          }
+        })
+
+        // Log suppression for internal audit (AC5)
+        await logSuppressionEvent(db, {
+          screenshotId,
+          childId,
+          familyId,
+          concernCategory: 'Self-Harm Indicators',
+          severity:
+            concernFlags.find((f) => f.category === 'Self-Harm Indicators')?.severity ?? 'medium',
+          suppressionReason: 'self_harm_detected',
+          timestamp: now,
+          releasableAfter,
+        })
+
+        logger.info('Distress content detected - flags suppressed', {
+          screenshotId,
+          childId,
+          suppressedCount: suppressedConcernFlags.filter((f) => f.status === 'sensitive_hold')
+            .length,
+          releasableAfter: new Date(releasableAfter).toISOString(),
+        })
+      }
+    }
 
     // 3. Build result object
     // Story 20.2: Basic Category Taxonomy - AC5, AC6
     // Story 20.3: Confidence Score Assignment - AC4
     // Story 20.4: Multi-Label Classification - AC1, AC2, AC3
     // Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
-    // Include isLowConfidence, taxonomyVersion, needsReview, secondaryCategories, and concernFlags
+    // Story 21.2: Distress Detection Suppression - AC1, AC2, AC3
+    // Include isLowConfidence, taxonomyVersion, needsReview, secondaryCategories, concernFlags, crisisProtected
     const classifiedAt = Date.now()
     const modelVersion = geminiClient.getModelVersion()
+
+    // Determine which concern flags to use - suppressed flags if distress detected
+    const finalConcernFlags =
+      suppressedConcernFlags.length > 0 ? suppressedConcernFlags : concernFlags
+
     const result: ClassificationResult = {
       status: 'completed',
       primaryCategory: classificationResult.primaryCategory,
@@ -120,14 +199,21 @@ export async function classifyScreenshot(
         secondaryCategories: classificationResult.secondaryCategories,
       }),
       // Story 21.1: Store concern flags (only if non-empty) - AC3
-      ...(concernFlags.length > 0 && {
-        concernFlags,
-        concernTaxonomyVersion: concernResult.taxonomyVersion,
+      // Story 21.2: Use suppressed flags when distress detected - AC2
+      ...(finalConcernFlags.length > 0 &&
+        concernResult && {
+          concernFlags: finalConcernFlags,
+          concernTaxonomyVersion: concernResult.taxonomyVersion,
+        }),
+      // Story 21.2: Mark as crisis protected when URL matches crisis allowlist - AC3
+      ...(crisisProtected && {
+        crisisProtected: true,
       }),
     }
 
     // Story 20.5: Store debug data for analysis (AC4)
     // Story 21.1: Include concern detection debug data (AC5)
+    // Story 21.2: Handle crisis URL case where concernResult is null
     // Fire-and-forget - don't block on debug storage
     storeClassificationDebug({
       screenshotId,
@@ -145,12 +231,19 @@ export async function classifyScreenshot(
         reasoning: classificationResult.reasoning,
       },
       // Story 21.1: Include concern detection debug data
-      concernRawResponse: concernResult.rawResponse,
-      concernParsedResult: {
-        hasConcerns: concernResult.hasConcerns,
-        concerns: concernResult.concerns,
-        taxonomyVersion: concernResult.taxonomyVersion,
-      },
+      // Story 21.2: Handle crisis URL case - concernResult may be null
+      ...(concernResult && {
+        concernRawResponse: concernResult.rawResponse,
+        concernParsedResult: {
+          hasConcerns: concernResult.hasConcerns,
+          concerns: concernResult.concerns,
+          taxonomyVersion: concernResult.taxonomyVersion,
+        },
+      }),
+      // Story 21.2: Include crisis protection status
+      ...(crisisProtected && {
+        crisisProtected: true,
+      }),
       modelVersion,
       taxonomyVersion: classificationResult.taxonomyVersion,
     }).catch((err) => {
@@ -172,8 +265,11 @@ export async function classifyScreenshot(
       confidence: result.confidence,
       secondaryCount: classificationResult.secondaryCategories.length,
       // Story 21.1: Log concern detection results
-      hasConcerns: concernFlags.length > 0,
-      concernCount: concernFlags.length,
+      hasConcerns: finalConcernFlags.length > 0,
+      concernCount: finalConcernFlags.length,
+      // Story 21.2: Log suppression status
+      crisisProtected,
+      suppressedCount: suppressedConcernFlags.filter((f) => f.status === 'sensitive_hold').length,
     })
 
     return { success: true, result }

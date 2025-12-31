@@ -26,6 +26,13 @@ import {
   concernCategorySchema,
   concernSeveritySchema,
   concernFlagSchema,
+  // Story 21.2: Distress Detection Suppression
+  FLAG_STATUS_VALUES,
+  flagStatusSchema,
+  SUPPRESSION_REASON_VALUES,
+  suppressionReasonSchema,
+  suppressedConcernFlagSchema,
+  distressSuppressionLogSchema,
 } from './index'
 
 describe('Classification Contracts', () => {
@@ -763,6 +770,228 @@ describe('Classification Contracts', () => {
             detectedAt: now,
           })
         ).toThrow()
+      })
+    })
+  })
+
+  // Story 21.2: Distress Detection Suppression (FR21A)
+  describe('Distress Suppression Schemas (Story 21.2)', () => {
+    describe('flagStatusSchema', () => {
+      it('accepts all valid flag status values', () => {
+        for (const status of FLAG_STATUS_VALUES) {
+          expect(flagStatusSchema.parse(status)).toBe(status)
+        }
+      })
+
+      it('has expected status values', () => {
+        expect(FLAG_STATUS_VALUES).toContain('pending')
+        expect(FLAG_STATUS_VALUES).toContain('sensitive_hold')
+        expect(FLAG_STATUS_VALUES).toContain('reviewed')
+        expect(FLAG_STATUS_VALUES).toContain('dismissed')
+        expect(FLAG_STATUS_VALUES).toContain('released')
+        expect(FLAG_STATUS_VALUES.length).toBe(5)
+      })
+
+      it('rejects invalid status values', () => {
+        expect(() => flagStatusSchema.parse('unknown')).toThrow()
+        expect(() => flagStatusSchema.parse('')).toThrow()
+        expect(() => flagStatusSchema.parse('PENDING')).toThrow() // Case sensitive
+      })
+    })
+
+    describe('suppressionReasonSchema', () => {
+      it('accepts all valid suppression reasons', () => {
+        for (const reason of SUPPRESSION_REASON_VALUES) {
+          expect(suppressionReasonSchema.parse(reason)).toBe(reason)
+        }
+      })
+
+      it('has expected suppression reason values', () => {
+        expect(SUPPRESSION_REASON_VALUES).toContain('self_harm_detected')
+        expect(SUPPRESSION_REASON_VALUES).toContain('crisis_url_visited')
+        expect(SUPPRESSION_REASON_VALUES).toContain('distress_signals')
+        expect(SUPPRESSION_REASON_VALUES.length).toBe(3)
+      })
+
+      it('rejects invalid suppression reasons', () => {
+        expect(() => suppressionReasonSchema.parse('unknown')).toThrow()
+        expect(() => suppressionReasonSchema.parse('')).toThrow()
+      })
+    })
+
+    describe('suppressedConcernFlagSchema', () => {
+      const now = Date.now()
+      const baseFlag = {
+        category: 'Self-Harm Indicators' as const,
+        severity: 'high' as const,
+        confidence: 85,
+        reasoning: 'Detected crisis content',
+        detectedAt: now,
+      }
+
+      it('parses flag with default status', () => {
+        const flag = suppressedConcernFlagSchema.parse(baseFlag)
+        expect(flag.category).toBe('Self-Harm Indicators')
+        expect(flag.status).toBe('pending') // Default
+      })
+
+      it('parses flag with sensitive_hold status', () => {
+        const flag = suppressedConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'sensitive_hold',
+          suppressionReason: 'self_harm_detected',
+          releasableAfter: now + 48 * 60 * 60 * 1000,
+        })
+        expect(flag.status).toBe('sensitive_hold')
+        expect(flag.suppressionReason).toBe('self_harm_detected')
+        expect(flag.releasableAfter).toBeGreaterThan(now)
+      })
+
+      it('parses flag with released status', () => {
+        const flag = suppressedConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'released',
+        })
+        expect(flag.status).toBe('released')
+      })
+
+      it('allows suppressionReason to be optional', () => {
+        const flag = suppressedConcernFlagSchema.parse({
+          ...baseFlag,
+          status: 'pending',
+        })
+        expect(flag.suppressionReason).toBeUndefined()
+      })
+
+      it('rejects invalid status', () => {
+        expect(() =>
+          suppressedConcernFlagSchema.parse({
+            ...baseFlag,
+            status: 'invalid_status',
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid suppressionReason', () => {
+        expect(() =>
+          suppressedConcernFlagSchema.parse({
+            ...baseFlag,
+            status: 'sensitive_hold',
+            suppressionReason: 'invalid_reason',
+          })
+        ).toThrow()
+      })
+    })
+
+    describe('distressSuppressionLogSchema', () => {
+      const now = Date.now()
+      const validLog = {
+        id: 'log-123',
+        screenshotId: 'screenshot-456',
+        childId: 'child-789',
+        familyId: 'family-abc',
+        concernCategory: 'Self-Harm Indicators' as const,
+        severity: 'high' as const,
+        suppressionReason: 'self_harm_detected' as const,
+        timestamp: now,
+      }
+
+      it('parses valid suppression log', () => {
+        const log = distressSuppressionLogSchema.parse(validLog)
+        expect(log.id).toBe('log-123')
+        expect(log.screenshotId).toBe('screenshot-456')
+        expect(log.childId).toBe('child-789')
+        expect(log.familyId).toBe('family-abc')
+        expect(log.concernCategory).toBe('Self-Harm Indicators')
+        expect(log.severity).toBe('high')
+        expect(log.suppressionReason).toBe('self_harm_detected')
+        expect(log.timestamp).toBe(now)
+        expect(log.released).toBe(false) // Default
+      })
+
+      it('parses log with optional fields', () => {
+        const releaseTime = now + 48 * 60 * 60 * 1000
+        const releasedTime = now + 72 * 60 * 60 * 1000
+        const log = distressSuppressionLogSchema.parse({
+          ...validLog,
+          releasableAfter: releaseTime,
+          released: true,
+          releasedAt: releasedTime,
+        })
+        expect(log.releasableAfter).toBe(releaseTime)
+        expect(log.released).toBe(true)
+        expect(log.releasedAt).toBe(releasedTime)
+      })
+
+      it('requires all mandatory fields', () => {
+        expect(() => distressSuppressionLogSchema.parse({})).toThrow()
+        expect(() =>
+          distressSuppressionLogSchema.parse({
+            id: 'log-123',
+            // Missing other required fields
+          })
+        ).toThrow()
+      })
+
+      it('validates concernCategory is a valid concern', () => {
+        expect(() =>
+          distressSuppressionLogSchema.parse({
+            ...validLog,
+            concernCategory: 'InvalidCategory',
+          })
+        ).toThrow()
+      })
+
+      it('validates suppressionReason', () => {
+        expect(() =>
+          distressSuppressionLogSchema.parse({
+            ...validLog,
+            suppressionReason: 'invalid_reason',
+          })
+        ).toThrow()
+      })
+
+      it('validates severity', () => {
+        expect(() =>
+          distressSuppressionLogSchema.parse({
+            ...validLog,
+            severity: 'extreme',
+          })
+        ).toThrow()
+      })
+    })
+
+    describe('classificationResultSchema with crisisProtected', () => {
+      it('accepts crisisProtected: true', () => {
+        const result = classificationResultSchema.parse({
+          status: 'completed',
+          primaryCategory: 'Communication',
+          confidence: 85,
+          classifiedAt: Date.now(),
+          crisisProtected: true,
+        })
+        expect(result.crisisProtected).toBe(true)
+      })
+
+      it('accepts crisisProtected: false', () => {
+        const result = classificationResultSchema.parse({
+          status: 'completed',
+          primaryCategory: 'Social Media',
+          confidence: 90,
+          classifiedAt: Date.now(),
+          crisisProtected: false,
+        })
+        expect(result.crisisProtected).toBe(false)
+      })
+
+      it('allows crisisProtected to be undefined', () => {
+        const result = classificationResultSchema.parse({
+          status: 'completed',
+          primaryCategory: 'Gaming',
+          confidence: 75,
+          classifiedAt: Date.now(),
+        })
+        expect(result.crisisProtected).toBeUndefined()
       })
     })
   })

@@ -2426,6 +2426,86 @@ export const concernFlagSchema = z.object({
 export type ConcernFlag = z.infer<typeof concernFlagSchema>
 
 /**
+ * Story 21.2: Distress Detection Suppression (FR21A) - AC2
+ * Flag status values for concern flag lifecycle.
+ * - pending: Flag awaiting parent review
+ * - sensitive_hold: Flag suppressed due to distress content (not visible to parents)
+ * - reviewed: Parent has reviewed the flag
+ * - dismissed: Parent dismissed the flag as false positive
+ * - released: Previously suppressed flag released for parent review
+ */
+export const FLAG_STATUS_VALUES = [
+  'pending',
+  'sensitive_hold',
+  'reviewed',
+  'dismissed',
+  'released',
+] as const
+export const flagStatusSchema = z.enum(FLAG_STATUS_VALUES)
+export type FlagStatus = z.infer<typeof flagStatusSchema>
+
+/**
+ * Story 21.2: Distress Detection Suppression (FR21A) - AC5
+ * Reasons for suppressing a concern flag from parent visibility.
+ * - self_harm_detected: Self-harm indicators found in content
+ * - crisis_url_visited: Screenshot from crisis resource website
+ * - distress_signals: Other distress indicators detected
+ */
+export const SUPPRESSION_REASON_VALUES = [
+  'self_harm_detected',
+  'crisis_url_visited',
+  'distress_signals',
+] as const
+export const suppressionReasonSchema = z.enum(SUPPRESSION_REASON_VALUES)
+export type SuppressionReason = z.infer<typeof suppressionReasonSchema>
+
+/**
+ * Story 21.2: Distress Detection Suppression (FR21A) - AC2
+ * Extended concern flag with suppression support.
+ * Used when a concern flag is suppressed from parent visibility.
+ */
+export const suppressedConcernFlagSchema = concernFlagSchema.extend({
+  /** Current status of the flag */
+  status: flagStatusSchema.default('pending'),
+  /** Reason for suppression (only set if status is sensitive_hold) */
+  suppressionReason: suppressionReasonSchema.optional(),
+  /** When the flag may be released to parent (epoch ms) */
+  releasableAfter: z.number().optional(),
+})
+export type SuppressedConcernFlag = z.infer<typeof suppressedConcernFlagSchema>
+
+/**
+ * Story 21.2: Distress Detection Suppression (FR21A) - AC5
+ * Audit log for suppressed alerts (internal use only, not visible to parents).
+ * Stored in /suppressionAudit/{logId} collection.
+ */
+export const distressSuppressionLogSchema = z.object({
+  /** Unique log ID */
+  id: z.string(),
+  /** Screenshot that triggered the suppression */
+  screenshotId: z.string(),
+  /** Child whose content was flagged */
+  childId: z.string(),
+  /** Family ID for context */
+  familyId: z.string(),
+  /** Category of concern that was detected */
+  concernCategory: concernCategorySchema,
+  /** Severity of the detected concern */
+  severity: concernSeveritySchema,
+  /** Reason for suppression */
+  suppressionReason: suppressionReasonSchema,
+  /** When suppression occurred (epoch ms) */
+  timestamp: z.number(),
+  /** When the flag may be released to parent (epoch ms) */
+  releasableAfter: z.number().optional(),
+  /** Whether flag was eventually released */
+  released: z.boolean().default(false),
+  /** When flag was released (epoch ms) */
+  releasedAt: z.number().optional(),
+})
+export type DistressSuppressionLog = z.infer<typeof distressSuppressionLogSchema>
+
+/**
  * Classification result stored on screenshot document.
  *
  * Story 20.1: Classification Service Architecture - AC4
@@ -2484,6 +2564,12 @@ export const classificationResultSchema = z.object({
    * Concern taxonomy version used for detection.
    */
   concernTaxonomyVersion: z.string().optional(),
+  /**
+   * Story 21.2: Distress Detection Suppression (FR21A) - AC3
+   * True when screenshot URL was from a crisis resource.
+   * When true, no concern flags are created and no parent alerts are sent.
+   */
+  crisisProtected: z.boolean().optional(),
 })
 export type ClassificationResult = z.infer<typeof classificationResultSchema>
 

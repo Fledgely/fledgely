@@ -152,6 +152,20 @@ export {
   type ConcernFlag,
 } from './contracts'
 
+// Distress suppression exports (Story 21.2)
+export {
+  FLAG_STATUS_VALUES,
+  flagStatusSchema,
+  SUPPRESSION_REASON_VALUES,
+  suppressionReasonSchema,
+  suppressedConcernFlagSchema,
+  distressSuppressionLogSchema,
+  type FlagStatus,
+  type SuppressionReason,
+  type SuppressedConcernFlag,
+  type DistressSuppressionLog,
+} from './contracts'
+
 // Concern category definitions exports (Story 21.1)
 export {
   CONCERN_TAXONOMY_VERSION,
