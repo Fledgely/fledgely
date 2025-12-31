@@ -20,6 +20,11 @@ vi.mock('../../lib/firebase', () => ({
   getFirebaseApp: vi.fn(() => ({})),
 }))
 
+// Mock flag service
+vi.mock('../../services/flagService', () => ({
+  takeFlagAction: vi.fn().mockResolvedValue(undefined),
+}))
+
 const createMockFlag = (overrides: Partial<FlagDocument> = {}): FlagDocument => ({
   id: 'flag-123',
   childId: 'child-456',
@@ -36,7 +41,7 @@ const createMockFlag = (overrides: Partial<FlagDocument> = {}): FlagDocument => 
 
 describe('FlagDetailModal', () => {
   const mockOnClose = vi.fn()
-  const mockOnAction = vi.fn()
+  const _mockOnActionComplete = vi.fn() // Prefixed for unused - used for future action complete tests
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -204,22 +209,32 @@ describe('FlagDetailModal', () => {
     })
   })
 
-  describe('Action buttons', () => {
-    it('should not render action buttons when onAction is not provided', () => {
+  describe('Action buttons - Story 22.3', () => {
+    it('should not render action buttons when parentId is not provided', () => {
       const flag = createMockFlag()
       render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
 
       expect(screen.queryByTestId('action-buttons')).not.toBeInTheDocument()
     })
 
-    it('should render action buttons when onAction is provided', () => {
+    it('should not render action buttons when parentName is not provided', () => {
+      const flag = createMockFlag()
+      render(
+        <FlagDetailModal flag={flag} childName="Emma" parentId="parent-123" onClose={mockOnClose} />
+      )
+
+      expect(screen.queryByTestId('action-buttons')).not.toBeInTheDocument()
+    })
+
+    it('should render action buttons when parentId and parentName are provided', () => {
       const flag = createMockFlag()
       render(
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
@@ -232,8 +247,9 @@ describe('FlagDetailModal', () => {
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
@@ -246,8 +262,9 @@ describe('FlagDetailModal', () => {
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
@@ -260,57 +277,88 @@ describe('FlagDetailModal', () => {
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
       expect(screen.getByTestId('action-escalate')).toHaveTextContent('Requires Action')
     })
 
-    it('should call onAction with dismiss when dismiss button clicked', () => {
+    it('should open confirmation modal when dismiss button clicked', () => {
       const flag = createMockFlag()
       render(
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
       fireEvent.click(screen.getByTestId('action-dismiss'))
-      expect(mockOnAction).toHaveBeenCalledWith('dismiss')
+      expect(screen.getByTestId('flag-action-modal')).toBeInTheDocument()
+      // Modal title is "Dismiss Flag"
+      expect(screen.getByRole('heading', { name: 'Dismiss Flag' })).toBeInTheDocument()
     })
 
-    it('should call onAction with discuss when discuss button clicked', () => {
+    it('should open confirmation modal when discuss button clicked', () => {
       const flag = createMockFlag()
       render(
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
       fireEvent.click(screen.getByTestId('action-discuss'))
-      expect(mockOnAction).toHaveBeenCalledWith('discuss')
+      expect(screen.getByTestId('flag-action-modal')).toBeInTheDocument()
+      // Modal title - find the h2 heading inside the action modal
+      const actionModal = screen.getByTestId('flag-action-modal')
+      expect(actionModal.querySelector('h2')).toHaveTextContent('Note for Discussion')
     })
 
-    it('should call onAction with escalate when escalate button clicked', () => {
+    it('should open confirmation modal when escalate button clicked', () => {
       const flag = createMockFlag()
       render(
         <FlagDetailModal
           flag={flag}
           childName="Emma"
+          parentId="parent-123"
+          parentName="John"
           onClose={mockOnClose}
-          onAction={mockOnAction}
         />
       )
 
       fireEvent.click(screen.getByTestId('action-escalate'))
-      expect(mockOnAction).toHaveBeenCalledWith('escalate')
+      expect(screen.getByTestId('flag-action-modal')).toBeInTheDocument()
+      // Modal title - find the h2 heading inside the action modal
+      const actionModal = screen.getByTestId('flag-action-modal')
+      expect(actionModal.querySelector('h2')).toHaveTextContent('Requires Action')
+    })
+
+    it('should close confirmation modal when cancel is clicked', () => {
+      const flag = createMockFlag()
+      render(
+        <FlagDetailModal
+          flag={flag}
+          childName="Emma"
+          parentId="parent-123"
+          parentName="John"
+          onClose={mockOnClose}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId('action-dismiss'))
+      expect(screen.getByTestId('flag-action-modal')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('action-cancel'))
+      expect(screen.queryByTestId('flag-action-modal')).not.toBeInTheDocument()
     })
   })
 })

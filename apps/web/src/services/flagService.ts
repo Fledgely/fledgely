@@ -12,11 +12,43 @@ import {
   orderBy,
   onSnapshot,
   getDocs,
+  doc,
+  updateDoc,
+  arrayUnion,
+  serverTimestamp,
   type QueryConstraint,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import type { FlagDocument, FlagStatus, ConcernCategory, ConcernSeverity } from '@fledgely/shared'
+
+/**
+ * Action types for flag review
+ */
+export type FlagActionType = 'dismiss' | 'discuss' | 'escalate' | 'view'
+
+/**
+ * Audit trail entry for flag actions
+ */
+export interface FlagAction {
+  action: FlagActionType
+  parentId: string
+  parentName: string
+  timestamp: number
+  note?: string
+}
+
+/**
+ * Parameters for taking action on a flag
+ */
+export interface TakeFlagActionParams {
+  flagId: string
+  childId: string
+  action: FlagActionType
+  parentId: string
+  parentName: string
+  note?: string
+}
 
 /**
  * Filters for flag queries
@@ -222,4 +254,116 @@ export function applyClientFilters(flags: FlagDocument[], filters: FlagFilters):
   }
 
   return filtered
+}
+
+/**
+ * Map action type to flag status
+ * Note: No 'escalated' status exists - we use 'reviewed' and track via auditTrail
+ */
+function getStatusForAction(action: FlagActionType): FlagStatus {
+  switch (action) {
+    case 'dismiss':
+      return 'dismissed'
+    case 'discuss':
+    case 'view':
+    case 'escalate':
+      return 'reviewed'
+  }
+}
+
+/**
+ * Take action on a flag
+ * Story 22.3 - AC #2, #3, #4, #6
+ */
+export async function takeFlagAction({
+  flagId,
+  childId,
+  action,
+  parentId,
+  parentName,
+  note,
+}: TakeFlagActionParams): Promise<void> {
+  const db = getFirestoreDb()
+  const flagRef = doc(db, 'children', childId, 'flags', flagId)
+
+  const auditEntry: FlagAction = {
+    action,
+    parentId,
+    parentName,
+    timestamp: Date.now(),
+    ...(note && { note }),
+  }
+
+  const newStatus = getStatusForAction(action)
+
+  await updateDoc(flagRef, {
+    status: newStatus,
+    reviewedAt: serverTimestamp(),
+    reviewedBy: parentId,
+    ...(note && { actionNote: note }),
+    auditTrail: arrayUnion(auditEntry),
+  })
+}
+
+/**
+ * Dismiss a flag (false positive or resolved)
+ * Story 22.3 - AC #2
+ */
+export async function dismissFlag(
+  flagId: string,
+  childId: string,
+  parentId: string,
+  parentName: string,
+  note?: string
+): Promise<void> {
+  return takeFlagAction({
+    flagId,
+    childId,
+    action: 'dismiss',
+    parentId,
+    parentName,
+    note,
+  })
+}
+
+/**
+ * Mark flag for discussion
+ * Story 22.3 - AC #3
+ */
+export async function markFlagForDiscussion(
+  flagId: string,
+  childId: string,
+  parentId: string,
+  parentName: string,
+  note?: string
+): Promise<void> {
+  return takeFlagAction({
+    flagId,
+    childId,
+    action: 'discuss',
+    parentId,
+    parentName,
+    note,
+  })
+}
+
+/**
+ * Escalate a flag (requires action)
+ * Story 22.3 - AC #4
+ */
+export async function escalateFlag(
+  flagId: string,
+  childId: string,
+  parentId: string,
+  parentName: string,
+  note?: string
+): Promise<void> {
+  return takeFlagAction({
+    flagId,
+    childId,
+    action: 'escalate',
+    parentId,
+    parentName,
+    note,
+  })
 }

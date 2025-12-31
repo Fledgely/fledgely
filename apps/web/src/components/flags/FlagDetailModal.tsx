@@ -19,6 +19,8 @@ import { getStorage, ref, getDownloadURL } from 'firebase/storage'
 import { getFirebaseApp } from '../../lib/firebase'
 import { FlagInfoPanel } from './FlagInfoPanel'
 import { AIReasoningPanel } from './AIReasoningPanel'
+import { FlagActionModal } from './FlagActionModal'
+import { takeFlagAction, type FlagActionType } from '../../services/flagService'
 import type { FlagDocument } from '@fledgely/shared'
 
 /**
@@ -49,10 +51,14 @@ export interface FlagDetailModalProps {
   deviceName?: string
   /** Screenshot storage path (optional, derived from screenshotId if not provided) */
   screenshotPath?: string
+  /** Parent ID for action attribution (Story 22.3) */
+  parentId?: string
+  /** Parent name for action attribution (Story 22.3) */
+  parentName?: string
   /** Callback when modal is closed */
   onClose: () => void
-  /** Callback for taking action on flag (Story 22.3) */
-  onAction?: (action: 'dismiss' | 'discuss' | 'escalate') => void
+  /** Callback after action is completed (Story 22.3) */
+  onActionComplete?: (action: FlagActionType) => void
 }
 
 const styles = {
@@ -196,14 +202,21 @@ export function FlagDetailModal({
   childName,
   deviceName,
   screenshotPath,
+  parentId,
+  parentName,
   onClose,
-  onAction,
+  onActionComplete,
 }: FlagDetailModalProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(true)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<FlagActionType | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  // Check if actions are available (need parentId and parentName)
+  const canTakeAction = !!(parentId && parentName)
 
   // Focus management: capture previous focus and focus close button on mount
   useEffect(() => {
@@ -412,14 +425,14 @@ export function FlagDetailModal({
           </div>
         </div>
 
-        {/* Action Buttons (placeholder for Story 22.3) */}
-        {onAction && (
+        {/* Action Buttons - Story 22.3 */}
+        {canTakeAction && (
           <div style={styles.actions} data-testid="action-buttons">
             <button
               type="button"
               style={{ ...styles.actionButton, ...styles.dismissButton }}
               className="dismiss-button"
-              onClick={() => onAction('dismiss')}
+              onClick={() => setPendingAction('dismiss')}
               data-testid="action-dismiss"
             >
               Dismiss
@@ -428,7 +441,7 @@ export function FlagDetailModal({
               type="button"
               style={{ ...styles.actionButton, ...styles.discussButton }}
               className="discuss-button"
-              onClick={() => onAction('discuss')}
+              onClick={() => setPendingAction('discuss')}
               data-testid="action-discuss"
             >
               Note for Discussion
@@ -437,7 +450,7 @@ export function FlagDetailModal({
               type="button"
               style={{ ...styles.actionButton, ...styles.escalateButton }}
               className="escalate-button"
-              onClick={() => onAction('escalate')}
+              onClick={() => setPendingAction('escalate')}
               data-testid="action-escalate"
             >
               Requires Action
@@ -445,6 +458,39 @@ export function FlagDetailModal({
           </div>
         )}
       </div>
+
+      {/* Action Confirmation Modal - Story 22.3 */}
+      {pendingAction && (
+        <FlagActionModal
+          action={pendingAction}
+          isLoading={actionLoading}
+          onConfirm={async (note) => {
+            if (!parentId || !parentName) return
+
+            setActionLoading(true)
+            try {
+              await takeFlagAction({
+                flagId: flag.id,
+                childId: flag.childId,
+                action: pendingAction,
+                parentId,
+                parentName,
+                note,
+              })
+              setPendingAction(null)
+              onActionComplete?.(pendingAction)
+              onClose()
+            } catch (error) {
+              // eslint-disable-next-line no-console
+              console.error('Failed to take action on flag:', error)
+              // TODO: Show error toast
+            } finally {
+              setActionLoading(false)
+            }
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      )}
     </div>
   )
 }
