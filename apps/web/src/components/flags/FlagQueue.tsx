@@ -17,6 +17,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { FlagCard } from './FlagCard'
 import { FlagFilters } from './FlagFilters'
 import { FlagDetailModal } from './FlagDetailModal'
+import { FlagPatternsCard } from './FlagPatternsCard'
 import {
   subscribeToPendingFlags,
   getFlagsForChildren,
@@ -326,6 +327,11 @@ export function FlagQueue({ familyChildren, onFlagClick }: FlagQueueProps) {
             />
           )
         })()}
+
+      {/* Patterns Card - Story 22.5 (only on history tab) */}
+      {activeTab === 'history' && historyFlags.length > 0 && (
+        <FlagPatternsCard flags={historyFlags} childNameMap={childNameMap} />
+      )}
 
       {/* Flag list */}
       {loading ? (
