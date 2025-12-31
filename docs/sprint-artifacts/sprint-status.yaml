@@ -432,7 +432,7 @@ development_status:
   28-4-description-display-in-dashboard: done
   28-5-description-generation-failures: done
   28-6-accessibility-settings: done
-  epic-28-retrospective: optional
+  epic-28-retrospective: completed
 
   # Epic 29: Time Tracking Foundation
   epic-29: backlog
