@@ -442,7 +442,7 @@ development_status:
   29-4-parent-screen-time-dashboard: done
   29-5-child-screen-time-view: done
   29-6-screen-time-accuracy-validation: done
-  epic-29-retrospective: optional
+  epic-29-retrospective: completed
 
   # Epic 30: Time Limits Configuration
   epic-30: backlog
