@@ -331,8 +331,8 @@ development_status:
   epic-19b-retrospective: done
 
   # Epic 19C: Child Dashboard - My Agreement
-  epic-19c: backlog
-  19c-1-child-agreement-view: backlog
+  epic-19c: in-progress
+  19c-1-child-agreement-view: done
   19c-2-age-appropriate-language-translation: backlog
   19c-3-agreement-terms-checklist: backlog
   19c-4-am-i-following-the-agreement-view: backlog
