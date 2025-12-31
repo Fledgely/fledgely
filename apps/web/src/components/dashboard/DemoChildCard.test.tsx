@@ -320,3 +320,95 @@ describe('DemoChildCard - Gallery Integration (Story 8.5.2)', () => {
     })
   })
 })
+
+/**
+ * Story 8.5.3: Time Tracking Integration Tests
+ */
+describe('DemoChildCard - Time Tracking Integration (Story 8.5.3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Time Tracking Toggle Button', () => {
+    it('should always show time tracking toggle button', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.getByTestId('toggle-time-tracking-button')).toBeInTheDocument()
+      expect(screen.getByTestId('toggle-time-tracking-button')).toHaveTextContent(
+        'View Time Tracking'
+      )
+    })
+
+    it('should display chart emoji in toggle button', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.getByTestId('toggle-time-tracking-button')).toHaveTextContent('📊')
+    })
+  })
+
+  describe('Time Tracking Expansion', () => {
+    it('should NOT show time tracking section by default', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('time-tracking-section')).not.toBeInTheDocument()
+    })
+
+    it('should show time tracking section when toggle button clicked', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('toggle-time-tracking-button'))
+
+      expect(screen.getByTestId('time-tracking-section')).toBeInTheDocument()
+    })
+
+    it('should change button text to Hide Time Tracking when expanded', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('toggle-time-tracking-button'))
+
+      expect(screen.getByTestId('toggle-time-tracking-button')).toHaveTextContent(
+        'Hide Time Tracking'
+      )
+    })
+
+    it('should hide time tracking section when toggle button clicked again', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      // Expand
+      fireEvent.click(screen.getByTestId('toggle-time-tracking-button'))
+      expect(screen.getByTestId('time-tracking-section')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(screen.getByTestId('toggle-time-tracking-button'))
+      expect(screen.queryByTestId('time-tracking-section')).not.toBeInTheDocument()
+    })
+
+    it('should show time tracking when showTimeTracking prop is true', () => {
+      render(<DemoChildCard {...defaultProps} showTimeTracking={true} />)
+
+      expect(screen.getByTestId('time-tracking-section')).toBeInTheDocument()
+    })
+  })
+
+  describe('Time Tracking Content', () => {
+    it('should render DemoTimeTrackingPanel inside time tracking section', () => {
+      render(<DemoChildCard {...defaultProps} showTimeTracking={true} />)
+
+      // Check that the panel component is rendered
+      expect(screen.getByTestId('demo-time-tracking-panel')).toBeInTheDocument()
+    })
+
+    it('should show chart component inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showTimeTracking={true} />)
+
+      // Panel should show chart in week view (default)
+      expect(screen.getByTestId('demo-time-chart')).toBeInTheDocument()
+    })
+
+    it('should show summary component inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showTimeTracking={true} />)
+
+      expect(screen.getByTestId('demo-time-summary')).toBeInTheDocument()
+    })
+  })
+})

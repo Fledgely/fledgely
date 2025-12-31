@@ -353,3 +353,380 @@ export function getDemoActivitySummary(): DemoActivitySummary {
     daysWithActivity: uniqueDays,
   }
 }
+
+// ============================================
+// Story 8.5.3: Sample Time Tracking Display
+// ============================================
+
+/**
+ * Time tracking categories for demo display.
+ * Story 8.5.3 AC2: Activity type categorization
+ */
+export type DemoTimeCategory = 'educational' | 'entertainment' | 'social' | 'other'
+
+/**
+ * Time tracking category labels for display.
+ */
+export const TIME_CATEGORY_LABELS: Record<DemoTimeCategory, string> = {
+  educational: 'Educational',
+  entertainment: 'Entertainment',
+  social: 'Social',
+  other: 'Other',
+}
+
+/**
+ * Time tracking category colors for charts.
+ */
+export const TIME_CATEGORY_COLORS: Record<DemoTimeCategory, string> = {
+  educational: '#22c55e', // Green
+  entertainment: '#8b5cf6', // Purple
+  social: '#3b82f6', // Blue
+  other: '#6b7280', // Gray
+}
+
+/**
+ * Single time entry for demo data.
+ * Story 8.5.3 AC1: Daily/weekly screen time breakdown
+ */
+export interface DemoTimeEntry {
+  id: string
+  date: string // YYYY-MM-DD
+  category: DemoTimeCategory
+  duration: number // minutes
+  appName: string
+}
+
+/**
+ * Daily time limit configuration.
+ * Story 8.5.3 AC3: Time limit indicators
+ */
+export interface DemoTimeLimit {
+  category: DemoTimeCategory | 'total'
+  dailyLimit: number // minutes
+}
+
+/**
+ * Aggregated daily time summary.
+ */
+export interface DemoDailySummary {
+  date: string
+  dayName: string
+  isWeekend: boolean
+  totalMinutes: number
+  byCategory: Record<DemoTimeCategory, number>
+  limitStatus: 'under' | 'at' | 'over'
+}
+
+/**
+ * Default time limits for demo.
+ * Story 8.5.3 AC3: Over/under limit examples
+ */
+export const DEMO_TIME_LIMITS: DemoTimeLimit[] = [
+  { category: 'total', dailyLimit: 180 }, // 3 hours total
+  { category: 'entertainment', dailyLimit: 90 }, // 1.5 hours entertainment
+  { category: 'social', dailyLimit: 60 }, // 1 hour social
+]
+
+/**
+ * Get the date string for N days ago.
+ */
+function getDateNDaysAgo(n: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - n)
+  return date.toISOString().split('T')[0]
+}
+
+/**
+ * Get day name from date string.
+ */
+function getDayName(dateStr: string): string {
+  const date = new Date(dateStr + 'T12:00:00')
+  return date.toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+/**
+ * Check if date is a weekend.
+ */
+function isWeekend(dateStr: string): boolean {
+  const date = new Date(dateStr + 'T12:00:00')
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
+/**
+ * Sample time entries spanning 7 days.
+ * Story 8.5.3 AC5: Realistic patterns (school days vs weekends)
+ */
+export const DEMO_TIME_ENTRIES: DemoTimeEntry[] = [
+  // Today (assuming weekday)
+  {
+    id: 'time-1',
+    date: getDateNDaysAgo(0),
+    category: 'educational',
+    duration: 45,
+    appName: 'Khan Academy',
+  },
+  {
+    id: 'time-2',
+    date: getDateNDaysAgo(0),
+    category: 'educational',
+    duration: 30,
+    appName: 'Reading Eggs',
+  },
+  {
+    id: 'time-3',
+    date: getDateNDaysAgo(0),
+    category: 'entertainment',
+    duration: 40,
+    appName: 'Minecraft',
+  },
+  { id: 'time-4', date: getDateNDaysAgo(0), category: 'social', duration: 25, appName: 'Messages' },
+
+  // Yesterday
+  {
+    id: 'time-5',
+    date: getDateNDaysAgo(1),
+    category: 'educational',
+    duration: 60,
+    appName: 'Math Practice',
+  },
+  {
+    id: 'time-6',
+    date: getDateNDaysAgo(1),
+    category: 'entertainment',
+    duration: 55,
+    appName: 'YouTube Kids',
+  },
+  {
+    id: 'time-7',
+    date: getDateNDaysAgo(1),
+    category: 'entertainment',
+    duration: 45,
+    appName: 'Roblox',
+  },
+  { id: 'time-8', date: getDateNDaysAgo(1), category: 'social', duration: 20, appName: 'FaceTime' },
+
+  // 2 days ago (higher usage - shows "over limit")
+  {
+    id: 'time-9',
+    date: getDateNDaysAgo(2),
+    category: 'educational',
+    duration: 35,
+    appName: 'Duolingo',
+  },
+  {
+    id: 'time-10',
+    date: getDateNDaysAgo(2),
+    category: 'entertainment',
+    duration: 80,
+    appName: 'Netflix',
+  },
+  {
+    id: 'time-11',
+    date: getDateNDaysAgo(2),
+    category: 'entertainment',
+    duration: 60,
+    appName: 'Minecraft',
+  },
+  { id: 'time-12', date: getDateNDaysAgo(2), category: 'social', duration: 40, appName: 'Discord' },
+
+  // 3 days ago
+  {
+    id: 'time-13',
+    date: getDateNDaysAgo(3),
+    category: 'educational',
+    duration: 50,
+    appName: 'Science App',
+  },
+  {
+    id: 'time-14',
+    date: getDateNDaysAgo(3),
+    category: 'entertainment',
+    duration: 35,
+    appName: 'Spotify',
+  },
+  { id: 'time-15', date: getDateNDaysAgo(3), category: 'other', duration: 15, appName: 'Browser' },
+
+  // 4 days ago
+  {
+    id: 'time-16',
+    date: getDateNDaysAgo(4),
+    category: 'educational',
+    duration: 40,
+    appName: 'Khan Academy',
+  },
+  {
+    id: 'time-17',
+    date: getDateNDaysAgo(4),
+    category: 'entertainment',
+    duration: 50,
+    appName: 'Disney+',
+  },
+  {
+    id: 'time-18',
+    date: getDateNDaysAgo(4),
+    category: 'social',
+    duration: 30,
+    appName: 'Messages',
+  },
+
+  // 5 days ago (weekend - more entertainment)
+  {
+    id: 'time-19',
+    date: getDateNDaysAgo(5),
+    category: 'educational',
+    duration: 20,
+    appName: 'Reading',
+  },
+  {
+    id: 'time-20',
+    date: getDateNDaysAgo(5),
+    category: 'entertainment',
+    duration: 90,
+    appName: 'Minecraft',
+  },
+  {
+    id: 'time-21',
+    date: getDateNDaysAgo(5),
+    category: 'entertainment',
+    duration: 50,
+    appName: 'YouTube Kids',
+  },
+  {
+    id: 'time-22',
+    date: getDateNDaysAgo(5),
+    category: 'social',
+    duration: 45,
+    appName: 'FaceTime',
+  },
+
+  // 6 days ago (weekend)
+  {
+    id: 'time-23',
+    date: getDateNDaysAgo(6),
+    category: 'educational',
+    duration: 15,
+    appName: 'Brain Games',
+  },
+  {
+    id: 'time-24',
+    date: getDateNDaysAgo(6),
+    category: 'entertainment',
+    duration: 85,
+    appName: 'Roblox',
+  },
+  {
+    id: 'time-25',
+    date: getDateNDaysAgo(6),
+    category: 'entertainment',
+    duration: 40,
+    appName: 'Netflix',
+  },
+  { id: 'time-26', date: getDateNDaysAgo(6), category: 'social', duration: 35, appName: 'Discord' },
+  { id: 'time-27', date: getDateNDaysAgo(6), category: 'other', duration: 20, appName: 'Photos' },
+]
+
+/**
+ * Get daily limit for a category.
+ */
+export function getDemoTimeLimit(category: DemoTimeCategory | 'total'): number {
+  const limit = DEMO_TIME_LIMITS.find((l) => l.category === category)
+  return limit?.dailyLimit ?? 180 // Default 3 hours
+}
+
+/**
+ * Aggregate time entries by day.
+ * Story 8.5.3 AC1: Daily/weekly breakdown
+ */
+export function getDemoTimeSummaryByDay(): DemoDailySummary[] {
+  const byDay = new Map<string, DemoTimeEntry[]>()
+
+  // Group entries by date
+  for (const entry of DEMO_TIME_ENTRIES) {
+    if (!byDay.has(entry.date)) {
+      byDay.set(entry.date, [])
+    }
+    byDay.get(entry.date)!.push(entry)
+  }
+
+  // Calculate summaries
+  const summaries: DemoDailySummary[] = []
+  const totalLimit = getDemoTimeLimit('total')
+
+  for (const [date, entries] of byDay) {
+    const byCategory: Record<DemoTimeCategory, number> = {
+      educational: 0,
+      entertainment: 0,
+      social: 0,
+      other: 0,
+    }
+
+    for (const entry of entries) {
+      byCategory[entry.category] += entry.duration
+    }
+
+    const totalMinutes = Object.values(byCategory).reduce((sum, val) => sum + val, 0)
+
+    let limitStatus: 'under' | 'at' | 'over' = 'under'
+    if (totalMinutes > totalLimit) {
+      limitStatus = 'over'
+    } else if (totalMinutes >= totalLimit * 0.9) {
+      limitStatus = 'at'
+    }
+
+    summaries.push({
+      date,
+      dayName: getDayName(date),
+      isWeekend: isWeekend(date),
+      totalMinutes,
+      byCategory,
+      limitStatus,
+    })
+  }
+
+  // Sort by date descending (most recent first)
+  summaries.sort((a, b) => b.date.localeCompare(a.date))
+
+  return summaries
+}
+
+/**
+ * Get weekly time totals by category.
+ * Story 8.5.3 AC2: Activity type categorization
+ */
+export function getDemoWeeklyTimeByCategory(): Record<DemoTimeCategory, number> {
+  const totals: Record<DemoTimeCategory, number> = {
+    educational: 0,
+    entertainment: 0,
+    social: 0,
+    other: 0,
+  }
+
+  for (const entry of DEMO_TIME_ENTRIES) {
+    totals[entry.category] += entry.duration
+  }
+
+  return totals
+}
+
+/**
+ * Get total weekly screen time in minutes.
+ */
+export function getDemoWeeklyTotalTime(): number {
+  return DEMO_TIME_ENTRIES.reduce((sum, entry) => sum + entry.duration, 0)
+}
+
+/**
+ * Format minutes as hours and minutes string.
+ */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes}m`
+  }
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  if (mins === 0) {
+    return `${hours}h`
+  }
+  return `${hours}h ${mins}m`
+}

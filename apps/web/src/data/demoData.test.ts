@@ -310,3 +310,197 @@ describe('Demo Data (Story 8.5.2)', () => {
     })
   })
 })
+
+// ============================================
+// Story 8.5.3: Sample Time Tracking Tests
+// ============================================
+
+import {
+  DEMO_TIME_ENTRIES,
+  DEMO_TIME_LIMITS,
+  TIME_CATEGORY_LABELS,
+  TIME_CATEGORY_COLORS,
+  getDemoTimeLimit,
+  getDemoTimeSummaryByDay,
+  getDemoWeeklyTimeByCategory,
+  getDemoWeeklyTotalTime,
+  formatDuration,
+} from './demoData'
+
+describe('Demo Time Tracking Data (Story 8.5.3)', () => {
+  describe('DEMO_TIME_ENTRIES', () => {
+    it('should have time entries spanning multiple days (AC1)', () => {
+      const uniqueDates = new Set(DEMO_TIME_ENTRIES.map((e) => e.date))
+      expect(uniqueDates.size).toBeGreaterThanOrEqual(7)
+    })
+
+    it('should have entries for all categories (AC2)', () => {
+      const categories = new Set(DEMO_TIME_ENTRIES.map((e) => e.category))
+      expect(categories.has('educational')).toBe(true)
+      expect(categories.has('entertainment')).toBe(true)
+      expect(categories.has('social')).toBe(true)
+      expect(categories.has('other')).toBe(true)
+    })
+
+    it('should have valid duration values', () => {
+      for (const entry of DEMO_TIME_ENTRIES) {
+        expect(entry.duration).toBeGreaterThan(0)
+        expect(entry.duration).toBeLessThanOrEqual(120) // Max 2 hours per entry
+      }
+    })
+
+    it('should have unique IDs', () => {
+      const ids = DEMO_TIME_ENTRIES.map((e) => e.id)
+      const uniqueIds = new Set(ids)
+      expect(uniqueIds.size).toBe(ids.length)
+    })
+  })
+
+  describe('DEMO_TIME_LIMITS (AC3)', () => {
+    it('should have a total daily limit', () => {
+      const totalLimit = DEMO_TIME_LIMITS.find((l) => l.category === 'total')
+      expect(totalLimit).toBeDefined()
+      expect(totalLimit!.dailyLimit).toBeGreaterThan(0)
+    })
+
+    it('should have entertainment limit', () => {
+      const entertainmentLimit = DEMO_TIME_LIMITS.find((l) => l.category === 'entertainment')
+      expect(entertainmentLimit).toBeDefined()
+    })
+  })
+
+  describe('TIME_CATEGORY_LABELS', () => {
+    it('should have labels for all categories', () => {
+      expect(TIME_CATEGORY_LABELS.educational).toBe('Educational')
+      expect(TIME_CATEGORY_LABELS.entertainment).toBe('Entertainment')
+      expect(TIME_CATEGORY_LABELS.social).toBe('Social')
+      expect(TIME_CATEGORY_LABELS.other).toBe('Other')
+    })
+  })
+
+  describe('TIME_CATEGORY_COLORS', () => {
+    it('should have colors for all categories', () => {
+      expect(TIME_CATEGORY_COLORS.educational).toBeTruthy()
+      expect(TIME_CATEGORY_COLORS.entertainment).toBeTruthy()
+      expect(TIME_CATEGORY_COLORS.social).toBeTruthy()
+      expect(TIME_CATEGORY_COLORS.other).toBeTruthy()
+    })
+  })
+
+  describe('getDemoTimeLimit()', () => {
+    it('should return limit for total category', () => {
+      const limit = getDemoTimeLimit('total')
+      expect(limit).toBe(180) // 3 hours
+    })
+
+    it('should return limit for entertainment', () => {
+      const limit = getDemoTimeLimit('entertainment')
+      expect(limit).toBe(90) // 1.5 hours
+    })
+
+    it('should return default for unknown category', () => {
+      const limit = getDemoTimeLimit('educational')
+      expect(limit).toBe(180) // Default
+    })
+  })
+
+  describe('getDemoTimeSummaryByDay() (AC1)', () => {
+    it('should return summaries for each unique day', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      expect(summaries.length).toBeGreaterThanOrEqual(7)
+    })
+
+    it('should calculate total minutes per day', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      for (const summary of summaries) {
+        expect(summary.totalMinutes).toBeGreaterThan(0)
+      }
+    })
+
+    it('should have category breakdown for each day', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      for (const summary of summaries) {
+        expect(summary.byCategory).toBeDefined()
+        expect(typeof summary.byCategory.educational).toBe('number')
+        expect(typeof summary.byCategory.entertainment).toBe('number')
+        expect(typeof summary.byCategory.social).toBe('number')
+        expect(typeof summary.byCategory.other).toBe('number')
+      }
+    })
+
+    it('should determine limit status (AC3)', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      for (const summary of summaries) {
+        expect(['under', 'at', 'over']).toContain(summary.limitStatus)
+      }
+    })
+
+    it('should have at least one over-limit day', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      const overLimitDays = summaries.filter((s) => s.limitStatus === 'over')
+      expect(overLimitDays.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('should include day name', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      for (const summary of summaries) {
+        expect(summary.dayName).toBeTruthy()
+        expect(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']).toContain(summary.dayName)
+      }
+    })
+
+    it('should be sorted by date descending', () => {
+      const summaries = getDemoTimeSummaryByDay()
+      for (let i = 0; i < summaries.length - 1; i++) {
+        expect(summaries[i].date >= summaries[i + 1].date).toBe(true)
+      }
+    })
+  })
+
+  describe('getDemoWeeklyTimeByCategory() (AC2)', () => {
+    it('should return totals for all categories', () => {
+      const totals = getDemoWeeklyTimeByCategory()
+      expect(typeof totals.educational).toBe('number')
+      expect(typeof totals.entertainment).toBe('number')
+      expect(typeof totals.social).toBe('number')
+      expect(typeof totals.other).toBe('number')
+    })
+
+    it('should have entertainment as significant category', () => {
+      const totals = getDemoWeeklyTimeByCategory()
+      expect(totals.entertainment).toBeGreaterThan(totals.educational) // More entertainment than educational
+    })
+  })
+
+  describe('getDemoWeeklyTotalTime()', () => {
+    it('should return total minutes for the week', () => {
+      const total = getDemoWeeklyTotalTime()
+      expect(total).toBeGreaterThan(0)
+      // Should be at least 7 hours across the week
+      expect(total).toBeGreaterThan(420)
+    })
+
+    it('should equal sum of all entries', () => {
+      const total = getDemoWeeklyTotalTime()
+      const summed = DEMO_TIME_ENTRIES.reduce((sum, e) => sum + e.duration, 0)
+      expect(total).toBe(summed)
+    })
+  })
+
+  describe('formatDuration()', () => {
+    it('should format minutes only', () => {
+      expect(formatDuration(30)).toBe('30m')
+      expect(formatDuration(45)).toBe('45m')
+    })
+
+    it('should format hours only', () => {
+      expect(formatDuration(60)).toBe('1h')
+      expect(formatDuration(120)).toBe('2h')
+    })
+
+    it('should format hours and minutes', () => {
+      expect(formatDuration(90)).toBe('1h 30m')
+      expect(formatDuration(150)).toBe('2h 30m')
+    })
+  })
+})
