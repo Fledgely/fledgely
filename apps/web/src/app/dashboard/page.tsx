@@ -37,6 +37,8 @@ import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { FlagQueue } from '../../components/flags'
 import { AILearningIndicator } from '../../components/settings/AILearningIndicator'
 import { useFamilyAILearning } from '../../hooks/useFamilyAILearning'
+import { CheckInPromptBanner } from '../../components/health'
+import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
 
 const styles = {
   main: {
@@ -171,6 +173,12 @@ export default function DashboardPage() {
     loading: aiLearningLoading,
     error: aiLearningError,
   } = useFamilyAILearning(family?.id ?? null)
+
+  // Health check-ins (Story 27.5.2)
+  const { pendingCheckIns } = usePendingCheckIns({
+    firebaseUser,
+    enabled: !!firebaseUser,
+  })
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -420,6 +428,9 @@ export default function DashboardPage() {
             Unable to load your profile. Some features may be limited.
           </div>
         )}
+
+        {/* Story 27.5.2: Health Check-In Prompt Banner */}
+        {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} />}
 
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}

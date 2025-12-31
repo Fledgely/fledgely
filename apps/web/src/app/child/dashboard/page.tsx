@@ -34,6 +34,8 @@ import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChi
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
 import { useChildAuditLog } from '../../../hooks/useChildAuditLog'
 import { ChildAuditSection } from '../../../components/child/ChildAuditSection'
+import { CheckInPromptBanner } from '../../../components/health'
+import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -207,6 +209,12 @@ function DashboardContent() {
     lastAccessDate,
   } = useChildAuditLog(childSession?.childId || null, childSession?.familyId || null)
 
+  // Story 27.5.2 - Fetch pending health check-ins
+  const { pendingCheckIns } = useChildPendingCheckIns({
+    childId: childSession?.childId || null,
+    enabled: !!childSession?.childId,
+  })
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -318,6 +326,9 @@ function DashboardContent() {
             sees the same things you do!
           </p>
         </div>
+
+        {/* Story 27.5.2: Health Check-In Prompt Banner */}
+        {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}
 
         {/* Story 23.1 - Flag notification banners */}
         {pendingFlags.length > 0 && (
