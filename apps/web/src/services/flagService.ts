@@ -20,7 +20,13 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import type { FlagDocument, FlagStatus, ConcernCategory, ConcernSeverity } from '@fledgely/shared'
+import type {
+  FlagDocument,
+  FlagStatus,
+  ConcernCategory,
+  ConcernSeverity,
+  FlagNote,
+} from '@fledgely/shared'
 
 /**
  * Action types for flag review
@@ -366,4 +372,51 @@ export async function escalateFlag(
     parentName,
     note,
   })
+}
+
+/**
+ * Generate a unique ID for a note
+ */
+function generateNoteId(): string {
+  return `note_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+}
+
+/**
+ * Parameters for adding a note to a flag
+ */
+export interface AddFlagNoteParams {
+  flagId: string
+  childId: string
+  content: string
+  authorId: string
+  authorName: string
+}
+
+/**
+ * Add a discussion note to a flag
+ * Story 22.4 - AC #1, #2, #4, #5
+ */
+export async function addFlagNote({
+  flagId,
+  childId,
+  content,
+  authorId,
+  authorName,
+}: AddFlagNoteParams): Promise<FlagNote> {
+  const db = getFirestoreDb()
+  const flagRef = doc(db, 'children', childId, 'flags', flagId)
+
+  const note: FlagNote = {
+    id: generateNoteId(),
+    content,
+    authorId,
+    authorName,
+    timestamp: Date.now(),
+  }
+
+  await updateDoc(flagRef, {
+    notes: arrayUnion(note),
+  })
+
+  return note
 }

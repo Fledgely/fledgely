@@ -189,14 +189,20 @@ export {
   type CategoryConfidenceThresholds,
 } from './contracts'
 
-// Flag document exports (Story 21.5, 21.7)
+// Flag document exports (Story 21.5, 21.7, 22.3, 22.4)
 export {
   flagDocumentSchema,
   FLAG_FEEDBACK_VALUES,
+  flagActionTypeSchema,
+  flagAuditEntrySchema,
+  flagNoteSchema,
   type FlagDocument,
   type CreateFlagParams,
   type FlagFeedbackRating,
   type UpdateFlagFeedbackParams,
+  type FlagActionType,
+  type FlagAuditEntry,
+  type FlagNote,
 } from './contracts'
 
 // Concern category definitions exports (Story 21.1)

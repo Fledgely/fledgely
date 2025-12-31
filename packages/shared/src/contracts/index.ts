@@ -2625,6 +2625,47 @@ export type CategoryConfidenceThresholds = z.infer<typeof categoryConfidenceThre
 // ============================================================================
 
 /**
+ * Story 22.3: Flag Actions - AC6
+ * Audit trail entry for flag actions.
+ * Tracks parent actions with timestamps for history.
+ */
+export const flagActionTypeSchema = z.enum(['dismiss', 'discuss', 'escalate', 'view'])
+export type FlagActionType = z.infer<typeof flagActionTypeSchema>
+
+export const flagAuditEntrySchema = z.object({
+  /** Action type taken */
+  action: flagActionTypeSchema,
+  /** Parent ID who took action */
+  parentId: z.string(),
+  /** Parent display name */
+  parentName: z.string(),
+  /** When action was taken (epoch ms) */
+  timestamp: z.number(),
+  /** Optional note added with action */
+  note: z.string().optional(),
+})
+export type FlagAuditEntry = z.infer<typeof flagAuditEntrySchema>
+
+/**
+ * Story 22.4: Flag Discussion Notes - AC5
+ * Discussion note added by parent.
+ * Multiple notes can be added over time.
+ */
+export const flagNoteSchema = z.object({
+  /** Unique note ID (UUID) */
+  id: z.string(),
+  /** Note content text */
+  content: z.string().min(1).max(2000),
+  /** Parent ID who wrote note */
+  authorId: z.string(),
+  /** Parent display name */
+  authorName: z.string(),
+  /** When note was created (epoch ms) */
+  timestamp: z.number(),
+})
+export type FlagNote = z.infer<typeof flagNoteSchema>
+
+/**
  * Story 21.5: Flag Creation and Storage - AC1, AC2
  * Flag document stored in /children/{childId}/flags/{flagId}
  * Provides dedicated queryable storage for concern flags.
@@ -2676,6 +2717,16 @@ export const flagDocumentSchema = z.object({
   reviewedBy: z.string().optional(),
   /** When the flag was reviewed (epoch ms) */
   reviewedAt: z.number().optional(),
+
+  // Action fields (from Story 22-3)
+  /** Note added with last action */
+  actionNote: z.string().optional(),
+  /** Audit trail of actions taken on this flag */
+  auditTrail: z.array(flagAuditEntrySchema).optional(),
+
+  // Notes fields (from Story 22-4)
+  /** Discussion notes added by parents */
+  notes: z.array(flagNoteSchema).optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 

@@ -20,8 +20,9 @@ import { getFirebaseApp } from '../../lib/firebase'
 import { FlagInfoPanel } from './FlagInfoPanel'
 import { AIReasoningPanel } from './AIReasoningPanel'
 import { FlagActionModal } from './FlagActionModal'
-import { takeFlagAction, type FlagActionType } from '../../services/flagService'
-import type { FlagDocument } from '@fledgely/shared'
+import { FlagNotesPanel } from './FlagNotesPanel'
+import { takeFlagAction, addFlagNote, type FlagActionType } from '../../services/flagService'
+import type { FlagDocument, FlagNote } from '@fledgely/shared'
 
 /**
  * Parse Firebase Storage error to get user-friendly message
@@ -212,11 +213,39 @@ export function FlagDetailModal({
   const [imageError, setImageError] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<FlagActionType | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [notes, setNotes] = useState<FlagNote[]>(flag.notes ?? [])
+  const [notesLoading, setNotesLoading] = useState(false)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Check if actions are available (need parentId and parentName)
   const canTakeAction = !!(parentId && parentName)
+
+  // Handle adding a note
+  const handleAddNote = useCallback(
+    async (content: string) => {
+      if (!parentId || !parentName) return
+
+      setNotesLoading(true)
+      try {
+        const newNote = await addFlagNote({
+          flagId: flag.id,
+          childId: flag.childId,
+          content,
+          authorId: parentId,
+          authorName: parentName,
+        })
+        setNotes((prev) => [...prev, newNote])
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to add note:', error)
+        throw error // Re-throw so FlagNotesPanel can handle it
+      } finally {
+        setNotesLoading(false)
+      }
+    },
+    [flag.id, flag.childId, parentId, parentName]
+  )
 
   // Focus management: capture previous focus and focus close button on mount
   useEffect(() => {
@@ -422,6 +451,11 @@ export function FlagDetailModal({
 
             {/* AI Reasoning - AC #2 */}
             <AIReasoningPanel reasoning={flag.reasoning} category={flag.category} />
+
+            {/* Discussion Notes - Story 22.4 */}
+            {canTakeAction && (
+              <FlagNotesPanel notes={notes} isLoading={notesLoading} onAddNote={handleAddNote} />
+            )}
           </div>
         </div>
 
