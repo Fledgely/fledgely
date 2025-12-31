@@ -3149,7 +3149,7 @@ export type CorrectionPattern = z.infer<typeof correctionPatternSchema>
  * Family bias weights for AI model tuning.
  *
  * Story 24.2: Family-Specific Model Tuning - AC2, AC3, AC4
- * Stored at /families/{familyId}/aiSettings
+ * Stored at /families/{familyId}/aiSettings/biasWeights
  *
  * When processing screenshots:
  * - If correctionCount < MINIMUM_CORRECTIONS_THRESHOLD: use default model
@@ -3326,3 +3326,103 @@ export const appCategoryApprovalSchema = z.object({
   notes: z.string().optional(),
 })
 export type AppCategoryApproval = z.infer<typeof appCategoryApprovalSchema>
+
+// ============================================================================
+// Story 24.5: Global Model Improvement Pipeline
+// ============================================================================
+
+/**
+ * Global pattern aggregation for model improvement.
+ *
+ * Story 24.5: Global Model Improvement Pipeline - AC1, AC2, AC3, AC4
+ * Aggregates anonymized correction patterns across all participating families.
+ * Stored at /globalAggregations/{aggregationId}
+ *
+ * AC #1: Anonymized - no family identifiers in the document
+ * AC #2: Patterns only - no actual images or URLs stored
+ * AC #3: >10 corrections threshold for flagging review
+ * AC #4: Monthly aggregation processing
+ */
+export const globalPatternAggregationSchema = z.object({
+  /** Unique aggregation ID */
+  id: z.string(),
+  /** Pattern being corrected - original AI classification */
+  originalCategory: concernCategorySchema,
+  /** Pattern being corrected - parent's corrected category */
+  correctedCategory: concernCategorySchema,
+  /** Aggregated counts (across all participating families) */
+  totalCorrectionCount: z.number().min(0),
+  /** How many unique families made this correction */
+  familyCount: z.number().min(0),
+  /** True if > 10 corrections - flagged for model team review */
+  flaggedForReview: z.boolean(),
+  /** When pattern was reviewed by model team (epoch ms) */
+  reviewedAt: z.number().optional(),
+  /** UID of reviewer who reviewed this pattern */
+  reviewedByUid: z.string().optional(),
+  /** When this aggregation was created/updated (epoch ms) */
+  aggregatedAt: z.number(),
+  /** Start of the aggregation period (epoch ms) */
+  periodStart: z.number(),
+  /** End of the aggregation period (epoch ms) */
+  periodEnd: z.number(),
+})
+export type GlobalPatternAggregation = z.infer<typeof globalPatternAggregationSchema>
+
+/**
+ * Global model metrics for tracking improvement over time.
+ *
+ * Story 24.5: Global Model Improvement Pipeline - AC6
+ * Shows overall system improvement from collective learning.
+ * Stored at /globalMetrics/{metricsId}
+ *
+ * AC #6: Track improvement metrics like "Global accuracy +2% this month"
+ */
+export const globalModelMetricsSchema = z.object({
+  /** Unique metrics ID */
+  id: z.string(),
+  /** Period identifier in YYYY-MM format */
+  period: z.string().regex(/^\d{4}-\d{2}$/),
+  /** Total corrections aggregated this period */
+  totalCorrectionsAggregated: z.number().min(0),
+  /** Number of families participating (that didn't opt out) */
+  participatingFamilies: z.number().min(0),
+  /** Total unique patterns identified */
+  patternsIdentified: z.number().min(0),
+  /** Patterns that met threshold and were flagged for review */
+  patternsFlaggedForReview: z.number().min(0),
+  /** Estimated accuracy improvement percentage */
+  estimatedAccuracyImprovement: z.number(),
+  /** When this metrics document was created (epoch ms) */
+  aggregatedAt: z.number(),
+})
+export type GlobalModelMetrics = z.infer<typeof globalModelMetricsSchema>
+
+/**
+ * Family AI settings document schema.
+ *
+ * Story 24.5: Global Model Improvement Pipeline - AC5
+ * Extended to include opt-out capability for global model contribution.
+ * Stored at /families/{familyId}/aiSettings/preferences
+ */
+export const familyAISettingsSchema = z.object({
+  /** Family this settings document belongs to */
+  familyId: z.string(),
+  /**
+   * Whether to contribute corrections to global model improvement.
+   * Default: true - families contribute by default.
+   * AC #5: When false, family's corrections not included in global aggregation.
+   */
+  contributeToGlobalModel: z.boolean().default(true),
+  /** When settings were last updated (epoch ms) */
+  updatedAt: z.number(),
+  /** UID of guardian who last updated settings */
+  updatedByUid: z.string(),
+})
+export type FamilyAISettings = z.infer<typeof familyAISettingsSchema>
+
+/**
+ * Threshold for flagging patterns for model team review.
+ * Story 24.5 - AC3: Patterns with >10 corrections flagged
+ */
+export const GLOBAL_PATTERN_REVIEW_THRESHOLD = 10

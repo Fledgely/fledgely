@@ -263,3 +263,14 @@ export {
   type LearnedPattern,
   type LearningDashboardData,
 } from './contracts'
+
+// Global model improvement pipeline exports (Story 24.5)
+export {
+  globalPatternAggregationSchema,
+  globalModelMetricsSchema,
+  familyAISettingsSchema,
+  GLOBAL_PATTERN_REVIEW_THRESHOLD,
+  type GlobalPatternAggregation,
+  type GlobalModelMetrics,
+  type FamilyAISettings,
+} from './contracts'
