@@ -184,7 +184,12 @@ function AnnotationPageContent() {
         }
 
         // Check if can annotate
-        if (flagData.childNotificationStatus !== 'notified') {
+        // Story 23.5 AC4: Allow 'skipped' status if parent hasn't reviewed yet
+        const canAnnotateStatus =
+          flagData.childNotificationStatus === 'notified' ||
+          (flagData.childNotificationStatus === 'skipped' && flagData.status === 'pending')
+
+        if (!canAnnotateStatus) {
           setError('This flag is not awaiting your annotation')
           setLoading(false)
           return

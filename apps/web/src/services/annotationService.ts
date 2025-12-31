@@ -89,6 +89,7 @@ export async function getFlagForAnnotation(
  * - Flag must exist
  * - Flag must belong to the child
  * - Flag must be in 'notified' status (waiting for annotation)
+ * - OR 'skipped' status if parent hasn't reviewed yet (Story 23.5 AC4: change mind)
  */
 export async function canChildAnnotate(
   childId: string,
@@ -104,7 +105,12 @@ export async function canChildAnnotate(
     return { canAnnotate: false, reason: 'Flag does not belong to this child' }
   }
 
-  if (flag.childNotificationStatus !== 'notified') {
+  // Story 23.5 AC4: Allow annotation if status is 'notified' OR 'skipped' (if parent hasn't reviewed)
+  const canAnnotateStatus =
+    flag.childNotificationStatus === 'notified' ||
+    (flag.childNotificationStatus === 'skipped' && flag.status === 'pending')
+
+  if (!canAnnotateStatus) {
     return {
       canAnnotate: false,
       reason: `Flag is not awaiting annotation (status: ${flag.childNotificationStatus})`,
