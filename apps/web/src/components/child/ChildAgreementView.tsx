@@ -18,6 +18,7 @@ import {
   getTermExplanation,
 } from '../../utils/childFriendlyLanguage'
 import { TermExplanation } from './TermExplanation'
+import { AgreementChecklist } from './AgreementChecklist'
 
 /**
  * Category display configuration
@@ -319,6 +320,14 @@ export function ChildAgreementView({
           This is what we agreed to together. You can look at this anytime!
         </p>
       </div>
+
+      {/* Quick Summary Checklist - Story 19C.3 */}
+      <AgreementChecklist
+        screenshotsEnabled={agreement.monitoring.screenshotsEnabled}
+        appsTracked={agreement.terms.some((t) => t.category === 'apps')}
+        captureFrequency={agreement.monitoring.captureFrequency}
+        retentionPeriod={agreement.monitoring.retentionPeriod}
+      />
 
       {/* Monitoring Summary Card - AC2 with child-friendly language (Story 19C.2) */}
       {(() => {

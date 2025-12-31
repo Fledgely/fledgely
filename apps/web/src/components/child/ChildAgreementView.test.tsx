@@ -118,7 +118,8 @@ describe('ChildAgreementView', () => {
       render(<ChildAgreementView agreement={mockAgreement} />)
       expect(screen.getByTestId('frequency-row')).toBeInTheDocument()
       // Child-friendly format: "every 5 minutes" (lowercase, from formatMonitoringForChild)
-      expect(screen.getByText('every 5 minutes')).toBeInTheDocument()
+      // Note: Appears in both checklist and monitoring summary, so use getAllByText
+      expect(screen.getAllByText('every 5 minutes').length).toBeGreaterThan(0)
     })
 
     it('should display retention period in child-friendly format', () => {
@@ -242,6 +243,20 @@ describe('ChildAgreementView', () => {
 
       const h2s = screen.getAllByRole('heading', { level: 2 })
       expect(h2s.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Agreement Checklist Integration (Story 19C.3)', () => {
+    it('should display agreement checklist component', () => {
+      render(<ChildAgreementView agreement={mockAgreement} />)
+      expect(screen.getByTestId('agreement-checklist')).toBeInTheDocument()
+    })
+
+    it('should pass correct props to checklist', () => {
+      render(<ChildAgreementView agreement={mockAgreement} />)
+      // Checklist should show screenshots as enabled (from mock)
+      const screenshotsItem = screen.getByTestId('checklist-item-screenshots')
+      expect(screenshotsItem).toHaveTextContent('Yes')
     })
   })
 })
