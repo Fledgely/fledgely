@@ -372,7 +372,7 @@ development_status:
   21-5-flag-creation-and-storage: done
   21-6-ai-reasoning-explanation: done # Backend: reasoning stored in flags, UI in Epic 22
   21-7-flag-accuracy-feedback-loop: done # Backend: feedback schema + update function, UI in Epic 22
-  epic-21-retrospective: optional
+  epic-21-retrospective: done
 
   # Epic 22: Parent Dashboard - Flag Review
   epic-22: backlog
