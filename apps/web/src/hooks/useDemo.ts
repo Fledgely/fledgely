@@ -4,14 +4,16 @@
  * useDemo Hook
  *
  * Story 8.5.1: Demo Child Profile Creation
+ * Story 8.5.5: Demo-to-Real Transition
  *
  * Manages demo profile visibility for families without real children.
  * - Shows demo when family has no children and showDemoProfile is true
  * - Provides dismissDemo() to hide demo permanently
- * - Auto-dismisses demo when first real child is added
+ * - Auto-archives demo when first real child is added (Story 8.5.5)
+ * - Provides archiveDemo() and reactivateDemo() for transition flow
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import {
@@ -51,6 +53,14 @@ export interface UseDemoResult {
   error: string | null
   /** Loading state */
   loading: boolean
+  /** Whether demo has been archived (Story 8.5.5) */
+  demoArchived: boolean
+  /** Archive the demo (called when real child is added) */
+  archiveDemo: () => Promise<void>
+  /** Reactivate archived demo for reference */
+  reactivateDemo: () => Promise<void>
+  /** Whether archive/reactivate is in progress */
+  archiving: boolean
 }
 
 /**
@@ -62,8 +72,10 @@ export interface UseDemoResult {
  */
 export function useDemo(familyId: string | null, hasRealChildren: boolean): UseDemoResult {
   const [showDemoProfile, setShowDemoProfile] = useState<boolean>(true)
+  const [demoArchived, setDemoArchived] = useState<boolean>(false)
   const [loading, setLoading] = useState(true)
   const [dismissing, setDismissing] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Subscribe to family document for showDemoProfile field
@@ -83,9 +95,12 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
           const data = snapshot.data()
           // Default to true if field doesn't exist (for existing families)
           setShowDemoProfile(data.showDemoProfile ?? true)
+          // Track archived state (Story 8.5.5)
+          setDemoArchived(data.demoArchived ?? false)
         } else {
           // Family doesn't exist, default to true
           setShowDemoProfile(true)
+          setDemoArchived(false)
         }
         setLoading(false)
       },
@@ -98,6 +113,56 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
 
     return () => unsubscribe()
   }, [familyId])
+
+  // Track previous value of hasRealChildren for auto-archive detection
+  const prevHasRealChildrenRef = useRef<boolean>(hasRealChildren)
+  // Track if auto-archive is in progress to prevent race conditions
+  const [autoArchiving, setAutoArchiving] = useState(false)
+
+  // Auto-archive when first real child is added (Story 8.5.5 AC4)
+  useEffect(() => {
+    const previousValue = prevHasRealChildrenRef.current
+    prevHasRealChildrenRef.current = hasRealChildren
+
+    // Only auto-archive if:
+    // 1. We transitioned from no children to having children
+    // 2. Not currently auto-archiving (prevents race condition)
+    // 3. Demo was showing (not already dismissed)
+    // 4. Demo is not already archived
+    if (
+      !previousValue &&
+      hasRealChildren &&
+      !autoArchiving &&
+      showDemoProfile &&
+      !demoArchived &&
+      familyId
+    ) {
+      setAutoArchiving(true)
+
+      // Perform auto-archive
+      const performAutoArchive = async () => {
+        try {
+          const db = getFirestoreDb()
+          const familyRef = doc(db, 'families', familyId)
+
+          await updateDoc(familyRef, {
+            showDemoProfile: false,
+            demoArchived: true,
+            updatedAt: new Date(),
+          })
+
+          // State will be updated by the onSnapshot listener
+        } catch (err) {
+          console.error('Error auto-archiving demo:', err)
+          // Don't set error for auto-archive failure - it's not critical
+        } finally {
+          setAutoArchiving(false)
+        }
+      }
+
+      performAutoArchive()
+    }
+  }, [hasRealChildren, showDemoProfile, demoArchived, familyId, autoArchiving])
 
   // Dismiss demo profile
   const dismissDemo = useCallback(async () => {
@@ -124,6 +189,67 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
       setError('Failed to dismiss demo')
     } finally {
       setDismissing(false)
+    }
+  }, [familyId])
+
+  // Archive demo profile (Story 8.5.5)
+  // Called when real child is added - demo becomes accessible from help section
+  const archiveDemo = useCallback(async () => {
+    if (!familyId) {
+      setError('No family ID provided')
+      return
+    }
+
+    setArchiving(true)
+    setError(null)
+
+    try {
+      const db = getFirestoreDb()
+      const familyRef = doc(db, 'families', familyId)
+
+      await updateDoc(familyRef, {
+        showDemoProfile: false,
+        demoArchived: true,
+        updatedAt: new Date(),
+      })
+
+      setShowDemoProfile(false)
+      setDemoArchived(true)
+    } catch (err) {
+      console.error('Error archiving demo:', err)
+      setError('Failed to archive demo')
+    } finally {
+      setArchiving(false)
+    }
+  }, [familyId])
+
+  // Reactivate archived demo (Story 8.5.5)
+  // Allows parent to access demo from help section for reference
+  const reactivateDemo = useCallback(async () => {
+    if (!familyId) {
+      setError('No family ID provided')
+      return
+    }
+
+    setArchiving(true)
+    setError(null)
+
+    try {
+      const db = getFirestoreDb()
+      const familyRef = doc(db, 'families', familyId)
+
+      await updateDoc(familyRef, {
+        showDemoProfile: true,
+        // Keep demoArchived true so we know it was previously archived
+        updatedAt: new Date(),
+      })
+
+      setShowDemoProfile(true)
+    } catch (err) {
+      console.error('Error reactivating demo:', err)
+      setError('Failed to reactivate demo')
+    } finally {
+      setArchiving(false)
     }
   }, [familyId])
 
@@ -158,5 +284,9 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
     dismissing,
     error,
     loading,
+    demoArchived,
+    archiveDemo,
+    reactivateDemo,
+    archiving,
   }
 }

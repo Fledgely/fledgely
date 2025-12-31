@@ -74,6 +74,8 @@ export const familySchema = z.object({
   updatedAt: z.date(),
   /** Story 8.5.1: Show demo profile for families with no children. Defaults to true for new families. */
   showDemoProfile: z.boolean().default(true),
+  /** Story 8.5.5: Whether demo has been archived (real child added). Defaults to false for new families. */
+  demoArchived: z.boolean().default(false).optional(),
 })
 export type Family = z.infer<typeof familySchema>
 

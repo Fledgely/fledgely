@@ -7,6 +7,7 @@
  * Story 8.5.2: Sample Screenshot Gallery Integration
  * Story 8.5.3: Sample Time Tracking Display Integration
  * Story 8.5.4: Sample Flag & Alert Examples Integration
+ * Story 8.5.5: Demo-to-Real Transition
  *
  * Displays a demo child profile for new parents.
  * Uses distinct visual styling to differentiate from real children.
@@ -18,12 +19,18 @@
  * - 8.5.2 AC1: Expandable gallery section
  * - 8.5.3 AC1: Time tracking section in demo card
  * - 8.5.4 AC1: Flag review section in demo card
+ * - 8.5.5 AC1: Clear "Start with Your Child" CTA
  */
 
 import { useState } from 'react'
 import type { DemoChild } from '../../hooks/useDemo'
 import type { DemoActivitySummary, DemoScreenshot } from '../../data/demoData'
-import { DemoScreenshotGallery, DemoTimeTrackingPanel, DemoFlagReviewPanel } from './demo'
+import {
+  DemoScreenshotGallery,
+  DemoTimeTrackingPanel,
+  DemoFlagReviewPanel,
+  DemoTransitionCTA,
+} from './demo'
 
 /**
  * Props for DemoChildCard component
@@ -47,6 +54,12 @@ export interface DemoChildCardProps {
   showTimeTracking?: boolean
   /** Whether to show flag review panel (default: false) */
   showFlagReview?: boolean
+  /** Callback when user clicks "Start with Your Child" (Story 8.5.5) */
+  onStartWithRealChild?: () => void
+  /** Whether user has explored key demo features (Story 8.5.5) */
+  hasExploredDemo?: boolean
+  /** Whether start action is in progress (Story 8.5.5) */
+  starting?: boolean
 }
 
 /**
@@ -90,6 +103,9 @@ export function DemoChildCard({
   showGallery: initialShowGallery = false,
   showTimeTracking: initialShowTimeTracking = false,
   showFlagReview: initialShowFlagReview = false,
+  onStartWithRealChild,
+  hasExploredDemo = false,
+  starting = false,
 }: DemoChildCardProps) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false)
   const [galleryExpanded, setGalleryExpanded] = useState(initialShowGallery)
@@ -383,6 +399,15 @@ export function DemoChildCard({
         <div data-testid="flag-review-section" style={{ marginTop: '16px' }}>
           <DemoFlagReviewPanel />
         </div>
+      )}
+
+      {/* Transition CTA - Story 8.5.5 */}
+      {onStartWithRealChild && (
+        <DemoTransitionCTA
+          onStartWithRealChild={onStartWithRealChild}
+          hasExploredDemo={hasExploredDemo}
+          starting={starting}
+        />
       )}
 
       {/* Dismiss Confirmation Overlay */}

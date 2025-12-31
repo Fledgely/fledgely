@@ -3,6 +3,9 @@
  *
  * Story 8.5.1: Demo Child Profile Creation
  * Story 8.5.2: Sample Screenshot Gallery Integration
+ * Story 8.5.3: Time Tracking Display Integration
+ * Story 8.5.4: Flag & Alert Examples Integration
+ * Story 8.5.5: Demo-to-Real Transition Integration
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -510,6 +513,89 @@ describe('DemoChildCard - Flag Review Integration (Story 8.5.4)', () => {
       render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
 
       expect(screen.getByTestId('demo-notification-preview')).toBeInTheDocument()
+    })
+  })
+})
+
+/**
+ * Story 8.5.5: Demo-to-Real Transition Integration Tests
+ */
+describe('DemoChildCard - Transition CTA Integration (Story 8.5.5)', () => {
+  const mockOnStartWithRealChild = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Transition CTA Visibility', () => {
+    it('should show DemoTransitionCTA when onStartWithRealChild provided', () => {
+      render(<DemoChildCard {...defaultProps} onStartWithRealChild={mockOnStartWithRealChild} />)
+
+      expect(screen.getByTestId('demo-transition-cta')).toBeInTheDocument()
+    })
+
+    it('should NOT show DemoTransitionCTA when onStartWithRealChild not provided', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('demo-transition-cta')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('CTA Button Interaction', () => {
+    it('should call onStartWithRealChild when button clicked (AC1)', () => {
+      render(<DemoChildCard {...defaultProps} onStartWithRealChild={mockOnStartWithRealChild} />)
+
+      fireEvent.click(screen.getByTestId('start-with-child-button'))
+
+      expect(mockOnStartWithRealChild).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Explored State', () => {
+    it('should show unexplored CTA state by default', () => {
+      render(<DemoChildCard {...defaultProps} onStartWithRealChild={mockOnStartWithRealChild} />)
+
+      // Unexplored shows "When You're Ready" title
+      expect(screen.getByTestId('cta-title')).toHaveTextContent("When You're Ready")
+    })
+
+    it('should show explored CTA state when hasExploredDemo is true', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onStartWithRealChild={mockOnStartWithRealChild}
+          hasExploredDemo={true}
+        />
+      )
+
+      // Explored shows "Ready to Get Started?" title
+      expect(screen.getByTestId('cta-title')).toHaveTextContent('Ready to Get Started?')
+    })
+  })
+
+  describe('Starting State', () => {
+    it('should show "Starting..." in CTA button when starting', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onStartWithRealChild={mockOnStartWithRealChild}
+          starting={true}
+        />
+      )
+
+      expect(screen.getByTestId('start-with-child-button')).toHaveTextContent('Starting...')
+    })
+
+    it('should disable CTA button when starting', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onStartWithRealChild={mockOnStartWithRealChild}
+          starting={true}
+        />
+      )
+
+      expect(screen.getByTestId('start-with-child-button')).toBeDisabled()
     })
   })
 })

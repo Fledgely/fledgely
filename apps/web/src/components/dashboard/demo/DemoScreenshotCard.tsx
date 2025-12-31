@@ -15,6 +15,7 @@
 
 import type { DemoScreenshot, DemoScreenshotCategory } from '../../../data/demoData'
 import { getConfidenceLevel, getConfidenceLevelLabel } from '../../../data/demoData'
+import { formatRelativeTime } from '../../../utils/formatTime'
 
 export interface DemoScreenshotCardProps {
   screenshot: DemoScreenshot
@@ -39,24 +40,6 @@ const confidenceColors = {
   high: '#16a34a', // Green
   medium: '#2563eb', // Blue
   low: '#ca8a04', // Yellow/amber
-}
-
-/**
- * Format relative time for timestamp
- */
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now()
-  const diff = now - timestamp
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(hours / 24)
-
-  if (days > 0) {
-    return days === 1 ? 'Yesterday' : `${days} days ago`
-  }
-  if (hours > 0) {
-    return hours === 1 ? '1 hour ago' : `${hours} hours ago`
-  }
-  return 'Just now'
 }
 
 /**
