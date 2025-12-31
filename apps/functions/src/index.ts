@@ -113,7 +113,7 @@ export {
   updateNotificationPreferencesEndpoint,
 } from './http/notifications'
 
-// Health check-in HTTP handlers (Story 27.5.1, 27.5.3)
+// Health check-in HTTP handlers (Story 27.5.1, 27.5.3, 27.5.4)
 export {
   getCheckInSettingsEndpoint,
   updateCheckInSettingsEndpoint,
@@ -121,4 +121,5 @@ export {
   submitCheckInResponseEndpoint,
   skipCheckInEndpoint,
   getFrictionSummaryEndpoint,
+  getFrictionIndicatorsEndpoint,
 } from './http/health'

@@ -22,6 +22,8 @@ import {
   skipCheckIn,
   getCheckInPromptText,
   getFrictionSummary,
+  getFrictionIndicators,
+  cacheFrictionIndicators,
 } from '../../services/health'
 
 const httpOptions: HttpsOptions = {
@@ -342,6 +344,50 @@ export const getFrictionSummaryEndpoint = onRequest(httpOptions, async (req, res
     res.json({ summary })
   } catch (error) {
     logger.error('Failed to get friction summary', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * Get friction indicators for a family.
+ *
+ * Story 27.5.4 - Friction Indicators Dashboard
+ * - AC1: Aggregated indicators (not specific responses)
+ * - AC4: Privacy protection (no private check-in content revealed)
+ * - AC5: Bilateral transparency (same view for both parties)
+ *
+ * GET /getFrictionIndicatorsEndpoint
+ * Authorization: Bearer <token>
+ *
+ * Response: { indicators: FrictionIndicators }
+ */
+export const getFrictionIndicatorsEndpoint = onRequest(httpOptions, async (req, res) => {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  const userUid = await verifyAuth(req.headers.authorization)
+  if (!userUid) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const familyId = await getUserFamilyId(userUid)
+    if (!familyId) {
+      res.status(404).json({ error: 'No family found' })
+      return
+    }
+
+    const indicators = await getFrictionIndicators(familyId)
+
+    // Cache for child access (bilateral transparency - AC5)
+    await cacheFrictionIndicators(indicators)
+
+    res.json({ indicators })
+  } catch (error) {
+    logger.error('Failed to get friction indicators', { error })
     res.status(500).json({ error: 'Internal server error' })
   }
 })

@@ -37,8 +37,9 @@ import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { FlagQueue } from '../../components/flags'
 import { AILearningIndicator } from '../../components/settings/AILearningIndicator'
 import { useFamilyAILearning } from '../../hooks/useFamilyAILearning'
-import { CheckInPromptBanner } from '../../components/health'
+import { CheckInPromptBanner, FrictionIndicatorsDashboard } from '../../components/health'
 import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
+import { useFrictionIndicators } from '../../hooks/useFrictionIndicators'
 
 const styles = {
   main: {
@@ -179,6 +180,13 @@ export default function DashboardPage() {
     firebaseUser,
     enabled: !!firebaseUser,
   })
+
+  // Friction indicators (Story 27.5.4)
+  const {
+    indicators: frictionIndicators,
+    isLoading: frictionLoading,
+    error: frictionError,
+  } = useFrictionIndicators()
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -431,6 +439,15 @@ export default function DashboardPage() {
 
         {/* Story 27.5.2: Health Check-In Prompt Banner */}
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} />}
+
+        {/* Story 27.5.4: Friction Indicators Dashboard */}
+        {family && (
+          <FrictionIndicatorsDashboard
+            indicators={frictionIndicators}
+            isLoading={frictionLoading}
+            error={frictionError}
+          />
+        )}
 
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}

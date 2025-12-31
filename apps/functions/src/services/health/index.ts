@@ -31,3 +31,12 @@ export {
   type CategoryFrictionSummary,
   type FrictionSummary,
 } from './frictionAggregationService'
+
+export {
+  getFrictionIndicators,
+  cacheFrictionIndicators,
+  getCachedFrictionIndicators,
+  type FrictionIndicators,
+  type RelationshipHealthLevel,
+  type TrendLevel,
+} from './frictionIndicatorsService'

@@ -34,8 +34,9 @@ import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChi
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
 import { useChildAuditLog } from '../../../hooks/useChildAuditLog'
 import { ChildAuditSection } from '../../../components/child/ChildAuditSection'
-import { CheckInPromptBanner } from '../../../components/health'
+import { CheckInPromptBanner, FrictionIndicatorsDashboard } from '../../../components/health'
 import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
+import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndicators'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -215,6 +216,13 @@ function DashboardContent() {
     enabled: !!childSession?.childId,
   })
 
+  // Story 27.5.4 - Fetch friction indicators (bilateral transparency)
+  const {
+    indicators: frictionIndicators,
+    isLoading: frictionLoading,
+    error: frictionError,
+  } = useChildFrictionIndicators(childSession?.familyId || null)
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -329,6 +337,13 @@ function DashboardContent() {
 
         {/* Story 27.5.2: Health Check-In Prompt Banner */}
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}
+
+        {/* Story 27.5.4: Friction Indicators Dashboard - bilateral transparency */}
+        <FrictionIndicatorsDashboard
+          indicators={frictionIndicators}
+          isLoading={frictionLoading}
+          error={frictionError}
+        />
 
         {/* Story 23.1 - Flag notification banners */}
         {pendingFlags.length > 0 && (
