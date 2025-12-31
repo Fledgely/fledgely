@@ -1,24 +1,32 @@
 'use client'
 
 /**
- * ChildAnnotationView Component - Story 23.2
+ * ChildAnnotationView Component - Story 23.2, 23.3
  *
  * Displays the annotation interface for children to explain flagged content.
  *
+ * Story 23.2:
  * AC1: Screenshot with flag category display
  * AC2: Pre-set response options (NFR152)
  * AC3: Free-text explanation field
  * AC4: Submit annotation
  * AC5: Skip option
+ *
+ * Story 23.3:
+ * AC4: Timer pause while typing
+ * AC5: 15-minute extension request (once)
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   type FlagDocument,
   type AnnotationOption,
   ANNOTATION_OPTIONS,
   MAX_ANNOTATION_EXPLANATION_LENGTH,
 } from '@fledgely/shared'
+
+/** Idle timeout before considering typing stopped (5 seconds) */
+const TYPING_IDLE_TIMEOUT_MS = 5000
 
 /**
  * Props for ChildAnnotationView
@@ -32,6 +40,16 @@ export interface ChildAnnotationViewProps {
   onSkip: () => Promise<void>
   /** Whether submission is in progress */
   submitting?: boolean
+  /** Story 23.3 AC4: Callback when typing state changes (for timer pause) */
+  onTypingChange?: (isTyping: boolean) => void
+  /** Story 23.3 AC5: Callback for extension request */
+  onRequestExtension?: () => Promise<void>
+  /** Whether extension has been requested */
+  extensionRequested?: boolean
+  /** Whether extension request is in progress */
+  requestingExtension?: boolean
+  /** Remaining time in ms (for showing extension button) */
+  remainingMs?: number
 }
 
 /**
@@ -197,6 +215,31 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center' as const,
     fontStyle: 'italic',
   },
+  extensionRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: '8px',
+  },
+  extensionButton: {
+    padding: '10px 20px',
+    backgroundColor: '#fef3c7',
+    color: '#92400e',
+    border: '2px solid #fcd34d',
+    borderRadius: '8px',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  extensionButtonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  extensionGranted: {
+    fontSize: '0.875rem',
+    color: '#065f46',
+    fontWeight: 500,
+  },
 }
 
 /**
@@ -209,20 +252,72 @@ export function ChildAnnotationView({
   onSubmit,
   onSkip,
   submitting = false,
+  onTypingChange,
+  onRequestExtension,
+  extensionRequested = false,
+  requestingExtension = false,
+  remainingMs = 0,
 }: ChildAnnotationViewProps) {
   const [selectedOption, setSelectedOption] = useState<AnnotationOption | null>(null)
   const [explanation, setExplanation] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleOptionSelect = useCallback((option: AnnotationOption) => {
     setSelectedOption(option)
   }, [])
 
-  const handleExplanationChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const value = e.target.value
-    if (value.length <= MAX_ANNOTATION_EXPLANATION_LENGTH) {
-      setExplanation(value)
-    }
-  }, [])
+  /**
+   * Story 23.3 AC4: Detect typing activity with debounce
+   * When user types, mark as typing. After 5 seconds idle, mark as not typing.
+   */
+  const handleExplanationChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value
+      if (value.length <= MAX_ANNOTATION_EXPLANATION_LENGTH) {
+        setExplanation(value)
+      }
+
+      // Mark as typing
+      if (!isTyping) {
+        setIsTyping(true)
+        onTypingChange?.(true)
+      }
+
+      // Reset idle timer
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+
+      // After 5 seconds of no typing, mark as not typing
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false)
+        onTypingChange?.(false)
+      }, TYPING_IDLE_TIMEOUT_MS)
+    },
+    [isTyping, onTypingChange]
+  )
+
+  /**
+   * Story 23.3 AC5: Handle extension request
+   */
+  const handleRequestExtension = useCallback(async () => {
+    if (extensionRequested || requestingExtension || !onRequestExtension) return
+    await onRequestExtension()
+  }, [extensionRequested, requestingExtension, onRequestExtension])
+
+  // Show extension button when less than 10 minutes remain
+  const showExtensionButton =
+    !extensionRequested && remainingMs < 10 * 60 * 1000 && onRequestExtension
 
   const handleSubmit = useCallback(async () => {
     if (!selectedOption || submitting) return
@@ -294,6 +389,31 @@ export function ChildAnnotationView({
         Your explanation helps your parent understand what you were doing. There&apos;s no wrong
         answer - just be honest.
       </p>
+
+      {/* Story 23.3 AC5: Extension request button */}
+      {(showExtensionButton || extensionRequested) && (
+        <div style={styles.extensionRow}>
+          {showExtensionButton && (
+            <button
+              type="button"
+              onClick={handleRequestExtension}
+              style={{
+                ...styles.extensionButton,
+                ...(requestingExtension ? styles.extensionButtonDisabled : {}),
+              }}
+              disabled={requestingExtension || submitting}
+              data-testid="extension-button"
+            >
+              {requestingExtension ? 'Requesting...' : 'Need more time? (+15 min)'}
+            </button>
+          )}
+          {extensionRequested && (
+            <span style={styles.extensionGranted} data-testid="extension-granted">
+              ✓ Extension granted
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Submit and Skip buttons - AC4, AC5 */}
       <div style={styles.footer}>

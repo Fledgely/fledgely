@@ -2674,14 +2674,31 @@ export type FlagNote = z.infer<typeof flagNoteSchema>
 /**
  * Story 23.1: Flag Notification to Child - AC1
  * Story 23.2: Child Annotation Interface - AC4, AC5
+ * Story 23.3: Annotation Timer and Escalation - AC1
  * Status of child notification for a flag.
  * - pending: Notification queued but not yet sent
  * - notified: Child has been notified, waiting for annotation
  * - skipped: Notification skipped (distress suppression or other reason)
  * - annotated: Child has submitted annotation
+ * - expired: Annotation window expired without response
  */
-export const childNotificationStatusSchema = z.enum(['pending', 'notified', 'skipped', 'annotated'])
+export const childNotificationStatusSchema = z.enum([
+  'pending',
+  'notified',
+  'skipped',
+  'annotated',
+  'expired',
+])
 export type ChildNotificationStatus = z.infer<typeof childNotificationStatusSchema>
+
+/**
+ * Story 23.3: Annotation Timer and Escalation - AC1, AC2
+ * Reason why flag was escalated to parent.
+ * - timeout: Child did not respond within annotation window
+ * - skipped: Child explicitly skipped annotation
+ */
+export const escalationReasonSchema = z.enum(['timeout', 'skipped'])
+export type EscalationReason = z.infer<typeof escalationReasonSchema>
 
 /**
  * Story 23.2: Child Annotation Interface - AC2 (NFR152)
@@ -2715,6 +2732,13 @@ export const MAX_ANNOTATION_EXPLANATION_LENGTH = 500
  * 30-minute annotation window constant (in milliseconds).
  */
 export const ANNOTATION_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
+
+/**
+ * Story 23.3: Annotation Timer and Escalation - AC5
+ * 15-minute extension window constant (in milliseconds).
+ * Child can request this extension once per flag.
+ */
+export const EXTENSION_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
 
 /**
  * Story 21.5: Flag Creation and Storage - AC1, AC2
@@ -2798,6 +2822,18 @@ export const flagDocumentSchema = z.object({
   childExplanation: z.string().max(MAX_ANNOTATION_EXPLANATION_LENGTH).optional(),
   /** When child submitted annotation (epoch ms) */
   annotatedAt: z.number().optional(),
+
+  // Escalation fields (from Story 23-3)
+  /** When annotation window expired and flag was released to parent (epoch ms) */
+  escalatedAt: z.number().optional(),
+  /** Reason why flag was escalated: timeout (window expired) or skipped (child chose not to annotate) */
+  escalationReason: escalationReasonSchema.optional(),
+  /** When child requested 15-minute extension (epoch ms) */
+  extensionRequestedAt: z.number().optional(),
+  /** New deadline after extension granted (epoch ms) */
+  extensionDeadline: z.number().optional(),
+  /** When parent was notified about this flag (epoch ms) */
+  parentNotifiedAt: z.number().optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 

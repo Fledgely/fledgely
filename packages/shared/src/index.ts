@@ -203,6 +203,10 @@ export {
   ANNOTATION_OPTION_VALUES,
   annotationOptionSchema,
   MAX_ANNOTATION_EXPLANATION_LENGTH,
+  // Story 23.3 escalation exports
+  EXTENSION_WINDOW_MS,
+  escalationReasonSchema,
+  type EscalationReason,
   type FlagDocument,
   type CreateFlagParams,
   type FlagFeedbackRating,

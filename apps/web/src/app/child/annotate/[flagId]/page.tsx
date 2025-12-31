@@ -19,7 +19,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { doc, onSnapshot } from 'firebase/firestore'
-import { db } from '../../../../lib/firebase'
+import { getFirestoreDb } from '../../../../lib/firebase'
 import { ChildAuthGuard } from '../../../../components/child/ChildAuthGuard'
 import { useChildAuth } from '../../../../contexts/ChildAuthContext'
 import { ChildAnnotationView } from '../../../../components/child/ChildAnnotationView'
@@ -30,6 +30,7 @@ import {
 import {
   submitAnnotation,
   skipAnnotation,
+  requestExtension,
   type AnnotationResult,
 } from '../../../../services/annotationService'
 import type { FlagDocument, AnnotationOption } from '@fledgely/shared'
@@ -85,6 +86,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: '#b45309',
   },
+  timerPaused: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px 16px',
+    backgroundColor: '#d1fae5',
+    borderRadius: '9999px',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: '#065f46',
+  },
   main: {
     maxWidth: '800px',
     margin: '0 auto',
@@ -131,6 +143,11 @@ function AnnotationPageContent() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [remainingMs, setRemainingMs] = useState(0)
+  // Story 23.3 AC4: Timer pause while typing
+  const [isTyping, setIsTyping] = useState(false)
+  // Story 23.3 AC5: Extension request
+  const [extensionRequested, setExtensionRequested] = useState(false)
+  const [requestingExtension, setRequestingExtension] = useState(false)
 
   // Fetch flag document
   useEffect(() => {
@@ -139,7 +156,7 @@ function AnnotationPageContent() {
       return
     }
 
-    const flagRef = doc(db, 'children', childSession.childId, 'flags', flagId)
+    const flagRef = doc(getFirestoreDb(), 'children', childSession.childId, 'flags', flagId)
 
     const unsubscribe = onSnapshot(
       flagRef,
@@ -174,7 +191,13 @@ function AnnotationPageContent() {
         }
 
         setFlag(flagData)
-        setRemainingMs(getRemainingTime(flagData.annotationDeadline))
+        // Use effective deadline (extension if granted, otherwise original)
+        const effectiveDeadline = flagData.extensionDeadline ?? flagData.annotationDeadline ?? 0
+        setRemainingMs(getRemainingTime(effectiveDeadline))
+        // Story 23.3 AC5: Check if extension was already requested
+        if (flagData.extensionRequestedAt) {
+          setExtensionRequested(true)
+        }
         setLoading(false)
       },
       (err) => {
@@ -188,16 +211,21 @@ function AnnotationPageContent() {
   }, [flagId, childSession?.childId])
 
   // Update timer every second
+  // Story 23.3 AC4: Timer pauses while typing
   useEffect(() => {
-    if (!flag?.annotationDeadline) return
+    const effectiveDeadline = flag?.extensionDeadline ?? flag?.annotationDeadline
+    if (!effectiveDeadline) return
+
+    // Don't update timer while typing (visual pause)
+    if (isTyping) return
 
     const interval = setInterval(() => {
-      const remaining = getRemainingTime(flag.annotationDeadline!)
+      const remaining = getRemainingTime(effectiveDeadline)
       setRemainingMs(remaining)
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [flag?.annotationDeadline])
+  }, [flag?.annotationDeadline, flag?.extensionDeadline, isTyping])
 
   const handleSubmit = useCallback(
     async (annotation: AnnotationOption, explanation?: string) => {
@@ -246,6 +274,33 @@ function AnnotationPageContent() {
   const handleBack = useCallback(() => {
     router.push('/child/dashboard')
   }, [router])
+
+  /**
+   * Story 23.3 AC4: Handle typing state change
+   */
+  const handleTypingChange = useCallback((typing: boolean) => {
+    setIsTyping(typing)
+  }, [])
+
+  /**
+   * Story 23.3 AC5: Handle extension request
+   */
+  const handleRequestExtension = useCallback(async () => {
+    if (!flagId || !childSession?.childId || extensionRequested || requestingExtension) return
+
+    setRequestingExtension(true)
+
+    const result = await requestExtension(childSession.childId, flagId)
+
+    setRequestingExtension(false)
+
+    if (result.success && result.extensionDeadline) {
+      setExtensionRequested(true)
+      setRemainingMs(getRemainingTime(result.extensionDeadline))
+    } else {
+      setError(result.error || 'Failed to request extension')
+    }
+  }, [flagId, childSession?.childId, extensionRequested, requestingExtension])
 
   // Loading state
   if (loading) {
@@ -312,12 +367,18 @@ function AnnotationPageContent() {
           ← Back
         </button>
         <h1 style={styles.title}>Add Your Side</h1>
+        {/* Story 23.3 AC4: Show timer paused when typing */}
         <div
-          style={styles.timer}
+          style={isTyping ? styles.timerPaused : styles.timer}
           role="timer"
-          aria-label={`Time remaining: ${formatRemainingTime(remainingMs)}`}
+          aria-label={
+            isTyping
+              ? 'Timer paused - you are typing'
+              : `Time remaining: ${formatRemainingTime(remainingMs)}`
+          }
+          data-testid="timer-display"
         >
-          ⏱️ {formatRemainingTime(remainingMs)}
+          {isTyping ? '✏️ Paused - typing' : `⏱️ ${formatRemainingTime(remainingMs)}`}
         </div>
       </header>
 
@@ -328,6 +389,11 @@ function AnnotationPageContent() {
             onSubmit={handleSubmit}
             onSkip={handleSkip}
             submitting={submitting}
+            onTypingChange={handleTypingChange}
+            onRequestExtension={handleRequestExtension}
+            extensionRequested={extensionRequested}
+            requestingExtension={requestingExtension}
+            remainingMs={remainingMs}
           />
         )}
       </main>

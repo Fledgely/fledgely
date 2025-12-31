@@ -35,3 +35,20 @@ export type { NotificationContent } from './buildStatusNotification'
 export { shouldSendNotification, updateThrottleTimestamp } from './notificationThrottle'
 export { sendStatusNotification } from './sendStatusNotification'
 export type { SendStatusNotificationParams, SendNotificationResult } from './sendStatusNotification'
+
+// Story 23.1: Child flag notifications
+export { sendChildFlagNotification } from './sendChildFlagNotification'
+export type {
+  SendChildFlagNotificationParams,
+  SendChildNotificationResult,
+} from './sendChildFlagNotification'
+
+// Story 23.3: Parent flag notifications
+export {
+  sendParentFlagNotification,
+  getParentNotificationMessage,
+} from './sendParentFlagNotification'
+export type {
+  SendParentFlagNotificationParams,
+  SendParentNotificationResult,
+} from './sendParentFlagNotification'

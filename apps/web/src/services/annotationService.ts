@@ -10,12 +10,13 @@
  */
 
 import { doc, updateDoc, getDoc } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { getFirestoreDb } from '../lib/firebase'
 import {
   type AnnotationOption,
   type FlagDocument,
   MAX_ANNOTATION_EXPLANATION_LENGTH,
   ANNOTATION_OPTION_VALUES,
+  EXTENSION_WINDOW_MS,
 } from '@fledgely/shared'
 
 /**
@@ -73,7 +74,7 @@ export async function getFlagForAnnotation(
   childId: string,
   flagId: string
 ): Promise<FlagDocument | null> {
-  const flagRef = doc(db, 'children', childId, 'flags', flagId)
+  const flagRef = doc(getFirestoreDb(), 'children', childId, 'flags', flagId)
   const flagSnap = await getDoc(flagRef)
 
   if (!flagSnap.exists()) {
@@ -140,7 +141,7 @@ export async function submitAnnotation(params: SubmitAnnotationParams): Promise<
   const annotatedAt = Date.now()
 
   try {
-    const flagRef = doc(db, 'children', childId, 'flags', flagId)
+    const flagRef = doc(getFirestoreDb(), 'children', childId, 'flags', flagId)
 
     await updateDoc(flagRef, {
       childAnnotation: annotation,
@@ -176,7 +177,7 @@ export async function skipAnnotation(childId: string, flagId: string): Promise<A
   const annotatedAt = Date.now()
 
   try {
-    const flagRef = doc(db, 'children', childId, 'flags', flagId)
+    const flagRef = doc(getFirestoreDb(), 'children', childId, 'flags', flagId)
 
     await updateDoc(flagRef, {
       childAnnotation: 'skipped',
@@ -211,4 +212,68 @@ export function getAnnotationRemainingTime(annotationDeadline: number | undefine
   if (!annotationDeadline) return 0
   const remaining = annotationDeadline - Date.now()
   return Math.max(0, remaining)
+}
+
+/**
+ * Result of extension request
+ */
+export interface ExtensionResult {
+  success: boolean
+  error?: string
+  extensionDeadline?: number
+}
+
+/**
+ * Request a 15-minute extension for annotation
+ *
+ * Story 23.3: AC5 - 15-minute extension request (once)
+ * - Extension can only be requested once per flag
+ * - Adds 15 minutes to current deadline
+ */
+export async function requestExtension(childId: string, flagId: string): Promise<ExtensionResult> {
+  // Get current flag data
+  const flag = await getFlagForAnnotation(childId, flagId)
+
+  if (!flag) {
+    return { success: false, error: 'Flag not found' }
+  }
+
+  if (flag.childId !== childId) {
+    return { success: false, error: 'Flag does not belong to this child' }
+  }
+
+  // Check if extension was already requested
+  if (flag.extensionRequestedAt) {
+    return { success: false, error: 'Extension already requested for this flag' }
+  }
+
+  // Check if flag is still in notified status
+  if (flag.childNotificationStatus !== 'notified') {
+    return { success: false, error: 'Flag is not awaiting annotation' }
+  }
+
+  // Calculate current deadline and check if already expired
+  const currentDeadline = flag.extensionDeadline ?? flag.annotationDeadline ?? 0
+  if (currentDeadline <= Date.now()) {
+    return { success: false, error: 'Annotation window has expired' }
+  }
+  const extensionDeadline = currentDeadline + EXTENSION_WINDOW_MS
+  const extensionRequestedAt = Date.now()
+
+  try {
+    const flagRef = doc(getFirestoreDb(), 'children', childId, 'flags', flagId)
+
+    await updateDoc(flagRef, {
+      extensionRequestedAt,
+      extensionDeadline,
+    })
+
+    return { success: true, extensionDeadline }
+  } catch (error) {
+    console.error('Failed to request extension:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to request extension',
+    }
+  }
 }

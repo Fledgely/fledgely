@@ -22,7 +22,31 @@ import { AIReasoningPanel } from './AIReasoningPanel'
 import { FlagActionModal } from './FlagActionModal'
 import { FlagNotesPanel } from './FlagNotesPanel'
 import { takeFlagAction, addFlagNote, type FlagActionType } from '../../services/flagService'
-import type { FlagDocument, FlagNote } from '@fledgely/shared'
+import type { FlagDocument, FlagNote, AnnotationOption, EscalationReason } from '@fledgely/shared'
+import { ANNOTATION_OPTIONS, ANNOTATION_WINDOW_MS } from '@fledgely/shared'
+
+/**
+ * Story 23.3: Get annotation option display info
+ */
+function getAnnotationInfo(option: AnnotationOption): { label: string; icon: string } {
+  const found = ANNOTATION_OPTIONS.find((o) => o.value === option)
+  return found ? { label: found.label, icon: found.icon } : { label: option, icon: '💬' }
+}
+
+/**
+ * Story 23.3: Get escalation reason message
+ */
+function getEscalationMessage(reason: EscalationReason | undefined): string {
+  const windowMinutes = Math.round(ANNOTATION_WINDOW_MS / (60 * 1000))
+  switch (reason) {
+    case 'timeout':
+      return `Child was notified but did not add context within ${windowMinutes} minutes`
+    case 'skipped':
+      return 'Child chose not to add context'
+    default:
+      return 'No context provided'
+  }
+}
 
 /**
  * Parse Firebase Storage error to get user-friendly message
@@ -192,6 +216,57 @@ const styles = {
   escalateButton: {
     backgroundColor: '#fee2e2',
     color: '#991b1b',
+  },
+  // Story 23.3: Child annotation section styles
+  childAnnotationPanel: {
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #86efac',
+    borderRadius: '8px',
+    padding: '16px',
+  },
+  escalationPanel: {
+    backgroundColor: '#fef3c7',
+    border: '1px solid #fcd34d',
+    borderRadius: '8px',
+    padding: '16px',
+  },
+  annotationTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#166534',
+    marginBottom: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  escalationTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#92400e',
+    marginBottom: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  annotationOption: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '15px',
+    color: '#374151',
+    marginBottom: '8px',
+  },
+  annotationExplanation: {
+    fontSize: '14px',
+    color: '#6b7280',
+    fontStyle: 'italic',
+    marginTop: '8px',
+    paddingTop: '8px',
+    borderTop: '1px solid #e5e7eb',
+  },
+  escalationMessage: {
+    fontSize: '14px',
+    color: '#78350f',
   },
 }
 
@@ -451,6 +526,36 @@ export function FlagDetailModal({
 
             {/* AI Reasoning - AC #2 */}
             <AIReasoningPanel reasoning={flag.reasoning} category={flag.category} />
+
+            {/* Story 23.3: Child Annotation/Escalation Status */}
+            {flag.childNotificationStatus === 'annotated' && flag.childAnnotation && (
+              <div style={styles.childAnnotationPanel} data-testid="child-annotation-panel">
+                <div style={styles.annotationTitle}>
+                  <span>💬</span>
+                  <span>Child&apos;s Context</span>
+                </div>
+                <div style={styles.annotationOption}>
+                  <span>{getAnnotationInfo(flag.childAnnotation as AnnotationOption).icon}</span>
+                  <span>{getAnnotationInfo(flag.childAnnotation as AnnotationOption).label}</span>
+                </div>
+                {flag.childExplanation && (
+                  <div style={styles.annotationExplanation}>
+                    &ldquo;{flag.childExplanation}&rdquo;
+                  </div>
+                )}
+              </div>
+            )}
+            {(flag.escalationReason || flag.childNotificationStatus === 'expired') && (
+              <div style={styles.escalationPanel} data-testid="escalation-panel">
+                <div style={styles.escalationTitle}>
+                  <span>⏰</span>
+                  <span>Child Response</span>
+                </div>
+                <div style={styles.escalationMessage}>
+                  {getEscalationMessage(flag.escalationReason as EscalationReason)}
+                </div>
+              </div>
+            )}
 
             {/* Discussion Notes - Story 22.4 */}
             {canTakeAction && (
