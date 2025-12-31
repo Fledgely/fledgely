@@ -103,14 +103,25 @@ export const revokeCaregiverAccess = onCall<
   await db.runTransaction(async (transaction) => {
     const familyRef = db.collection('families').doc(familyId)
 
-    // 4a. Remove caregiver from family caregivers array
+    // Re-verify family exists and caregiver is still present (prevents TOCTOU race)
+    const familySnapshot = await transaction.get(familyRef)
+    if (!familySnapshot.exists) {
+      throw new HttpsError('not-found', 'Family not found')
+    }
+
+    const currentData = familySnapshot.data()
+    const currentCaregivers = currentData?.caregivers ?? []
+    const stillExists = currentCaregivers.some((c: { uid: string }) => c.uid === caregiverId)
+
+    if (!stillExists) {
+      // Already revoked (idempotent) - don't throw, just return
+      return
+    }
+
+    // 4a + 4b. Atomic update: remove caregiver AND extensions in single update call
     transaction.update(familyRef, {
       caregivers: FieldValue.arrayRemove(caregiverToRemove),
       caregiverUids: FieldValue.arrayRemove(caregiverId),
-    })
-
-    // 4b. Remove any one-time extensions for this caregiver
-    transaction.update(familyRef, {
       [`caregiverExtensions.${caregiverId}`]: FieldValue.delete(),
     })
   })

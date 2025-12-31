@@ -14,9 +14,29 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Mock family data for transaction
+const mockFamilyDataForTransaction = {
+  guardianUids: ['parent-123'],
+  caregivers: [
+    {
+      uid: 'caregiver-456',
+      email: 'grandpa@example.com',
+      displayName: 'Grandpa Joe',
+      role: 'status_viewer',
+      childIds: ['child-1'],
+      addedAt: new Date(),
+      addedByUid: 'parent-123',
+    },
+  ],
+  caregiverUids: ['caregiver-456'],
+}
+
 // Mock transaction
 const mockTransaction = {
-  get: vi.fn(),
+  get: vi.fn().mockResolvedValue({
+    exists: true,
+    data: () => mockFamilyDataForTransaction,
+  }),
   update: vi.fn(),
 }
 

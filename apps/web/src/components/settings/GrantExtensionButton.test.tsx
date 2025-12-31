@@ -14,25 +14,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { GrantExtensionButton } from './GrantExtensionButton'
 
-// Mock Firebase Firestore
-vi.mock('firebase/firestore', async () => {
-  const actual = await vi.importActual('firebase/firestore')
-  return {
-    ...actual,
-    doc: vi.fn(),
-    updateDoc: vi.fn(),
-    Timestamp: {
-      fromDate: vi.fn((date) => ({ toDate: () => date })),
-    },
-  }
-})
+// Mock Cloud Function
+const mockHttpsCallable = vi.fn()
+const mockGrantExtension = vi.fn()
+
+vi.mock('firebase/functions', () => ({
+  httpsCallable: (functions: unknown, name: string) => {
+    mockHttpsCallable(functions, name)
+    return mockGrantExtension
+  },
+}))
 
 // Mock Firebase initialization
 vi.mock('../../lib/firebase', () => ({
-  getFirestoreDb: vi.fn(() => ({})),
+  getFirebaseFunctions: vi.fn(() => ({})),
 }))
-
-import { updateDoc } from 'firebase/firestore'
 
 describe('GrantExtensionButton', () => {
   const mockOnExtensionGranted = vi.fn()
@@ -47,7 +43,13 @@ describe('GrantExtensionButton', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(updateDoc).mockResolvedValue(undefined)
+    mockGrantExtension.mockResolvedValue({
+      data: {
+        success: true,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        grantedAt: new Date().toISOString(),
+      },
+    })
   })
 
   describe('Basic rendering', () => {
@@ -147,14 +149,18 @@ describe('GrantExtensionButton', () => {
   })
 
   describe('Granting extension (AC4)', () => {
-    it('calls updateDoc when grant clicked', async () => {
+    it('calls Cloud Function when grant clicked', async () => {
       render(<GrantExtensionButton {...defaultProps} />)
 
       fireEvent.click(screen.getByTestId('grant-extension-button'))
       fireEvent.click(screen.getByTestId('confirm-extension-button'))
 
       await waitFor(() => {
-        expect(updateDoc).toHaveBeenCalled()
+        expect(mockGrantExtension).toHaveBeenCalledWith({
+          familyId: 'family-123',
+          caregiverId: 'caregiver-456',
+          durationMinutes: 60,
+        })
       })
     })
 
@@ -185,7 +191,7 @@ describe('GrantExtensionButton', () => {
       })
     })
 
-    it('includes correct expiry time for selected duration', async () => {
+    it('sends correct duration to Cloud Function', async () => {
       render(<GrantExtensionButton {...defaultProps} onExtensionGranted={mockOnExtensionGranted} />)
 
       fireEvent.click(screen.getByTestId('grant-extension-button'))
@@ -193,17 +199,18 @@ describe('GrantExtensionButton', () => {
       fireEvent.click(screen.getByTestId('confirm-extension-button'))
 
       await waitFor(() => {
-        const call = mockOnExtensionGranted.mock.calls[0][0]
-        const durationMs = call.expiresAt.getTime() - call.grantedAt.getTime()
-        const durationMinutes = durationMs / 1000 / 60
-        expect(durationMinutes).toBe(120)
+        expect(mockGrantExtension).toHaveBeenCalledWith({
+          familyId: 'family-123',
+          caregiverId: 'caregiver-456',
+          durationMinutes: 120,
+        })
       })
     })
   })
 
   describe('Error handling', () => {
-    it('shows error when update fails', async () => {
-      vi.mocked(updateDoc).mockRejectedValue(new Error('Network error'))
+    it('shows error when Cloud Function fails', async () => {
+      mockGrantExtension.mockRejectedValue(new Error('Network error'))
 
       render(<GrantExtensionButton {...defaultProps} />)
 
@@ -217,7 +224,7 @@ describe('GrantExtensionButton', () => {
     })
 
     it('keeps dialog open on error', async () => {
-      vi.mocked(updateDoc).mockRejectedValue(new Error('Failed'))
+      mockGrantExtension.mockRejectedValue(new Error('Failed'))
 
       render(<GrantExtensionButton {...defaultProps} />)
 
@@ -233,7 +240,7 @@ describe('GrantExtensionButton', () => {
   describe('Loading state', () => {
     it('shows loading text during grant', async () => {
       // Create a never-resolving promise to keep loading state
-      vi.mocked(updateDoc).mockImplementation(() => new Promise(() => {}))
+      mockGrantExtension.mockImplementation(() => new Promise(() => {}))
 
       render(<GrantExtensionButton {...defaultProps} />)
 
@@ -244,7 +251,7 @@ describe('GrantExtensionButton', () => {
     })
 
     it('disables confirm button during grant', async () => {
-      vi.mocked(updateDoc).mockImplementation(() => new Promise(() => {}))
+      mockGrantExtension.mockImplementation(() => new Promise(() => {}))
 
       render(<GrantExtensionButton {...defaultProps} />)
 
@@ -255,7 +262,7 @@ describe('GrantExtensionButton', () => {
     })
 
     it('disables cancel button during grant', async () => {
-      vi.mocked(updateDoc).mockImplementation(() => new Promise(() => {}))
+      mockGrantExtension.mockImplementation(() => new Promise(() => {}))
 
       render(<GrantExtensionButton {...defaultProps} />)
 
@@ -310,7 +317,7 @@ describe('GrantExtensionButton', () => {
     })
 
     it('error has alert role', async () => {
-      vi.mocked(updateDoc).mockRejectedValue(new Error('Failed'))
+      mockGrantExtension.mockRejectedValue(new Error('Failed'))
 
       render(<GrantExtensionButton {...defaultProps} />)
 

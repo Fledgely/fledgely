@@ -15,8 +15,8 @@
  */
 
 import { useState, useCallback } from 'react'
-import { doc, updateDoc, Timestamp } from 'firebase/firestore'
-import { getFirestoreDb } from '../../lib/firebase'
+import { httpsCallable } from 'firebase/functions'
+import { getFirebaseFunctions } from '../../lib/firebase'
 
 /**
  * One-time extension data stored in Firestore
@@ -83,31 +83,24 @@ export function GrantExtensionButton({
     setError(null)
 
     try {
-      const db = getFirestoreDb()
-      const now = new Date()
-      const expiresAt = new Date(now.getTime() + selectedDuration * 60 * 1000)
+      const functions = getFirebaseFunctions()
+      const grantExtension = httpsCallable<
+        { familyId: string; caregiverId: string; durationMinutes: number },
+        { success: boolean; expiresAt: string; grantedAt: string }
+      >(functions, 'grantCaregiverExtension')
+
+      const result = await grantExtension({
+        familyId,
+        caregiverId,
+        durationMinutes: selectedDuration,
+      })
 
       const extension: OneTimeExtension = {
-        grantedAt: now,
-        expiresAt,
+        grantedAt: new Date(result.data.grantedAt),
+        expiresAt: new Date(result.data.expiresAt),
         grantedByUid,
         grantedByName,
       }
-
-      // Update the family document to add extension to caregiver
-      const familyRef = doc(db, 'families', familyId)
-
-      // We need to update the specific caregiver's oneTimeExtension field
-      // This is stored on the caregiver object in the caregivers array
-      // For now, we'll store it as a separate field keyed by caregiver ID
-      await updateDoc(familyRef, {
-        [`caregiverExtensions.${caregiverId}`]: {
-          grantedAt: Timestamp.fromDate(now),
-          expiresAt: Timestamp.fromDate(expiresAt),
-          grantedByUid,
-          grantedByName,
-        },
-      })
 
       setSuccess(true)
       onExtensionGranted?.(extension)

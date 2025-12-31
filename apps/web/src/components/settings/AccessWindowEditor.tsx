@@ -89,6 +89,17 @@ interface WindowValidation {
 }
 
 /**
+ * Parse HH:MM time string to minutes since midnight
+ */
+function parseTimeToMinutes(timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+/** Minimum access window duration in minutes */
+const MIN_WINDOW_DURATION_MINUTES = 30
+
+/**
  * Validate a single access window
  */
 function validateWindow(window: Partial<AccessWindow>): WindowValidation {
@@ -102,13 +113,16 @@ function validateWindow(window: Partial<AccessWindow>): WindowValidation {
     return { isValid: false, error: 'Select an end time' }
   }
 
-  const startMinutes =
-    parseInt(window.startTime.split(':')[0]) * 60 + parseInt(window.startTime.split(':')[1])
-  const endMinutes =
-    parseInt(window.endTime.split(':')[0]) * 60 + parseInt(window.endTime.split(':')[1])
+  const startMinutes = parseTimeToMinutes(window.startTime)
+  const endMinutes = parseTimeToMinutes(window.endTime)
+  const durationMinutes = endMinutes - startMinutes
 
-  if (startMinutes >= endMinutes) {
+  if (durationMinutes <= 0) {
     return { isValid: false, error: 'End time must be after start time' }
+  }
+
+  if (durationMinutes < MIN_WINDOW_DURATION_MINUTES) {
+    return { isValid: false, error: 'Access window must be at least 30 minutes' }
   }
 
   return { isValid: true }
