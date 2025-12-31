@@ -83,6 +83,7 @@ export {
   executeExpiredWithdrawals,
   processAIFeedback,
   aggregateGlobalFeedback,
+  processAuditFailures,
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3

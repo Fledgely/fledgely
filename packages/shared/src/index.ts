@@ -80,6 +80,22 @@ export {
   type GetSealedAuditEntriesResponse,
 } from './contracts'
 
+// Comprehensive audit event exports (Story 27.1)
+export {
+  accessTypeSchema,
+  actorTypeSchema,
+  auditResourceTypeSchema,
+  auditEventSchema,
+  auditFailureSchema,
+  createAuditEventInputSchema,
+  type AccessType,
+  type ActorType,
+  type AuditResourceType,
+  type AuditEvent,
+  type AuditFailure,
+  type CreateAuditEventInput,
+} from './contracts'
+
 // Self-removal exports (Story 2.8)
 export {
   SELF_REMOVAL_CONFIRMATION_PHRASE,

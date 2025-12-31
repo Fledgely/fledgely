@@ -360,6 +360,130 @@ export const dataViewAuditSchema = z.object({
 })
 export type DataViewAudit = z.infer<typeof dataViewAuditSchema>
 
+// ============================================================================
+// Story 27.1: Comprehensive Audit Event Capture
+// ============================================================================
+
+/**
+ * Access type for audit logging.
+ *
+ * Story 27.1: Audit Event Capture - AC2
+ * Records what type of action was performed on the resource.
+ */
+export const accessTypeSchema = z.enum(['view', 'download', 'export', 'modify'])
+export type AccessType = z.infer<typeof accessTypeSchema>
+
+/**
+ * Actor type for audit logging.
+ *
+ * Story 27.1: Audit Event Capture - AC1
+ * Identifies the type of user performing the action.
+ */
+export const actorTypeSchema = z.enum(['guardian', 'child', 'caregiver', 'admin', 'system'])
+export type ActorType = z.infer<typeof actorTypeSchema>
+
+/**
+ * Comprehensive resource type for audit logging.
+ *
+ * Story 27.1: Audit Event Capture - AC1
+ * Extends dataViewType with additional resource types for full coverage.
+ */
+export const auditResourceTypeSchema = z.enum([
+  // Existing view types
+  'children_list',
+  'child_profile',
+  'screenshots',
+  'screenshot_detail', // Individual screenshot view
+  'activity',
+  'agreements',
+  'flags',
+  'flag_detail', // Individual flag view
+  'devices',
+  'device_detail',
+  'child_own_screenshot',
+  'caregiver_status',
+  // Download/export types
+  'screenshot_download',
+  'audit_export',
+  'data_export',
+  // Modify types
+  'settings_modify',
+  'profile_modify',
+  'flag_action', // dismiss, escalate, etc.
+  'agreement_modify',
+  // Dashboard access
+  'dashboard_access',
+  'audit_log_view',
+])
+export type AuditResourceType = z.infer<typeof auditResourceTypeSchema>
+
+/**
+ * Comprehensive audit event schema.
+ *
+ * Story 27.1: Audit Event Capture - AC1, AC2, AC3
+ * Stored in Firestore at /auditEvents/{eventId}
+ *
+ * Key features:
+ * - Captures all data access events with full context
+ * - Includes device/session information for forensics
+ * - Append-only collection (no updates/deletes allowed)
+ * - 2-year retention per NFR58
+ *
+ * FRs: FR32, FR53
+ * NFRs: NFR58, NFR82
+ */
+export const auditEventSchema = z.object({
+  id: z.string(),
+  // Who performed the action
+  actorUid: z.string(),
+  actorType: actorTypeSchema,
+  actorEmail: z.string().nullable(), // For display purposes
+  // What action was performed
+  accessType: accessTypeSchema,
+  resourceType: auditResourceTypeSchema,
+  resourceId: z.string().nullable(), // Specific resource ID (screenshot, flag, etc.)
+  // Where (family/child context)
+  familyId: z.string(),
+  childId: z.string().nullable(), // null for family-level access
+  // Device/session context (AC3)
+  deviceId: z.string().nullable(),
+  sessionId: z.string().nullable(),
+  userAgent: z.string().nullable(),
+  ipAddressHash: z.string().nullable(), // Hashed for privacy (NFR82)
+  // When
+  timestamp: z.number(), // epoch ms
+  // Additional metadata
+  metadata: z.record(z.unknown()).optional(),
+})
+export type AuditEvent = z.infer<typeof auditEventSchema>
+
+/**
+ * Dead-letter queue entry for failed audit writes.
+ *
+ * Story 27.1: Audit Event Capture - AC5
+ * Stores failed audit events for retry processing.
+ */
+export const auditFailureSchema = z.object({
+  id: z.string(),
+  event: auditEventSchema,
+  errorMessage: z.string(),
+  attempts: z.number(),
+  failedAt: z.number(), // epoch ms
+  lastAttemptAt: z.number().optional(),
+  status: z.enum(['pending', 'retrying', 'resolved', 'abandoned']),
+  resolvedAt: z.number().optional(),
+})
+export type AuditFailure = z.infer<typeof auditFailureSchema>
+
+/**
+ * Input schema for creating audit events.
+ *
+ * Story 27.1: Audit Event Capture
+ * Used by client-side and server-side audit services.
+ */
+export const createAuditEventInputSchema = auditEventSchema.omit({ id: true, timestamp: true })
+export type CreateAuditEventInput = z.infer<typeof createAuditEventInputSchema>
+
 /**
  * Safety setting types that require two-parent approval.
  *

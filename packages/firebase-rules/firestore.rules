@@ -513,6 +513,55 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // =========================================================================
+    // Story 27.1: Comprehensive Audit Event Capture
+    // =========================================================================
+    //
+    // Audit events are the comprehensive logging system for all data access.
+    // They extend the basic auditLogs with full device/session context.
+    //
+    // Key features:
+    // - Append-only (NFR58: tamper-evident)
+    // - 2-year retention (NFR58)
+    // - Family guardians can read their family's events
+    // - Only Cloud Functions can write (via Admin SDK)
+    //
+    // FRs: FR32, FR53
+    // NFRs: NFR58, NFR82
+    //
+    match /auditEvents/{eventId} {
+      // Helper: Check if user is guardian of family for existing audit event
+      function canReadFamilyAuditEvent() {
+        let family = get(/databases/$(database)/documents/families/$(resource.data.familyId));
+        return request.auth != null &&
+          request.auth.uid in family.data.guardianUids;
+      }
+
+      // Read: Family guardians can read audit events for their family
+      // DATA SYMMETRY: Both co-parents can see all access activity
+      allow read: if canReadFamilyAuditEvent();
+
+      // Create: Only Cloud Functions can create (via Admin SDK)
+      // This ensures proper retry/dead-letter handling
+      allow create: if false;
+
+      // Update/Delete: NEVER allowed (append-only, tamper-evident)
+      // Audit events are immutable for compliance and trust
+      allow update, delete: if false;
+    }
+
+    // Dead-letter queue for failed audit writes
+    // Story 27.1: AC5 - Reliable writes with retry mechanism
+    //
+    // These entries are processed by scheduled functions and should
+    // never be accessible to regular users.
+    //
+    match /auditFailures/{failureId} {
+      // CRITICAL: Regular users CANNOT access dead-letter queue
+      // Only Cloud Functions via Admin SDK
+      allow read, write: if false;
+    }
+
     // Safety setting change proposals: two-parent approval workflow
     //
     // Story 3A.2: Safety Settings Two-Parent Approval

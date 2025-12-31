@@ -395,17 +395,17 @@ development_status:
   epic-23-retrospective: done
 
   # Epic 24: AI Feedback Loop
-  epic-24: in-progress
+  epic-24: done
   24-1-parent-classification-correction: done
-  24-2-family-specific-model-tuning: backlog
-  24-3-explicit-approval-of-categories: backlog
-  24-4-learning-progress-dashboard: backlog
-  24-5-global-model-improvement-pipeline: backlog
-  epic-24-retrospective: optional
+  24-2-family-specific-model-tuning: done
+  24-3-explicit-approval-of-categories: done
+  24-4-learning-progress-dashboard: done
+  24-5-global-model-improvement-pipeline: done
+  epic-24-retrospective: done
 
   # Epic 27: Bidirectional Transparency - Audit Log
-  epic-27: backlog
-  27-1-audit-event-capture: backlog
+  epic-27: in-progress
+  27-1-audit-event-capture: done
   27-2-parent-audit-log-view: backlog
   27-3-child-audit-log-view: backlog
   27-4-asymmetric-viewing-pattern-detection: backlog
