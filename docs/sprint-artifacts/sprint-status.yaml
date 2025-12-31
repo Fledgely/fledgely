@@ -337,7 +337,7 @@ development_status:
   19c-3-agreement-terms-checklist: done
   19c-4-am-i-following-the-agreement-view: done
   19c-5-request-agreement-change: done
-  epic-19c-retrospective: optional
+  epic-19c-retrospective: done
 
   # Epic 19D: Basic Caregiver Status View
   epic-19d: backlog
