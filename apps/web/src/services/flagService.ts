@@ -30,8 +30,9 @@ import type {
 
 /**
  * Action types for flag review
+ * Story 22.6 - Added 'discussed_together' for co-parent reviews
  */
-export type FlagActionType = 'dismiss' | 'discuss' | 'escalate' | 'view'
+export type FlagActionType = 'dismiss' | 'discuss' | 'escalate' | 'view' | 'discussed_together'
 
 /**
  * Audit trail entry for flag actions
@@ -273,6 +274,7 @@ function getStatusForAction(action: FlagActionType): FlagStatus {
     case 'discuss':
     case 'view':
     case 'escalate':
+    case 'discussed_together':
       return 'reviewed'
   }
 }
@@ -419,4 +421,21 @@ export async function addFlagNote({
   })
 
   return note
+}
+
+/**
+ * Mark a flag as viewed by a parent
+ * Story 22.6 - AC #2
+ */
+export async function markFlagViewed(
+  flagId: string,
+  childId: string,
+  parentId: string
+): Promise<void> {
+  const db = getFirestoreDb()
+  const flagRef = doc(db, 'children', childId, 'flags', flagId)
+
+  await updateDoc(flagRef, {
+    viewedBy: arrayUnion(parentId),
+  })
 }

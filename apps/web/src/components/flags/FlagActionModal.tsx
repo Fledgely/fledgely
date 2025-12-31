@@ -59,6 +59,13 @@ const ACTION_CONFIG: Record<
     buttonText: 'Mark as Viewed',
     buttonColor: '#6b7280',
   },
+  discussed_together: {
+    title: 'Discussed Together',
+    description:
+      'Mark this flag as reviewed by both parents together. Use this when you have discussed the situation as a family.',
+    buttonText: 'Mark as Discussed Together',
+    buttonColor: '#9d174d',
+  },
 }
 
 const styles = {

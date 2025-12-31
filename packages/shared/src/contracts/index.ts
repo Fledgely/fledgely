@@ -2629,7 +2629,13 @@ export type CategoryConfidenceThresholds = z.infer<typeof categoryConfidenceThre
  * Audit trail entry for flag actions.
  * Tracks parent actions with timestamps for history.
  */
-export const flagActionTypeSchema = z.enum(['dismiss', 'discuss', 'escalate', 'view'])
+export const flagActionTypeSchema = z.enum([
+  'dismiss',
+  'discuss',
+  'escalate',
+  'view',
+  'discussed_together',
+])
 export type FlagActionType = z.infer<typeof flagActionTypeSchema>
 
 export const flagAuditEntrySchema = z.object({
@@ -2727,6 +2733,10 @@ export const flagDocumentSchema = z.object({
   // Notes fields (from Story 22-4)
   /** Discussion notes added by parents */
   notes: z.array(flagNoteSchema).optional(),
+
+  // Co-parent visibility fields (from Story 22-6)
+  /** Array of parent IDs who have viewed this flag */
+  viewedBy: z.array(z.string()).optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 
