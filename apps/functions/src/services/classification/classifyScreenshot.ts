@@ -18,6 +18,7 @@ import {
   type ConcernFlag,
   type SuppressedConcernFlag,
   type ThrottledConcernFlag,
+  ALWAYS_FLAG_THRESHOLD,
 } from '@fledgely/shared'
 import { createGeminiClient, type DetectedConcern } from './geminiClient'
 import { retryWithBackoff } from './retryWithBackoff'
@@ -25,6 +26,7 @@ import { storeClassificationDebug } from './storeDebug'
 import { isCrisisUrl, isDistressContent, calculateReleasableAfter } from './crisisUrlDetector'
 import { logSuppressionEvent } from './suppressionAudit'
 import { shouldAlertForFlag, recordFlagAlert, recordThrottledFlag } from './flagThrottle'
+import { getEffectiveThreshold } from './confidenceThreshold'
 
 /**
  * Result of classifyScreenshot operation.
@@ -113,8 +115,47 @@ export async function classifyScreenshot(
         }
       )
 
-      // Convert detected concerns to ConcernFlag format for storage
-      concernFlags = concernResult.concerns.map(
+      // Story 21.4: Filter concerns by confidence threshold (AC1, AC5)
+      // Only create flags for concerns that meet the configured threshold
+      const filteredConcerns: DetectedConcern[] = []
+      let discardedCount = 0
+
+      for (const concern of concernResult.concerns) {
+        // Get threshold first (single query), then check if should flag
+        const threshold = await getEffectiveThreshold(familyId, concern.category)
+        const shouldFlag =
+          concern.confidence >= ALWAYS_FLAG_THRESHOLD || concern.confidence >= threshold
+
+        if (shouldFlag) {
+          filteredConcerns.push(concern)
+        } else {
+          // Log discarded concern with reason (no additional query needed)
+          logger.info('Concern discarded due to low confidence', {
+            screenshotId,
+            childId,
+            familyId,
+            category: concern.category,
+            confidence: concern.confidence,
+            threshold,
+            reason: 'below_confidence_threshold',
+          })
+          discardedCount++
+        }
+      }
+
+      if (discardedCount > 0) {
+        logger.info('Confidence threshold filtering applied', {
+          screenshotId,
+          childId,
+          familyId,
+          originalCount: concernResult.concerns.length,
+          filteredCount: filteredConcerns.length,
+          discardedCount,
+        })
+      }
+
+      // Convert filtered concerns to ConcernFlag format for storage
+      concernFlags = filteredConcerns.map(
         (concern: DetectedConcern): ConcernFlag => ({
           category: concern.category,
           severity: concern.severity,

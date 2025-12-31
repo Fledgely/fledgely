@@ -39,6 +39,12 @@ import {
   FLAG_THROTTLE_LIMITS,
   flagThrottleStateSchema,
   throttledConcernFlagSchema,
+  // Story 21.4: Confidence Thresholds
+  CONFIDENCE_THRESHOLD_LEVELS,
+  confidenceThresholdLevelSchema,
+  CONFIDENCE_THRESHOLD_VALUES,
+  ALWAYS_FLAG_THRESHOLD,
+  categoryConfidenceThresholdsSchema,
 } from './index'
 
 describe('Classification Contracts', () => {
@@ -1185,6 +1191,131 @@ describe('Classification Contracts', () => {
           throttledConcernFlagSchema.parse({
             ...baseFlag,
             suppressionReason: 'invalid_reason',
+          })
+        ).toThrow()
+      })
+    })
+  })
+
+  // Story 21.4: Confidence Thresholds
+  describe('Confidence Threshold Schemas (Story 21.4)', () => {
+    describe('CONFIDENCE_THRESHOLD_LEVELS', () => {
+      it('defines expected threshold levels', () => {
+        expect(CONFIDENCE_THRESHOLD_LEVELS).toContain('sensitive')
+        expect(CONFIDENCE_THRESHOLD_LEVELS).toContain('balanced')
+        expect(CONFIDENCE_THRESHOLD_LEVELS).toContain('relaxed')
+        expect(CONFIDENCE_THRESHOLD_LEVELS).toHaveLength(3)
+      })
+    })
+
+    describe('confidenceThresholdLevelSchema', () => {
+      it('accepts valid threshold levels', () => {
+        expect(confidenceThresholdLevelSchema.parse('sensitive')).toBe('sensitive')
+        expect(confidenceThresholdLevelSchema.parse('balanced')).toBe('balanced')
+        expect(confidenceThresholdLevelSchema.parse('relaxed')).toBe('relaxed')
+      })
+
+      it('rejects invalid threshold levels', () => {
+        expect(() => confidenceThresholdLevelSchema.parse('high')).toThrow()
+        expect(() => confidenceThresholdLevelSchema.parse('low')).toThrow()
+        expect(() => confidenceThresholdLevelSchema.parse('')).toThrow()
+      })
+    })
+
+    describe('CONFIDENCE_THRESHOLD_VALUES', () => {
+      it('maps sensitive to 60', () => {
+        expect(CONFIDENCE_THRESHOLD_VALUES.sensitive).toBe(60)
+      })
+
+      it('maps balanced to 75', () => {
+        expect(CONFIDENCE_THRESHOLD_VALUES.balanced).toBe(75)
+      })
+
+      it('maps relaxed to 90', () => {
+        expect(CONFIDENCE_THRESHOLD_VALUES.relaxed).toBe(90)
+      })
+
+      it('has all threshold levels mapped', () => {
+        expect(Object.keys(CONFIDENCE_THRESHOLD_VALUES)).toHaveLength(3)
+        for (const level of CONFIDENCE_THRESHOLD_LEVELS) {
+          expect(CONFIDENCE_THRESHOLD_VALUES[level]).toBeDefined()
+          expect(typeof CONFIDENCE_THRESHOLD_VALUES[level]).toBe('number')
+        }
+      })
+
+      it('has ascending order: sensitive < balanced < relaxed', () => {
+        expect(CONFIDENCE_THRESHOLD_VALUES.sensitive).toBeLessThan(
+          CONFIDENCE_THRESHOLD_VALUES.balanced
+        )
+        expect(CONFIDENCE_THRESHOLD_VALUES.balanced).toBeLessThan(
+          CONFIDENCE_THRESHOLD_VALUES.relaxed
+        )
+      })
+    })
+
+    describe('ALWAYS_FLAG_THRESHOLD', () => {
+      it('is 95', () => {
+        expect(ALWAYS_FLAG_THRESHOLD).toBe(95)
+      })
+
+      it('is above all configurable threshold values', () => {
+        expect(ALWAYS_FLAG_THRESHOLD).toBeGreaterThan(CONFIDENCE_THRESHOLD_VALUES.relaxed)
+      })
+    })
+
+    describe('categoryConfidenceThresholdsSchema', () => {
+      it('accepts valid per-category thresholds', () => {
+        const thresholds = categoryConfidenceThresholdsSchema.parse({
+          Violence: 80,
+          'Self-Harm Indicators': 50,
+          'Explicit Language': 70,
+        })
+        expect(thresholds).toEqual({
+          Violence: 80,
+          'Self-Harm Indicators': 50,
+          'Explicit Language': 70,
+        })
+      })
+
+      it('accepts undefined (no overrides)', () => {
+        const thresholds = categoryConfidenceThresholdsSchema.parse(undefined)
+        expect(thresholds).toBeUndefined()
+      })
+
+      it('accepts empty object (no overrides)', () => {
+        const thresholds = categoryConfidenceThresholdsSchema.parse({})
+        expect(thresholds).toEqual({})
+      })
+
+      it('rejects thresholds below minimum (50)', () => {
+        expect(() =>
+          categoryConfidenceThresholdsSchema.parse({
+            Violence: 49,
+          })
+        ).toThrow()
+      })
+
+      it('rejects thresholds above maximum (94)', () => {
+        expect(() =>
+          categoryConfidenceThresholdsSchema.parse({
+            Violence: 95,
+          })
+        ).toThrow()
+      })
+
+      it('accepts boundary values (50 and 94)', () => {
+        const thresholds = categoryConfidenceThresholdsSchema.parse({
+          Violence: 50,
+          Bullying: 94,
+        })
+        expect(thresholds?.Violence).toBe(50)
+        expect(thresholds?.Bullying).toBe(94)
+      })
+
+      it('rejects invalid category names', () => {
+        expect(() =>
+          categoryConfidenceThresholdsSchema.parse({
+            InvalidCategory: 75,
           })
         ).toThrow()
       })

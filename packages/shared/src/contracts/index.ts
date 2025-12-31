@@ -2575,6 +2575,51 @@ export const throttledConcernFlagSchema = concernFlagSchema.extend({
 })
 export type ThrottledConcernFlag = z.infer<typeof throttledConcernFlagSchema>
 
+// ============================================================================
+// Confidence Threshold Configuration (Story 21.4)
+// ============================================================================
+
+/**
+ * Story 21.4: Concern Confidence Thresholds - AC2, AC3
+ * Confidence threshold sensitivity levels.
+ * Controls minimum confidence required to create concern flags.
+ * - sensitive: 60% - flags more concerns, may have more false positives
+ * - balanced: 75% - default, balanced approach
+ * - relaxed: 90% - fewer flags, higher confidence required
+ */
+export const CONFIDENCE_THRESHOLD_LEVELS = ['sensitive', 'balanced', 'relaxed'] as const
+export const confidenceThresholdLevelSchema = z.enum(CONFIDENCE_THRESHOLD_LEVELS)
+export type ConfidenceThresholdLevel = z.infer<typeof confidenceThresholdLevelSchema>
+
+/**
+ * Story 21.4: Concern Confidence Thresholds - AC2, AC3
+ * Mapping of threshold levels to minimum confidence percentages.
+ */
+export const CONFIDENCE_THRESHOLD_VALUES: Record<ConfidenceThresholdLevel, number> = {
+  sensitive: 60,
+  balanced: 75,
+  relaxed: 90,
+} as const
+
+/**
+ * Story 21.4: Concern Confidence Thresholds - AC5
+ * Safety threshold - concerns at or above this confidence ALWAYS flag.
+ * Even if parent sets relaxed (90%), a 95%+ confidence concern will be flagged.
+ * This is an immutable safety measure to prevent missing critical concerns.
+ */
+export const ALWAYS_FLAG_THRESHOLD = 95 as const
+
+/**
+ * Story 21.4: Concern Confidence Thresholds - AC4
+ * Per-category confidence threshold overrides.
+ * Allows fine-grained control over which categories are more/less sensitive.
+ * Values must be between 50 (minimum useful threshold) and 94 (below ALWAYS_FLAG_THRESHOLD).
+ */
+export const categoryConfidenceThresholdsSchema = z
+  .record(concernCategorySchema, z.number().min(50).max(94))
+  .optional()
+export type CategoryConfidenceThresholds = z.infer<typeof categoryConfidenceThresholdsSchema>
+
 /**
  * Classification result stored on screenshot document.
  *

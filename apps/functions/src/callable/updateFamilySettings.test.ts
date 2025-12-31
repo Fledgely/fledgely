@@ -334,4 +334,144 @@ describe('updateFamilySettings (Story 21.3)', () => {
       }
     )
   })
+
+  // Story 21.4: Confidence Threshold Tests
+  describe('confidence threshold settings (Story 21.4)', () => {
+    it.each(['sensitive', 'balanced', 'relaxed'] as const)(
+      'accepts valid confidence threshold level: %s',
+      async (level) => {
+        mockFamilyGet.mockResolvedValue({
+          exists: true,
+          data: () => ({
+            guardians: [{ uid: 'user-123' }],
+          }),
+        })
+
+        const request = {
+          auth: mockAuthContext,
+          data: {
+            familyId: 'family-123',
+            settings: { confidenceThresholdLevel: level },
+          },
+          rawRequest: {} as never,
+        }
+
+        const result = await updateFamilySettings.run(request)
+        expect(result.success).toBe(true)
+        expect(result.updatedSettings.confidenceThresholdLevel).toBe(level)
+        expect(mockUpdate).toHaveBeenCalledWith({
+          'settings.confidenceThresholdLevel': level,
+        })
+      }
+    )
+
+    it('rejects invalid confidence threshold level', async () => {
+      mockFamilyGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          guardians: [{ uid: 'user-123' }],
+        }),
+      })
+
+      const request = {
+        auth: mockAuthContext,
+        data: {
+          familyId: 'family-123',
+          settings: { confidenceThresholdLevel: 'invalid-level' },
+        },
+        rawRequest: {} as never,
+      }
+
+      await expect(updateFamilySettings.run(request)).rejects.toThrow(HttpsError)
+      await expect(updateFamilySettings.run(request)).rejects.toMatchObject({
+        code: 'invalid-argument',
+      })
+    })
+
+    it('accepts valid per-category thresholds', async () => {
+      mockFamilyGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          guardians: [{ uid: 'user-123' }],
+        }),
+      })
+
+      const categoryThresholds = {
+        Violence: 80,
+        'Self-Harm Indicators': 50,
+      }
+
+      const request = {
+        auth: mockAuthContext,
+        data: {
+          familyId: 'family-123',
+          settings: { categoryConfidenceThresholds: categoryThresholds },
+        },
+        rawRequest: {} as never,
+      }
+
+      const result = await updateFamilySettings.run(request)
+      expect(result.success).toBe(true)
+      expect(result.updatedSettings.categoryConfidenceThresholds).toEqual(categoryThresholds)
+      expect(mockUpdate).toHaveBeenCalledWith({
+        'settings.categoryConfidenceThresholds': categoryThresholds,
+      })
+    })
+
+    it('accepts combined threshold level and category overrides', async () => {
+      mockFamilyGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          guardians: [{ uid: 'user-123' }],
+        }),
+      })
+
+      const request = {
+        auth: mockAuthContext,
+        data: {
+          familyId: 'family-123',
+          settings: {
+            confidenceThresholdLevel: 'relaxed' as const,
+            categoryConfidenceThresholds: { Violence: 60 },
+          },
+        },
+        rawRequest: {} as never,
+      }
+
+      const result = await updateFamilySettings.run(request)
+      expect(result.success).toBe(true)
+      expect(result.updatedSettings.confidenceThresholdLevel).toBe('relaxed')
+      expect(result.updatedSettings.categoryConfidenceThresholds).toEqual({ Violence: 60 })
+    })
+
+    it('logs confidence threshold changes to audit trail', async () => {
+      mockFamilyGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          guardians: [{ uid: 'user-123' }],
+        }),
+      })
+
+      const request = {
+        auth: mockAuthContext,
+        data: {
+          familyId: 'family-123',
+          settings: { confidenceThresholdLevel: 'sensitive' as const },
+        },
+        rawRequest: {} as never,
+      }
+
+      await updateFamilySettings.run(request)
+
+      expect(mockAuditLogCollection).toHaveBeenCalledWith('auditLog')
+      expect(mockAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'family_settings_updated',
+          familyId: 'family-123',
+          actorUid: 'user-123',
+          changes: { confidenceThresholdLevel: 'sensitive' },
+        })
+      )
+    })
+  })
 })

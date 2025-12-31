@@ -2,9 +2,12 @@
  * Cloud Function for updating family settings.
  *
  * Story 21.3: False Positive Throttling - AC4
+ * Story 21.4: Concern Confidence Thresholds - AC3, AC4
  *
  * Allows guardians to update family settings including:
  * - Flag throttle level (minimal, standard, detailed, all)
+ * - Confidence threshold level (sensitive, balanced, relaxed)
+ * - Per-category confidence threshold overrides
  *
  * Security:
  * - Only authenticated users can update settings
@@ -16,7 +19,14 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https'
 import { Firestore, getFirestore } from 'firebase-admin/firestore'
 import * as logger from 'firebase-functions/logger'
 import { z } from 'zod'
-import { flagThrottleLevelSchema, type FlagThrottleLevel } from '@fledgely/shared'
+import {
+  flagThrottleLevelSchema,
+  type FlagThrottleLevel,
+  confidenceThresholdLevelSchema,
+  categoryConfidenceThresholdsSchema,
+  type ConfidenceThresholdLevel,
+  type CategoryConfidenceThresholds,
+} from '@fledgely/shared'
 
 // Lazy initialization for Firestore (supports test mocking)
 let db: Firestore | null = null
@@ -36,11 +46,17 @@ export function _resetDbForTesting(): void {
  * Input schema for updating family settings.
  *
  * Story 21.3: AC4 - Supports flagThrottleLevel setting
+ * Story 21.4: AC3, AC4 - Supports confidenceThresholdLevel and categoryConfidenceThresholds
  */
 export const updateFamilySettingsInputSchema = z.object({
   familyId: z.string().min(1, 'Family ID is required'),
   settings: z.object({
+    /** Story 21.3: Flag throttle level */
     flagThrottleLevel: flagThrottleLevelSchema.optional(),
+    /** Story 21.4: Global confidence threshold level */
+    confidenceThresholdLevel: confidenceThresholdLevelSchema.optional(),
+    /** Story 21.4: Per-category confidence threshold overrides */
+    categoryConfidenceThresholds: categoryConfidenceThresholdsSchema,
   }),
 })
 
@@ -53,6 +69,8 @@ export interface UpdateFamilySettingsResponse {
   message: string
   updatedSettings: {
     flagThrottleLevel?: FlagThrottleLevel
+    confidenceThresholdLevel?: ConfidenceThresholdLevel
+    categoryConfidenceThresholds?: CategoryConfidenceThresholds
   }
 }
 
@@ -60,6 +78,7 @@ export interface UpdateFamilySettingsResponse {
  * Update family settings.
  *
  * Story 21.3: AC4 - Parent can adjust throttling threshold
+ * Story 21.4: AC3, AC4 - Parent can adjust confidence thresholds
  */
 export const updateFamilySettings = onCall<
   UpdateFamilySettingsInput,
@@ -108,6 +127,21 @@ export const updateFamilySettings = onCall<
       // Zod schema already validates throttle level - safe to use directly
       settingsUpdate['settings.flagThrottleLevel'] = settings.flagThrottleLevel
       updatedSettings.flagThrottleLevel = settings.flagThrottleLevel
+    }
+
+    // Story 21.4: Confidence threshold level
+    if (settings.confidenceThresholdLevel !== undefined) {
+      // Zod schema already validates threshold level - safe to use directly
+      settingsUpdate['settings.confidenceThresholdLevel'] = settings.confidenceThresholdLevel
+      updatedSettings.confidenceThresholdLevel = settings.confidenceThresholdLevel
+    }
+
+    // Story 21.4: Per-category confidence thresholds
+    if (settings.categoryConfidenceThresholds !== undefined) {
+      // Zod schema already validates thresholds - safe to use directly
+      settingsUpdate['settings.categoryConfidenceThresholds'] =
+        settings.categoryConfidenceThresholds
+      updatedSettings.categoryConfidenceThresholds = settings.categoryConfidenceThresholds
     }
 
     // 5. Check if there are any settings to update

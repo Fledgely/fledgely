@@ -367,8 +367,8 @@ development_status:
   epic-21: in-progress
   21-1-concerning-content-categories: done
   21-2-distress-detection-suppression-fr21a: done
-  21-3-false-positive-throttling: in-progress
-  21-4-concern-confidence-thresholds: backlog
+  21-3-false-positive-throttling: done
+  21-4-concern-confidence-thresholds: done
   21-5-flag-creation-and-storage: backlog
   21-6-ai-reasoning-explanation: backlog
   21-7-flag-accuracy-feedback-loop: backlog

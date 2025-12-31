@@ -178,6 +178,17 @@ export {
   type ThrottledConcernFlag,
 } from './contracts'
 
+// Confidence threshold exports (Story 21.4)
+export {
+  CONFIDENCE_THRESHOLD_LEVELS,
+  confidenceThresholdLevelSchema,
+  CONFIDENCE_THRESHOLD_VALUES,
+  ALWAYS_FLAG_THRESHOLD,
+  categoryConfidenceThresholdsSchema,
+  type ConfidenceThresholdLevel,
+  type CategoryConfidenceThresholds,
+} from './contracts'
+
 // Concern category definitions exports (Story 21.1)
 export {
   CONCERN_TAXONOMY_VERSION,

@@ -75,6 +75,13 @@ vi.mock('./flagThrottle', () => ({
   recordThrottledFlag: (...args: unknown[]) => mockRecordThrottledFlag(...args),
 }))
 
+// Mock confidenceThreshold (Story 21.4)
+// Note: shouldCreateFlag is no longer used - we call getEffectiveThreshold directly and check inline
+const mockGetEffectiveThreshold = vi.fn().mockResolvedValue(75) // Default: balanced
+vi.mock('./confidenceThreshold', () => ({
+  getEffectiveThreshold: (...args: unknown[]) => mockGetEffectiveThreshold(...args),
+}))
+
 describe('classifyScreenshot helpers', () => {
   describe('needsClassification', () => {
     it('returns false for undefined document', () => {
@@ -350,13 +357,13 @@ describe('classifyScreenshot integration', () => {
         {
           category: 'Unknown Contacts',
           severity: 'high',
-          confidence: 85,
+          confidence: 85, // Above default threshold of 75
           reasoning: 'Stranger requesting personal info',
         },
         {
           category: 'Explicit Language',
           severity: 'low',
-          confidence: 60,
+          confidence: 80, // Above default threshold of 75
           reasoning: 'Mild profanity in message',
         },
       ],
@@ -390,7 +397,7 @@ describe('classifyScreenshot integration', () => {
         {
           category: 'Violence',
           severity: 'low',
-          confidence: 50,
+          confidence: 80, // Above default threshold of 75
           reasoning: 'Cartoon combat',
         },
       ],
@@ -425,5 +432,204 @@ describe('classifyScreenshot integration', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Concern detection API error')
+  })
+})
+
+// Story 21.4: Confidence Threshold Tests
+describe('classifyScreenshot confidence threshold filtering (Story 21.4)', () => {
+  const baseJob: ClassificationJob = {
+    childId: 'child-123',
+    screenshotId: 'screenshot-456',
+    storagePath: 'screenshots/child-123/2024-01-01/456.jpg',
+    familyId: 'family-789',
+    retryCount: 0,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExists.mockResolvedValue([true])
+    mockDownload.mockResolvedValue([Buffer.from('fake-image-data')])
+    mockGetEffectiveThreshold.mockResolvedValue(75) // Default: balanced
+  })
+
+  it('filters out concerns below threshold (AC1)', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Violence',
+          severity: 'high',
+          confidence: 80, // Above threshold (75) - should be included
+          reasoning: 'High violence content',
+        },
+        {
+          category: 'Explicit Language',
+          severity: 'low',
+          confidence: 50, // Below threshold (75) - should be filtered
+          reasoning: 'Low profanity',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    // Default threshold is 75%, so Violence (80%) passes, Explicit Language (50%) filtered
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    // Only the Violence concern should be included
+    expect(finalUpdateCall.classification.concernFlags).toHaveLength(1)
+    expect(finalUpdateCall.classification.concernFlags[0].category).toBe('Violence')
+  })
+
+  it('always includes concerns at 95%+ confidence regardless of threshold (AC5)', async () => {
+    // Set a high threshold that would normally filter out the concern
+    mockGetEffectiveThreshold.mockResolvedValue(90) // Relaxed threshold
+
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Violence', // Use Violence instead of Self-Harm to avoid suppression logic
+          severity: 'high',
+          confidence: 96, // Above always-flag threshold (95%)
+          reasoning: 'Critical violence content',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    // Should still be included because 96% >= ALWAYS_FLAG_THRESHOLD (95%)
+    expect(finalUpdateCall.classification.concernFlags).toHaveLength(1)
+    expect(finalUpdateCall.classification.concernFlags[0].confidence).toBe(96)
+  })
+
+  it('calls getEffectiveThreshold for each concern', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        { category: 'Violence', severity: 'high', confidence: 80, reasoning: 'Violence' },
+        { category: 'Cyberbullying', severity: 'medium', confidence: 80, reasoning: 'Bullying' },
+        { category: 'Explicit Language', severity: 'low', confidence: 80, reasoning: 'Language' },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    // Should call getEffectiveThreshold once for each concern
+    expect(mockGetEffectiveThreshold).toHaveBeenCalledTimes(3)
+    expect(mockGetEffectiveThreshold).toHaveBeenCalledWith('family-789', 'Violence')
+    expect(mockGetEffectiveThreshold).toHaveBeenCalledWith('family-789', 'Cyberbullying')
+    expect(mockGetEffectiveThreshold).toHaveBeenCalledWith('family-789', 'Explicit Language')
+  })
+
+  it('discards all concerns if all are below threshold', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true, // Gemini detected concerns but all below threshold
+      concerns: [
+        { category: 'Violence', severity: 'low', confidence: 55, reasoning: 'Minor violence' },
+        {
+          category: 'Explicit Language',
+          severity: 'low',
+          confidence: 45,
+          reasoning: 'Mild language',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    // Default threshold is 75%, both concerns are below
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    // No concerns should be stored
+    expect(finalUpdateCall.classification.concernFlags).toBeUndefined()
+    expect(finalUpdateCall.classification.concernTaxonomyVersion).toBeUndefined()
+  })
+
+  it('threshold filtering happens before suppression and throttling', async () => {
+    // This test verifies the correct order: filter first, then apply suppression/throttling
+    // Use Violence category to avoid Self-Harm suppression path
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Violence', // Use Violence to avoid suppression path
+          severity: 'high',
+          confidence: 90, // Above default threshold of 75
+          reasoning: 'Violence content',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    // Verify getEffectiveThreshold was called before throttle functions
+    expect(mockGetEffectiveThreshold).toHaveBeenCalled()
+    expect(mockShouldAlertForFlag).toHaveBeenCalled()
+
+    // getEffectiveThreshold should be called first (before throttling)
+    const thresholdCallOrder = mockGetEffectiveThreshold.mock.invocationCallOrder[0]
+    const alertFlagCallOrder = mockShouldAlertForFlag.mock.invocationCallOrder[0]
+    expect(thresholdCallOrder).toBeLessThan(alertFlagCallOrder)
   })
 })

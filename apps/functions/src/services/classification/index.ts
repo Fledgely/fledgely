@@ -15,3 +15,8 @@ export {
 } from './classifyScreenshot'
 export { CLASSIFICATION_PROMPT, buildClassificationPrompt } from './classificationPrompt'
 export { retryWithBackoff, sleep, type RetryOptions } from './retryWithBackoff'
+export {
+  getEffectiveThreshold,
+  shouldCreateFlag,
+  getFamilyThresholdLevel,
+} from './confidenceThreshold'
