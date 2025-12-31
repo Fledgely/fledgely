@@ -180,7 +180,7 @@ development_status:
   # Epic 8.5: Demo Mode - Early Win Preview (War Room)
   epic-8-5: in-progress
   8-5-1-demo-child-profile-creation: done
-  8-5-2-sample-screenshot-gallery: backlog
+  8-5-2-sample-screenshot-gallery: done
   8-5-3-sample-time-tracking-display: backlog
   8-5-4-sample-flag-alert-examples: backlog
   8-5-5-demo-to-real-transition: backlog

@@ -2,13 +2,14 @@
  * Tests for DemoChildCard Component
  *
  * Story 8.5.1: Demo Child Profile Creation
+ * Story 8.5.2: Sample Screenshot Gallery Integration
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DemoChildCard, DemoChildCardProps } from './DemoChildCard'
 import type { DemoChild } from '../../hooks/useDemo'
-import type { DemoActivitySummary } from '../../data/demoData'
+import type { DemoActivitySummary, DemoScreenshot } from '../../data/demoData'
 
 // Create mock data
 const mockDemoChild: DemoChild = {
@@ -206,6 +207,116 @@ describe('DemoChildCard (Story 8.5.1)', () => {
       render(<DemoChildCard {...defaultProps} dismissing={true} />)
 
       expect(screen.getByTestId('dismiss-demo-button')).toBeDisabled()
+    })
+  })
+})
+
+/**
+ * Story 8.5.2: Expandable Gallery Integration Tests
+ */
+describe('DemoChildCard - Gallery Integration (Story 8.5.2)', () => {
+  const mockScreenshots: DemoScreenshot[] = [
+    {
+      id: 'test-1',
+      title: 'Math Practice',
+      url: 'https://khanacademy.org/math',
+      category: 'homework',
+      timestamp: Date.now() - 2 * 60 * 60 * 1000,
+      thumbnailDataUri: 'data:image/svg+xml;base64,abc',
+      classification: { label: 'Educational', confidence: 0.95 },
+    },
+    {
+      id: 'test-2',
+      title: 'Gaming Session',
+      url: 'https://minecraft.net',
+      category: 'gaming',
+      timestamp: Date.now() - 26 * 60 * 60 * 1000,
+      thumbnailDataUri: 'data:image/svg+xml;base64,def',
+      classification: { label: 'Gaming', confidence: 0.92 },
+    },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Gallery Toggle Button', () => {
+    it('should show toggle button when screenshots provided', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} />)
+
+      expect(screen.getByTestId('toggle-gallery-button')).toBeInTheDocument()
+      expect(screen.getByTestId('toggle-gallery-button')).toHaveTextContent('Explore Demo')
+    })
+
+    it('should NOT show toggle button when no screenshots', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('toggle-gallery-button')).not.toBeInTheDocument()
+    })
+
+    it('should show onExplore button when no screenshots but onExplore provided', () => {
+      const onExplore = vi.fn()
+      render(<DemoChildCard {...defaultProps} onExplore={onExplore} />)
+
+      expect(screen.getByTestId('explore-demo-button')).toBeInTheDocument()
+    })
+  })
+
+  describe('Gallery Expansion', () => {
+    it('should NOT show gallery section by default', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} />)
+
+      expect(screen.queryByTestId('gallery-section')).not.toBeInTheDocument()
+    })
+
+    it('should show gallery when toggle button clicked', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} />)
+
+      fireEvent.click(screen.getByTestId('toggle-gallery-button'))
+
+      expect(screen.getByTestId('gallery-section')).toBeInTheDocument()
+    })
+
+    it('should change button text to Hide Gallery when expanded', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} />)
+
+      fireEvent.click(screen.getByTestId('toggle-gallery-button'))
+
+      expect(screen.getByTestId('toggle-gallery-button')).toHaveTextContent('Hide Gallery')
+    })
+
+    it('should hide gallery when toggle button clicked again', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} />)
+
+      // Expand
+      fireEvent.click(screen.getByTestId('toggle-gallery-button'))
+      expect(screen.getByTestId('gallery-section')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(screen.getByTestId('toggle-gallery-button'))
+      expect(screen.queryByTestId('gallery-section')).not.toBeInTheDocument()
+    })
+
+    it('should show gallery when showGallery prop is true', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} showGallery={true} />)
+
+      expect(screen.getByTestId('gallery-section')).toBeInTheDocument()
+    })
+  })
+
+  describe('Gallery Content', () => {
+    it('should render DemoScreenshotGallery inside gallery section', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} showGallery={true} />)
+
+      // Check that the gallery component is rendered
+      expect(screen.getByTestId('demo-screenshot-gallery')).toBeInTheDocument()
+    })
+
+    it('should pass screenshots to gallery component', () => {
+      render(<DemoChildCard {...defaultProps} screenshots={mockScreenshots} showGallery={true} />)
+
+      // Gallery should show correct count
+      expect(screen.getByTestId('results-count')).toHaveTextContent('Showing 2 of 2')
     })
   })
 })

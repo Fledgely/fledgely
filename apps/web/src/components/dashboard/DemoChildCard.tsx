@@ -4,6 +4,7 @@
  * DemoChildCard Component
  *
  * Story 8.5.1: Demo Child Profile Creation
+ * Story 8.5.2: Sample Screenshot Gallery Integration
  *
  * Displays a demo child profile for new parents.
  * Uses distinct visual styling to differentiate from real children.
@@ -12,11 +13,13 @@
  * - AC2: Clear demo label ("Demo - Sample Data")
  * - AC4: Distinct styling (dashed border, different background)
  * - AC5: Dismissible with confirmation
+ * - 8.5.2 AC1: Expandable gallery section
  */
 
 import { useState } from 'react'
 import type { DemoChild } from '../../hooks/useDemo'
-import type { DemoActivitySummary } from '../../data/demoData'
+import type { DemoActivitySummary, DemoScreenshot } from '../../data/demoData'
+import { DemoScreenshotGallery } from './demo'
 
 /**
  * Props for DemoChildCard component
@@ -32,6 +35,10 @@ export interface DemoChildCardProps {
   dismissing?: boolean
   /** Callback when user wants to explore demo (navigate to detail view) */
   onExplore?: () => void
+  /** Screenshots to display in expandable gallery */
+  screenshots?: DemoScreenshot[]
+  /** Whether to show inline gallery (default: false) */
+  showGallery?: boolean
 }
 
 /**
@@ -71,8 +78,11 @@ export function DemoChildCard({
   onDismiss,
   dismissing = false,
   onExplore,
+  screenshots,
+  showGallery: initialShowGallery = false,
 }: DemoChildCardProps) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false)
+  const [galleryExpanded, setGalleryExpanded] = useState(initialShowGallery)
 
   const age = calculateAge(demoChild.birthdate)
 
@@ -255,15 +265,27 @@ export function DemoChildCard({
 
       {/* Buttons */}
       <div style={buttonContainerStyles}>
-        {onExplore && (
+        {/* Show inline toggle if screenshots provided, otherwise show navigate button */}
+        {screenshots && screenshots.length > 0 ? (
           <button
             type="button"
             style={primaryButtonStyles}
-            onClick={onExplore}
-            data-testid="explore-demo-button"
+            onClick={() => setGalleryExpanded(!galleryExpanded)}
+            data-testid="toggle-gallery-button"
           >
-            Explore Demo
+            {galleryExpanded ? 'Hide Gallery' : 'Explore Demo'}
           </button>
+        ) : (
+          onExplore && (
+            <button
+              type="button"
+              style={primaryButtonStyles}
+              onClick={onExplore}
+              data-testid="explore-demo-button"
+            >
+              Explore Demo
+            </button>
+          )
         )}
         <button
           type="button"
@@ -275,6 +297,13 @@ export function DemoChildCard({
           {dismissing ? 'Dismissing...' : 'Dismiss Demo'}
         </button>
       </div>
+
+      {/* Expandable Gallery Section - Story 8.5.2 */}
+      {screenshots && screenshots.length > 0 && galleryExpanded && (
+        <div data-testid="gallery-section" style={{ marginTop: '16px' }}>
+          <DemoScreenshotGallery screenshots={screenshots} />
+        </div>
+      )}
 
       {/* Dismiss Confirmation Overlay */}
       {showDismissConfirm && (

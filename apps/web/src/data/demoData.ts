@@ -48,8 +48,20 @@ export function isDemoChild(childId: string): boolean {
 export type DemoScreenshotCategory = 'homework' | 'gaming' | 'social' | 'video' | 'creative'
 
 /**
+ * AI classification result for demo screenshots.
+ * Story 8.5.2 AC2: Each screenshot shows AI classification and confidence score
+ */
+export interface DemoScreenshotClassification {
+  /** Human-readable category label */
+  label: string
+  /** Confidence score from 0.0 to 1.0 */
+  confidence: number
+}
+
+/**
  * Demo screenshot entry structure.
  * Story 8.5.1 AC3: Sample screenshots pre-populated
+ * Story 8.5.2 AC2/AC3: Extended with classification and flagging
  */
 export interface DemoScreenshot {
   id: string
@@ -59,6 +71,31 @@ export interface DemoScreenshot {
   timestamp: number
   /** Placeholder data URI for the demo thumbnail */
   thumbnailDataUri: string
+  /** AI classification with confidence score (Story 8.5.2) */
+  classification: DemoScreenshotClassification
+  /** Whether this screenshot is flagged for review (Story 8.5.2 AC3) */
+  flagged?: boolean
+  /** Reason for flagging in non-accusatory language */
+  flagReason?: string
+}
+
+/**
+ * Get confidence level description based on score.
+ * Story 8.5.2: Classification display with confidence levels
+ */
+export function getConfidenceLevel(confidence: number): 'high' | 'medium' | 'low' {
+  if (confidence >= 0.9) return 'high'
+  if (confidence >= 0.7) return 'medium'
+  return 'low'
+}
+
+/**
+ * Get confidence level label for display.
+ */
+export function getConfidenceLevelLabel(confidence: number): string {
+  if (confidence >= 0.9) return 'Very confident'
+  if (confidence >= 0.7) return 'Confident'
+  return 'Uncertain'
 }
 
 /**
@@ -95,10 +132,23 @@ function generatePlaceholderImage(category: DemoScreenshotCategory): string {
 }
 
 /**
+ * Category labels for classification display.
+ * Story 8.5.2 AC2: Human-readable classification labels
+ */
+export const CATEGORY_LABELS: Record<DemoScreenshotCategory, string> = {
+  homework: 'Educational',
+  gaming: 'Gaming',
+  social: 'Social Media',
+  video: 'Video Content',
+  creative: 'Creative',
+}
+
+/**
  * Sample screenshot data spanning multiple days.
- * Provides variety of categories and timestamps.
+ * Provides variety of categories, timestamps, classifications, and flagging.
  *
- * Story 8.5.2 will expand this for the full gallery view.
+ * Story 8.5.1: Base demo data
+ * Story 8.5.2: Extended with classification and flagging
  */
 export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
   {
@@ -108,6 +158,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'homework',
     timestamp: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
     thumbnailDataUri: generatePlaceholderImage('homework'),
+    classification: { label: 'Educational', confidence: 0.95 },
   },
   {
     id: 'demo-screenshot-2',
@@ -116,6 +167,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'gaming',
     timestamp: Date.now() - 4 * 60 * 60 * 1000, // 4 hours ago
     thumbnailDataUri: generatePlaceholderImage('gaming'),
+    classification: { label: 'Gaming', confidence: 0.92 },
   },
   {
     id: 'demo-screenshot-3',
@@ -124,6 +176,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'video',
     timestamp: Date.now() - 24 * 60 * 60 * 1000, // Yesterday
     thumbnailDataUri: generatePlaceholderImage('video'),
+    classification: { label: 'Video Content', confidence: 0.88 },
   },
   {
     id: 'demo-screenshot-4',
@@ -132,6 +185,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'homework',
     timestamp: Date.now() - 26 * 60 * 60 * 1000, // Yesterday
     thumbnailDataUri: generatePlaceholderImage('homework'),
+    classification: { label: 'Educational', confidence: 0.91 },
   },
   {
     id: 'demo-screenshot-5',
@@ -140,6 +194,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'creative',
     timestamp: Date.now() - 48 * 60 * 60 * 1000, // 2 days ago
     thumbnailDataUri: generatePlaceholderImage('creative'),
+    classification: { label: 'Creative', confidence: 0.87 },
   },
   {
     id: 'demo-screenshot-6',
@@ -148,6 +203,8 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'gaming',
     timestamp: Date.now() - 50 * 60 * 60 * 1000, // 2 days ago
     thumbnailDataUri: generatePlaceholderImage('gaming'),
+    classification: { label: 'Gaming', confidence: 0.76 },
+    // Lower confidence - demonstrates uncertain classification
   },
   {
     id: 'demo-screenshot-7',
@@ -156,6 +213,7 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'homework',
     timestamp: Date.now() - 72 * 60 * 60 * 1000, // 3 days ago
     thumbnailDataUri: generatePlaceholderImage('homework'),
+    classification: { label: 'Educational', confidence: 0.94 },
   },
   {
     id: 'demo-screenshot-8',
@@ -164,8 +222,64 @@ export const DEMO_SCREENSHOTS: DemoScreenshot[] = [
     category: 'video',
     timestamp: Date.now() - 96 * 60 * 60 * 1000, // 4 days ago
     thumbnailDataUri: generatePlaceholderImage('video'),
+    classification: { label: 'Video Content', confidence: 0.89 },
+  },
+  // Story 8.5.2 AC3: Flagged screenshots demonstrating flagging behavior
+  {
+    id: 'demo-screenshot-9',
+    title: 'Chat Messages',
+    url: 'https://messages.example.com',
+    category: 'social',
+    timestamp: Date.now() - 5 * 60 * 60 * 1000, // 5 hours ago
+    thumbnailDataUri: generatePlaceholderImage('social'),
+    classification: { label: 'Social Media', confidence: 0.82 },
+    flagged: true,
+    flagReason:
+      'This content was flagged because it appears to be a messaging app. This is a great opportunity to have a conversation about online communication.',
+  },
+  {
+    id: 'demo-screenshot-10',
+    title: 'Health Information Search',
+    url: 'https://health-info.example.com',
+    category: 'homework',
+    timestamp: Date.now() - 28 * 60 * 60 * 1000, // Yesterday afternoon
+    thumbnailDataUri: generatePlaceholderImage('homework'),
+    classification: { label: 'Educational', confidence: 0.65 },
+    flagged: true,
+    flagReason:
+      'This content was flagged because it contains health-related searches. This might be a good time to check in and see if your child has any questions.',
   },
 ]
+
+/**
+ * Get flagged demo screenshots.
+ * Story 8.5.2 AC3: Filter for flagged items
+ */
+export function getFlaggedDemoScreenshots(): DemoScreenshot[] {
+  return DEMO_SCREENSHOTS.filter((s) => s.flagged === true)
+}
+
+/**
+ * Filter demo screenshots by category.
+ * Story 8.5.2 AC6: Category filtering
+ */
+export function filterDemoScreenshotsByCategory(
+  category: DemoScreenshotCategory | 'all'
+): DemoScreenshot[] {
+  if (category === 'all') return DEMO_SCREENSHOTS
+  return DEMO_SCREENSHOTS.filter((s) => s.category === category)
+}
+
+/**
+ * Search demo screenshots by title or URL.
+ * Story 8.5.2 AC6: Search functionality
+ */
+export function searchDemoScreenshots(query: string): DemoScreenshot[] {
+  const lowerQuery = query.toLowerCase()
+  return DEMO_SCREENSHOTS.filter(
+    (s) => s.title.toLowerCase().includes(lowerQuery) || s.url.toLowerCase().includes(lowerQuery)
+  )
+}
 
 /**
  * Get demo screenshots grouped by day for timeline display.
