@@ -437,7 +437,7 @@ development_status:
   # Epic 29: Time Tracking Foundation
   epic-29: in-progress
   29-1-screen-time-data-model: done
-  29-2-chromebook-screen-time-capture: backlog
+  29-2-chromebook-screen-time-capture: done
   29-3-android-screen-time-capture: backlog
   29-4-parent-screen-time-dashboard: backlog
   29-5-child-screen-time-view: backlog

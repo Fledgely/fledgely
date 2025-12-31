@@ -35,6 +35,14 @@ import { validateEnrollmentState, isEnrolled } from './enrollment-state'
 import { verifyDeviceEnrollment } from './enrollment-service'
 import { setupHealthSyncAlarm } from './health-metrics'
 import {
+  initScreenTimeTracking,
+  handleTabActivated,
+  handleTabUpdated,
+  handleIdleStateChanged,
+  syncScreenTime,
+  ALARM_SCREEN_TIME_SYNC,
+} from './screen-time'
+import {
   checkConsentStatusWithCache,
   clearConsentCache,
   shouldEnableMonitoring,
@@ -865,6 +873,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Story 19.4: Set up health metrics sync alarm (5 min interval)
   setupHealthSyncAlarm()
 
+  // Story 29.2: Initialize screen time tracking (15 min sync interval)
+  await initScreenTimeTracking()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -905,6 +916,9 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Story 19.4: Set up health metrics sync alarm (5 min interval)
   setupHealthSyncAlarm()
+
+  // Story 29.2: Initialize screen time tracking (15 min sync interval)
+  await initScreenTimeTracking()
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {
@@ -1510,6 +1524,18 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return
   }
 
+  // Story 29.2: Screen time sync - requires monitoring and consent
+  if (alarm.name === ALARM_SCREEN_TIME_SYNC) {
+    console.log('[Fledgely] Screen time sync alarm triggered')
+    const { state: syncState } = await chrome.storage.local.get('state')
+    if (syncState?.enrolled && syncState?.consentStatus === 'granted') {
+      await syncScreenTime()
+    } else {
+      console.log('[Fledgely] Screen time sync skipped - not enrolled or no consent')
+    }
+    return
+  }
+
   // Check if monitoring is still enabled before processing capture/upload alarms
   const { state } = await chrome.storage.local.get('state')
   if (!state?.monitoringEnabled) {
@@ -1541,7 +1567,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 })
 
-// Idle state change listener (Story 10.5, Story 10.6 logging)
+// Idle state change listener (Story 10.5, Story 10.6 logging, Story 29.2 screen time)
 chrome.idle.onStateChanged.addListener(async (newState) => {
   const previousState = isDeviceIdle
 
@@ -1564,11 +1590,19 @@ chrome.idle.onStateChanged.addListener(async (newState) => {
       await logCaptureEvent('idle_resume', true, { queueSize })
     }
   }
+
+  // Story 29.2: Update screen time tracking on idle state change
+  try {
+    await handleIdleStateChanged(newState)
+  } catch {
+    // Screen time tracking failures are non-critical
+  }
 })
 
 // Tab navigation listener (Story 11.3: Protected Site Visual Indicator)
 // Updates badge when user navigates to/from protected sites
 // NOTE: This does NOT log anything - privacy requirement (AC6)
+// Story 29.2: Also handles screen time tracking for URL changes
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   // Only check on complete load to avoid flickering
   if (changeInfo.status === 'complete' && tab.url) {
@@ -1578,11 +1612,21 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       // Silently fail - badge updates are non-critical
     }
   }
+
+  // Story 29.2: Track screen time on URL changes
+  if (changeInfo.url) {
+    try {
+      await handleTabUpdated(tabId, changeInfo, tab)
+    } catch {
+      // Screen time tracking failures are non-critical
+    }
+  }
 })
 
 // Tab activation listener (Story 11.3: Protected Site Visual Indicator)
 // Updates badge when user switches to a different tab
 // NOTE: This does NOT log anything - privacy requirement (AC6)
+// Story 29.2: Also handles screen time tracking for tab switches
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId)
@@ -1591,6 +1635,13 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     }
   } catch {
     // Silently fail - badge updates are non-critical
+  }
+
+  // Story 29.2: Track screen time on tab switch
+  try {
+    await handleTabActivated(activeInfo.tabId)
+  } catch {
+    // Screen time tracking failures are non-critical
   }
 })
 
