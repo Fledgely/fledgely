@@ -67,7 +67,7 @@ export { grantCaregiverExtension } from './callable/grantCaregiverExtension'
 export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 
 // Export triggers here as they are implemented
-// export { onScreenshotCreated } from './triggers/onScreenshotCreated'
+export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
 
 // Export scheduled functions here as they are implemented
@@ -84,3 +84,6 @@ export {
   checkWithdrawalStatus,
   cancelConsentWithdrawal,
 } from './http/consent'
+
+// Classification HTTP handlers (Story 20.1)
+export { processClassification } from './http/classification'

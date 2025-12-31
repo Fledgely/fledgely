@@ -96,3 +96,47 @@ export {
   type AccessWindow,
   type FamilyCaregiver,
 } from './contracts'
+
+// Classification exports (Story 20.1, 20.4, 20.5)
+export {
+  classificationStatusSchema,
+  categorySchema,
+  classificationResultSchema,
+  classificationJobSchema,
+  secondaryCategorySchema,
+  classificationDebugSchema,
+  CLASSIFICATION_CONFIG,
+  CATEGORY_VALUES,
+  DEBUG_RETENTION_MS,
+  calculateBackoffDelay,
+  type ClassificationStatus,
+  type Category,
+  type ClassificationResult,
+  type ClassificationJob,
+  type SecondaryCategory,
+  type ClassificationDebug,
+} from './contracts'
+
+// Category definitions exports (Story 20.2)
+export {
+  TAXONOMY_VERSION,
+  LOW_CONFIDENCE_THRESHOLD,
+  CATEGORY_DEFINITIONS,
+  getCategoryDefinition,
+  getCategoryDescription,
+  getCategoryExamples,
+  getAllCategoryDefinitions,
+  buildCategoryDefinitionsForPrompt,
+  type CategoryDefinition,
+} from './constants/category-definitions'
+
+// Confidence score exports (Story 20.3, 20.4)
+export {
+  CONFIDENCE_THRESHOLDS,
+  MAX_CATEGORIES,
+  getConfidenceLevelFromScore,
+  classificationNeedsReview,
+  shouldTriggerAutomation,
+  getConfidenceLevelColor,
+  type ConfidenceLevel,
+} from './constants/confidence'

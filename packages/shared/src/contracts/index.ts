@@ -2315,3 +2315,217 @@ export const selfRemoveFromFamilyResponseSchema = z.object({
   message: z.string(),
 })
 export type SelfRemoveFromFamilyResponse = z.infer<typeof selfRemoveFromFamilyResponseSchema>
+
+// ============================================================================
+// Epic 20: AI Classification - Basic Categories
+// Story 20.1: Classification Service Architecture
+// ============================================================================
+
+/**
+ * Classification status states.
+ *
+ * Story 20.1: Classification Service Architecture - AC4, AC6
+ * Tracks the lifecycle of a screenshot classification.
+ */
+export const classificationStatusSchema = z.enum([
+  'pending', // Screenshot uploaded, classification not started
+  'processing', // Classification in progress
+  'completed', // Classification finished successfully
+  'failed', // Classification failed after retries
+])
+export type ClassificationStatus = z.infer<typeof classificationStatusSchema>
+
+/**
+ * Screenshot content categories.
+ *
+ * Story 20.1: Classification Service Architecture
+ * Story 20.2: Basic Category Taxonomy (preview - full implementation in 20.2)
+ *
+ * Family-friendly category labels (not judgment-laden).
+ */
+export const CATEGORY_VALUES = [
+  'Homework',
+  'Educational',
+  'Social Media',
+  'Gaming',
+  'Entertainment',
+  'Communication',
+  'Creative',
+  'Shopping',
+  'News',
+  'Other',
+] as const
+
+export const categorySchema = z.enum(CATEGORY_VALUES)
+export type Category = z.infer<typeof categorySchema>
+
+/**
+ * Story 20.4: Multi-Label Classification - AC2
+ * Secondary category with its own confidence score.
+ */
+export const secondaryCategorySchema = z.object({
+  /** Category name */
+  category: categorySchema,
+  /** Confidence score (0-100) for this secondary category */
+  confidence: z.number().min(0).max(100),
+})
+export type SecondaryCategory = z.infer<typeof secondaryCategorySchema>
+
+/**
+ * Classification result stored on screenshot document.
+ *
+ * Story 20.1: Classification Service Architecture - AC4
+ * Story 20.2: Basic Category Taxonomy - AC5, AC6
+ * Story 20.3: Confidence Score Assignment - AC4, AC6
+ * Story 20.4: Multi-Label Classification - AC1, AC2, AC3
+ * Fields added to Firestore screenshot document after classification.
+ */
+export const classificationResultSchema = z.object({
+  /** Current classification status */
+  status: classificationStatusSchema,
+  /** Primary category assigned to screenshot */
+  primaryCategory: categorySchema.optional(),
+  /** Confidence score (0-100) for primary category */
+  confidence: z.number().min(0).max(100).optional(),
+  /** When classification was completed (epoch ms) */
+  classifiedAt: z.number().optional(),
+  /** Model version used for classification */
+  modelVersion: z.string().optional(),
+  /** Error message if classification failed */
+  error: z.string().optional(),
+  /** Number of retry attempts */
+  retryCount: z.number().default(0),
+  /**
+   * Story 20.2: Basic Category Taxonomy - AC6
+   * True when all category confidences were below LOW_CONFIDENCE_THRESHOLD.
+   * Screenshot was assigned to "Other" as a fallback.
+   */
+  isLowConfidence: z.boolean().optional(),
+  /**
+   * Story 20.2: Basic Category Taxonomy - AC5
+   * Taxonomy version used for classification (for migration support).
+   */
+  taxonomyVersion: z.string().optional(),
+  /**
+   * Story 20.3: Confidence Score Assignment - AC4
+   * True when classification needs manual review due to low confidence.
+   * Set when confidence < 60% OR isLowConfidence=true.
+   * Low-confidence classifications don't trigger automated actions (AC6).
+   */
+  needsReview: z.boolean().optional(),
+  /**
+   * Story 20.4: Multi-Label Classification - AC2, AC3
+   * Secondary categories with confidence > 50%, max 2 entries.
+   * Empty array if no secondary categories qualify.
+   */
+  secondaryCategories: z.array(secondaryCategorySchema).max(2).optional(),
+})
+export type ClassificationResult = z.infer<typeof classificationResultSchema>
+
+/**
+ * Classification job input for Cloud Tasks queue.
+ *
+ * Story 20.1: Classification Service Architecture - AC5
+ * Payload structure for queued classification jobs.
+ */
+export const classificationJobSchema = z.object({
+  /** Child ID for screenshot lookup */
+  childId: z.string(),
+  /** Screenshot ID to classify */
+  screenshotId: z.string(),
+  /** Firebase Storage path to image */
+  storagePath: z.string(),
+  /** Page URL for context hints */
+  url: z.string().optional(),
+  /** Page title for context hints */
+  title: z.string().optional(),
+  /** Family ID for rate limiting */
+  familyId: z.string(),
+  /** Current retry count */
+  retryCount: z.number().default(0),
+})
+export type ClassificationJob = z.infer<typeof classificationJobSchema>
+
+/**
+ * Classification configuration constants.
+ *
+ * Story 20.1: Classification Service Architecture - AC3, AC6
+ */
+export const CLASSIFICATION_CONFIG = {
+  /** Maximum time for classification (NFR3: 30 seconds) */
+  TIMEOUT_MS: 30000,
+  /** Maximum retry attempts */
+  MAX_RETRIES: 3,
+  /** Exponential backoff base delay (ms) */
+  RETRY_BASE_DELAY_MS: 1000,
+  /** Cloud Tasks queue name */
+  QUEUE_NAME: 'screenshot-classification',
+  /** Gemini model to use */
+  MODEL_NAME: 'gemini-1.5-flash',
+  /** Vertex AI location */
+  LOCATION: 'us-central1',
+} as const
+
+/**
+ * Calculate exponential backoff delay.
+ *
+ * Story 20.1: Classification Service Architecture - AC6
+ * Calculates delay for retry attempt using exponential backoff.
+ *
+ * @param retryCount - Current retry attempt (0-based)
+ * @returns Delay in milliseconds (1s, 2s, 4s)
+ */
+export function calculateBackoffDelay(retryCount: number): number {
+  return CLASSIFICATION_CONFIG.RETRY_BASE_DELAY_MS * Math.pow(2, retryCount)
+}
+
+/**
+ * Classification debug record for raw AI responses.
+ *
+ * Story 20.5: Classification Metadata Storage - AC4
+ * Stores raw Gemini response for debugging and analysis.
+ * Records auto-expire after 30 days via TTL.
+ */
+export const classificationDebugSchema = z.object({
+  /** Screenshot ID this debug record belongs to */
+  screenshotId: z.string(),
+  /** Child ID for reference */
+  childId: z.string(),
+  /** When debug record was created (epoch ms) */
+  timestamp: z.number(),
+
+  /** Request context sent to AI */
+  requestContext: z.object({
+    /** Page URL if provided */
+    url: z.string().optional(),
+    /** Page title if provided */
+    title: z.string().optional(),
+    /** Image size in bytes */
+    imageSize: z.number().optional(),
+  }),
+
+  /** Raw JSON response from Gemini (stringified) */
+  rawResponse: z.string(),
+
+  /** Parsed classification result */
+  parsedResult: z.object({
+    primaryCategory: categorySchema,
+    confidence: z.number().min(0).max(100),
+    secondaryCategories: z.array(secondaryCategorySchema).optional(),
+    reasoning: z.string().optional(),
+  }),
+
+  /** Model version used */
+  modelVersion: z.string(),
+  /** Taxonomy version used */
+  taxonomyVersion: z.string(),
+  /** Processing time in milliseconds */
+  processingTimeMs: z.number().optional(),
+
+  /** Auto-expiry timestamp (epoch ms) - 30 days from creation */
+  expiresAt: z.number(),
+})
+export type ClassificationDebug = z.infer<typeof classificationDebugSchema>
+
+/** Debug record retention period (30 days in milliseconds) */
+export const DEBUG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000

@@ -78,6 +78,67 @@
         { "fieldPath": "dismissed", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.status", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.primaryCategory", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "classificationErrors",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "resolved", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.primaryCategory", "order": "ASCENDING" },
+        { "fieldPath": "classification.confidence", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.needsReview", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.modelVersion", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "classificationDebug",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "screenshotId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "classificationDebug",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "expiresAt", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": []
