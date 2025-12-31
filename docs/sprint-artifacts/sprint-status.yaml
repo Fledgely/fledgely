@@ -435,13 +435,13 @@ development_status:
   epic-28-retrospective: completed
 
   # Epic 29: Time Tracking Foundation
-  epic-29: in-progress
+  epic-29: done
   29-1-screen-time-data-model: done
   29-2-chromebook-screen-time-capture: done
   29-3-android-screen-time-capture: skipped # No Android app in codebase
   29-4-parent-screen-time-dashboard: done
   29-5-child-screen-time-view: done
-  29-6-screen-time-accuracy-validation: backlog
+  29-6-screen-time-accuracy-validation: done
   epic-29-retrospective: optional
 
   # Epic 30: Time Limits Configuration
