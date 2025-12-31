@@ -1,10 +1,11 @@
 'use client'
 
 /**
- * Child Dashboard Page - Story 19B.1
+ * Child Dashboard Page - Story 19B.1, Story 23.1
  *
  * Main dashboard for authenticated children.
  * Shows screenshot gallery with child-friendly design.
+ * Shows flag notifications pending child annotation (Story 23.1).
  *
  * Task 6: Create Child Dashboard Layout (AC: #1, #5)
  * - 6.1 Create /child/dashboard page
@@ -12,15 +13,22 @@
  * - 6.3 Add "My Screenshots" section as primary content
  * - 6.4 Use sky blue color scheme (distinct from parent purple)
  * - 6.5 Ensure fully responsive layout
+ *
+ * Story 23.1 - Task 5: Integrate flag notifications
+ * - 5.1 Add ChildFlagNotificationBanner to child-facing pages
+ * - 5.2 Show notification count badge if pending flags exist
+ * - 5.3 Route to annotation screen (placeholder until Story 23-2)
  */
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChildAuthGuard } from '../../../components/child/ChildAuthGuard'
 import { ChildScreenshotGallery } from '../../../components/child/ChildScreenshotGallery'
 import { ChildScreenshotDetail } from '../../../components/child/ChildScreenshotDetail'
+import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlagNotificationBanner'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
+import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -140,6 +148,30 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     backgroundColor: '#10b981', // green-500
   },
+  // Story 23.1 - Notification badge styles
+  notificationBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 10px',
+    backgroundColor: '#fef3c7', // amber-100
+    borderRadius: '9999px',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: '#92400e', // amber-800
+    cursor: 'pointer',
+    border: '2px solid #fcd34d', // amber-300
+    transition: 'all 0.15s ease',
+  },
+  notificationIcon: {
+    fontSize: '1rem',
+  },
+  notificationsSection: {
+    marginBottom: '16px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
 }
 
 /**
@@ -155,6 +187,22 @@ function DashboardContent() {
     childId: childSession?.childId || null,
     enabled: !!childSession?.childId,
   })
+
+  // Story 23.1 - Fetch pending flags for annotation
+  const { pendingFlags, pendingCount } = useChildPendingFlags({
+    childId: childSession?.childId || '',
+  })
+
+  // Story 23.1 - Handle navigation to annotation screen
+  // Placeholder until Story 23-2 implements the annotation screen
+  const handleAddContext = useCallback((flagId: string) => {
+    // TODO: Story 23-2 will implement /child/annotate/[flagId] route
+    // For now, we log and show alert
+    // eslint-disable-next-line no-console
+    console.log('Navigate to annotation screen for flag:', flagId)
+    // In production, this would be: router.push(`/child/annotate/${flagId}`)
+    alert(`Annotation screen coming soon! (Flag ID: ${flagId})`)
+  }, [])
 
   const handleLogout = () => {
     signOutChild()
@@ -196,6 +244,32 @@ function DashboardContent() {
         </div>
 
         <div style={styles.headerRight}>
+          {/* Story 23.1 - Notification badge */}
+          {pendingCount > 0 && (
+            <div
+              style={styles.notificationBadge}
+              data-testid="notification-badge"
+              onClick={() => {
+                // Scroll to notifications section
+                document
+                  .getElementById('notifications-section')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  document
+                    .getElementById('notifications-section')
+                    ?.scrollIntoView({ behavior: 'smooth' })
+                }
+              }}
+            >
+              <span style={styles.notificationIcon}>💬</span>
+              <span>{pendingCount} to review</span>
+            </div>
+          )}
+
           {/* Session indicator */}
           <div style={styles.sessionIndicator} data-testid="session-indicator">
             <div style={styles.sessionDot} />
@@ -233,6 +307,23 @@ function DashboardContent() {
             sees the same things you do!
           </p>
         </div>
+
+        {/* Story 23.1 - Flag notification banners */}
+        {pendingFlags.length > 0 && (
+          <div
+            id="notifications-section"
+            style={styles.notificationsSection}
+            data-testid="notifications-section"
+          >
+            {pendingFlags.map((flag) => (
+              <ChildFlagNotificationBanner
+                key={flag.id}
+                flag={flag}
+                onAddContext={handleAddContext}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Screenshot gallery */}
         <div style={styles.galleryCard}>

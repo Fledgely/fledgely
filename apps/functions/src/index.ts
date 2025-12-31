@@ -69,6 +69,7 @@ export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 // Export triggers here as they are implemented
 export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
+export { onFlagCreated } from './triggers/onFlagCreated' // Story 23.1
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'

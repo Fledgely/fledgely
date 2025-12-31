@@ -2,9 +2,12 @@
  * Flag Storage Service
  *
  * Story 21.5: Flag Creation and Storage - AC1, AC2, AC3, AC5, AC6
+ * Story 23.1: Flag Notification to Child - AC1, AC6
  *
  * Creates and stores flag documents in dedicated Firestore collection
  * for efficient querying and parent review functionality.
+ *
+ * Also handles child notification status for annotation window (Story 23.1).
  */
 
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
@@ -16,6 +19,7 @@ import {
   type ConcernSeverity,
   type FlagStatus,
   type UpdateFlagFeedbackParams,
+  type ChildNotificationStatus,
 } from '@fledgely/shared'
 
 // Lazy Firestore initialization for testing
@@ -102,6 +106,14 @@ export async function createFlag(params: CreateFlagParams): Promise<FlagDocument
   const screenshotRef = generateScreenshotRef(childId, screenshotId)
   const createdAt = Date.now()
 
+  // Story 23.1 - Determine child notification status
+  // If distress-suppressed (sensitive_hold), skip notification
+  // Otherwise, set to pending for Cloud Function to send notification
+  const isDistressSuppressed = status === 'sensitive_hold' && !!suppressionReason
+  const childNotificationStatus: ChildNotificationStatus = isDistressSuppressed
+    ? 'skipped'
+    : 'pending'
+
   // Build flag document
   const flagDocument: FlagDocument = {
     id: flagId,
@@ -116,6 +128,8 @@ export async function createFlag(params: CreateFlagParams): Promise<FlagDocument
     createdAt,
     status,
     throttled,
+    // Story 23.1 - Child notification tracking
+    childNotificationStatus,
     // Include optional fields only if present
     ...(suppressionReason && { suppressionReason }),
     ...(releasableAfter !== undefined && { releasableAfter }),

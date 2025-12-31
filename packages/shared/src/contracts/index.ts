@@ -2672,6 +2672,22 @@ export const flagNoteSchema = z.object({
 export type FlagNote = z.infer<typeof flagNoteSchema>
 
 /**
+ * Story 23.1: Flag Notification to Child - AC1
+ * Status of child notification for a flag.
+ * - pending: Notification queued but not yet sent
+ * - notified: Child has been notified, waiting for annotation
+ * - skipped: Notification skipped (distress suppression or other reason)
+ */
+export const childNotificationStatusSchema = z.enum(['pending', 'notified', 'skipped'])
+export type ChildNotificationStatus = z.infer<typeof childNotificationStatusSchema>
+
+/**
+ * Story 23.1: Flag Notification to Child - AC5
+ * 30-minute annotation window constant (in milliseconds).
+ */
+export const ANNOTATION_WINDOW_MS = 30 * 60 * 1000 // 30 minutes
+
+/**
  * Story 21.5: Flag Creation and Storage - AC1, AC2
  * Flag document stored in /children/{childId}/flags/{flagId}
  * Provides dedicated queryable storage for concern flags.
@@ -2737,6 +2753,14 @@ export const flagDocumentSchema = z.object({
   // Co-parent visibility fields (from Story 22-6)
   /** Array of parent IDs who have viewed this flag */
   viewedBy: z.array(z.string()).optional(),
+
+  // Child notification fields (from Story 23-1)
+  /** When child was notified about this flag (epoch ms) */
+  childNotifiedAt: z.number().optional(),
+  /** When annotation window expires (epoch ms) - createdAt + 30 minutes */
+  annotationDeadline: z.number().optional(),
+  /** Status of child notification: pending, notified, or skipped */
+  childNotificationStatus: childNotificationStatusSchema.optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 
