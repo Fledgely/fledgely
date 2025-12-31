@@ -8,6 +8,7 @@
  * Story 8.5.3: Sample Time Tracking Display Integration
  * Story 8.5.4: Sample Flag & Alert Examples Integration
  * Story 8.5.5: Demo-to-Real Transition
+ * Story 8.5.6: Demo for Child Explanation
  *
  * Displays a demo child profile for new parents.
  * Uses distinct visual styling to differentiate from real children.
@@ -20,6 +21,7 @@
  * - 8.5.3 AC1: Time tracking section in demo card
  * - 8.5.4 AC1: Flag review section in demo card
  * - 8.5.5 AC1: Clear "Start with Your Child" CTA
+ * - 8.5.6 AC1: Child explanation mode accessible
  */
 
 import { useState } from 'react'
@@ -30,6 +32,7 @@ import {
   DemoTimeTrackingPanel,
   DemoFlagReviewPanel,
   DemoTransitionCTA,
+  ChildFriendlyOverlay,
 } from './demo'
 
 /**
@@ -60,6 +63,12 @@ export interface DemoChildCardProps {
   hasExploredDemo?: boolean
   /** Whether start action is in progress (Story 8.5.5) */
   starting?: boolean
+  /** Callback when user clicks "Explain to Child" (Story 8.5.6) */
+  onExplainToChild?: () => void
+  /** Whether child explanation mode is active (Story 8.5.6) */
+  isChildExplanationMode?: boolean
+  /** Callback when user exits child explanation mode (Story 8.5.6) */
+  onExitChildExplanationMode?: () => void
 }
 
 /**
@@ -106,6 +115,9 @@ export function DemoChildCard({
   onStartWithRealChild,
   hasExploredDemo = false,
   starting = false,
+  onExplainToChild,
+  isChildExplanationMode = false,
+  onExitChildExplanationMode,
 }: DemoChildCardProps) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false)
   const [galleryExpanded, setGalleryExpanded] = useState(initialShowGallery)
@@ -326,10 +338,19 @@ export function DemoChildCard({
         </button>
       </div>
 
-      {/* Expandable Gallery Section - Story 8.5.2 */}
+      {/* Expandable Gallery Section - Story 8.5.2, 8.5.6 */}
       {screenshots && screenshots.length > 0 && galleryExpanded && (
         <div data-testid="gallery-section" style={{ marginTop: '16px' }}>
-          <DemoScreenshotGallery screenshots={screenshots} />
+          {isChildExplanationMode && onExitChildExplanationMode ? (
+            <ChildFriendlyOverlay
+              section="screenshots"
+              onExitChildMode={onExitChildExplanationMode}
+            >
+              <DemoScreenshotGallery screenshots={screenshots} />
+            </ChildFriendlyOverlay>
+          ) : (
+            <DemoScreenshotGallery screenshots={screenshots} />
+          )}
         </div>
       )}
 
@@ -360,10 +381,19 @@ export function DemoChildCard({
         </button>
       </div>
 
-      {/* Expandable Time Tracking Section - Story 8.5.3 */}
+      {/* Expandable Time Tracking Section - Story 8.5.3, 8.5.6 */}
       {timeTrackingExpanded && (
         <div data-testid="time-tracking-section" style={{ marginTop: '16px' }}>
-          <DemoTimeTrackingPanel />
+          {isChildExplanationMode && onExitChildExplanationMode ? (
+            <ChildFriendlyOverlay
+              section="time-tracking"
+              onExitChildMode={onExitChildExplanationMode}
+            >
+              <DemoTimeTrackingPanel />
+            </ChildFriendlyOverlay>
+          ) : (
+            <DemoTimeTrackingPanel />
+          )}
         </div>
       )}
 
@@ -394,10 +424,45 @@ export function DemoChildCard({
         </button>
       </div>
 
-      {/* Expandable Flag Review Section - Story 8.5.4 */}
+      {/* Expandable Flag Review Section - Story 8.5.4, 8.5.6 */}
       {flagReviewExpanded && (
         <div data-testid="flag-review-section" style={{ marginTop: '16px' }}>
-          <DemoFlagReviewPanel />
+          {isChildExplanationMode && onExitChildExplanationMode ? (
+            <ChildFriendlyOverlay section="flags" onExitChildMode={onExitChildExplanationMode}>
+              <DemoFlagReviewPanel />
+            </ChildFriendlyOverlay>
+          ) : (
+            <DemoFlagReviewPanel />
+          )}
+        </div>
+      )}
+
+      {/* Explain to Child Button - Story 8.5.6 */}
+      {onExplainToChild && (
+        <div style={{ marginTop: '12px' }}>
+          <button
+            type="button"
+            onClick={onExplainToChild}
+            data-testid="explain-to-child-button"
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              backgroundColor: isChildExplanationMode ? '#a78bfa' : '#faf5ff',
+              color: isChildExplanationMode ? 'white' : '#7c3aed',
+              border: '1px dashed #c4b5fd',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <span aria-hidden="true">👨‍👧</span>
+            <span>{isChildExplanationMode ? 'Exit Child Explanation' : 'Explain to Child'}</span>
+          </button>
         </div>
       )}
 

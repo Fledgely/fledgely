@@ -796,4 +796,176 @@ describe('useDemo (Story 8.5.1)', () => {
       })
     })
   })
+
+  describe('Child Explanation Mode (Story 8.5.6)', () => {
+    describe('AC1: Child-Friendly Explanations Mode', () => {
+      it('should provide isChildExplanationMode state defaulting to false', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        expect(result.current.isChildExplanationMode).toBe(false)
+      })
+
+      it('should provide enterChildExplanationMode function', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        expect(typeof result.current.enterChildExplanationMode).toBe('function')
+      })
+
+      it('should provide exitChildExplanationMode function', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        expect(typeof result.current.exitChildExplanationMode).toBe('function')
+      })
+
+      it('should set isChildExplanationMode to true when enterChildExplanationMode is called', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        expect(result.current.isChildExplanationMode).toBe(false)
+
+        act(() => {
+          result.current.enterChildExplanationMode()
+        })
+
+        expect(result.current.isChildExplanationMode).toBe(true)
+      })
+
+      it('should set isChildExplanationMode to false when exitChildExplanationMode is called', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        // Enter child mode first
+        act(() => {
+          result.current.enterChildExplanationMode()
+        })
+
+        expect(result.current.isChildExplanationMode).toBe(true)
+
+        // Exit child mode
+        act(() => {
+          result.current.exitChildExplanationMode()
+        })
+
+        expect(result.current.isChildExplanationMode).toBe(false)
+      })
+    })
+
+    describe('AC6: Child Device Viewing', () => {
+      it('should provide childModeShareUrl when in child explanation mode', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        // Initially no share URL
+        expect(result.current.childModeShareUrl).toBeNull()
+
+        // Enter child mode
+        act(() => {
+          result.current.enterChildExplanationMode()
+        })
+
+        // Should have a share URL now
+        expect(result.current.childModeShareUrl).not.toBeNull()
+        expect(result.current.childModeShareUrl).toContain('mode=child-explain')
+      })
+
+      it('should clear childModeShareUrl when exiting child explanation mode', async () => {
+        mockOnSnapshot.mockImplementation((_, callback: (snapshot: unknown) => void) => {
+          callback({
+            exists: () => true,
+            data: () => ({ showDemoProfile: true }),
+          })
+          return () => {}
+        })
+
+        const { result } = renderHook(() => useDemo('family-123', false))
+
+        await waitFor(() => {
+          expect(result.current.loading).toBe(false)
+        })
+
+        // Enter child mode
+        act(() => {
+          result.current.enterChildExplanationMode()
+        })
+
+        expect(result.current.childModeShareUrl).not.toBeNull()
+
+        // Exit child mode
+        act(() => {
+          result.current.exitChildExplanationMode()
+        })
+
+        expect(result.current.childModeShareUrl).toBeNull()
+      })
+    })
+  })
 })

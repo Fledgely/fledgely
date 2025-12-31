@@ -6,6 +6,7 @@
  * Story 8.5.3: Time Tracking Display Integration
  * Story 8.5.4: Flag & Alert Examples Integration
  * Story 8.5.5: Demo-to-Real Transition Integration
+ * Story 8.5.6: Demo for Child Explanation Integration
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -596,6 +597,206 @@ describe('DemoChildCard - Transition CTA Integration (Story 8.5.5)', () => {
       )
 
       expect(screen.getByTestId('start-with-child-button')).toBeDisabled()
+    })
+  })
+})
+
+/**
+ * Story 8.5.6: Demo for Child Explanation Integration Tests
+ */
+describe('DemoChildCard - Child Explanation Mode Integration (Story 8.5.6)', () => {
+  const mockOnExplainToChild = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Explain to Child Button Visibility', () => {
+    it('should show "Explain to Child" button when onExplainToChild provided', () => {
+      render(<DemoChildCard {...defaultProps} onExplainToChild={mockOnExplainToChild} />)
+
+      expect(screen.getByTestId('explain-to-child-button')).toBeInTheDocument()
+    })
+
+    it('should NOT show button when onExplainToChild not provided', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('explain-to-child-button')).not.toBeInTheDocument()
+    })
+
+    it('should display parent-child emoji in button', () => {
+      render(<DemoChildCard {...defaultProps} onExplainToChild={mockOnExplainToChild} />)
+
+      expect(screen.getByTestId('explain-to-child-button')).toHaveTextContent('👨‍👧')
+    })
+
+    it('should display "Explain to Child" text when not in child mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={false}
+        />
+      )
+
+      expect(screen.getByTestId('explain-to-child-button')).toHaveTextContent('Explain to Child')
+    })
+  })
+
+  describe('Button Interaction', () => {
+    it('should call onExplainToChild when button clicked (AC1)', () => {
+      render(<DemoChildCard {...defaultProps} onExplainToChild={mockOnExplainToChild} />)
+
+      fireEvent.click(screen.getByTestId('explain-to-child-button'))
+
+      expect(mockOnExplainToChild).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('Child Explanation Mode Active State', () => {
+    it('should show "Exit Child Explanation" when isChildExplanationMode is true', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+        />
+      )
+
+      expect(screen.getByTestId('explain-to-child-button')).toHaveTextContent(
+        'Exit Child Explanation'
+      )
+    })
+
+    it('should have active styling when in child explanation mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+        />
+      )
+
+      const button = screen.getByTestId('explain-to-child-button')
+      expect(button).toHaveStyle({ backgroundColor: '#a78bfa' })
+      expect(button).toHaveStyle({ color: 'rgb(255, 255, 255)' })
+    })
+
+    it('should have default styling when not in child explanation mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={false}
+        />
+      )
+
+      const button = screen.getByTestId('explain-to-child-button')
+      expect(button).toHaveStyle({ backgroundColor: '#faf5ff' })
+      expect(button).toHaveStyle({ color: '#7c3aed' })
+    })
+  })
+
+  describe('ChildFriendlyOverlay Integration (AC1)', () => {
+    const mockOnExitChildExplanationMode = vi.fn()
+
+    const mockScreenshots: DemoScreenshot[] = [
+      {
+        id: 'test-1',
+        title: 'Math Practice',
+        url: 'https://khanacademy.org/math',
+        category: 'homework',
+        timestamp: Date.now() - 2 * 60 * 60 * 1000,
+        thumbnailDataUri: 'data:image/svg+xml;base64,abc',
+        classification: { label: 'Educational', confidence: 0.95 },
+      },
+    ]
+
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    it('should wrap gallery section with ChildFriendlyOverlay when in child mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          screenshots={mockScreenshots}
+          showGallery={true}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+          onExitChildExplanationMode={mockOnExitChildExplanationMode}
+        />
+      )
+
+      expect(screen.getByTestId('gallery-section')).toBeInTheDocument()
+      expect(screen.getByTestId('child-friendly-overlay')).toBeInTheDocument()
+      expect(screen.getByTestId('bilateral-transparency-callout')).toBeInTheDocument()
+    })
+
+    it('should NOT wrap gallery with overlay when not in child mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          screenshots={mockScreenshots}
+          showGallery={true}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={false}
+          onExitChildExplanationMode={mockOnExitChildExplanationMode}
+        />
+      )
+
+      expect(screen.getByTestId('gallery-section')).toBeInTheDocument()
+      expect(screen.queryByTestId('child-friendly-overlay')).not.toBeInTheDocument()
+    })
+
+    it('should wrap time tracking section with ChildFriendlyOverlay when in child mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          showTimeTracking={true}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+          onExitChildExplanationMode={mockOnExitChildExplanationMode}
+        />
+      )
+
+      expect(screen.getByTestId('time-tracking-section')).toBeInTheDocument()
+      expect(screen.getByTestId('child-friendly-overlay')).toBeInTheDocument()
+      expect(screen.getByTestId('agreement-cocreation-highlight')).toBeInTheDocument()
+    })
+
+    it('should wrap flag review section with ChildFriendlyOverlay when in child mode', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          showFlagReview={true}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+          onExitChildExplanationMode={mockOnExitChildExplanationMode}
+        />
+      )
+
+      expect(screen.getByTestId('flag-review-section')).toBeInTheDocument()
+      expect(screen.getByTestId('child-friendly-overlay')).toBeInTheDocument()
+      expect(screen.getByTestId('bilateral-transparency-callout')).toBeInTheDocument()
+      expect(screen.getByTestId('crisis-resources-preview')).toBeInTheDocument()
+    })
+
+    it('should call onExitChildExplanationMode when exit button clicked in overlay', () => {
+      render(
+        <DemoChildCard
+          {...defaultProps}
+          showTimeTracking={true}
+          onExplainToChild={mockOnExplainToChild}
+          isChildExplanationMode={true}
+          onExitChildExplanationMode={mockOnExitChildExplanationMode}
+        />
+      )
+
+      const exitButton = screen.getByTestId('exit-child-mode-button')
+      fireEvent.click(exitButton)
+
+      expect(mockOnExitChildExplanationMode).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -1,5 +1,5 @@
 /**
- * Demo Components - Story 8.5.2, 8.5.3 & 8.5.4
+ * Demo Components - Story 8.5.2, 8.5.3, 8.5.4, 8.5.5 & 8.5.6
  *
  * Components for demo mode functionality.
  */
@@ -46,3 +46,16 @@ export type { DemoArchivedBannerProps } from './DemoArchivedBanner'
 
 export { DemoHelpAccess } from './DemoHelpAccess'
 export type { DemoHelpAccessProps } from './DemoHelpAccess'
+
+// Story 8.5.6: Demo for Child Explanation
+export { BilateralTransparencyCallout } from './BilateralTransparencyCallout'
+export type { BilateralTransparencyCalloutProps } from './BilateralTransparencyCallout'
+
+export { CrisisResourcesPreview } from './CrisisResourcesPreview'
+export type { CrisisResourcesPreviewProps } from './CrisisResourcesPreview'
+
+export { AgreementCoCreationHighlight } from './AgreementCoCreationHighlight'
+export type { AgreementCoCreationHighlightProps } from './AgreementCoCreationHighlight'
+
+export { ChildFriendlyOverlay } from './ChildFriendlyOverlay'
+export type { ChildFriendlyOverlayProps } from './ChildFriendlyOverlay'

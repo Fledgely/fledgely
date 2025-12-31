@@ -5,12 +5,14 @@
  *
  * Story 8.5.1: Demo Child Profile Creation
  * Story 8.5.5: Demo-to-Real Transition
+ * Story 8.5.6: Demo for Child Explanation
  *
  * Manages demo profile visibility for families without real children.
  * - Shows demo when family has no children and showDemoProfile is true
  * - Provides dismissDemo() to hide demo permanently
  * - Auto-archives demo when first real child is added (Story 8.5.5)
  * - Provides archiveDemo() and reactivateDemo() for transition flow
+ * - Provides child explanation mode for showing demo to children (Story 8.5.6)
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -61,6 +63,14 @@ export interface UseDemoResult {
   reactivateDemo: () => Promise<void>
   /** Whether archive/reactivate is in progress */
   archiving: boolean
+  /** Whether child explanation mode is active (Story 8.5.6) */
+  isChildExplanationMode: boolean
+  /** Enter child explanation mode for showing demo to child */
+  enterChildExplanationMode: () => void
+  /** Exit child explanation mode */
+  exitChildExplanationMode: () => void
+  /** Shareable URL for child to view demo on their device (null when not in child mode) */
+  childModeShareUrl: string | null
 }
 
 /**
@@ -77,6 +87,8 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
   const [dismissing, setDismissing] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Story 8.5.6: Child explanation mode
+  const [isChildExplanationMode, setIsChildExplanationMode] = useState(false)
 
   // Subscribe to family document for showDemoProfile field
   useEffect(() => {
@@ -253,6 +265,25 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
     }
   }, [familyId])
 
+  // Story 8.5.6: Enter child explanation mode
+  const enterChildExplanationMode = useCallback(() => {
+    setIsChildExplanationMode(true)
+  }, [])
+
+  // Story 8.5.6: Exit child explanation mode
+  const exitChildExplanationMode = useCallback(() => {
+    setIsChildExplanationMode(false)
+  }, [])
+
+  // Story 8.5.6: Generate shareable URL for child device viewing
+  const childModeShareUrl = useMemo(() => {
+    if (!isChildExplanationMode || !familyId) return null
+    // Generate URL with query parameter for child mode
+    // In a real implementation, this would use the window.location
+    // For now, we generate a relative URL pattern
+    return `/demo?mode=child-explain&family=${familyId}`
+  }, [isChildExplanationMode, familyId])
+
   // Calculate whether to show demo
   // Show demo when:
   // 1. familyId exists AND
@@ -288,5 +319,10 @@ export function useDemo(familyId: string | null, hasRealChildren: boolean): UseD
     archiveDemo,
     reactivateDemo,
     archiving,
+    // Story 8.5.6: Child explanation mode
+    isChildExplanationMode,
+    enterChildExplanationMode,
+    exitChildExplanationMode,
+    childModeShareUrl,
   }
 }

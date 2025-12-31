@@ -184,7 +184,7 @@ development_status:
   8-5-3-sample-time-tracking-display: done
   8-5-4-sample-flag-alert-examples: done
   8-5-5-demo-to-real-transition: done
-  8-5-6-demo-for-child-explanation: backlog
+  8-5-6-demo-for-child-explanation: done
   # Build Verification Stories (NEW)
   8-5-7-android-apk-build-verification: backlog
   8-5-8-chrome-extension-build-verification: done
