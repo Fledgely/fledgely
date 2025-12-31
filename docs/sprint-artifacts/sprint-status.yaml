@@ -447,7 +447,7 @@ development_status:
   # Epic 30: Time Limits Configuration
   epic-30: in-progress
   30-1-time-limit-data-model: done
-  30-2-daily-total-limit-configuration: backlog
+  30-2-daily-total-limit-configuration: done
   30-3-per-category-limit-configuration: backlog
   30-4-custom-category-creation: backlog
   30-5-per-device-limit-configuration: backlog
