@@ -34,6 +34,7 @@ import {
 } from '../../services/safetySettingService'
 import SafetySettingProposalCard from '../../components/SafetySettingProposalCard'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
+import { FlagQueue } from '../../components/flags'
 
 const styles = {
   main: {
@@ -416,6 +417,19 @@ export default function DashboardPage() {
 
         {/* Story 6.6: Withdrawal Pending Alerts - urgent notification for parents */}
         {family && <WithdrawalPendingAlert familyId={family.id} />}
+
+        {/* Story 22.1: Flag Review Queue - shows pending flags requiring parent attention */}
+        {family && children.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <FlagQueue
+              familyChildren={children.map((c) => ({ id: c.id, name: c.name }))}
+              onFlagClick={(flag) => {
+                // TODO: Navigate to flag detail view (Story 22.2)
+                console.log('Flag clicked:', flag.id)
+              }}
+            />
+          </div>
+        )}
 
         {/* Family Card */}
         <div style={styles.card}>
