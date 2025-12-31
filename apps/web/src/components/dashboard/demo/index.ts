@@ -1,5 +1,5 @@
 /**
- * Demo Components - Story 8.5.2 & 8.5.3
+ * Demo Components - Story 8.5.2, 8.5.3 & 8.5.4
  *
  * Components for demo mode functionality.
  */
@@ -20,3 +20,19 @@ export type { DemoTimeSummaryProps } from './DemoTimeSummary'
 
 export { DemoTimeTrackingPanel } from './DemoTimeTrackingPanel'
 export type { DemoTimeTrackingPanelProps } from './DemoTimeTrackingPanel'
+
+// Story 8.5.4: Flag & Alert Examples
+export { DemoFlagCard } from './DemoFlagCard'
+export type { DemoFlagCardProps } from './DemoFlagCard'
+
+export { DemoChildAnnotation } from './DemoChildAnnotation'
+export type { DemoChildAnnotationProps } from './DemoChildAnnotation'
+
+export { DemoFlagResolution } from './DemoFlagResolution'
+export type { DemoFlagResolutionProps } from './DemoFlagResolution'
+
+export { DemoNotificationPreview } from './DemoNotificationPreview'
+export type { DemoNotificationPreviewProps } from './DemoNotificationPreview'
+
+export { DemoFlagReviewPanel } from './DemoFlagReviewPanel'
+export type { DemoFlagReviewPanelProps } from './DemoFlagReviewPanel'

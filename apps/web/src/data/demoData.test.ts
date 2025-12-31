@@ -504,3 +504,324 @@ describe('Demo Time Tracking Data (Story 8.5.3)', () => {
     })
   })
 })
+
+// ============================================
+// Story 8.5.4: Sample Flag & Alert Tests
+// ============================================
+
+import {
+  DEMO_FLAGS,
+  FLAG_CONCERN_TYPE_LABELS,
+  FLAG_CONCERN_TYPE_COLORS,
+  FLAG_RESOLUTION_STATUS_LABELS,
+  FLAG_RESOLUTION_STATUS_COLORS,
+  FLAG_RESOLUTION_ACTION_LABELS,
+  getDemoFlags,
+  getDemoFlagsByStatus,
+  getPendingDemoFlags,
+  getResolvedDemoFlags,
+  getDemoFlagStats,
+  getDemoFlagById,
+  getDemoFlagsWithAnnotations,
+  getScreenshotForFlag,
+  type DemoFlag,
+  type DemoFlagConcernType,
+} from './demoData'
+
+describe('Demo Flag Data (Story 8.5.4)', () => {
+  describe('DEMO_FLAGS', () => {
+    it('should have 4-6 sample flags (AC1)', () => {
+      expect(DEMO_FLAGS.length).toBeGreaterThanOrEqual(4)
+      expect(DEMO_FLAGS.length).toBeLessThanOrEqual(6)
+    })
+
+    it('should have unique IDs', () => {
+      const ids = DEMO_FLAGS.map((f) => f.id)
+      const uniqueIds = new Set(ids)
+      expect(uniqueIds.size).toBe(ids.length)
+    })
+
+    it('should have variety of concern types (AC1)', () => {
+      const types = new Set(DEMO_FLAGS.map((f) => f.concernType))
+      expect(types.size).toBeGreaterThanOrEqual(3)
+    })
+
+    it('should have valid confidence levels (AC2)', () => {
+      for (const flag of DEMO_FLAGS) {
+        expect(flag.confidence).toBeGreaterThanOrEqual(0)
+        expect(flag.confidence).toBeLessThanOrEqual(1)
+      }
+    })
+
+    it('should have valid timestamps', () => {
+      const now = Date.now()
+      for (const flag of DEMO_FLAGS) {
+        expect(flag.createdAt).toBeLessThan(now)
+        expect(flag.createdAt).toBeGreaterThan(now - 14 * 24 * 60 * 60 * 1000) // Within 2 weeks
+      }
+    })
+
+    it('should have valid resolution statuses (AC5)', () => {
+      for (const flag of DEMO_FLAGS) {
+        expect(['pending', 'reviewed', 'resolved']).toContain(flag.resolution.status)
+      }
+    })
+
+    it('should have resolved flags with actions', () => {
+      const resolved = DEMO_FLAGS.filter((f) => f.resolution.status === 'resolved')
+      expect(resolved.length).toBeGreaterThan(0)
+      for (const flag of resolved) {
+        expect(flag.resolution.action).toBeDefined()
+        expect(['talked', 'dismissed', 'false_positive']).toContain(flag.resolution.action)
+        expect(flag.resolution.resolvedAt).toBeDefined()
+      }
+    })
+
+    it('should have pending flags without actions', () => {
+      const pending = DEMO_FLAGS.filter((f) => f.resolution.status === 'pending')
+      expect(pending.length).toBeGreaterThan(0)
+      for (const flag of pending) {
+        expect(flag.resolution.action).toBeUndefined()
+      }
+    })
+  })
+
+  describe('Conversation-starter framing (AC6)', () => {
+    it('should have non-accusatory AI reasoning', () => {
+      for (const flag of DEMO_FLAGS) {
+        expect(flag.aiReasoning).toBeTruthy()
+        const lowerReasoning = flag.aiReasoning.toLowerCase()
+        // Should NOT contain accusatory language
+        expect(lowerReasoning).not.toContain('dangerous')
+        expect(lowerReasoning).not.toContain('bad')
+        expect(lowerReasoning).not.toContain('wrong')
+        expect(lowerReasoning).not.toContain('illegal')
+        expect(lowerReasoning).not.toContain('suspicious')
+        expect(lowerReasoning).not.toContain('caught')
+      }
+    })
+
+    it('should use supportive language in AI reasoning', () => {
+      for (const flag of DEMO_FLAGS) {
+        const lowerReasoning = flag.aiReasoning.toLowerCase()
+        // Should contain conversational/supportive language
+        const hasConversationalLanguage =
+          lowerReasoning.includes('opportunity') ||
+          lowerReasoning.includes('check in') ||
+          lowerReasoning.includes('discuss') ||
+          lowerReasoning.includes('might') ||
+          lowerReasoning.includes('consider') ||
+          lowerReasoning.includes('could be') ||
+          lowerReasoning.includes('take a look')
+        expect(hasConversationalLanguage).toBe(true)
+      }
+    })
+  })
+
+  describe('Child annotations (AC3)', () => {
+    it('should have some flags with annotations', () => {
+      const withAnnotations = DEMO_FLAGS.filter((f) => f.annotation)
+      expect(withAnnotations.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('should have valid annotation structure', () => {
+      const withAnnotations = DEMO_FLAGS.filter((f) => f.annotation)
+      for (const flag of withAnnotations) {
+        expect(flag.annotation!.text).toBeTruthy()
+        expect(flag.annotation!.timestamp).toBeGreaterThan(0)
+        expect(typeof flag.annotation!.fromChild).toBe('boolean')
+      }
+    })
+
+    it('should have annotations from child', () => {
+      const fromChild = DEMO_FLAGS.filter((f) => f.annotation?.fromChild)
+      expect(fromChild.length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  describe('FLAG_CONCERN_TYPE_LABELS', () => {
+    it('should have labels for all concern types', () => {
+      expect(FLAG_CONCERN_TYPE_LABELS.research).toBe('Research Topic')
+      expect(FLAG_CONCERN_TYPE_LABELS.communication).toBe('Communication')
+      expect(FLAG_CONCERN_TYPE_LABELS.content).toBe('Content Review')
+      expect(FLAG_CONCERN_TYPE_LABELS.time).toBe('Screen Time')
+      expect(FLAG_CONCERN_TYPE_LABELS.unknown).toBe('Needs Review')
+    })
+  })
+
+  describe('FLAG_CONCERN_TYPE_COLORS', () => {
+    it('should have colors for all concern types', () => {
+      expect(FLAG_CONCERN_TYPE_COLORS.research).toBeTruthy()
+      expect(FLAG_CONCERN_TYPE_COLORS.communication).toBeTruthy()
+      expect(FLAG_CONCERN_TYPE_COLORS.content).toBeTruthy()
+      expect(FLAG_CONCERN_TYPE_COLORS.time).toBeTruthy()
+      expect(FLAG_CONCERN_TYPE_COLORS.unknown).toBeTruthy()
+    })
+  })
+
+  describe('FLAG_RESOLUTION_STATUS_LABELS', () => {
+    it('should have labels for all statuses', () => {
+      expect(FLAG_RESOLUTION_STATUS_LABELS.pending).toBe('Pending Review')
+      expect(FLAG_RESOLUTION_STATUS_LABELS.reviewed).toBe('Reviewed')
+      expect(FLAG_RESOLUTION_STATUS_LABELS.resolved).toBe('Resolved')
+    })
+  })
+
+  describe('FLAG_RESOLUTION_STATUS_COLORS', () => {
+    it('should have colors for all statuses', () => {
+      expect(FLAG_RESOLUTION_STATUS_COLORS.pending).toBeTruthy()
+      expect(FLAG_RESOLUTION_STATUS_COLORS.reviewed).toBeTruthy()
+      expect(FLAG_RESOLUTION_STATUS_COLORS.resolved).toBeTruthy()
+    })
+  })
+
+  describe('FLAG_RESOLUTION_ACTION_LABELS', () => {
+    it('should have labels for all actions', () => {
+      expect(FLAG_RESOLUTION_ACTION_LABELS.talked).toBe('Discussed with child')
+      expect(FLAG_RESOLUTION_ACTION_LABELS.dismissed).toBe('Dismissed')
+      expect(FLAG_RESOLUTION_ACTION_LABELS.false_positive).toBe('False positive')
+    })
+  })
+
+  describe('getDemoFlags()', () => {
+    it('should return all demo flags', () => {
+      const flags = getDemoFlags()
+      expect(flags).toEqual(DEMO_FLAGS)
+      expect(flags.length).toBe(DEMO_FLAGS.length)
+    })
+  })
+
+  describe('getDemoFlagsByStatus()', () => {
+    it('should filter by pending status', () => {
+      const pending = getDemoFlagsByStatus('pending')
+      expect(pending.length).toBeGreaterThan(0)
+      for (const flag of pending) {
+        expect(flag.resolution.status).toBe('pending')
+      }
+    })
+
+    it('should filter by reviewed status', () => {
+      const reviewed = getDemoFlagsByStatus('reviewed')
+      expect(reviewed.length).toBeGreaterThan(0)
+      for (const flag of reviewed) {
+        expect(flag.resolution.status).toBe('reviewed')
+      }
+    })
+
+    it('should filter by resolved status', () => {
+      const resolved = getDemoFlagsByStatus('resolved')
+      expect(resolved.length).toBeGreaterThan(0)
+      for (const flag of resolved) {
+        expect(flag.resolution.status).toBe('resolved')
+      }
+    })
+  })
+
+  describe('getPendingDemoFlags()', () => {
+    it('should return only pending flags', () => {
+      const pending = getPendingDemoFlags()
+      expect(pending.length).toBeGreaterThan(0)
+      for (const flag of pending) {
+        expect(flag.resolution.status).toBe('pending')
+      }
+    })
+
+    it('should match getDemoFlagsByStatus("pending")', () => {
+      const pending = getPendingDemoFlags()
+      const byStatus = getDemoFlagsByStatus('pending')
+      expect(pending).toEqual(byStatus)
+    })
+  })
+
+  describe('getResolvedDemoFlags()', () => {
+    it('should return only resolved flags', () => {
+      const resolved = getResolvedDemoFlags()
+      expect(resolved.length).toBeGreaterThan(0)
+      for (const flag of resolved) {
+        expect(flag.resolution.status).toBe('resolved')
+      }
+    })
+
+    it('should match getDemoFlagsByStatus("resolved")', () => {
+      const resolved = getResolvedDemoFlags()
+      const byStatus = getDemoFlagsByStatus('resolved')
+      expect(resolved).toEqual(byStatus)
+    })
+  })
+
+  describe('getDemoFlagStats()', () => {
+    it('should return correct total count', () => {
+      const stats = getDemoFlagStats()
+      expect(stats.total).toBe(DEMO_FLAGS.length)
+    })
+
+    it('should return correct status counts', () => {
+      const stats = getDemoFlagStats()
+      expect(stats.pending + stats.reviewed + stats.resolved).toBe(stats.total)
+    })
+
+    it('should match filtered counts', () => {
+      const stats = getDemoFlagStats()
+      expect(stats.pending).toBe(getPendingDemoFlags().length)
+      expect(stats.resolved).toBe(getResolvedDemoFlags().length)
+      expect(stats.reviewed).toBe(getDemoFlagsByStatus('reviewed').length)
+    })
+  })
+
+  describe('getDemoFlagById()', () => {
+    it('should return flag by ID', () => {
+      const flag = getDemoFlagById('flag-1')
+      expect(flag).toBeDefined()
+      expect(flag!.id).toBe('flag-1')
+    })
+
+    it('should return undefined for unknown ID', () => {
+      const flag = getDemoFlagById('nonexistent')
+      expect(flag).toBeUndefined()
+    })
+  })
+
+  describe('getDemoFlagsWithAnnotations()', () => {
+    it('should return only flags with annotations', () => {
+      const withAnnotations = getDemoFlagsWithAnnotations()
+      expect(withAnnotations.length).toBeGreaterThan(0)
+      for (const flag of withAnnotations) {
+        expect(flag.annotation).toBeDefined()
+      }
+    })
+
+    it('should match manual filter', () => {
+      const withAnnotations = getDemoFlagsWithAnnotations()
+      const manual = DEMO_FLAGS.filter((f) => f.annotation)
+      expect(withAnnotations.length).toBe(manual.length)
+    })
+  })
+
+  describe('getScreenshotForFlag()', () => {
+    it('should return screenshot for flag with matching screenshotId', () => {
+      // Flags that reference existing screenshots
+      const flagWithScreenshot = DEMO_FLAGS.find(
+        (f) => f.screenshotId === 'demo-screenshot-9' || f.screenshotId === 'demo-screenshot-10'
+      )
+      if (flagWithScreenshot) {
+        const screenshot = getScreenshotForFlag(flagWithScreenshot)
+        expect(screenshot).toBeDefined()
+        expect(screenshot!.id).toBe(flagWithScreenshot.screenshotId)
+      }
+    })
+
+    it('should return undefined for flag with no matching screenshot', () => {
+      const flagWithNoScreenshot: DemoFlag = {
+        id: 'test-flag',
+        screenshotId: 'nonexistent-screenshot',
+        concernType: 'unknown' as DemoFlagConcernType,
+        confidence: 0.5,
+        aiReasoning: 'Test',
+        resolution: { status: 'pending' },
+        createdAt: Date.now(),
+      }
+      const screenshot = getScreenshotForFlag(flagWithNoScreenshot)
+      expect(screenshot).toBeUndefined()
+    })
+  })
+})

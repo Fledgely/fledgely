@@ -412,3 +412,104 @@ describe('DemoChildCard - Time Tracking Integration (Story 8.5.3)', () => {
     })
   })
 })
+
+/**
+ * Story 8.5.4: Flag Review Integration Tests
+ */
+describe('DemoChildCard - Flag Review Integration (Story 8.5.4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Flag Review Toggle Button', () => {
+    it('should always show flag review toggle button', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.getByTestId('toggle-flag-review-button')).toBeInTheDocument()
+      expect(screen.getByTestId('toggle-flag-review-button')).toHaveTextContent(
+        'View Flagged Content'
+      )
+    })
+
+    it('should display flag emoji in toggle button', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.getByTestId('toggle-flag-review-button')).toHaveTextContent('🚩')
+    })
+  })
+
+  describe('Flag Review Expansion', () => {
+    it('should NOT show flag review section by default', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      expect(screen.queryByTestId('flag-review-section')).not.toBeInTheDocument()
+    })
+
+    it('should show flag review section when toggle button clicked', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('toggle-flag-review-button'))
+
+      expect(screen.getByTestId('flag-review-section')).toBeInTheDocument()
+    })
+
+    it('should change button text to Hide Flag Review when expanded', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('toggle-flag-review-button'))
+
+      expect(screen.getByTestId('toggle-flag-review-button')).toHaveTextContent('Hide Flag Review')
+    })
+
+    it('should hide flag review section when toggle button clicked again', () => {
+      render(<DemoChildCard {...defaultProps} />)
+
+      // Expand
+      fireEvent.click(screen.getByTestId('toggle-flag-review-button'))
+      expect(screen.getByTestId('flag-review-section')).toBeInTheDocument()
+
+      // Collapse
+      fireEvent.click(screen.getByTestId('toggle-flag-review-button'))
+      expect(screen.queryByTestId('flag-review-section')).not.toBeInTheDocument()
+    })
+
+    it('should show flag review when showFlagReview prop is true', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      expect(screen.getByTestId('flag-review-section')).toBeInTheDocument()
+    })
+  })
+
+  describe('Flag Review Content', () => {
+    it('should render DemoFlagReviewPanel inside flag review section', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      // Check that the panel component is rendered
+      expect(screen.getByTestId('demo-flag-review-panel')).toBeInTheDocument()
+    })
+
+    it('should show flag stats inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      expect(screen.getByTestId('flag-stats')).toBeInTheDocument()
+    })
+
+    it('should show filter tabs inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      expect(screen.getByTestId('filter-tabs')).toBeInTheDocument()
+    })
+
+    it('should show flag cards inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      expect(screen.getByTestId('flag-list')).toBeInTheDocument()
+    })
+
+    it('should show notification preview inside panel', () => {
+      render(<DemoChildCard {...defaultProps} showFlagReview={true} />)
+
+      expect(screen.getByTestId('demo-notification-preview')).toBeInTheDocument()
+    })
+  })
+})

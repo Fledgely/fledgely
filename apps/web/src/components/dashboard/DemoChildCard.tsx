@@ -6,6 +6,7 @@
  * Story 8.5.1: Demo Child Profile Creation
  * Story 8.5.2: Sample Screenshot Gallery Integration
  * Story 8.5.3: Sample Time Tracking Display Integration
+ * Story 8.5.4: Sample Flag & Alert Examples Integration
  *
  * Displays a demo child profile for new parents.
  * Uses distinct visual styling to differentiate from real children.
@@ -16,12 +17,13 @@
  * - AC5: Dismissible with confirmation
  * - 8.5.2 AC1: Expandable gallery section
  * - 8.5.3 AC1: Time tracking section in demo card
+ * - 8.5.4 AC1: Flag review section in demo card
  */
 
 import { useState } from 'react'
 import type { DemoChild } from '../../hooks/useDemo'
 import type { DemoActivitySummary, DemoScreenshot } from '../../data/demoData'
-import { DemoScreenshotGallery, DemoTimeTrackingPanel } from './demo'
+import { DemoScreenshotGallery, DemoTimeTrackingPanel, DemoFlagReviewPanel } from './demo'
 
 /**
  * Props for DemoChildCard component
@@ -43,6 +45,8 @@ export interface DemoChildCardProps {
   showGallery?: boolean
   /** Whether to show time tracking panel (default: false) */
   showTimeTracking?: boolean
+  /** Whether to show flag review panel (default: false) */
+  showFlagReview?: boolean
 }
 
 /**
@@ -85,10 +89,12 @@ export function DemoChildCard({
   screenshots,
   showGallery: initialShowGallery = false,
   showTimeTracking: initialShowTimeTracking = false,
+  showFlagReview: initialShowFlagReview = false,
 }: DemoChildCardProps) {
   const [showDismissConfirm, setShowDismissConfirm] = useState(false)
   const [galleryExpanded, setGalleryExpanded] = useState(initialShowGallery)
   const [timeTrackingExpanded, setTimeTrackingExpanded] = useState(initialShowTimeTracking)
+  const [flagReviewExpanded, setFlagReviewExpanded] = useState(initialShowFlagReview)
 
   const age = calculateAge(demoChild.birthdate)
 
@@ -342,6 +348,40 @@ export function DemoChildCard({
       {timeTrackingExpanded && (
         <div data-testid="time-tracking-section" style={{ marginTop: '16px' }}>
           <DemoTimeTrackingPanel />
+        </div>
+      )}
+
+      {/* Flag Review Toggle Button - Story 8.5.4 */}
+      <div style={{ marginTop: '12px' }}>
+        <button
+          type="button"
+          onClick={() => setFlagReviewExpanded(!flagReviewExpanded)}
+          data-testid="toggle-flag-review-button"
+          style={{
+            width: '100%',
+            padding: '10px 16px',
+            backgroundColor: flagReviewExpanded ? '#fef3c7' : '#faf5ff',
+            color: flagReviewExpanded ? '#92400e' : '#7c3aed',
+            border: `1px dashed ${flagReviewExpanded ? '#fbbf24' : '#c4b5fd'}`,
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 500,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+          }}
+        >
+          <span>🚩</span>
+          <span>{flagReviewExpanded ? 'Hide Flag Review' : 'View Flagged Content'}</span>
+        </button>
+      </div>
+
+      {/* Expandable Flag Review Section - Story 8.5.4 */}
+      {flagReviewExpanded && (
+        <div data-testid="flag-review-section" style={{ marginTop: '16px' }}>
+          <DemoFlagReviewPanel />
         </div>
       )}
 

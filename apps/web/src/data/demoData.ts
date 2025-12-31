@@ -127,8 +127,10 @@ function generatePlaceholderImage(category: DemoScreenshotCategory): string {
     <text x="160" y="120" text-anchor="middle" fill="${color}" font-family="Arial" font-size="14" opacity="0.7">Demo Screenshot</text>
   </svg>`
 
-  // Use browser-compatible base64 encoding (btoa works with ASCII, encodeURIComponent handles unicode)
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`
+  // Use modern TextEncoder for Unicode-safe base64 encoding (avoids deprecated unescape)
+  const bytes = new TextEncoder().encode(svg)
+  const binaryString = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join('')
+  return `data:image/svg+xml;base64,${btoa(binaryString)}`
 }
 
 /**
@@ -729,4 +731,261 @@ export function formatDuration(minutes: number): string {
     return `${hours}h`
   }
   return `${hours}h ${mins}m`
+}
+
+// ============================================
+// Story 8.5.4: Sample Flag & Alert Examples
+// ============================================
+
+/**
+ * Flag concern types for categorizing flagged content.
+ * Story 8.5.4 AC1: Various concern types
+ */
+export type DemoFlagConcernType = 'research' | 'communication' | 'content' | 'time' | 'unknown'
+
+/**
+ * Concern type labels for display.
+ */
+export const FLAG_CONCERN_TYPE_LABELS: Record<DemoFlagConcernType, string> = {
+  research: 'Research Topic',
+  communication: 'Communication',
+  content: 'Content Review',
+  time: 'Screen Time',
+  unknown: 'Needs Review',
+}
+
+/**
+ * Concern type colors for visual indicators.
+ */
+export const FLAG_CONCERN_TYPE_COLORS: Record<DemoFlagConcernType, string> = {
+  research: '#3b82f6', // Blue
+  communication: '#8b5cf6', // Purple
+  content: '#f59e0b', // Amber
+  time: '#ef4444', // Red
+  unknown: '#6b7280', // Gray
+}
+
+/**
+ * Child annotation for flagged content.
+ * Story 8.5.4 AC3: Child annotation examples
+ */
+export interface DemoFlagAnnotation {
+  text: string
+  timestamp: number
+  fromChild: boolean
+}
+
+/**
+ * Resolution status for flagged content.
+ * Story 8.5.4 AC5: Resolution flow demonstration
+ */
+export interface DemoFlagResolution {
+  status: 'pending' | 'reviewed' | 'resolved'
+  action?: 'talked' | 'dismissed' | 'false_positive'
+  resolvedAt?: number
+  note?: string
+}
+
+/**
+ * Resolution action labels for display.
+ */
+export const FLAG_RESOLUTION_ACTION_LABELS: Record<
+  NonNullable<DemoFlagResolution['action']>,
+  string
+> = {
+  talked: 'Discussed with child',
+  dismissed: 'Dismissed',
+  false_positive: 'False positive',
+}
+
+/**
+ * Resolution status labels for display.
+ */
+export const FLAG_RESOLUTION_STATUS_LABELS: Record<DemoFlagResolution['status'], string> = {
+  pending: 'Pending Review',
+  reviewed: 'Reviewed',
+  resolved: 'Resolved',
+}
+
+/**
+ * Resolution status colors.
+ */
+export const FLAG_RESOLUTION_STATUS_COLORS: Record<DemoFlagResolution['status'], string> = {
+  pending: '#f59e0b', // Amber
+  reviewed: '#3b82f6', // Blue
+  resolved: '#22c55e', // Green
+}
+
+/**
+ * Demo flag entry structure.
+ * Story 8.5.4 AC1, AC2: Flag with details
+ */
+export interface DemoFlag {
+  id: string
+  screenshotId: string // Links to DemoScreenshot
+  concernType: DemoFlagConcernType
+  confidence: number
+  aiReasoning: string // Conversation-starter framing (AC6)
+  annotation?: DemoFlagAnnotation
+  resolution: DemoFlagResolution
+  createdAt: number
+}
+
+/**
+ * Sample flag data with conversation-starter framing.
+ * Story 8.5.4 AC1, AC6: Various concern types with supportive language
+ */
+export const DEMO_FLAGS: DemoFlag[] = [
+  {
+    id: 'flag-1',
+    screenshotId: 'demo-screenshot-10', // Health Information Search
+    concernType: 'research',
+    confidence: 0.72,
+    aiReasoning:
+      'Alex searched for health-related topics. This might be a great opportunity to check in and see if they have questions about their health or wellness.',
+    annotation: {
+      text: 'I was researching for my science project about the human body.',
+      timestamp: Date.now() - 26 * 60 * 60 * 1000, // 26 hours ago
+      fromChild: true,
+    },
+    resolution: {
+      status: 'resolved',
+      action: 'talked',
+      resolvedAt: Date.now() - 24 * 60 * 60 * 1000,
+      note: 'Great conversation about the science project!',
+    },
+    createdAt: Date.now() - 28 * 60 * 60 * 1000,
+  },
+  {
+    id: 'flag-2',
+    screenshotId: 'demo-screenshot-9', // Chat Messages
+    concernType: 'communication',
+    confidence: 0.85,
+    aiReasoning:
+      'We noticed messaging app activity. This could be a good time to discuss online communication and who Alex chats with.',
+    annotation: {
+      text: 'I was talking to my friend about our homework.',
+      timestamp: Date.now() - 4 * 60 * 60 * 1000,
+      fromChild: true,
+    },
+    resolution: {
+      status: 'reviewed',
+    },
+    createdAt: Date.now() - 5 * 60 * 60 * 1000,
+  },
+  {
+    id: 'flag-3',
+    screenshotId: 'demo-screenshot-2', // Minecraft (gaming time)
+    concernType: 'time',
+    confidence: 0.95,
+    aiReasoning:
+      'Screen time exceeded the daily limit. Consider discussing how to balance gaming with other activities.',
+    resolution: {
+      status: 'pending',
+    },
+    createdAt: Date.now() - 3 * 60 * 60 * 1000,
+  },
+  {
+    id: 'flag-4',
+    screenshotId: 'demo-screenshot-6', // Cool Math Games
+    concernType: 'unknown',
+    confidence: 0.58,
+    aiReasoning:
+      "We couldn't classify this content with high confidence. You might want to take a look and discuss with Alex.",
+    annotation: {
+      text: 'It was just a math game website my teacher recommended!',
+      timestamp: Date.now() - 48 * 60 * 60 * 1000,
+      fromChild: true,
+    },
+    resolution: {
+      status: 'resolved',
+      action: 'false_positive',
+      resolvedAt: Date.now() - 47 * 60 * 60 * 1000,
+      note: 'Teacher-approved educational game site',
+    },
+    createdAt: Date.now() - 50 * 60 * 60 * 1000,
+  },
+]
+
+/**
+ * Get all demo flags.
+ */
+export function getDemoFlags(): DemoFlag[] {
+  return DEMO_FLAGS
+}
+
+/**
+ * Get demo flags by resolution status.
+ * Story 8.5.4: Flag filtering
+ */
+export function getDemoFlagsByStatus(status: DemoFlagResolution['status']): DemoFlag[] {
+  return DEMO_FLAGS.filter((flag) => flag.resolution.status === status)
+}
+
+/**
+ * Get pending demo flags.
+ */
+export function getPendingDemoFlags(): DemoFlag[] {
+  return getDemoFlagsByStatus('pending')
+}
+
+/**
+ * Get resolved demo flags.
+ */
+export function getResolvedDemoFlags(): DemoFlag[] {
+  return getDemoFlagsByStatus('resolved')
+}
+
+/**
+ * Get demo flag statistics.
+ */
+export function getDemoFlagStats(): {
+  total: number
+  pending: number
+  reviewed: number
+  resolved: number
+  byConcernType: Record<DemoFlagConcernType, number>
+} {
+  const stats = {
+    total: DEMO_FLAGS.length,
+    pending: 0,
+    reviewed: 0,
+    resolved: 0,
+    byConcernType: {
+      research: 0,
+      communication: 0,
+      content: 0,
+      time: 0,
+      unknown: 0,
+    } as Record<DemoFlagConcernType, number>,
+  }
+
+  for (const flag of DEMO_FLAGS) {
+    stats[flag.resolution.status]++
+    stats.byConcernType[flag.concernType]++
+  }
+
+  return stats
+}
+
+/**
+ * Get a demo flag by ID.
+ */
+export function getDemoFlagById(id: string): DemoFlag | undefined {
+  return DEMO_FLAGS.find((flag) => flag.id === id)
+}
+
+/**
+ * Get demo flags with annotations.
+ * Story 8.5.4 AC3: Flags with child annotations
+ */
+export function getDemoFlagsWithAnnotations(): DemoFlag[] {
+  return DEMO_FLAGS.filter((flag) => flag.annotation !== undefined)
+}
+
+/**
+ * Get screenshot for a flag.
+ */
+export function getScreenshotForFlag(flag: DemoFlag): DemoScreenshot | undefined {
+  return DEMO_SCREENSHOTS.find((s) => s.id === flag.screenshotId)
 }
