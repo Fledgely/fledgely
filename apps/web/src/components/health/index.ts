@@ -10,3 +10,4 @@
 export { EmojiRatingScale, RATING_OPTIONS } from './EmojiRatingScale'
 export { CheckInPromptBanner } from './CheckInPromptBanner'
 export { FrictionIndicatorsDashboard } from './FrictionIndicatorsDashboard'
+export { RepairResourcesPanel } from './RepairResourcesPanel'

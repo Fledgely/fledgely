@@ -37,7 +37,11 @@ import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { FlagQueue } from '../../components/flags'
 import { AILearningIndicator } from '../../components/settings/AILearningIndicator'
 import { useFamilyAILearning } from '../../hooks/useFamilyAILearning'
-import { CheckInPromptBanner, FrictionIndicatorsDashboard } from '../../components/health'
+import {
+  CheckInPromptBanner,
+  FrictionIndicatorsDashboard,
+  RepairResourcesPanel,
+} from '../../components/health'
 import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
 import { useFrictionIndicators } from '../../hooks/useFrictionIndicators'
 
@@ -448,6 +452,14 @@ export default function DashboardPage() {
             error={frictionError}
           />
         )}
+
+        {/* Story 27.5.5: Repair Resources - shown when friction detected */}
+        {family &&
+          frictionIndicators?.hasEnoughData &&
+          (frictionIndicators.relationshipHealth === 'some_concerns' ||
+            frictionIndicators.trend === 'needs_attention') && (
+            <RepairResourcesPanel showParentResources={true} showChildResources={false} />
+          )}
 
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}

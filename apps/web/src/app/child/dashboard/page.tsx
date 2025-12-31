@@ -34,7 +34,11 @@ import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChi
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
 import { useChildAuditLog } from '../../../hooks/useChildAuditLog'
 import { ChildAuditSection } from '../../../components/child/ChildAuditSection'
-import { CheckInPromptBanner, FrictionIndicatorsDashboard } from '../../../components/health'
+import {
+  CheckInPromptBanner,
+  FrictionIndicatorsDashboard,
+  RepairResourcesPanel,
+} from '../../../components/health'
 import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
 import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndicators'
 
@@ -344,6 +348,13 @@ function DashboardContent() {
           isLoading={frictionLoading}
           error={frictionError}
         />
+
+        {/* Story 27.5.5: Repair Resources - shown when friction detected */}
+        {frictionIndicators?.hasEnoughData &&
+          (frictionIndicators.relationshipHealth === 'some_concerns' ||
+            frictionIndicators.trend === 'needs_attention') && (
+            <RepairResourcesPanel showParentResources={false} showChildResources={true} />
+          )}
 
         {/* Story 23.1 - Flag notification banners */}
         {pendingFlags.length > 0 && (
