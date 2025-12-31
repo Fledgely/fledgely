@@ -387,7 +387,7 @@ development_status:
   # Epic 23: Child Annotation Before Parent Alert
   epic-23: in-progress
   23-1-flag-notification-to-child: done
-  23-2-child-annotation-interface: backlog
+  23-2-child-annotation-interface: done
   23-3-annotation-timer-and-escalation: backlog
   23-4-annotation-display-to-parent: backlog
   23-5-skip-annotation-option: backlog

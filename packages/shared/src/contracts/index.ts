@@ -2673,13 +2673,42 @@ export type FlagNote = z.infer<typeof flagNoteSchema>
 
 /**
  * Story 23.1: Flag Notification to Child - AC1
+ * Story 23.2: Child Annotation Interface - AC4, AC5
  * Status of child notification for a flag.
  * - pending: Notification queued but not yet sent
  * - notified: Child has been notified, waiting for annotation
  * - skipped: Notification skipped (distress suppression or other reason)
+ * - annotated: Child has submitted annotation
  */
-export const childNotificationStatusSchema = z.enum(['pending', 'notified', 'skipped'])
+export const childNotificationStatusSchema = z.enum(['pending', 'notified', 'skipped', 'annotated'])
 export type ChildNotificationStatus = z.infer<typeof childNotificationStatusSchema>
+
+/**
+ * Story 23.2: Child Annotation Interface - AC2 (NFR152)
+ * Pre-set annotation options for child to explain flagged content.
+ */
+export const ANNOTATION_OPTIONS = [
+  { value: 'school_project', label: 'School project', icon: '📚' },
+  { value: 'friend_showing', label: 'Friend was showing me', icon: '👥' },
+  { value: 'accident', label: "Didn't mean to see this", icon: '😅' },
+  { value: 'other', label: 'Other', icon: '💬' },
+] as const
+
+export const ANNOTATION_OPTION_VALUES = [
+  'school_project',
+  'friend_showing',
+  'accident',
+  'other',
+  'skipped',
+] as const
+export const annotationOptionSchema = z.enum(ANNOTATION_OPTION_VALUES)
+export type AnnotationOption = z.infer<typeof annotationOptionSchema>
+
+/**
+ * Story 23.2: Child Annotation Interface - AC3
+ * Maximum length for free-text explanation.
+ */
+export const MAX_ANNOTATION_EXPLANATION_LENGTH = 500
 
 /**
  * Story 23.1: Flag Notification to Child - AC5
@@ -2759,8 +2788,16 @@ export const flagDocumentSchema = z.object({
   childNotifiedAt: z.number().optional(),
   /** When annotation window expires (epoch ms) - createdAt + 30 minutes */
   annotationDeadline: z.number().optional(),
-  /** Status of child notification: pending, notified, or skipped */
+  /** Status of child notification: pending, notified, skipped, or annotated */
   childNotificationStatus: childNotificationStatusSchema.optional(),
+
+  // Child annotation fields (from Story 23-2)
+  /** Selected annotation option: school_project, friend_showing, accident, other, or skipped */
+  childAnnotation: annotationOptionSchema.optional(),
+  /** Free-text explanation from child (optional, max 500 chars) */
+  childExplanation: z.string().max(MAX_ANNOTATION_EXPLANATION_LENGTH).optional(),
+  /** When child submitted annotation (epoch ms) */
+  annotatedAt: z.number().optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 

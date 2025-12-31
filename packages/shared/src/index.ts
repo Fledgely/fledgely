@@ -189,7 +189,7 @@ export {
   type CategoryConfidenceThresholds,
 } from './contracts'
 
-// Flag document exports (Story 21.5, 21.7, 22.3, 22.4, 23.1)
+// Flag document exports (Story 21.5, 21.7, 22.3, 22.4, 23.1, 23.2)
 export {
   flagDocumentSchema,
   FLAG_FEEDBACK_VALUES,
@@ -198,6 +198,11 @@ export {
   flagNoteSchema,
   childNotificationStatusSchema,
   ANNOTATION_WINDOW_MS,
+  // Story 23.2 annotation exports
+  ANNOTATION_OPTIONS,
+  ANNOTATION_OPTION_VALUES,
+  annotationOptionSchema,
+  MAX_ANNOTATION_EXPLANATION_LENGTH,
   type FlagDocument,
   type CreateFlagParams,
   type FlagFeedbackRating,
@@ -206,6 +211,7 @@ export {
   type FlagAuditEntry,
   type FlagNote,
   type ChildNotificationStatus,
+  type AnnotationOption,
 } from './contracts'
 
 // Concern category definitions exports (Story 21.1)

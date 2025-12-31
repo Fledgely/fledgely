@@ -17,7 +17,10 @@
  * Story 23.1 - Task 5: Integrate flag notifications
  * - 5.1 Add ChildFlagNotificationBanner to child-facing pages
  * - 5.2 Show notification count badge if pending flags exist
- * - 5.3 Route to annotation screen (placeholder until Story 23-2)
+ * - 5.3 Route to annotation screen
+ *
+ * Story 23.2 - Task 6: Update dashboard handleAddContext
+ * - 6.1 Navigate to /child/annotate/${flagId} (implemented)
  */
 
 import { useState, useCallback } from 'react'
@@ -193,16 +196,13 @@ function DashboardContent() {
     childId: childSession?.childId || '',
   })
 
-  // Story 23.1 - Handle navigation to annotation screen
-  // Placeholder until Story 23-2 implements the annotation screen
-  const handleAddContext = useCallback((flagId: string) => {
-    // TODO: Story 23-2 will implement /child/annotate/[flagId] route
-    // For now, we log and show alert
-    // eslint-disable-next-line no-console
-    console.log('Navigate to annotation screen for flag:', flagId)
-    // In production, this would be: router.push(`/child/annotate/${flagId}`)
-    alert(`Annotation screen coming soon! (Flag ID: ${flagId})`)
-  }, [])
+  // Story 23.1/23.2 - Handle navigation to annotation screen
+  const handleAddContext = useCallback(
+    (flagId: string) => {
+      router.push(`/child/annotate/${flagId}`)
+    },
+    [router]
+  )
 
   const handleLogout = () => {
     signOutChild()
