@@ -15,3 +15,13 @@ export {
   cleanupDeadLetterEntries,
   _resetDbForTesting,
 } from './auditEventService'
+
+export {
+  getAuditLogForFamily,
+  hasOnlyFamilyAccess,
+  getFamilyMembersForFilter,
+  type AuditLogFilters,
+  type AuditLogPagination,
+  type AuditLogQueryResult,
+  type EnrichedAuditEvent,
+} from './auditQueryService'

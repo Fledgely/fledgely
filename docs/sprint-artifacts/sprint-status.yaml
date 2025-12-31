@@ -406,7 +406,7 @@ development_status:
   # Epic 27: Bidirectional Transparency - Audit Log
   epic-27: in-progress
   27-1-audit-event-capture: done
-  27-2-parent-audit-log-view: backlog
+  27-2-parent-audit-log-view: done
   27-3-child-audit-log-view: backlog
   27-4-asymmetric-viewing-pattern-detection: backlog
   27-5-audit-log-search-and-export: backlog
