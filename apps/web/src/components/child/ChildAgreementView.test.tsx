@@ -114,16 +114,18 @@ describe('ChildAgreementView', () => {
       expect(screen.getByText('Yes ✓')).toBeInTheDocument()
     })
 
-    it('should display capture frequency', () => {
+    it('should display capture frequency in child-friendly format', () => {
       render(<ChildAgreementView agreement={mockAgreement} />)
       expect(screen.getByTestId('frequency-row')).toBeInTheDocument()
-      expect(screen.getByText('Every 5 minutes')).toBeInTheDocument()
+      // Child-friendly format: "every 5 minutes" (lowercase, from formatMonitoringForChild)
+      expect(screen.getByText('every 5 minutes')).toBeInTheDocument()
     })
 
-    it('should display retention period', () => {
+    it('should display retention period in child-friendly format', () => {
       render(<ChildAgreementView agreement={mockAgreement} />)
       expect(screen.getByTestId('retention-row')).toBeInTheDocument()
-      expect(screen.getByText('30 days')).toBeInTheDocument()
+      // Child-friendly format from formatMonitoringForChild
+      expect(screen.getByText('Pictures are kept for 30 days, then deleted')).toBeInTheDocument()
     })
   })
 
@@ -160,10 +162,13 @@ describe('ChildAgreementView', () => {
       expect(screen.getByTestId('terms-category-time')).toBeInTheDocument()
     })
 
-    it('should display individual terms with text', () => {
+    it('should display individual terms with translated text', () => {
       render(<ChildAgreementView agreement={mockAgreement} />)
       expect(screen.getByTestId('term-term-1')).toBeInTheDocument()
-      expect(screen.getByText('Screenshots are taken every 5 minutes')).toBeInTheDocument()
+      // Text is translated by translateToChildFriendly: "Screenshots are taken" → "Pictures of your screen are saved"
+      expect(
+        screen.getByText('Pictures of your screen are saved every 5 minutes')
+      ).toBeInTheDocument()
     })
 
     it('should display party badges for terms', () => {

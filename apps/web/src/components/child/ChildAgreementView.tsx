@@ -12,6 +12,12 @@
 import React from 'react'
 import type { ChildAgreement, AgreementTermDisplay } from '../../hooks/useChildAgreement'
 import type { TermCategory } from '@fledgely/shared/contracts'
+import {
+  translateToChildFriendly,
+  formatMonitoringForChild,
+  getTermExplanation,
+} from '../../utils/childFriendlyLanguage'
+import { TermExplanation } from './TermExplanation'
 
 /**
  * Category display configuration
@@ -314,36 +320,61 @@ export function ChildAgreementView({
         </p>
       </div>
 
-      {/* Monitoring Summary Card - AC2 */}
-      <div style={styles.monitoringCard} data-testid="monitoring-summary">
-        <h2 style={{ ...styles.sectionTitle, color: '#0369a1' }}>
-          <span>📸</span> What Gets Tracked
-        </h2>
+      {/* Monitoring Summary Card - AC2 with child-friendly language (Story 19C.2) */}
+      {(() => {
+        const childFriendlyMonitoring = formatMonitoringForChild({
+          screenshotsEnabled: agreement.monitoring.screenshotsEnabled,
+          captureFrequency: agreement.monitoring.captureFrequency,
+          retentionPeriod: agreement.monitoring.retentionPeriod,
+        })
+        return (
+          <div style={styles.monitoringCard} data-testid="monitoring-summary">
+            <h2 style={{ ...styles.sectionTitle, color: '#0369a1' }}>
+              <span>📸</span> What Gets Tracked
+            </h2>
 
-        <div style={styles.monitoringRow} data-testid="screenshots-row">
-          <span style={styles.monitoringLabel}>Screenshots</span>
-          <span style={styles.monitoringValue}>
-            {agreement.monitoring.screenshotsEnabled ? 'Yes ✓' : 'No'}
-          </span>
-        </div>
+            <div style={styles.monitoringRow} data-testid="screenshots-row">
+              <span style={styles.monitoringLabel}>
+                <TermExplanation explanation={getTermExplanation('screenshots') || ''}>
+                  Pictures of your screen
+                </TermExplanation>
+              </span>
+              <span style={styles.monitoringValue}>
+                {agreement.monitoring.screenshotsEnabled ? 'Yes ✓' : 'No'}
+              </span>
+            </div>
 
-        {agreement.monitoring.captureFrequency && (
-          <div style={styles.monitoringRow} data-testid="frequency-row">
-            <span style={styles.monitoringLabel}>How often</span>
-            <span style={styles.monitoringValue}>{agreement.monitoring.captureFrequency}</span>
+            {agreement.monitoring.captureFrequency && (
+              <div style={styles.monitoringRow} data-testid="frequency-row">
+                <span style={styles.monitoringLabel}>
+                  <TermExplanation explanation={getTermExplanation('capture interval') || ''}>
+                    How often
+                  </TermExplanation>
+                </span>
+                <span style={styles.monitoringValue}>
+                  {childFriendlyMonitoring.frequencyDescription.replace('A picture is saved ', '')}
+                </span>
+              </div>
+            )}
+
+            {agreement.monitoring.retentionPeriod && (
+              <div
+                style={{ ...styles.monitoringRow, borderBottom: 'none' }}
+                data-testid="retention-row"
+              >
+                <span style={styles.monitoringLabel}>
+                  <TermExplanation explanation={getTermExplanation('retention') || ''}>
+                    How long kept
+                  </TermExplanation>
+                </span>
+                <span style={styles.monitoringValue}>
+                  {childFriendlyMonitoring.retentionDescription}
+                </span>
+              </div>
+            )}
           </div>
-        )}
-
-        {agreement.monitoring.retentionPeriod && (
-          <div
-            style={{ ...styles.monitoringRow, borderBottom: 'none' }}
-            data-testid="retention-row"
-          >
-            <span style={styles.monitoringLabel}>How long kept</span>
-            <span style={styles.monitoringValue}>{agreement.monitoring.retentionPeriod}</span>
-          </div>
-        )}
-      </div>
+        )
+      })()}
 
       {/* Signatures Card - AC3 */}
       <div style={styles.signaturesCard} data-testid="signatures-card">
@@ -391,7 +422,7 @@ export function ChildAgreementView({
 
             {terms.map((term) => (
               <div key={term.id} style={styles.termItem} data-testid={`term-${term.id}`}>
-                <p style={styles.termText}>{term.text}</p>
+                <p style={styles.termText}>{translateToChildFriendly(term.text)}</p>
                 <span
                   style={{
                     ...styles.termParty,
