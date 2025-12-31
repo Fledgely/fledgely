@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * useCaregiverStatus Hook - Story 19A.3
+ * useCaregiverStatus Hook - Story 19A.3, 19D.2
  *
  * Provides simplified status for caregiver view.
  * Returns overall family status, children needing attention, and parent contact info.
@@ -10,14 +10,21 @@
  * - Simplified language ("Doing well" vs "All Good")
  * - No device details or metrics
  * - Includes parent contact for help button
+ * - Screen time status for answering "can they use the device?" (Story 19D.2)
  *
  * Dependencies:
  * - Epic 19D for full caregiver authentication (currently stubbed)
+ * - Epic 29 for real screen time data (currently stubbed)
  */
 
 import { useMemo, useCallback } from 'react'
 import { useChildStatus, ChildStatus } from './useChildStatus'
 import type { FamilyStatus } from './useFamilyStatus'
+
+/**
+ * Screen time status for caregiver view (Story 19D.2)
+ */
+export type ScreenTimeStatus = 'available' | 'finished'
 
 /**
  * Simplified child summary for caregiver view
@@ -28,6 +35,9 @@ export interface CaregiverChildSummary {
   photoURL: string | null
   status: FamilyStatus
   statusMessage: string // "Doing well" | "Check in" | "Needs help"
+  // Story 19D.2: Screen time status for caregivers
+  screenTimeStatus: ScreenTimeStatus
+  timeRemainingMinutes: number | null // null if no limit set or screen time not configured
 }
 
 /**
@@ -70,15 +80,53 @@ function getStatusMessage(status: FamilyStatus): string {
 }
 
 /**
+ * Screen time data for a child (Story 19D.2)
+ *
+ * TODO: Replace with real data from time tracking service (Epic 29)
+ * For now, returns stubbed data based on child ID hash for variety
+ */
+interface ScreenTimeData {
+  status: ScreenTimeStatus
+  remainingMinutes: number | null
+}
+
+function getScreenTimeData(childId: string): ScreenTimeData {
+  // TODO: Epic 29 - Replace with actual time tracking data
+  // Using a simple hash of childId to provide variety in demo data
+  const hash = childId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const scenario = hash % 4
+
+  switch (scenario) {
+    case 0:
+      // Screen time available with time remaining
+      return { status: 'available', remainingMinutes: 45 }
+    case 1:
+      // Screen time available with more time
+      return { status: 'available', remainingMinutes: 120 }
+    case 2:
+      // Screen time finished for today
+      return { status: 'finished', remainingMinutes: 0 }
+    case 3:
+    default:
+      // No limit configured (null remaining)
+      return { status: 'available', remainingMinutes: null }
+  }
+}
+
+/**
  * Convert ChildStatus to simplified CaregiverChildSummary
  */
 function toChildSummary(child: ChildStatus): CaregiverChildSummary {
+  const screenTimeData = getScreenTimeData(child.childId)
+
   return {
     childId: child.childId,
     childName: child.childName,
     photoURL: child.photoURL,
     status: child.status,
     statusMessage: getStatusMessage(child.status),
+    screenTimeStatus: screenTimeData.status,
+    timeRemainingMinutes: screenTimeData.remainingMinutes,
   }
 }
 

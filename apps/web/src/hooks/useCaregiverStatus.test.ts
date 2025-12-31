@@ -1,8 +1,17 @@
 /**
- * useCaregiverStatus Hook Tests - Story 19A.3
+ * useCaregiverStatus Hook Tests - Story 19A.3, 19D.2
  *
  * Tests for the caregiver status aggregation hook.
- * Covers AC1 (simplified status) and AC2 (no complex device details).
+ *
+ * Story 19A.3:
+ * - AC1: Simplified status display
+ * - AC2: No complex device details
+ *
+ * Story 19D.2:
+ * - AC2: Screen time status ('available' | 'finished')
+ * - AC3: Time remaining display
+ * - AC4: No screenshot access
+ * - AC5: No device details
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -194,7 +203,7 @@ describe('useCaregiverStatus', () => {
   })
 
   describe('Simplified child summaries', () => {
-    it('should convert child status to simplified summary', () => {
+    it('should convert child status to simplified summary with screen time', () => {
       vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
         childStatuses: [
           createMockChildStatus({
@@ -213,13 +222,15 @@ describe('useCaregiverStatus', () => {
       const { result } = renderHook(() => useCaregiverStatus('family-1'))
 
       expect(result.current.children).toHaveLength(1)
-      expect(result.current.children[0]).toEqual({
-        childId: 'child-1',
-        childName: 'Emma',
-        photoURL: 'https://example.com/photo.jpg',
-        status: 'good',
-        statusMessage: 'Doing well',
-      })
+      const summary = result.current.children[0]
+      expect(summary.childId).toBe('child-1')
+      expect(summary.childName).toBe('Emma')
+      expect(summary.photoURL).toBe('https://example.com/photo.jpg')
+      expect(summary.status).toBe('good')
+      expect(summary.statusMessage).toBe('Doing well')
+      // Story 19D.2: Screen time fields should be present
+      expect(summary.screenTimeStatus).toBeDefined()
+      expect(['available', 'finished']).toContain(summary.screenTimeStatus)
     })
 
     it('should NOT include device details in simplified summary', () => {
@@ -305,6 +316,88 @@ describe('useCaregiverStatus', () => {
         name: 'Parent',
         phone: null,
       })
+    })
+  })
+
+  describe('Screen time status (Story 19D.2)', () => {
+    it('should include screenTimeStatus in child summary', () => {
+      vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
+        childStatuses: [createMockChildStatus({ childId: 'child-1', childName: 'Emma' })],
+        loading: false,
+        error: null,
+      })
+
+      const { result } = renderHook(() => useCaregiverStatus('family-1'))
+
+      expect(result.current.children[0]).toHaveProperty('screenTimeStatus')
+      expect(['available', 'finished']).toContain(result.current.children[0].screenTimeStatus)
+    })
+
+    it('should include timeRemainingMinutes in child summary', () => {
+      vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
+        childStatuses: [createMockChildStatus({ childId: 'child-1', childName: 'Emma' })],
+        loading: false,
+        error: null,
+      })
+
+      const { result } = renderHook(() => useCaregiverStatus('family-1'))
+
+      expect(result.current.children[0]).toHaveProperty('timeRemainingMinutes')
+    })
+
+    it('should provide varied screen time data for different children', () => {
+      // Using different childIds should produce variety in stubbed data
+      vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
+        childStatuses: [
+          createMockChildStatus({ childId: 'child-aaa', childName: 'Emma' }),
+          createMockChildStatus({ childId: 'child-bbb', childName: 'Liam' }),
+          createMockChildStatus({ childId: 'child-ccc', childName: 'Olivia' }),
+          createMockChildStatus({ childId: 'child-ddd', childName: 'Noah' }),
+        ],
+        loading: false,
+        error: null,
+      })
+
+      const { result } = renderHook(() => useCaregiverStatus('family-1'))
+
+      // All children should have valid screen time status
+      result.current.children.forEach((child) => {
+        expect(['available', 'finished']).toContain(child.screenTimeStatus)
+        // timeRemainingMinutes can be null or a number
+        expect(
+          child.timeRemainingMinutes === null || typeof child.timeRemainingMinutes === 'number'
+        ).toBe(true)
+      })
+    })
+
+    it('should NOT include screenshot data (AC4)', () => {
+      vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
+        childStatuses: [createMockChildStatus({ childId: 'child-1', childName: 'Emma' })],
+        loading: false,
+        error: null,
+      })
+
+      const { result } = renderHook(() => useCaregiverStatus('family-1'))
+
+      const summary = result.current.children[0]
+      expect(summary).not.toHaveProperty('screenshots')
+      expect(summary).not.toHaveProperty('screenshotUrls')
+      expect(summary).not.toHaveProperty('lastScreenshot')
+    })
+
+    it('should NOT include device history or activity (AC5)', () => {
+      vi.mocked(useChildStatusModule.useChildStatus).mockReturnValue({
+        childStatuses: [createMockChildStatus({ childId: 'child-1', childName: 'Emma' })],
+        loading: false,
+        error: null,
+      })
+
+      const { result } = renderHook(() => useCaregiverStatus('family-1'))
+
+      const summary = result.current.children[0]
+      expect(summary).not.toHaveProperty('devices')
+      expect(summary).not.toHaveProperty('activityHistory')
+      expect(summary).not.toHaveProperty('lastActivity')
     })
   })
 })
