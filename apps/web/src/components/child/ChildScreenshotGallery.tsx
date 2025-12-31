@@ -1,22 +1,35 @@
 'use client'
 
 /**
- * ChildScreenshotGallery Component - Story 19B.1
+ * ChildScreenshotGallery Component - Story 19B.1 & 19B.2
  *
  * Displays child's screenshots in a timeline-grouped gallery.
  * Uses child-friendly language at 6th-grade reading level.
  *
- * Task 3: Create ChildScreenshotGallery Component (AC: #2, #4, #5)
- * - 3.1 Create ChildScreenshotGallery.tsx in components/child/
- * - 3.2 Display thumbnails in responsive grid (3 cols desktop, 2 mobile)
- * - 3.3 Group by day with friendly headers ("Today", "Yesterday", date)
- * - 3.4 Add infinite scroll with loading indicator
- * - 3.5 Show empty state with friendly message
- * - 3.6 Use child-friendly language throughout
+ * Story 19B.1 - Original implementation
+ * Story 19B.2 - Enhanced with:
+ * - Time-of-day sections (AC: #1)
+ * - Day headers with counts (AC: #2)
+ * - Gap indicators (AC: #3)
+ * - Date navigation (AC: #4)
+ * - View toggle (AC: #5)
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ChildScreenshotCard } from './ChildScreenshotCard'
+import { TimeOfDaySection } from './TimeOfDaySection'
+import { TimelineGap } from './TimelineGap'
+import { ViewToggle, type ViewMode } from './ViewToggle'
+import { DatePickerModal } from './DatePickerModal'
+import {
+  groupByTimeOfDay,
+  detectGaps,
+  getDayLabel,
+  isToday,
+  getDateKey,
+  type TimeOfDayGroup,
+  type GapInfo,
+} from './timelineUtils'
 import type { ChildScreenshot } from '../../hooks/useChildScreenshots'
 
 /**
@@ -33,43 +46,53 @@ export interface ChildScreenshotGalleryProps {
 }
 
 /**
- * Group screenshots by day for timeline display
+ * Screenshots grouped by day
  */
-function groupByDay(screenshots: ChildScreenshot[]): Map<string, ChildScreenshot[]> {
-  const grouped = new Map<string, ChildScreenshot[]>()
+interface DayGroup {
+  dateKey: string
+  label: string
+  isToday: boolean
+  screenshots: ChildScreenshot[]
+  timeOfDayGroups: TimeOfDayGroup[]
+  gaps: GapInfo[]
+}
+
+/**
+ * Group screenshots by day with time-of-day sub-grouping
+ */
+function groupByDayWithTimeSections(screenshots: ChildScreenshot[]): DayGroup[] {
+  const dayMap = new Map<string, ChildScreenshot[]>()
 
   // Sort by timestamp descending (most recent first)
   const sorted = [...screenshots].sort((a, b) => b.timestamp - a.timestamp)
 
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
+  // Group by date key
   for (const screenshot of sorted) {
-    const date = new Date(screenshot.timestamp)
-    const screenshotDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-
-    let dayKey: string
-    if (screenshotDay.getTime() === today.getTime()) {
-      dayKey = 'Today'
-    } else if (screenshotDay.getTime() === yesterday.getTime()) {
-      dayKey = 'Yesterday'
-    } else {
-      dayKey = date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-      })
+    const dateKey = getDateKey(screenshot.timestamp)
+    if (!dayMap.has(dateKey)) {
+      dayMap.set(dateKey, [])
     }
-
-    if (!grouped.has(dayKey)) {
-      grouped.set(dayKey, [])
-    }
-    grouped.get(dayKey)!.push(screenshot)
+    dayMap.get(dateKey)!.push(screenshot)
   }
 
-  return grouped
+  // Convert to DayGroup array with time-of-day sections
+  const result: DayGroup[] = []
+
+  for (const [dateKey, dayScreenshots] of dayMap.entries()) {
+    const firstTimestamp = dayScreenshots[0].timestamp
+    const date = new Date(firstTimestamp)
+
+    result.push({
+      dateKey,
+      label: getDayLabel(date),
+      isToday: isToday(date),
+      screenshots: dayScreenshots,
+      timeOfDayGroups: groupByTimeOfDay(dayScreenshots),
+      gaps: detectGaps(dayScreenshots),
+    })
+  }
+
+  return result
 }
 
 /**
@@ -82,11 +105,23 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     marginBottom: '16px',
   },
+  headerRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap' as const,
+  },
+  titleSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '4px',
+  },
   title: {
     fontSize: '1.25rem',
     fontWeight: 600,
     color: '#0c4a6e', // sky-900
-    margin: '0 0 4px 0',
+    margin: '0',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
@@ -96,18 +131,55 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#0369a1', // sky-700
     margin: 0,
   },
+  controls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  calendarButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '36px',
+    height: '36px',
+    border: 'none',
+    borderRadius: '8px',
+    backgroundColor: '#e0f2fe', // sky-100
+    color: '#0369a1', // sky-700
+    cursor: 'pointer',
+    fontSize: '1rem',
+  },
   dayGroup: {
     marginBottom: '24px',
   },
   dayHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 0',
+    marginBottom: '12px',
+    borderBottom: '2px solid #bae6fd', // sky-200
+  },
+  dayLabel: {
     fontSize: '0.875rem',
     fontWeight: 600,
     color: '#0ea5e9', // sky-500
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
-    padding: '8px 0',
-    marginBottom: '12px',
-    borderBottom: '2px solid #bae6fd', // sky-200
+    margin: 0,
+  },
+  dayLabelToday: {
+    color: '#0369a1', // sky-700
+    backgroundColor: '#e0f2fe', // sky-100
+    padding: '4px 12px',
+    borderRadius: '16px',
+  },
+  dayCount: {
+    fontSize: '0.75rem',
+    color: '#64748b', // slate-500
+    backgroundColor: '#f1f5f9', // slate-100
+    padding: '4px 8px',
+    borderRadius: '12px',
   },
   grid: {
     display: 'grid',
@@ -199,6 +271,18 @@ export function ChildScreenshotGallery({
   onSelectScreenshot,
 }: ChildScreenshotGalleryProps) {
   const loadMoreRef = useRef<HTMLDivElement>(null)
+  // AC5: Preserve view preference during session using sessionStorage
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('child-gallery-view-mode')
+      if (saved === 'grid' || saved === 'timeline') {
+        return saved
+      }
+    }
+    return 'grid'
+  })
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
 
   // Intersection observer for infinite scroll
   const handleObserver = useCallback(
@@ -226,8 +310,28 @@ export function ChildScreenshotGallery({
     return () => observer.disconnect()
   }, [handleObserver])
 
-  // Group screenshots by day
-  const groupedScreenshots = groupByDay(screenshots)
+  // Group screenshots by day with time sections
+  const dayGroups = useMemo(() => groupByDayWithTimeSections(screenshots), [screenshots])
+
+  // Get set of dates that have screenshots for calendar highlighting
+  const datesWithScreenshots = useMemo(() => {
+    const dates = new Set<string>()
+    for (const screenshot of screenshots) {
+      dates.add(getDateKey(screenshot.timestamp))
+    }
+    return dates
+  }, [screenshots])
+
+  // Handle date selection from calendar
+  const handleDateSelect = useCallback((date: Date) => {
+    setSelectedDate(date)
+    // Scroll to the date if it exists
+    const dateKey = getDateKey(date.getTime())
+    const element = document.querySelector(`[data-date-key="${dateKey}"]`)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
 
   return (
     <div style={styles.container} data-testid="child-screenshot-gallery">
@@ -240,12 +344,46 @@ export function ChildScreenshotGallery({
       </style>
 
       <div style={styles.header}>
-        <h2 style={styles.title} data-testid="gallery-title">
-          <span>📸</span>
-          <span>Your Pictures</span>
-        </h2>
-        <p style={styles.subtitle}>These are pictures of what you were doing on your devices.</p>
+        <div style={styles.headerRow}>
+          <div style={styles.titleSection}>
+            <h2 style={styles.title} data-testid="gallery-title">
+              <span>📸</span>
+              <span>Your Pictures</span>
+            </h2>
+            <p style={styles.subtitle}>
+              These are pictures of what you were doing on your devices.
+            </p>
+          </div>
+          <div style={styles.controls}>
+            <button
+              style={styles.calendarButton}
+              onClick={() => setIsDatePickerOpen(true)}
+              aria-label="Pick a date"
+              data-testid="calendar-button"
+            >
+              📅
+            </button>
+            <ViewToggle
+              currentView={viewMode}
+              onViewChange={(mode) => {
+                setViewMode(mode)
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('child-gallery-view-mode', mode)
+                }
+              }}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Date picker modal */}
+      <DatePickerModal
+        isOpen={isDatePickerOpen}
+        onClose={() => setIsDatePickerOpen(false)}
+        onSelectDate={handleDateSelect}
+        datesWithScreenshots={datesWithScreenshots}
+        selectedDate={selectedDate}
+      />
 
       {/* Loading state */}
       {loading && (
@@ -276,24 +414,70 @@ export function ChildScreenshotGallery({
       {/* Screenshot timeline */}
       {!loading && !error && screenshots.length > 0 && (
         <div data-testid="gallery-timeline">
-          {Array.from(groupedScreenshots.entries()).map(([dayLabel, dayScreenshots]) => (
+          {dayGroups.map((dayGroup) => (
             <div
-              key={dayLabel}
+              key={dayGroup.dateKey}
               style={styles.dayGroup}
-              data-testid={`day-group-${dayLabel.toLowerCase().replace(/\s+/g, '-')}`}
+              data-testid={`day-group-${dayGroup.dateKey}`}
+              data-date-key={dayGroup.dateKey}
             >
+              {/* Day header with count */}
               <div style={styles.dayHeader} data-testid="day-header">
-                {dayLabel}
+                <span
+                  style={{
+                    ...styles.dayLabel,
+                    ...(dayGroup.isToday ? styles.dayLabelToday : {}),
+                  }}
+                  data-testid="day-label"
+                >
+                  {dayGroup.label}
+                </span>
+                <span style={styles.dayCount} data-testid="day-count">
+                  {dayGroup.screenshots.length}{' '}
+                  {dayGroup.screenshots.length === 1 ? 'picture' : 'pictures'}
+                </span>
               </div>
-              <div style={styles.grid}>
-                {dayScreenshots.map((screenshot) => (
-                  <ChildScreenshotCard
-                    key={screenshot.id}
-                    screenshot={screenshot}
-                    onClick={() => onSelectScreenshot(screenshot)}
-                  />
-                ))}
-              </div>
+
+              {/* Timeline view: show time-of-day sections and gaps */}
+              {viewMode === 'timeline' && (
+                <>
+                  {dayGroup.timeOfDayGroups.map((timeGroup, index) => (
+                    <div key={timeGroup.timeOfDay}>
+                      <TimeOfDaySection group={timeGroup} onSelectScreenshot={onSelectScreenshot} />
+                      {/* Show gap after this section if applicable */}
+                      {dayGroup.gaps
+                        .filter((gap) => {
+                          // Show gap if it falls between current and next time section
+                          const nextGroup = dayGroup.timeOfDayGroups[index + 1]
+                          if (!nextGroup) return false
+                          const currentEndTime = Math.min(
+                            ...timeGroup.screenshots.map((s) => s.timestamp)
+                          )
+                          const nextStartTime = Math.max(
+                            ...nextGroup.screenshots.map((s) => s.timestamp)
+                          )
+                          return gap.startTime >= currentEndTime && gap.endTime <= nextStartTime
+                        })
+                        .map((gap) => (
+                          <TimelineGap key={gap.id} gap={gap} />
+                        ))}
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Grid view: simple grid layout */}
+              {viewMode === 'grid' && (
+                <div style={styles.grid}>
+                  {dayGroup.screenshots.map((screenshot) => (
+                    <ChildScreenshotCard
+                      key={screenshot.id}
+                      screenshot={screenshot}
+                      onClick={() => onSelectScreenshot(screenshot)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
