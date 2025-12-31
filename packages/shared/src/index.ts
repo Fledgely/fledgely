@@ -347,3 +347,10 @@ export {
   type DescriptionStatus,
   type ScreenshotDescription,
 } from './contracts'
+
+// Accessibility settings exports (Story 28.6)
+export {
+  accessibilitySettingsSchema,
+  DEFAULT_ACCESSIBILITY_SETTINGS,
+  type AccessibilitySettings,
+} from './contracts'

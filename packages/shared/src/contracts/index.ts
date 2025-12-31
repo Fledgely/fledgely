@@ -3963,3 +3963,35 @@ export const resolutionSchema = z.object({
   createdAt: z.number(),
 })
 export type Resolution = z.infer<typeof resolutionSchema>
+
+/**
+ * Accessibility settings schema.
+ *
+ * Story 28.6: Accessibility Settings
+ * User preferences for accessibility features.
+ * Stored in user document or separate collection.
+ */
+export const accessibilitySettingsSchema = z.object({
+  /** Always show AI descriptions expanded (AC1) */
+  alwaysShowDescriptions: z.boolean().default(false),
+  /** Enable high contrast mode for low-vision users (AC2) */
+  highContrastMode: z.boolean().default(false),
+  /** Use larger text size (AC3) */
+  largerText: z.boolean().default(false),
+  /** Enable audio descriptions/text-to-speech (AC4) */
+  audioDescriptions: z.boolean().default(false),
+  /** When settings were last updated (epoch ms) */
+  updatedAt: z.number().optional(),
+})
+export type AccessibilitySettings = z.infer<typeof accessibilitySettingsSchema>
+
+/**
+ * Default accessibility settings.
+ * Story 28.6: Accessibility Settings
+ */
+export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
+  alwaysShowDescriptions: false,
+  highContrastMode: false,
+  largerText: false,
+  audioDescriptions: false,
+}

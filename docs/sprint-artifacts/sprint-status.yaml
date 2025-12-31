@@ -425,13 +425,13 @@ development_status:
   epic-27-5-retrospective: completed
 
   # Epic 28: AI-Generated Screenshot Descriptions
-  epic-28: in-progress
+  epic-28: done
   28-1-ai-description-generation: done
   28-2-description-quality-standards: done
   28-3-screen-reader-integration: done
   28-4-description-display-in-dashboard: done
   28-5-description-generation-failures: done
-  28-6-accessibility-settings: backlog
+  28-6-accessibility-settings: done
   epic-28-retrospective: optional
 
   # Epic 29: Time Tracking Foundation
