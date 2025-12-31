@@ -71,10 +71,15 @@ export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
 export { onFlagCreated } from './triggers/onFlagCreated' // Story 23.1
 export { onFlagAnnotated } from './triggers/onFlagAnnotated' // Story 23.3
+export { onFlagCorrected } from './triggers/onFlagCorrected' // Story 24.2
 
 // Export scheduled functions here as they are implemented
 // export { calculateTrustScores } from './scheduled/calculateTrustScores'
-export { cleanupExpiredScreenshots, executeExpiredWithdrawals } from './scheduled'
+export {
+  cleanupExpiredScreenshots,
+  executeExpiredWithdrawals,
+  processAIFeedback,
+} from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3
 

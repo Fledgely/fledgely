@@ -230,3 +230,16 @@ export {
   type ConcernCategoryDefinition,
   type SeverityGuidance,
 } from './constants/concern-category-definitions'
+
+// Family-specific model tuning exports (Story 24.2)
+export {
+  MINIMUM_CORRECTIONS_THRESHOLD,
+  familyFeedbackSchema,
+  correctionPatternSchema,
+  familyBiasWeightsSchema,
+  aiLearningStatusSchema,
+  type FamilyFeedback,
+  type CorrectionPattern,
+  type FamilyBiasWeights,
+  type AILearningStatus,
+} from './contracts'

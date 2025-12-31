@@ -3085,3 +3085,114 @@ export type ClassificationDebug = z.infer<typeof classificationDebugSchema>
 
 /** Debug record retention period (30 days in milliseconds) */
 export const DEBUG_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
+// ============================================================================
+// Story 24.2: Family-Specific Model Tuning
+// ============================================================================
+
+/**
+ * Minimum corrections required before applying family bias weights.
+ * Story 24.2 - AC4: Minimum corrections threshold
+ */
+export const MINIMUM_CORRECTIONS_THRESHOLD = 5
+
+/**
+ * Family feedback entry for AI learning.
+ *
+ * Story 24.2: Family-Specific Model Tuning - AC1, AC5
+ * Stores individual corrections made by parents for AI learning.
+ * Stored at /families/{familyId}/feedback/{feedbackId}
+ */
+export const familyFeedbackSchema = z.object({
+  /** Unique feedback entry ID */
+  id: z.string(),
+  /** Family this feedback belongs to */
+  familyId: z.string(),
+  /** Original flag that was corrected */
+  flagId: z.string(),
+  /** Child the flag was for */
+  childId: z.string(),
+  /** Original AI-assigned category */
+  originalCategory: concernCategorySchema,
+  /** Parent's corrected category */
+  correctedCategory: concernCategorySchema,
+  /** Parent who made the correction */
+  correctedBy: z.string(),
+  /** When correction was made (epoch ms) */
+  correctedAt: z.number(),
+  /** Whether this feedback has been processed in bias calculation */
+  processed: z.boolean().default(false),
+  /** When this feedback was processed (epoch ms) */
+  processedAt: z.number().optional(),
+})
+export type FamilyFeedback = z.infer<typeof familyFeedbackSchema>
+
+/**
+ * Correction pattern tracking for bias adjustments.
+ *
+ * Story 24.2: Family-Specific Model Tuning - AC2
+ * Tracks how often specific category corrections occur.
+ */
+export const correctionPatternSchema = z.object({
+  /** Original category that was corrected */
+  originalCategory: concernCategorySchema,
+  /** Category parent corrected to */
+  correctedCategory: concernCategorySchema,
+  /** Number of times this pattern has occurred */
+  count: z.number().min(0),
+  /** Confidence adjustment to apply (negative = reduce false positives) */
+  adjustment: z.number().min(-50).max(50),
+})
+export type CorrectionPattern = z.infer<typeof correctionPatternSchema>
+
+/**
+ * Family bias weights for AI model tuning.
+ *
+ * Story 24.2: Family-Specific Model Tuning - AC2, AC3, AC4
+ * Stored at /families/{familyId}/aiSettings
+ *
+ * When processing screenshots:
+ * - If correctionCount < MINIMUM_CORRECTIONS_THRESHOLD: use default model
+ * - If correctionCount >= MINIMUM_CORRECTIONS_THRESHOLD: apply adjustments
+ */
+export const familyBiasWeightsSchema = z.object({
+  /** Family this configuration belongs to */
+  familyId: z.string(),
+  /** Total number of corrections made by this family */
+  correctionCount: z.number().default(0),
+  /** When weights were last calculated (epoch ms) */
+  lastUpdatedAt: z.number(),
+  /**
+   * Per-category confidence adjustments.
+   * Positive = increase sensitivity (more flags)
+   * Negative = decrease sensitivity (fewer flags)
+   * Range: -50 to +50
+   */
+  categoryAdjustments: z.record(concernCategorySchema, z.number().min(-50).max(50)).optional(),
+  /**
+   * Specific correction patterns observed.
+   * E.g., if family often corrects Violence → Educational, reduce Violence confidence.
+   */
+  patterns: z.array(correctionPatternSchema).optional(),
+})
+export type FamilyBiasWeights = z.infer<typeof familyBiasWeightsSchema>
+
+/**
+ * AI learning status for display to parents.
+ *
+ * Story 24.2: Family-Specific Model Tuning - AC6
+ * Used by useFamilyAILearning hook to show learning indicator.
+ */
+export const aiLearningStatusSchema = z.object({
+  /** Whether AI learning is active (has enough corrections) */
+  isActive: z.boolean(),
+  /** Total corrections made */
+  correctionCount: z.number(),
+  /** Corrections needed to activate learning */
+  correctionsNeeded: z.number(),
+  /** When AI model was last adapted (epoch ms) */
+  lastAdaptedAt: z.number().optional(),
+  /** Categories with active adjustments */
+  adjustedCategories: z.array(concernCategorySchema).optional(),
+})
+export type AILearningStatus = z.infer<typeof aiLearningStatusSchema>

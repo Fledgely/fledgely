@@ -28,6 +28,7 @@ import { logSuppressionEvent } from './suppressionAudit'
 import { shouldAlertForFlag, recordFlagAlert, recordThrottledFlag } from './flagThrottle'
 import { getEffectiveThreshold } from './confidenceThreshold'
 import { createFlagsFromConcerns } from './flagStorage'
+import { applyFamilyBiasToConcerns } from './familyBias'
 
 /**
  * Result of classifyScreenshot operation.
@@ -116,12 +117,17 @@ export async function classifyScreenshot(
         }
       )
 
+      // Story 24.2: Family-Specific Model Tuning - AC2, AC3, AC4
+      // Apply family bias weights to adjust confidence scores before filtering
+      // This allows families with many corrections to reduce false positives
+      const biasAdjustedConcerns = await applyFamilyBiasToConcerns(familyId, concernResult.concerns)
+
       // Story 21.4: Filter concerns by confidence threshold (AC1, AC5)
       // Only create flags for concerns that meet the configured threshold
       const filteredConcerns: DetectedConcern[] = []
       let discardedCount = 0
 
-      for (const concern of concernResult.concerns) {
+      for (const concern of biasAdjustedConcerns) {
         // Get threshold first (single query), then check if should flag
         const threshold = await getEffectiveThreshold(familyId, concern.category)
         const shouldFlag =

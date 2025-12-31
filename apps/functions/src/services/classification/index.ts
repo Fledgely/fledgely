@@ -32,3 +32,11 @@ export {
   type FlagQueryFilters,
   type FlagQueryPagination,
 } from './flagStorage'
+export {
+  getFamilyBiasWeights,
+  applyFamilyBiasToConfidence,
+  applyFamilyBiasToConcerns,
+  shouldFilterDueToFamilyBias,
+  clearBiasWeightsCache,
+  clearAllBiasWeightsCache,
+} from './familyBias'

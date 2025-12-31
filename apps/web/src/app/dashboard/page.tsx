@@ -35,6 +35,8 @@ import {
 import SafetySettingProposalCard from '../../components/SafetySettingProposalCard'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { FlagQueue } from '../../components/flags'
+import { AILearningIndicator } from '../../components/settings/AILearningIndicator'
+import { useFamilyAILearning } from '../../hooks/useFamilyAILearning'
 
 const styles = {
   main: {
@@ -162,6 +164,13 @@ export default function DashboardPage() {
   const { permissionStatus, requestPermission } = usePushNotifications({
     userId: firebaseUser?.uid ?? null,
   })
+
+  // AI Learning status (Story 24.2)
+  const {
+    status: aiLearningStatus,
+    loading: aiLearningLoading,
+    error: aiLearningError,
+  } = useFamilyAILearning(family?.id ?? null)
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -417,6 +426,15 @@ export default function DashboardPage() {
 
         {/* Story 6.6: Withdrawal Pending Alerts - urgent notification for parents */}
         {family && <WithdrawalPendingAlert familyId={family.id} />}
+
+        {/* Story 24.2: AI Learning Indicator - shows AI personalization status */}
+        {family && (
+          <AILearningIndicator
+            status={aiLearningStatus}
+            loading={aiLearningLoading}
+            error={aiLearningError}
+          />
+        )}
 
         {/* Story 22.1: Flag Review Queue - shows pending flags requiring parent attention */}
         {family && children.length > 0 && (
