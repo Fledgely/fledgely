@@ -331,12 +331,12 @@ development_status:
   epic-19b-retrospective: done
 
   # Epic 19C: Child Dashboard - My Agreement
-  epic-19c: in-progress
+  epic-19c: done
   19c-1-child-agreement-view: done
   19c-2-age-appropriate-language-translation: done
   19c-3-agreement-terms-checklist: done
   19c-4-am-i-following-the-agreement-view: done
-  19c-5-request-agreement-change: backlog
+  19c-5-request-agreement-change: done
   epic-19c-retrospective: optional
 
   # Epic 19D: Basic Caregiver Status View
