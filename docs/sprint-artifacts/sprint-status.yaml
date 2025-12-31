@@ -328,7 +328,7 @@ development_status:
   19b-4-activity-summary-for-child: done
   19b-5-what-parents-see-explainer: done
   19b-6-screenshot-viewing-equality: done
-  epic-19b-retrospective: optional
+  epic-19b-retrospective: done
 
   # Epic 19C: Child Dashboard - My Agreement
   epic-19c: backlog
