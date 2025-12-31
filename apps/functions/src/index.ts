@@ -60,9 +60,10 @@ export { denyLegalParentPetition } from './callable/admin/denyLegalParentPetitio
 // User callable functions (Story 2.8)
 export { selfRemoveFromFamily } from './callable/selfRemoveFromFamily'
 
-// Caregiver callable functions (Story 19D.1)
+// Caregiver callable functions (Story 19D.1, 19D.5)
 export { sendCaregiverInvitation } from './callable/sendCaregiverInvitation'
 export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
+export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 
 // Export triggers here as they are implemented
 // export { onScreenshotCreated } from './triggers/onScreenshotCreated'

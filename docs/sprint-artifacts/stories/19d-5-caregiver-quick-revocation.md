@@ -55,10 +55,11 @@ So that **I can respond to concerns quickly (NFR62)**.
   - [x] 5.3 Test AccessRevoked component (14 tests)
   - [x] 5.4 Test audit logging schema
 
-- [ ] Task 6: Deferred to Epic 19E (Server-Side)
-  - [ ] AC2: Session termination (requires Cloud Functions)
-  - [ ] AC6: Re-invitation flow (requires server validation)
-  - [ ] Server-side authorization checks
+- [x] Task 6: Server-Side Implementation
+  - [x] 6.1 Create revokeCaregiverAccess Cloud Function with server-side authorization
+  - [x] 6.2 AC2: Session termination via caregiverSessions collection
+  - [x] 6.3 AC6: Re-invitation supported (no blocking records created)
+  - [x] 6.4 Audit logging in Cloud Function (11 tests)
 
 ## Dev Notes
 

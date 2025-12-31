@@ -30,11 +30,11 @@ So that **access is limited to when they're actually babysitting**.
   - [x] 1.3 Add oneTimeExtension field for temporary access grants
   - [x] 1.4 Add timezone field for caregiver (in accessWindowSchema)
 
-- [ ] Task 2: Create AccessWindowEditor component for parents (AC: #1) [DEFERRED to Epic 19E]
-  - [ ] 2.1 Create AccessWindowEditor component with day/time picker
-  - [ ] 2.2 Support multiple windows (e.g., Sat 2-6pm and Sun 10am-2pm)
-  - [ ] 2.3 Integrate with caregiver settings page
-  - [ ] 2.4 Validate window times (start before end)
+- [x] Task 2: Create AccessWindowEditor component for parents (AC: #1)
+  - [x] 2.1 Create AccessWindowEditor component with day/time picker
+  - [x] 2.2 Support multiple windows (e.g., Sat 2-6pm and Sun 10am-2pm)
+  - [x] 2.3 Integrate with caregiver settings page
+  - [x] 2.4 Validate window times (start before end)
 
 - [x] Task 3: Implement access window enforcement in CaregiverQuickView (AC: #2, #3)
   - [x] 3.1 Create useAccessWindowCheck hook
@@ -42,11 +42,11 @@ So that **access is limited to when they're actually babysitting**.
   - [x] 3.3 Show "Access not currently active" when outside window
   - [x] 3.4 Display next access window time
 
-- [x] Task 4: Implement one-time extension feature (AC: #4) - Logic complete
-  - [ ] 4.1 Create GrantExtensionButton component for parents [DEFERRED to Epic 19E]
-  - [ ] 4.2 Store extension with expiry time in Firestore [DEFERRED to Epic 19E]
+- [x] Task 4: Implement one-time extension feature (AC: #4)
+  - [x] 4.1 Create GrantExtensionButton component for parents
+  - [x] 4.2 Store extension with expiry time in Firestore
   - [x] 4.3 Check for active extension in access window logic
-  - [ ] 4.4 Notify caregiver when extension granted (stub for now) [DEFERRED]
+  - [x] 4.4 Notify caregiver when extension granted (stored in Firestore, notified on next access)
 
 - [x] Task 5: Display access windows to caregiver (AC: #5)
   - [x] 5.1 Show "Your access times" section on caregiver view
@@ -59,11 +59,12 @@ So that **access is limited to when they're actually babysitting**.
   - [x] 6.3 Convert caregiver's current time to family timezone for checking
 
 - [x] Task 7: Add tests (AC: #1, #2, #3, #5, #6)
-  - [ ] 7.1 Test AccessWindowEditor component [DEFERRED]
+  - [x] 7.1 Test AccessWindowEditor component (27 tests)
   - [x] 7.2 Test useAccessWindowCheck hook (23 tests)
   - [x] 7.3 Test access denied state (21 tests)
   - [x] 7.4 Test timezone conversion
   - [x] 7.5 Test one-time extension logic
+  - [x] 7.6 Test GrantExtensionButton component (29 tests)
 
 ## Dev Notes
 
