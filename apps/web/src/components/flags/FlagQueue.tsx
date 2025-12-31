@@ -16,6 +16,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { FlagCard } from './FlagCard'
 import { FlagFilters } from './FlagFilters'
+import { FlagDetailModal } from './FlagDetailModal'
 import {
   subscribeToPendingFlags,
   getFlagsForChildren,
@@ -310,6 +311,21 @@ export function FlagQueue({ familyChildren, onFlagClick }: FlagQueueProps) {
           </span>
         </button>
       </div>
+
+      {/* Flag Detail Modal - Story 22.2 */}
+      {selectedFlagId &&
+        (() => {
+          const allFlags = [...pendingFlags, ...historyFlags]
+          const selectedFlag = allFlags.find((f) => f.id === selectedFlagId)
+          if (!selectedFlag) return null
+          return (
+            <FlagDetailModal
+              flag={selectedFlag}
+              childName={childNameMap.get(selectedFlag.childId) ?? 'Unknown'}
+              onClose={() => setSelectedFlagId(null)}
+            />
+          )
+        })()}
 
       {/* Flag list */}
       {loading ? (
