@@ -2371,6 +2371,60 @@ export const secondaryCategorySchema = z.object({
 })
 export type SecondaryCategory = z.infer<typeof secondaryCategorySchema>
 
+// ============================================================================
+// Concerning Content Detection (Epic 21)
+// ============================================================================
+
+/**
+ * Story 21.1: Concerning Content Categories - AC2
+ * Categories for concerning content that may need parent attention.
+ * These are SEPARATE from basic categories and can coexist (AC3).
+ */
+export const CONCERN_CATEGORY_VALUES = [
+  'Violence',
+  'Adult Content',
+  'Bullying',
+  'Self-Harm Indicators',
+  'Explicit Language',
+  'Unknown Contacts',
+] as const
+
+/**
+ * Story 21.1: Concerning Content Categories - AC2
+ * Schema for concern category enum validation.
+ */
+export const concernCategorySchema = z.enum(CONCERN_CATEGORY_VALUES)
+export type ConcernCategory = z.infer<typeof concernCategorySchema>
+
+/**
+ * Story 21.1: Concerning Content Categories - AC4
+ * Severity levels for concerning content.
+ * - low: Minor concern, may warrant discussion
+ * - medium: Moderate concern, should be reviewed
+ * - high: Serious concern, needs immediate attention
+ */
+export const concernSeveritySchema = z.enum(['low', 'medium', 'high'])
+export type ConcernSeverity = z.infer<typeof concernSeveritySchema>
+
+/**
+ * Story 21.1: Concerning Content Categories - AC1, AC4, AC5
+ * A flag indicating concerning content detected in a screenshot.
+ * Stored separately from basic classification (AC3).
+ */
+export const concernFlagSchema = z.object({
+  /** The type of concerning content detected */
+  category: concernCategorySchema,
+  /** Severity level of the concern */
+  severity: concernSeveritySchema,
+  /** Confidence score (0-100) for this concern detection */
+  confidence: z.number().min(0).max(100),
+  /** AI reasoning explaining why this content was flagged (AC5) */
+  reasoning: z.string(),
+  /** When the concern was detected (epoch ms) */
+  detectedAt: z.number(),
+})
+export type ConcernFlag = z.infer<typeof concernFlagSchema>
+
 /**
  * Classification result stored on screenshot document.
  *
@@ -2419,6 +2473,17 @@ export const classificationResultSchema = z.object({
    * Empty array if no secondary categories qualify.
    */
   secondaryCategories: z.array(secondaryCategorySchema).max(2).optional(),
+  /**
+   * Story 21.1: Concerning Content Categories - AC3
+   * Concern flags detected in the screenshot, stored alongside basic classification.
+   * Concerns are SEPARATE from categories - a "Gaming" screenshot can have Violence concerns.
+   */
+  concernFlags: z.array(concernFlagSchema).optional(),
+  /**
+   * Story 21.1: Concerning Content Categories - AC4
+   * Concern taxonomy version used for detection.
+   */
+  concernTaxonomyVersion: z.string().optional(),
 })
 export type ClassificationResult = z.infer<typeof classificationResultSchema>
 
@@ -2504,7 +2569,7 @@ export const classificationDebugSchema = z.object({
     imageSize: z.number().optional(),
   }),
 
-  /** Raw JSON response from Gemini (stringified) */
+  /** Raw JSON response from Gemini (stringified) - basic classification */
   rawResponse: z.string(),
 
   /** Parsed classification result */
@@ -2514,6 +2579,31 @@ export const classificationDebugSchema = z.object({
     secondaryCategories: z.array(secondaryCategorySchema).optional(),
     reasoning: z.string().optional(),
   }),
+
+  /**
+   * Story 21.1: Concerning Content Categories - AC5
+   * Raw JSON response from Gemini for concern detection (stringified)
+   */
+  concernRawResponse: z.string().optional(),
+
+  /**
+   * Story 21.1: Concerning Content Categories - AC5
+   * Parsed concern detection result
+   */
+  concernParsedResult: z
+    .object({
+      hasConcerns: z.boolean(),
+      concerns: z.array(
+        z.object({
+          category: concernCategorySchema,
+          severity: concernSeveritySchema,
+          confidence: z.number().min(0).max(100),
+          reasoning: z.string(),
+        })
+      ),
+      taxonomyVersion: z.string(),
+    })
+    .optional(),
 
   /** Model version used */
   modelVersion: z.string(),

@@ -8,8 +8,17 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { CLASSIFICATION_PROMPT, buildClassificationPrompt } from './classificationPrompt'
-import { CATEGORY_VALUES, LOW_CONFIDENCE_THRESHOLD } from '@fledgely/shared'
+import {
+  CLASSIFICATION_PROMPT,
+  buildClassificationPrompt,
+  CONCERN_DETECTION_PROMPT,
+  buildConcernDetectionPrompt,
+} from './classificationPrompt'
+import {
+  CATEGORY_VALUES,
+  LOW_CONFIDENCE_THRESHOLD,
+  CONCERN_CATEGORY_VALUES,
+} from '@fledgely/shared'
 
 describe('classificationPrompt', () => {
   describe('CLASSIFICATION_PROMPT', () => {
@@ -108,6 +117,99 @@ describe('classificationPrompt', () => {
       const result = buildClassificationPrompt('https://example.com', 'Title')
       expect(result).toContain('You are a screenshot classifier')
       expect(result).toContain('primaryCategory')
+    })
+  })
+
+  // Story 21.1: Concerning Content Categories - AC1, AC2, AC3, AC5
+  describe('CONCERN_DETECTION_PROMPT', () => {
+    it('includes all concern category values (AC2)', () => {
+      for (const category of CONCERN_CATEGORY_VALUES) {
+        expect(CONCERN_DETECTION_PROMPT).toContain(category)
+      }
+    })
+
+    it('includes JSON schema format', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('hasConcerns')
+      expect(CONCERN_DETECTION_PROMPT).toContain('concerns')
+      expect(CONCERN_DETECTION_PROMPT).toContain('severity')
+      expect(CONCERN_DETECTION_PROMPT).toContain('reasoning')
+    })
+
+    it('specifies severity levels (AC4)', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('low')
+      expect(CONCERN_DETECTION_PROMPT).toContain('medium')
+      expect(CONCERN_DETECTION_PROMPT).toContain('high')
+    })
+
+    it('explains concerns are separate from categories (AC3)', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('SEPARATE')
+      expect(CONCERN_DETECTION_PROMPT).toContain('coexist')
+    })
+
+    it('requires reasoning for each concern (AC5)', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('reasoning')
+      expect(CONCERN_DETECTION_PROMPT).toContain('explaining why')
+    })
+
+    it('specifies confidence range', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('0-100')
+    })
+
+    it('includes concern category definitions', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('Violence')
+      expect(CONCERN_DETECTION_PROMPT).toContain('Adult Content')
+      expect(CONCERN_DETECTION_PROMPT).toContain('Bullying')
+      expect(CONCERN_DETECTION_PROMPT).toContain('Self-Harm Indicators')
+      expect(CONCERN_DETECTION_PROMPT).toContain('Explicit Language')
+      expect(CONCERN_DETECTION_PROMPT).toContain('Unknown Contacts')
+    })
+
+    it('includes severity guidance from definitions', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('LOW')
+      expect(CONCERN_DETECTION_PROMPT).toContain('MEDIUM')
+      expect(CONCERN_DETECTION_PROMPT).toContain('HIGH')
+    })
+
+    it('specifies minimum confidence threshold', () => {
+      expect(CONCERN_DETECTION_PROMPT).toContain('30')
+      expect(CONCERN_DETECTION_PROMPT).toContain('confidence >=')
+    })
+  })
+
+  describe('buildConcernDetectionPrompt', () => {
+    it('returns base prompt when no context provided', () => {
+      const result = buildConcernDetectionPrompt()
+      expect(result).toBe(CONCERN_DETECTION_PROMPT)
+    })
+
+    it('includes URL when provided', () => {
+      const result = buildConcernDetectionPrompt('https://example.com', undefined)
+      expect(result).toContain('Context hints')
+      expect(result).toContain('URL: https://example.com')
+    })
+
+    it('includes title when provided', () => {
+      const result = buildConcernDetectionPrompt(undefined, 'My Page Title')
+      expect(result).toContain('Context hints')
+      expect(result).toContain('Page Title: My Page Title')
+    })
+
+    it('includes both URL and title when both provided', () => {
+      const result = buildConcernDetectionPrompt('https://example.com', 'My Page Title')
+      expect(result).toContain('Context hints')
+      expect(result).toContain('URL: https://example.com')
+      expect(result).toContain('Page Title: My Page Title')
+    })
+
+    it('always includes base concern prompt', () => {
+      const result = buildConcernDetectionPrompt('https://example.com', 'Title')
+      expect(result).toContain('You are a concern detector')
+      expect(result).toContain('hasConcerns')
+    })
+
+    it('mentions context is for identifying concerns', () => {
+      const result = buildConcernDetectionPrompt('https://example.com')
+      expect(result).toContain('help identify concerns')
     })
   })
 })

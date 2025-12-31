@@ -10,7 +10,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { GeminiClient } from './geminiClient'
-import { LOW_CONFIDENCE_THRESHOLD, TAXONOMY_VERSION } from '@fledgely/shared'
+import {
+  LOW_CONFIDENCE_THRESHOLD,
+  TAXONOMY_VERSION,
+  CONCERN_TAXONOMY_VERSION,
+  CONCERN_CATEGORY_VALUES,
+} from '@fledgely/shared'
 
 // Mock Vertex AI
 const mockGenerateContent = vi.fn()
@@ -556,6 +561,317 @@ describe('GeminiClient', () => {
       // The promise should have rejected due to timeout
       // Note: actual timeout is handled internally in classifyImage
       await expect(classifyPromise).rejects.toThrow(/timed out/i)
+    }, 10000)
+  })
+
+  // Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
+  describe('detectConcerns', () => {
+    const mockConcernResponse = (
+      concerns: Array<{
+        category: string
+        severity: string
+        confidence: number
+        reasoning: string
+      }>
+    ) => ({
+      response: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    hasConcerns: concerns.length > 0,
+                    concerns,
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      },
+    })
+
+    it('returns no concerns for clean content', async () => {
+      mockGenerateContent.mockResolvedValue(mockConcernResponse([]))
+
+      const result = await client.detectConcerns('base64ImageData')
+
+      expect(result.hasConcerns).toBe(false)
+      expect(result.concerns).toEqual([])
+      expect(result.taxonomyVersion).toBe(CONCERN_TAXONOMY_VERSION)
+    })
+
+    it('returns concern with severity and reasoning (AC4, AC5)', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          {
+            category: 'Violence',
+            severity: 'medium',
+            confidence: 75,
+            reasoning: 'Image shows intense game combat with weapons',
+          },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64ImageData')
+
+      expect(result.hasConcerns).toBe(true)
+      expect(result.concerns).toHaveLength(1)
+      expect(result.concerns[0].category).toBe('Violence')
+      expect(result.concerns[0].severity).toBe('medium')
+      expect(result.concerns[0].confidence).toBe(75)
+      expect(result.concerns[0].reasoning).toBe('Image shows intense game combat with weapons')
+    })
+
+    it('calls API with correct image data', async () => {
+      mockGenerateContent.mockResolvedValue(mockConcernResponse([]))
+
+      await client.detectConcerns('testBase64', 'image/jpeg')
+
+      expect(mockGenerateContent).toHaveBeenCalledWith({
+        contents: [
+          {
+            role: 'user',
+            parts: expect.arrayContaining([
+              expect.objectContaining({
+                inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: 'testBase64',
+                },
+              }),
+            ]),
+          },
+        ],
+      })
+    })
+
+    it('includes URL context in prompt when provided', async () => {
+      mockGenerateContent.mockResolvedValue(mockConcernResponse([]))
+
+      await client.detectConcerns('base64', 'image/jpeg', 'https://violent-game.com', 'Game Page')
+
+      const callArg = mockGenerateContent.mock.calls[0][0]
+      const textPart = callArg.contents[0].parts.find((p: { text?: string }) => p.text)
+
+      expect(textPart.text).toContain('https://violent-game.com')
+      expect(textPart.text).toContain('Game Page')
+    })
+
+    it('handles multiple concerns', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          { category: 'Violence', severity: 'high', confidence: 85, reasoning: 'Weapons visible' },
+          {
+            category: 'Explicit Language',
+            severity: 'medium',
+            confidence: 70,
+            reasoning: 'Profanity in chat',
+          },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.hasConcerns).toBe(true)
+      expect(result.concerns).toHaveLength(2)
+      // Should be sorted by severity (high first)
+      expect(result.concerns[0].severity).toBe('high')
+      expect(result.concerns[1].severity).toBe('medium')
+    })
+
+    it('handles JSON wrapped in markdown code blocks', async () => {
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: '```json\n{"hasConcerns": true, "concerns": [{"category": "Bullying", "severity": "low", "confidence": 55, "reasoning": "Test"}]}\n```',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      })
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.hasConcerns).toBe(true)
+      expect(result.concerns[0].category).toBe('Bullying')
+    })
+
+    it('filters invalid concern categories', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          {
+            category: 'InvalidCategory',
+            severity: 'high',
+            confidence: 80,
+            reasoning: 'Invalid',
+          },
+          { category: 'Violence', severity: 'medium', confidence: 70, reasoning: 'Valid concern' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns).toHaveLength(1)
+      expect(result.concerns[0].category).toBe('Violence')
+    })
+
+    it('filters invalid severity values', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          {
+            category: 'Violence',
+            severity: 'critical', // Invalid
+            confidence: 80,
+            reasoning: 'Test',
+          },
+          { category: 'Bullying', severity: 'high', confidence: 70, reasoning: 'Valid' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns).toHaveLength(1)
+      expect(result.concerns[0].category).toBe('Bullying')
+    })
+
+    it('filters concerns below minimum confidence threshold (30)', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          { category: 'Violence', severity: 'low', confidence: 29, reasoning: 'Too low' },
+          { category: 'Bullying', severity: 'low', confidence: 30, reasoning: 'At threshold' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns).toHaveLength(1)
+      expect(result.concerns[0].category).toBe('Bullying')
+    })
+
+    it('sorts concerns by severity then confidence', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          {
+            category: 'Explicit Language',
+            severity: 'low',
+            confidence: 90,
+            reasoning: 'Mild swearing',
+          },
+          { category: 'Violence', severity: 'high', confidence: 70, reasoning: 'Weapons' },
+          { category: 'Bullying', severity: 'medium', confidence: 80, reasoning: 'Mean messages' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns).toHaveLength(3)
+      expect(result.concerns[0].category).toBe('Violence') // high severity
+      expect(result.concerns[1].category).toBe('Bullying') // medium severity
+      expect(result.concerns[2].category).toBe('Explicit Language') // low severity
+    })
+
+    it('clamps confidence to valid range', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          { category: 'Violence', severity: 'high', confidence: 150, reasoning: 'Over 100' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns[0].confidence).toBe(100)
+    })
+
+    it('includes raw response for debugging', async () => {
+      mockGenerateContent.mockResolvedValue(mockConcernResponse([]))
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.rawResponse).toBeDefined()
+      expect(result.rawResponse).toContain('hasConcerns')
+    })
+
+    it('throws error on empty response', async () => {
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          candidates: [],
+        },
+      })
+
+      await expect(client.detectConcerns('base64')).rejects.toThrow(
+        'Empty response from Gemini API'
+      )
+    })
+
+    it('throws error on invalid JSON response', async () => {
+      mockGenerateContent.mockResolvedValue({
+        response: {
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Not valid JSON at all' }],
+              },
+            },
+          ],
+        },
+      })
+
+      await expect(client.detectConcerns('base64')).rejects.toThrow(
+        'Invalid JSON response from Gemini API'
+      )
+    })
+
+    it('handles all concern categories', async () => {
+      // Verify all concern categories can be parsed
+      const allConcerns = CONCERN_CATEGORY_VALUES.map((category) => ({
+        category,
+        severity: 'low',
+        confidence: 50,
+        reasoning: `Test ${category}`,
+      }))
+
+      mockGenerateContent.mockResolvedValue(mockConcernResponse(allConcerns))
+
+      const result = await client.detectConcerns('base64')
+
+      expect(result.concerns).toHaveLength(6)
+    })
+
+    it('accepts concerns with missing reasoning but logs warning', async () => {
+      mockGenerateContent.mockResolvedValue(
+        mockConcernResponse([
+          { category: 'Violence', severity: 'high', confidence: 80, reasoning: '' },
+        ])
+      )
+
+      const result = await client.detectConcerns('base64')
+
+      // Should still include the concern even without reasoning
+      expect(result.concerns).toHaveLength(1)
+      expect(result.concerns[0].reasoning).toBe('')
+    })
+
+    it('times out after configured timeout', async () => {
+      mockGenerateContent.mockImplementation(() => {
+        return new Promise((resolve) => {
+          setTimeout(() => resolve({}), 60000)
+        })
+      })
+
+      vi.useFakeTimers()
+
+      const detectPromise = client.detectConcerns('base64')
+      vi.advanceTimersByTime(31000)
+      vi.useRealTimers()
+
+      await expect(detectPromise).rejects.toThrow(/timed out/i)
     }, 10000)
   })
 })

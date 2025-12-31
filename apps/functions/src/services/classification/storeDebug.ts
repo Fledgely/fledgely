@@ -13,8 +13,21 @@ import {
   type ClassificationDebug,
   type Category,
   type SecondaryCategory,
+  type ConcernCategory,
+  type ConcernSeverity,
   DEBUG_RETENTION_MS,
 } from '@fledgely/shared'
+
+/**
+ * Parsed concern for debug storage.
+ * Story 21.1: Concerning Content Categories
+ */
+export interface ParsedConcern {
+  category: ConcernCategory
+  severity: ConcernSeverity
+  confidence: number
+  reasoning: string
+}
 
 /**
  * Input parameters for storing debug data.
@@ -34,6 +47,20 @@ export interface StoreDebugInput {
     secondaryCategories?: SecondaryCategory[]
     reasoning?: string
   }
+  /**
+   * Story 21.1: Concerning Content Categories - AC5
+   * Raw JSON response from concern detection
+   */
+  concernRawResponse?: string
+  /**
+   * Story 21.1: Concerning Content Categories - AC5
+   * Parsed concern detection result
+   */
+  concernParsedResult?: {
+    hasConcerns: boolean
+    concerns: ParsedConcern[]
+    taxonomyVersion: string
+  }
   modelVersion: string
   taxonomyVersion: string
   processingTimeMs?: number
@@ -43,6 +70,7 @@ export interface StoreDebugInput {
  * Store classification debug data for later analysis.
  *
  * Story 20.5: Classification Metadata Storage - AC4
+ * Story 21.1: Concerning Content Categories - AC5 (concern debug data)
  *
  * Stores the raw AI response and parsed result in a separate collection
  * for debugging and analysis. Records auto-expire after 30 days.
@@ -61,6 +89,9 @@ export async function storeClassificationDebug(input: StoreDebugInput): Promise<
     requestContext: input.requestContext,
     rawResponse: input.rawResponse,
     parsedResult: input.parsedResult,
+    // Story 21.1: Include concern detection debug data if present
+    ...(input.concernRawResponse && { concernRawResponse: input.concernRawResponse }),
+    ...(input.concernParsedResult && { concernParsedResult: input.concernParsedResult }),
     modelVersion: input.modelVersion,
     taxonomyVersion: input.taxonomyVersion,
     processingTimeMs: input.processingTimeMs,

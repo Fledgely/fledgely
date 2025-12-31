@@ -4,7 +4,7 @@
  * Story 19A.4: Status Push Notifications (AC: #1, #2)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { calculateDeviceStatus, _resetDbForTesting } from './onDeviceStatusChange'
 import { THRESHOLDS } from '../lib/notifications/statusTypes'
 

@@ -2,18 +2,67 @@
  * Classify Screenshot Tests
  *
  * Story 20.1: Classification Service Architecture - AC2, AC3, AC4, AC6
+ * Story 21.1: Concerning Content Categories - AC1, AC3, AC5
  *
  * @vitest-environment node
  */
 
-import { describe, it, expect, vi } from 'vitest'
-import { needsClassification, buildClassificationJob } from './classifyScreenshot'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {
+  needsClassification,
+  buildClassificationJob,
+  classifyScreenshot,
+} from './classifyScreenshot'
+import type { ClassificationJob } from '@fledgely/shared'
 
 // Mock logger
 vi.mock('firebase-functions/logger', () => ({
   error: vi.fn(),
   warn: vi.fn(),
   info: vi.fn(),
+}))
+
+// Mock Firebase Admin - supports nested collections
+const mockUpdate = vi.fn().mockResolvedValue(undefined)
+const mockScreenshotDoc = vi.fn().mockReturnValue({ update: mockUpdate })
+const mockScreenshotsCollection = vi.fn().mockReturnValue({ doc: mockScreenshotDoc })
+const mockChildDoc = vi.fn().mockReturnValue({ collection: mockScreenshotsCollection })
+const mockChildrenCollection = vi.fn().mockReturnValue({ doc: mockChildDoc })
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: vi.fn(() => ({
+    collection: mockChildrenCollection,
+  })),
+}))
+
+// Mock Firebase Storage
+const mockDownload = vi.fn().mockResolvedValue([Buffer.from('fake-image-data')])
+const mockExists = vi.fn().mockResolvedValue([true])
+const mockFile = vi.fn().mockReturnValue({
+  exists: mockExists,
+  download: mockDownload,
+})
+const mockBucket = vi.fn().mockReturnValue({ file: mockFile })
+vi.mock('firebase-admin/storage', () => ({
+  getStorage: vi.fn(() => ({
+    bucket: mockBucket,
+  })),
+}))
+
+// Mock Gemini client
+const mockClassifyImage = vi.fn()
+const mockDetectConcerns = vi.fn()
+const mockGetModelVersion = vi.fn().mockReturnValue('gemini-1.5-flash')
+vi.mock('./geminiClient', () => ({
+  createGeminiClient: vi.fn(() => ({
+    classifyImage: mockClassifyImage,
+    detectConcerns: mockDetectConcerns,
+    getModelVersion: mockGetModelVersion,
+  })),
+}))
+
+// Mock storeDebug
+vi.mock('./storeDebug', () => ({
+  storeClassificationDebug: vi.fn().mockResolvedValue(undefined),
 }))
 
 describe('classifyScreenshot helpers', () => {
@@ -137,5 +186,234 @@ describe('classifyScreenshot helpers', () => {
 
       expect(job?.retryCount).toBe(2)
     })
+  })
+})
+
+// Story 21.1: Concerning Content Categories - AC1, AC3, AC5
+describe('classifyScreenshot integration', () => {
+  const baseJob: ClassificationJob = {
+    childId: 'child-123',
+    screenshotId: 'screenshot-456',
+    storagePath: 'screenshots/child-123/2024-01-01/456.jpg',
+    familyId: 'family-789',
+    retryCount: 0,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExists.mockResolvedValue([true])
+    mockDownload.mockResolvedValue([Buffer.from('fake-image-data')])
+  })
+
+  it('calls both classifyImage and detectConcerns (AC1, AC3)', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Video game content',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: false,
+      concerns: [],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    const result = await classifyScreenshot(baseJob)
+
+    expect(result.success).toBe(true)
+    expect(mockClassifyImage).toHaveBeenCalledTimes(1)
+    expect(mockDetectConcerns).toHaveBeenCalledTimes(1)
+  })
+
+  it('stores concern flags alongside basic classification (AC3)', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Video game content',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Violence',
+          severity: 'medium',
+          confidence: 75,
+          reasoning: 'Game shows combat with weapons',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    // Verify final update includes both category and concerns
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    expect(finalUpdateCall.classification.primaryCategory).toBe('Gaming')
+    expect(finalUpdateCall.classification.concernFlags).toHaveLength(1)
+    expect(finalUpdateCall.classification.concernFlags[0].category).toBe('Violence')
+    expect(finalUpdateCall.classification.concernFlags[0].severity).toBe('medium')
+  })
+
+  it('includes reasoning in concern flags (AC5)', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Social Media',
+      confidence: 90,
+      reasoning: 'Chat application',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Bullying',
+          severity: 'high',
+          confidence: 80,
+          reasoning: 'Message contains threatening language and insults',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    expect(finalUpdateCall.classification.concernFlags[0].reasoning).toBe(
+      'Message contains threatening language and insults'
+    )
+  })
+
+  it('does not include concernFlags when no concerns detected', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Educational',
+      confidence: 95,
+      reasoning: 'Learning content',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: false,
+      concerns: [],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    expect(finalUpdateCall.classification.concernFlags).toBeUndefined()
+    expect(finalUpdateCall.classification.concernTaxonomyVersion).toBeUndefined()
+  })
+
+  it('handles multiple concerns on same screenshot', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Communication',
+      confidence: 85,
+      reasoning: 'Chat app',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Unknown Contacts',
+          severity: 'high',
+          confidence: 85,
+          reasoning: 'Stranger requesting personal info',
+        },
+        {
+          category: 'Explicit Language',
+          severity: 'low',
+          confidence: 60,
+          reasoning: 'Mild profanity in message',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    expect(finalUpdateCall.classification.concernFlags).toHaveLength(2)
+    expect(finalUpdateCall.classification.concernTaxonomyVersion).toBe('1.0')
+  })
+
+  it('includes detectedAt timestamp for each concern flag', async () => {
+    const beforeTime = Date.now()
+
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockResolvedValue({
+      hasConcerns: true,
+      concerns: [
+        {
+          category: 'Violence',
+          severity: 'low',
+          confidence: 50,
+          reasoning: 'Cartoon combat',
+        },
+      ],
+      taxonomyVersion: '1.0',
+      rawResponse: '{}',
+    })
+
+    await classifyScreenshot(baseJob)
+
+    const afterTime = Date.now()
+    const finalUpdateCall = mockUpdate.mock.calls[mockUpdate.mock.calls.length - 1][0]
+    const detectedAt = finalUpdateCall.classification.concernFlags[0].detectedAt
+
+    expect(detectedAt).toBeGreaterThanOrEqual(beforeTime)
+    expect(detectedAt).toBeLessThanOrEqual(afterTime)
+  })
+
+  it('fails entire classification if concern detection fails', async () => {
+    mockClassifyImage.mockResolvedValue({
+      primaryCategory: 'Gaming',
+      confidence: 85,
+      reasoning: 'Game',
+      isLowConfidence: false,
+      taxonomyVersion: '1.0',
+      needsReview: false,
+      secondaryCategories: [],
+      rawResponse: '{}',
+    })
+    mockDetectConcerns.mockRejectedValue(new Error('Concern detection API error'))
+
+    const result = await classifyScreenshot(baseJob)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Concern detection API error')
   })
 })

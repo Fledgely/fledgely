@@ -4,6 +4,7 @@
  * Story 20.1: Classification Service Architecture
  * Story 20.3: Confidence Score Assignment - AC4 (needsReview field)
  * Story 20.4: Multi-Label Classification - AC2, AC3 (secondaryCategories)
+ * Story 21.1: Concerning Content Categories - AC1, AC2, AC4, AC5 (concern flags)
  *
  * Tests for classification schemas and helper functions.
  */
@@ -20,6 +21,11 @@ import {
   CATEGORY_VALUES,
   DEBUG_RETENTION_MS,
   calculateBackoffDelay,
+  // Story 21.1: Concerning Content Categories
+  CONCERN_CATEGORY_VALUES,
+  concernCategorySchema,
+  concernSeveritySchema,
+  concernFlagSchema,
 } from './index'
 
 describe('Classification Contracts', () => {
@@ -558,6 +564,206 @@ describe('Classification Contracts', () => {
       expect(delay1).toBe(delay0 * 2)
       expect(delay2).toBe(delay1 * 2)
       expect(delay3).toBe(delay2 * 2)
+    })
+  })
+
+  // Story 21.1: Concerning Content Categories
+  describe('Concern Category Schemas (Story 21.1)', () => {
+    describe('CONCERN_CATEGORY_VALUES', () => {
+      it('contains all 6 concern categories (AC2)', () => {
+        expect(CONCERN_CATEGORY_VALUES).toContain('Violence')
+        expect(CONCERN_CATEGORY_VALUES).toContain('Adult Content')
+        expect(CONCERN_CATEGORY_VALUES).toContain('Bullying')
+        expect(CONCERN_CATEGORY_VALUES).toContain('Self-Harm Indicators')
+        expect(CONCERN_CATEGORY_VALUES).toContain('Explicit Language')
+        expect(CONCERN_CATEGORY_VALUES).toContain('Unknown Contacts')
+        expect(CONCERN_CATEGORY_VALUES.length).toBe(6)
+      })
+    })
+
+    describe('concernCategorySchema', () => {
+      it('accepts all valid concern categories (AC2)', () => {
+        for (const category of CONCERN_CATEGORY_VALUES) {
+          expect(concernCategorySchema.parse(category)).toBe(category)
+        }
+      })
+
+      it('rejects invalid concern categories', () => {
+        expect(() => concernCategorySchema.parse('Gaming')).toThrow()
+        expect(() => concernCategorySchema.parse('InvalidConcern')).toThrow()
+        expect(() => concernCategorySchema.parse('')).toThrow()
+      })
+
+      it('concern categories are separate from basic categories (AC3)', () => {
+        // Violence is a concern category, not a basic category
+        expect(CONCERN_CATEGORY_VALUES).toContain('Violence')
+        expect(CATEGORY_VALUES).not.toContain('Violence')
+
+        // Gaming is a basic category, not a concern category
+        expect(CATEGORY_VALUES).toContain('Gaming')
+        expect(CONCERN_CATEGORY_VALUES).not.toContain('Gaming')
+      })
+    })
+
+    describe('concernSeveritySchema', () => {
+      it('accepts all severity levels (AC4)', () => {
+        expect(concernSeveritySchema.parse('low')).toBe('low')
+        expect(concernSeveritySchema.parse('medium')).toBe('medium')
+        expect(concernSeveritySchema.parse('high')).toBe('high')
+      })
+
+      it('rejects invalid severity levels', () => {
+        expect(() => concernSeveritySchema.parse('critical')).toThrow()
+        expect(() => concernSeveritySchema.parse('none')).toThrow()
+        expect(() => concernSeveritySchema.parse('')).toThrow()
+      })
+    })
+
+    describe('concernFlagSchema', () => {
+      it('parses valid concern flag with all fields (AC1, AC4, AC5)', () => {
+        const now = Date.now()
+        const flag = concernFlagSchema.parse({
+          category: 'Violence',
+          severity: 'medium',
+          confidence: 75,
+          reasoning: 'Screenshot shows fighting scene from a video game',
+          detectedAt: now,
+        })
+
+        expect(flag.category).toBe('Violence')
+        expect(flag.severity).toBe('medium')
+        expect(flag.confidence).toBe(75)
+        expect(flag.reasoning).toBe('Screenshot shows fighting scene from a video game')
+        expect(flag.detectedAt).toBe(now)
+      })
+
+      it('validates all concern categories in flag', () => {
+        const now = Date.now()
+        for (const category of CONCERN_CATEGORY_VALUES) {
+          const flag = concernFlagSchema.parse({
+            category,
+            severity: 'low',
+            confidence: 50,
+            reasoning: `Detected ${category}`,
+            detectedAt: now,
+          })
+          expect(flag.category).toBe(category)
+        }
+      })
+
+      it('validates all severity levels in flag', () => {
+        const now = Date.now()
+        for (const severity of ['low', 'medium', 'high'] as const) {
+          const flag = concernFlagSchema.parse({
+            category: 'Bullying',
+            severity,
+            confidence: 60,
+            reasoning: 'Test reasoning',
+            detectedAt: now,
+          })
+          expect(flag.severity).toBe(severity)
+        }
+      })
+
+      it('validates confidence range (0-100)', () => {
+        const now = Date.now()
+
+        // Valid boundary values
+        expect(
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'low',
+            confidence: 0,
+            reasoning: 'Low confidence',
+            detectedAt: now,
+          }).confidence
+        ).toBe(0)
+
+        expect(
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'high',
+            confidence: 100,
+            reasoning: 'High confidence',
+            detectedAt: now,
+          }).confidence
+        ).toBe(100)
+
+        // Invalid values
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'low',
+            confidence: -1,
+            reasoning: 'Invalid',
+            detectedAt: now,
+          })
+        ).toThrow()
+
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'low',
+            confidence: 101,
+            reasoning: 'Invalid',
+            detectedAt: now,
+          })
+        ).toThrow()
+      })
+
+      it('requires reasoning field (AC5)', () => {
+        const now = Date.now()
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'low',
+            confidence: 50,
+            // Missing reasoning
+            detectedAt: now,
+          })
+        ).toThrow()
+      })
+
+      it('requires all fields', () => {
+        expect(() => concernFlagSchema.parse({})).toThrow()
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+          })
+        ).toThrow()
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'low',
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid category in flag', () => {
+        const now = Date.now()
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Gaming', // Basic category, not concern
+            severity: 'low',
+            confidence: 50,
+            reasoning: 'Test',
+            detectedAt: now,
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid severity in flag', () => {
+        const now = Date.now()
+        expect(() =>
+          concernFlagSchema.parse({
+            category: 'Violence',
+            severity: 'extreme', // Invalid severity
+            confidence: 50,
+            reasoning: 'Test',
+            detectedAt: now,
+          })
+        ).toThrow()
+      })
     })
   })
 })

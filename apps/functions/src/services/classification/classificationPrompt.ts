@@ -12,9 +12,11 @@
 
 import {
   buildCategoryDefinitionsForPrompt,
+  buildConcernDefinitionsForPrompt,
   LOW_CONFIDENCE_THRESHOLD,
   CONFIDENCE_THRESHOLDS,
   MAX_CATEGORIES,
+  CONCERN_CATEGORY_VALUES,
 } from '@fledgely/shared'
 
 /**
@@ -106,5 +108,86 @@ export function buildClassificationPrompt(url?: string, title?: string): string 
   return `${CLASSIFICATION_PROMPT}
 
 Context hints (use these to help with classification):
+${contextHints.join('\n')}`
+}
+
+/**
+ * Build the concern detection base prompt.
+ *
+ * Story 21.1: Concerning Content Categories - AC1, AC2, AC3, AC5
+ *
+ * IMPORTANT: Concern detection is SEPARATE from basic classification.
+ * Both can coexist on the same screenshot.
+ */
+function buildConcernBasePrompt(): string {
+  return `You are a concern detector for a family parental control application.
+Your job is to identify potentially concerning content that parents may want to be aware of.
+
+IMPORTANT:
+- This is SEPARATE from content categorization. A gaming screenshot can ALSO contain concerning content.
+- Detect concerns INDEPENDENTLY - they coexist with basic categories like "Gaming", "Social Media", etc.
+- Be factual and objective. Flag content that may warrant parental attention.
+- When in doubt, flag with lower severity rather than not flagging at all.
+- Respond ONLY with valid JSON matching the schema below.
+
+${buildConcernDefinitionsForPrompt()}
+
+Response JSON schema:
+{
+  "hasConcerns": <true if any concerns detected, false otherwise>,
+  "concerns": [
+    {
+      "category": "<one of: ${CONCERN_CATEGORY_VALUES.join(', ')}>",
+      "severity": "<low | medium | high>",
+      "confidence": <0-100 integer>,
+      "reasoning": "<1-2 sentences explaining why this concern was flagged>"
+    }
+  ]
+}
+
+Rules:
+1. hasConcerns should be true only if concerns array is non-empty
+2. Each concern must have a reasoning explaining WHY it was flagged (AC5)
+3. Severity should match the guidance above (low = minor, medium = notable, high = urgent)
+4. confidence reflects how certain you are this concern exists (0 = unsure, 100 = certain)
+5. Only include concerns with confidence >= 30
+6. Multiple concerns can be flagged for the same screenshot
+7. If image cannot be analyzed, return {"hasConcerns": false, "concerns": []}`
+}
+
+/**
+ * Concern detection prompt for Gemini Vision API.
+ *
+ * Story 21.1: Concerning Content Categories - AC1, AC2
+ */
+export const CONCERN_DETECTION_PROMPT = buildConcernBasePrompt()
+
+/**
+ * Build concern detection prompt with optional context hints.
+ *
+ * Story 21.1: Concerning Content Categories - AC1, AC2, AC3, AC5
+ *
+ * @param url - Optional page URL for context
+ * @param title - Optional page title for context
+ * @returns Complete concern detection prompt string
+ */
+export function buildConcernDetectionPrompt(url?: string, title?: string): string {
+  const contextHints: string[] = []
+
+  if (url) {
+    contextHints.push(`URL: ${url}`)
+  }
+
+  if (title) {
+    contextHints.push(`Page Title: ${title}`)
+  }
+
+  if (contextHints.length === 0) {
+    return CONCERN_DETECTION_PROMPT
+  }
+
+  return `${CONCERN_DETECTION_PROMPT}
+
+Context hints (use these to help identify concerns):
 ${contextHints.join('\n')}`
 }

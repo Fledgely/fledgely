@@ -140,3 +140,27 @@ export {
   getConfidenceLevelColor,
   type ConfidenceLevel,
 } from './constants/confidence'
+
+// Concern category exports (Story 21.1)
+export {
+  CONCERN_CATEGORY_VALUES,
+  concernCategorySchema,
+  concernSeveritySchema,
+  concernFlagSchema,
+  type ConcernCategory,
+  type ConcernSeverity,
+  type ConcernFlag,
+} from './contracts'
+
+// Concern category definitions exports (Story 21.1)
+export {
+  CONCERN_TAXONOMY_VERSION,
+  MIN_CONCERN_CONFIDENCE,
+  CONCERN_CATEGORY_DEFINITIONS,
+  getConcernCategoryDefinition,
+  getAllConcernCategoryDefinitions,
+  getSeverityGuidance,
+  buildConcernDefinitionsForPrompt,
+  type ConcernCategoryDefinition,
+  type SeverityGuidance,
+} from './constants/concern-category-definitions'

@@ -364,8 +364,8 @@ development_status:
   epic-20-retrospective: done
 
   # Epic 21: AI Classification - Concerning Content Detection
-  epic-21: backlog
-  21-1-concerning-content-categories: backlog
+  epic-21: in-progress
+  21-1-concerning-content-categories: done
   21-2-distress-detection-suppression-fr21a: backlog
   21-3-false-positive-throttling: backlog
   21-4-concern-confidence-thresholds: backlog

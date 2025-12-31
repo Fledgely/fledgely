@@ -139,6 +139,22 @@
       "collectionGroup": "classificationDebug",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "expiresAt", "order": "ASCENDING" }]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.concernFlags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "screenshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classification.concernTaxonomyVersion", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

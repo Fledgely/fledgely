@@ -12,8 +12,12 @@
 import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import * as logger from 'firebase-functions/logger'
-import { type ClassificationJob, type ClassificationResult } from '@fledgely/shared'
-import { createGeminiClient } from './geminiClient'
+import {
+  type ClassificationJob,
+  type ClassificationResult,
+  type ConcernFlag,
+} from '@fledgely/shared'
+import { createGeminiClient, type DetectedConcern } from './geminiClient'
 import { retryWithBackoff } from './retryWithBackoff'
 import { storeClassificationDebug } from './storeDebug'
 
@@ -61,7 +65,7 @@ export async function classifyScreenshot(
     // 1. Retrieve image from Firebase Storage
     const imageBase64 = await retrieveImageFromStorage(storagePath)
 
-    // 2. Call Gemini API with retry logic
+    // 2. Call Gemini API with retry logic - basic classification
     const geminiClient = createGeminiClient()
     const classificationResult = await retryWithBackoff(
       () => geminiClient.classifyImage(imageBase64, 'image/jpeg', url, title),
@@ -71,11 +75,34 @@ export async function classifyScreenshot(
       }
     )
 
+    // Story 21.1: Concerning Content Categories - AC1, AC3
+    // Call concern detection SEPARATELY from basic classification
+    // Concerns coexist with basic categories (a Gaming screenshot can have Violence concerns)
+    const concernResult = await retryWithBackoff(
+      () => geminiClient.detectConcerns(imageBase64, 'image/jpeg', url, title),
+      {
+        maxRetries: 2, // Inner retries for transient API errors
+        context: `detectConcerns:${screenshotId}`,
+      }
+    )
+
+    // Convert detected concerns to ConcernFlag format for storage
+    const concernFlags: ConcernFlag[] = concernResult.concerns.map(
+      (concern: DetectedConcern): ConcernFlag => ({
+        category: concern.category,
+        severity: concern.severity,
+        confidence: concern.confidence,
+        reasoning: concern.reasoning,
+        detectedAt: Date.now(),
+      })
+    )
+
     // 3. Build result object
     // Story 20.2: Basic Category Taxonomy - AC5, AC6
     // Story 20.3: Confidence Score Assignment - AC4
     // Story 20.4: Multi-Label Classification - AC1, AC2, AC3
-    // Include isLowConfidence, taxonomyVersion, needsReview, and secondaryCategories from Gemini response
+    // Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
+    // Include isLowConfidence, taxonomyVersion, needsReview, secondaryCategories, and concernFlags
     const classifiedAt = Date.now()
     const modelVersion = geminiClient.getModelVersion()
     const result: ClassificationResult = {
@@ -92,9 +119,15 @@ export async function classifyScreenshot(
       ...(classificationResult.secondaryCategories.length > 0 && {
         secondaryCategories: classificationResult.secondaryCategories,
       }),
+      // Story 21.1: Store concern flags (only if non-empty) - AC3
+      ...(concernFlags.length > 0 && {
+        concernFlags,
+        concernTaxonomyVersion: concernResult.taxonomyVersion,
+      }),
     }
 
     // Story 20.5: Store debug data for analysis (AC4)
+    // Story 21.1: Include concern detection debug data (AC5)
     // Fire-and-forget - don't block on debug storage
     storeClassificationDebug({
       screenshotId,
@@ -110,6 +143,13 @@ export async function classifyScreenshot(
         confidence: classificationResult.confidence,
         secondaryCategories: classificationResult.secondaryCategories,
         reasoning: classificationResult.reasoning,
+      },
+      // Story 21.1: Include concern detection debug data
+      concernRawResponse: concernResult.rawResponse,
+      concernParsedResult: {
+        hasConcerns: concernResult.hasConcerns,
+        concerns: concernResult.concerns,
+        taxonomyVersion: concernResult.taxonomyVersion,
       },
       modelVersion,
       taxonomyVersion: classificationResult.taxonomyVersion,
@@ -131,6 +171,9 @@ export async function classifyScreenshot(
       category: result.primaryCategory,
       confidence: result.confidence,
       secondaryCount: classificationResult.secondaryCategories.length,
+      // Story 21.1: Log concern detection results
+      hasConcerns: concernFlags.length > 0,
+      concernCount: concernFlags.length,
     })
 
     return { success: true, result }

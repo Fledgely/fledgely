@@ -20,9 +20,14 @@ import {
   classificationNeedsReview,
   CONFIDENCE_THRESHOLDS,
   MAX_CATEGORIES,
+  type ConcernCategory,
+  type ConcernSeverity,
+  CONCERN_CATEGORY_VALUES,
+  CONCERN_TAXONOMY_VERSION,
+  MIN_CONCERN_CONFIDENCE,
 } from '@fledgely/shared'
 import * as logger from 'firebase-functions/logger'
-import { buildClassificationPrompt } from './classificationPrompt'
+import { buildClassificationPrompt, buildConcernDetectionPrompt } from './classificationPrompt'
 
 /**
  * Classification response from Gemini.
@@ -57,6 +62,39 @@ export interface GeminiClassificationResponse {
    * Story 20.5: Classification Metadata Storage - AC4
    * Raw JSON response from Gemini API for debugging.
    */
+  rawResponse: string
+}
+
+/**
+ * Individual concern detected in screenshot.
+ *
+ * Story 21.1: Concerning Content Categories - AC1, AC4, AC5
+ */
+export interface DetectedConcern {
+  /** Concern category (matches CONCERN_CATEGORY_VALUES) */
+  category: ConcernCategory
+  /** Severity level: low, medium, or high */
+  severity: ConcernSeverity
+  /** Confidence score 0-100 */
+  confidence: number
+  /** AI reasoning explaining why this concern was flagged (AC5) */
+  reasoning: string
+}
+
+/**
+ * Concern detection response from Gemini.
+ *
+ * Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
+ * Separate from basic classification - concerns coexist with categories.
+ */
+export interface GeminiConcernDetectionResponse {
+  /** True if any concerns were detected */
+  hasConcerns: boolean
+  /** List of detected concerns with severity and reasoning */
+  concerns: DetectedConcern[]
+  /** Concern taxonomy version used for detection */
+  taxonomyVersion: string
+  /** Raw JSON response from Gemini API for debugging */
   rawResponse: string
 }
 
@@ -312,6 +350,194 @@ export class GeminiClient {
     // Story 20.4 AC3: Maximum 2 secondary categories (total 3 max)
     const maxSecondary = MAX_CATEGORIES - 1
     return validCategories.slice(0, maxSecondary)
+  }
+
+  /**
+   * Detect concerning content in a screenshot image.
+   *
+   * Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
+   *
+   * IMPORTANT: This is SEPARATE from basic classification. Concerns coexist
+   * with basic categories (AC3).
+   *
+   * @param imageBase64 - Base64-encoded image data (without data URL prefix)
+   * @param mimeType - Image MIME type (e.g., 'image/jpeg')
+   * @param url - Optional page URL for context
+   * @param title - Optional page title for context
+   * @returns Concern detection result with categories, severity, and reasoning
+   * @throws Error if detection fails or times out
+   */
+  async detectConcerns(
+    imageBase64: string,
+    mimeType: string = 'image/jpeg',
+    url?: string,
+    title?: string
+  ): Promise<GeminiConcernDetectionResponse> {
+    const prompt = buildConcernDetectionPrompt(url, title)
+
+    // Build request parts
+    const parts: Part[] = [
+      {
+        inlineData: {
+          mimeType,
+          data: imageBase64,
+        },
+      },
+      {
+        text: prompt,
+      },
+    ]
+
+    // Make API call with timeout
+    const result = await Promise.race([
+      this.model.generateContent({
+        contents: [{ role: 'user', parts }],
+      }),
+      this.createTimeoutPromise(),
+    ])
+
+    // Extract response text
+    const response = result.response
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) {
+      throw new Error('Empty response from Gemini API')
+    }
+
+    // Parse JSON response
+    return this.parseConcernDetectionResponse(text)
+  }
+
+  /**
+   * Parse Gemini response text into concern detection result.
+   *
+   * Story 21.1: Concerning Content Categories - AC1, AC4, AC5
+   *
+   * @param responseText - Raw text response from Gemini
+   * @returns Parsed concern detection response
+   * @throws Error if response cannot be parsed
+   */
+  private parseConcernDetectionResponse(responseText: string): GeminiConcernDetectionResponse {
+    const rawResponse = responseText
+    let jsonText = responseText.trim()
+
+    // Remove markdown code blocks if present
+    const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+      jsonText = jsonMatch[1].trim()
+    }
+
+    // Try to find JSON object in response
+    const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/)
+    if (jsonObjectMatch) {
+      jsonText = jsonObjectMatch[0]
+    }
+
+    let parsed: {
+      hasConcerns?: boolean
+      concerns?: Array<{
+        category?: string
+        severity?: string
+        confidence?: number
+        reasoning?: string
+      }>
+    }
+
+    try {
+      parsed = JSON.parse(jsonText)
+    } catch (parseError) {
+      logger.error('Failed to parse Gemini concern response as JSON', {
+        responseText: responseText.substring(0, 500),
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      })
+      throw new Error('Invalid JSON response from Gemini API')
+    }
+
+    // Parse and validate concerns
+    const validConcerns = this.parseDetectedConcerns(parsed.concerns)
+
+    return {
+      hasConcerns: validConcerns.length > 0,
+      concerns: validConcerns,
+      taxonomyVersion: CONCERN_TAXONOMY_VERSION,
+      rawResponse,
+    }
+  }
+
+  /**
+   * Parse and validate detected concerns from Gemini response.
+   *
+   * Story 21.1: Concerning Content Categories - AC1, AC4, AC5
+   *
+   * @param rawConcerns - Raw concerns from response
+   * @returns Validated concerns with severity and reasoning
+   */
+  private parseDetectedConcerns(
+    rawConcerns:
+      | Array<{
+          category?: string
+          severity?: string
+          confidence?: number
+          reasoning?: string
+        }>
+      | undefined
+  ): DetectedConcern[] {
+    if (!rawConcerns || !Array.isArray(rawConcerns)) {
+      return []
+    }
+
+    const validConcerns: DetectedConcern[] = []
+
+    for (const raw of rawConcerns) {
+      // Validate category
+      const category = raw.category as ConcernCategory
+      if (!category || !CONCERN_CATEGORY_VALUES.includes(category)) {
+        logger.warn('Invalid concern category in response', { category: raw.category })
+        continue
+      }
+
+      // Validate severity
+      const severity = raw.severity as ConcernSeverity
+      if (!severity || !['low', 'medium', 'high'].includes(severity)) {
+        logger.warn('Invalid concern severity in response', { severity: raw.severity })
+        continue
+      }
+
+      // Validate confidence
+      let confidence = raw.confidence ?? 0
+      if (typeof confidence !== 'number' || confidence < 0 || confidence > 100) {
+        confidence = Math.max(0, Math.min(100, Number(confidence) || 0))
+      }
+      confidence = Math.round(confidence)
+
+      // Filter by minimum confidence threshold
+      if (confidence < MIN_CONCERN_CONFIDENCE) {
+        continue
+      }
+
+      // Reasoning is required (AC5)
+      const reasoning = raw.reasoning || ''
+      if (!reasoning) {
+        logger.warn('Missing reasoning for concern', { category })
+      }
+
+      validConcerns.push({
+        category,
+        severity,
+        confidence,
+        reasoning,
+      })
+    }
+
+    // Sort by severity (high first), then by confidence
+    const severityOrder = { high: 0, medium: 1, low: 2 }
+    validConcerns.sort((a, b) => {
+      const severityDiff = severityOrder[a.severity] - severityOrder[b.severity]
+      if (severityDiff !== 0) return severityDiff
+      return b.confidence - a.confidence
+    })
+
+    return validConcerns
   }
 }
 
