@@ -1,22 +1,32 @@
 'use client'
 
 /**
- * FlagDetailModal Component - Story 22.2
+ * FlagDetailModal Component - Story 22.2 & Story 28.4
  *
  * Modal for viewing full flag details including screenshot.
  *
- * Acceptance Criteria:
+ * Story 22.2 Acceptance Criteria:
  * - AC1: Full screenshot displayed with flag overlay
  * - AC2: AI reasoning panel explains why flagged
  * - AC3: Category and severity prominently displayed
  * - AC4: Confidence score shown with explanation
  * - AC5: Timestamp and device information visible
  * - AC6: Can close detail view and return to queue
+ *
+ * Story 28.4 - Description Display in Dashboard:
+ * - AC1: Description shown below/beside screenshot
+ * - AC2: Collapsible for sighted users who prefer images
+ * - AC3: Expanded by default when screen reader detected
+ * - AC4: Description helps when screenshot is blurry or low-resolution
+ * - AC5: "AI Generated" label indicates source
+ * - AC6: Useful for all parents, not just visually impaired
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { getStorage, ref, getDownloadURL } from 'firebase/storage'
+import { getFirestore, doc, getDoc } from 'firebase/firestore'
 import { getFirebaseApp } from '../../lib/firebase'
+import type { ScreenshotDescription } from '@fledgely/shared'
 import { FlagInfoPanel } from './FlagInfoPanel'
 import { AIReasoningPanel } from './AIReasoningPanel'
 import { FlagActionModal } from './FlagActionModal'
@@ -313,6 +323,53 @@ const styles = {
     color: '#6b7280',
     marginTop: '8px',
   },
+  // Story 28.4: AI Description panel styles
+  aiDescriptionPanel: {
+    backgroundColor: '#f0f9ff', // sky-50
+    border: '1px solid #7dd3fc', // sky-300
+    borderRadius: '8px',
+    overflow: 'hidden' as const,
+    marginTop: '8px',
+  },
+  aiDescriptionToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '12px 16px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#0369a1', // sky-700
+    transition: 'background-color 0.15s ease',
+  },
+  aiDescriptionLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  aiBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    backgroundColor: '#e0f2fe', // sky-100
+    color: '#0c4a6e', // sky-900
+    fontSize: '11px',
+    fontWeight: 500,
+    padding: '2px 6px',
+    borderRadius: '4px',
+  },
+  aiDescriptionContent: {
+    padding: '0 16px 16px 16px',
+    fontSize: '14px',
+    color: '#374151',
+    lineHeight: 1.6,
+  },
+  aiDescriptionText: {
+    margin: 0,
+  },
 }
 
 /**
@@ -346,6 +403,17 @@ export function FlagDetailModal({
   })
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  // Story 28.4: AI description state
+  const [accessibilityDescription, setAccessibilityDescription] =
+    useState<ScreenshotDescription | null>(null)
+  // Story 28.4 AC3: Expand by default if user prefers reduced motion (common accessibility setting)
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    }
+    return false
+  })
 
   // Check if actions are available (need parentId and parentName)
   const canTakeAction = !!(parentId && parentName)
@@ -455,6 +523,41 @@ export function FlagDetailModal({
     }
   }, [flag.childId, flag.screenshotId, screenshotPath])
 
+  // Story 28.4: Fetch accessibility description from screenshot document
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchAccessibilityDescription() {
+      if (!flag.screenshotId || !flag.childId) {
+        return
+      }
+
+      try {
+        const firebaseApp = getFirebaseApp()
+        const db = getFirestore(firebaseApp)
+        const screenshotDocRef = doc(db, 'children', flag.childId, 'screenshots', flag.screenshotId)
+        const screenshotDoc = await getDoc(screenshotDocRef)
+
+        if (isMounted && screenshotDoc.exists()) {
+          const data = screenshotDoc.data()
+          if (data.accessibilityDescription) {
+            setAccessibilityDescription(data.accessibilityDescription as ScreenshotDescription)
+          }
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Error fetching accessibility description:', error)
+        // Non-critical error - don't block UI, just log it
+      }
+    }
+
+    fetchAccessibilityDescription()
+
+    return () => {
+      isMounted = false
+    }
+  }, [flag.childId, flag.screenshotId])
+
   // Handle keyboard navigation with focus trap
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -530,6 +633,9 @@ export function FlagDetailModal({
           .correct-button:hover {
             background-color: #bfdbfe;
           }
+          .ai-description-toggle:hover {
+            background-color: #e0f2fe;
+          }
         `}
       </style>
 
@@ -578,12 +684,57 @@ export function FlagDetailModal({
             ) : (
               <img
                 src={imageUrl}
-                alt={`Screenshot flagged for ${flag.category}`}
+                alt={
+                  accessibilityDescription?.status === 'completed' &&
+                  accessibilityDescription.description
+                    ? accessibilityDescription.description
+                    : `Screenshot flagged for ${flag.category}`
+                }
                 style={styles.screenshot}
                 data-testid="screenshot-image"
               />
             )}
           </div>
+
+          {/* Story 28.4: AI Description Panel */}
+          {accessibilityDescription?.status === 'completed' &&
+            accessibilityDescription.description && (
+              <div style={styles.aiDescriptionPanel} data-testid="ai-description-panel">
+                <button
+                  type="button"
+                  style={styles.aiDescriptionToggle}
+                  onClick={() => setIsDescriptionExpanded((prev) => !prev)}
+                  aria-expanded={isDescriptionExpanded}
+                  aria-controls="ai-description-content"
+                  className="ai-description-toggle"
+                  data-testid="ai-description-toggle"
+                >
+                  <span style={styles.aiDescriptionLabel}>
+                    <span role="img" aria-hidden="true">
+                      📝
+                    </span>
+                    Screenshot Description
+                    {/* Story 28.4 AC5: "AI Generated" label */}
+                    <span style={styles.aiBadge} data-testid="ai-generated-badge">
+                      <span role="img" aria-hidden="true">
+                        🤖
+                      </span>
+                      AI Generated
+                    </span>
+                  </span>
+                  <span aria-hidden="true">{isDescriptionExpanded ? '▲' : '▼'}</span>
+                </button>
+                {isDescriptionExpanded && (
+                  <div
+                    id="ai-description-content"
+                    style={styles.aiDescriptionContent}
+                    data-testid="ai-description-content"
+                  >
+                    <p style={styles.aiDescriptionText}>{accessibilityDescription.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Info Panels */}
           <div style={styles.panels}>

@@ -1,7 +1,13 @@
 /**
- * FlagDetailModal Tests - Story 22.2
+ * FlagDetailModal Tests - Story 22.2 & Story 28.4
  *
  * Tests for the flag detail modal component.
+ *
+ * Story 28.4 - Description Display in Dashboard:
+ * - AC1: Description shown below/beside screenshot
+ * - AC2: Collapsible for sighted users who prefer images
+ * - AC3: Expanded by default when screen reader detected
+ * - AC5: "AI Generated" label indicates source
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -13,12 +19,35 @@ import type { FlagDocument } from '@fledgely/shared'
 vi.mock('firebase/storage', () => ({
   getStorage: vi.fn(() => ({})),
   ref: vi.fn(),
-  getDownloadURL: vi.fn(),
+  getDownloadURL: vi.fn().mockResolvedValue('https://example.com/screenshot.jpg'),
+}))
+
+// Story 28.4: Mock Firestore for accessibility description fetching
+const mockGetDoc = vi.fn()
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(() => ({})),
+  doc: vi.fn(),
+  getDoc: () => mockGetDoc(),
 }))
 
 vi.mock('../../lib/firebase', () => ({
   getFirebaseApp: vi.fn(() => ({})),
 }))
+
+// Story 28.4: Mock window.matchMedia for prefers-reduced-motion detection
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
 
 // Mock flag service
 vi.mock('../../services/flagService', () => ({
@@ -359,6 +388,192 @@ describe('FlagDetailModal', () => {
 
       fireEvent.click(screen.getByTestId('action-cancel'))
       expect(screen.queryByTestId('flag-action-modal')).not.toBeInTheDocument()
+    })
+  })
+
+  // Story 28.4: AI Description Display Tests
+  describe('Story 28.4 - AI Description Display', () => {
+    const mockAccessibilityDescription = {
+      status: 'completed',
+      description:
+        'The screenshot shows a YouTube video player with a Minecraft gaming tutorial. The video is paused at 5:30 showing a player building a castle. Comments are visible below the video.',
+      wordCount: 150,
+      generatedAt: Date.now(),
+      modelVersion: 'gemini-1.5-flash',
+    }
+
+    beforeEach(() => {
+      // Reset the mock before each test
+      mockGetDoc.mockReset()
+    })
+
+    describe('AC1: Description shown below screenshot', () => {
+      it('should render AI description panel when description is available', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-panel')).toBeInTheDocument()
+        })
+      })
+
+      it('should not render AI description panel when description is not available', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({}),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        // Wait for fetch to complete
+        await waitFor(() => {
+          expect(mockGetDoc).toHaveBeenCalled()
+        })
+
+        expect(screen.queryByTestId('ai-description-panel')).not.toBeInTheDocument()
+      })
+
+      it('should not render AI description panel when status is not completed', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: { status: 'pending' },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(mockGetDoc).toHaveBeenCalled()
+        })
+
+        expect(screen.queryByTestId('ai-description-panel')).not.toBeInTheDocument()
+      })
+
+      it('should display the description text when expanded', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-panel')).toBeInTheDocument()
+        })
+
+        // Expand the description
+        fireEvent.click(screen.getByTestId('ai-description-toggle'))
+
+        expect(screen.getByTestId('ai-description-content')).toBeInTheDocument()
+        expect(screen.getByText(/YouTube video player/)).toBeInTheDocument()
+      })
+    })
+
+    describe('AC2: Collapsible for sighted users', () => {
+      it('should have a toggle button with aria-expanded attribute', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-toggle')).toBeInTheDocument()
+        })
+
+        const toggle = screen.getByTestId('ai-description-toggle')
+        expect(toggle).toHaveAttribute('aria-expanded')
+      })
+
+      it('should toggle description visibility when button clicked', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-toggle')).toBeInTheDocument()
+        })
+
+        // Initially collapsed (not expanded by default without prefers-reduced-motion)
+        const toggle = screen.getByTestId('ai-description-toggle')
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        expect(screen.queryByTestId('ai-description-content')).not.toBeInTheDocument()
+
+        // Click to expand
+        fireEvent.click(toggle)
+        expect(toggle).toHaveAttribute('aria-expanded', 'true')
+        expect(screen.getByTestId('ai-description-content')).toBeInTheDocument()
+
+        // Click to collapse
+        fireEvent.click(toggle)
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        expect(screen.queryByTestId('ai-description-content')).not.toBeInTheDocument()
+      })
+    })
+
+    describe('AC5: AI Generated label', () => {
+      it('should display AI Generated badge', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-generated-badge')).toBeInTheDocument()
+        })
+
+        expect(screen.getByTestId('ai-generated-badge')).toHaveTextContent('AI Generated')
+      })
+    })
+
+    describe('Alt-text accessibility', () => {
+      it('should use AI description as alt-text when available', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({ accessibilityDescription: mockAccessibilityDescription }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          const img = screen.getByTestId('screenshot-image')
+          expect(img).toHaveAttribute('alt', mockAccessibilityDescription.description)
+        })
+      })
+
+      it('should use fallback alt-text when no description', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({}),
+        })
+
+        const flag = createMockFlag({ category: 'Violence' })
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          const img = screen.getByTestId('screenshot-image')
+          expect(img).toHaveAttribute('alt', 'Screenshot flagged for Violence')
+        })
+      })
     })
   })
 })
