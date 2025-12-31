@@ -25,3 +25,9 @@ export {
   type AuditLogQueryResult,
   type EnrichedAuditEvent,
 } from './auditQueryService'
+
+export {
+  getChildAuditLog,
+  type ChildFriendlyAuditEvent,
+  type ChildAuditLogResult,
+} from './childAuditQueryService'

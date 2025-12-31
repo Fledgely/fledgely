@@ -407,7 +407,7 @@ development_status:
   epic-27: in-progress
   27-1-audit-event-capture: done
   27-2-parent-audit-log-view: done
-  27-3-child-audit-log-view: backlog
+  27-3-child-audit-log-view: ready-for-dev
   27-4-asymmetric-viewing-pattern-detection: backlog
   27-5-audit-log-search-and-export: backlog
   27-6-real-time-access-notifications: backlog

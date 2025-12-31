@@ -32,6 +32,8 @@ import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlag
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
+import { useChildAuditLog } from '../../../hooks/useChildAuditLog'
+import { ChildAuditSection } from '../../../components/child/ChildAuditSection'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -196,6 +198,15 @@ function DashboardContent() {
     childId: childSession?.childId || '',
   })
 
+  // Story 27.3 - Fetch child audit log
+  const {
+    events: auditEvents,
+    isLoading: auditLoading,
+    error: auditError,
+    noRecentAccess,
+    lastAccessDate,
+  } = useChildAuditLog(childSession?.childId || null, childSession?.familyId || null)
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -337,6 +348,15 @@ function DashboardContent() {
             onSelectScreenshot={handleSelectScreenshot}
           />
         </div>
+
+        {/* Story 27.3 - Child audit log section */}
+        <ChildAuditSection
+          events={auditEvents}
+          isLoading={auditLoading}
+          error={auditError}
+          noRecentAccess={noRecentAccess}
+          lastAccessDate={lastAccessDate}
+        />
       </main>
 
       {/* Screenshot detail modal */}

@@ -28,6 +28,7 @@ import {
   getAuditLogForFamily,
   hasOnlyFamilyAccess,
   getFamilyMembersForFilter,
+  getChildAuditLog,
   type AuditLogFilters,
 } from '../../services/audit'
 import type { AuditResourceType } from '@fledgely/shared'
@@ -228,6 +229,173 @@ export const familyAuditLog = onRequest(
       res.status(200).json(response)
     } catch (error) {
       logger.error('Failed to query family audit log', {
+        familyId,
+        errorType: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : 'Unknown',
+      })
+      res.status(500).json({ error: 'Failed to retrieve audit log' })
+    }
+  }
+)
+
+/**
+ * Response from child audit log endpoint
+ */
+export interface ChildAuditLogResponse {
+  events: Array<{
+    id: string
+    actorFamilyName: string
+    actorType: string
+    accessType: string
+    resourceType: string
+    resourceId: string | null
+    timestamp: number
+    friendlyMessage: string
+    screenshotThumbnail?: {
+      id: string
+      timestamp: number
+    }
+  }>
+  noRecentAccess: boolean
+  lastAccessDate: number | null
+}
+
+/**
+ * Child audit log HTTP endpoint
+ *
+ * Story 27.3: Child Audit Log View - AC1, AC2, AC3
+ *
+ * GET /childAuditLog?childId={childId}&familyId={familyId}&limit={n}
+ *
+ * Headers:
+ * - Authorization: Bearer {Firebase ID token}
+ *
+ * Query Parameters:
+ * - childId: required - Child whose audit log to retrieve
+ * - familyId: required - Family ID for context
+ * - limit: optional - Max records to return (default 20, max 50)
+ *
+ * Response:
+ * - 200: Child-friendly audit log data
+ * - 400: Invalid request
+ * - 401: Authentication required/failed
+ * - 403: Not authorized (must be child or family guardian)
+ * - 404: Child not found
+ * - 500: Server error
+ */
+export const childAuditLog = onRequest(
+  {
+    cors: true,
+    maxInstances: 10,
+    timeoutSeconds: 30,
+  },
+  async (req, res) => {
+    // Only allow GET requests
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    // 1. Auth (FIRST) - Validate Firebase Auth token
+    const token = extractBearerToken(req.headers.authorization)
+    if (!token) {
+      res.status(401).json({ error: 'Authorization header required' })
+      return
+    }
+
+    let decodedToken
+    try {
+      const auth = getAuth()
+      decodedToken = await auth.verifyIdToken(token)
+    } catch (error) {
+      logger.warn('Invalid auth token for child audit', {
+        errorType: error instanceof Error ? error.name : 'Unknown',
+      })
+      res.status(401).json({ error: 'Invalid authentication token' })
+      return
+    }
+
+    const requesterId = decodedToken.uid
+
+    // 2. Validation (SECOND) - Validate request params
+    const { childId, familyId, limit } = req.query
+
+    if (!childId || typeof childId !== 'string') {
+      res.status(400).json({ error: 'childId parameter required' })
+      return
+    }
+
+    if (!familyId || typeof familyId !== 'string') {
+      res.status(400).json({ error: 'familyId parameter required' })
+      return
+    }
+
+    const queryLimit = Math.min(Math.max(parseInt(limit as string) || 20, 1), 50)
+
+    const db = getFirestore()
+
+    // 3. Permission (THIRD) - Verify user is the child or a family guardian
+    const familyRef = db.collection('families').doc(familyId)
+    const familyDoc = await familyRef.get()
+
+    if (!familyDoc.exists) {
+      res.status(404).json({ error: 'Family not found' })
+      return
+    }
+
+    const familyData = familyDoc.data()
+    const guardianUids = familyData?.guardianUids || []
+    const childUids = familyData?.childUids || []
+
+    // Check if requester is the child themselves or a guardian
+    const isChild = childUids.includes(requesterId)
+    const isGuardian = guardianUids.includes(requesterId)
+
+    if (!isChild && !isGuardian) {
+      logger.warn('Unauthorized child audit log access attempt', {
+        requesterId,
+        childId,
+        familyId,
+      })
+      res.status(403).json({ error: 'Not authorized to view this audit log' })
+      return
+    }
+
+    // If requester is a child, they can only view their own audit log
+    if (isChild && requesterId !== childId) {
+      logger.warn('Child attempting to view another child audit log', {
+        requesterId,
+        childId,
+        familyId,
+      })
+      res.status(403).json({ error: 'Not authorized to view this audit log' })
+      return
+    }
+
+    // 4. Business logic (LAST) - Query and return child-friendly audit data
+    try {
+      const result = await getChildAuditLog(childId, familyId, queryLimit)
+
+      const response: ChildAuditLogResponse = {
+        events: result.events.map((event) => ({
+          id: event.id,
+          actorFamilyName: event.actorFamilyName,
+          actorType: event.actorType,
+          accessType: event.accessType,
+          resourceType: event.resourceType,
+          resourceId: event.resourceId,
+          timestamp: event.timestamp,
+          friendlyMessage: event.friendlyMessage,
+          screenshotThumbnail: event.screenshotThumbnail,
+        })),
+        noRecentAccess: result.noRecentAccess,
+        lastAccessDate: result.lastAccessDate,
+      }
+
+      res.status(200).json(response)
+    } catch (error) {
+      logger.error('Failed to query child audit log', {
+        childId,
         familyId,
         errorType: error instanceof Error ? error.name : 'Unknown',
         errorMessage: error instanceof Error ? error.message : 'Unknown',
