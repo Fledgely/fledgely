@@ -16,6 +16,9 @@ describe('dataViewTypeSchema', () => {
       'activity',
       'agreements',
       'flags',
+      'devices',
+      'device_detail',
+      'child_own_screenshot',
     ]
 
     validTypes.forEach((type) => {
@@ -110,6 +113,9 @@ describe('dataViewAuditSchema', () => {
       'activity',
       'agreements',
       'flags',
+      'devices',
+      'device_detail',
+      'child_own_screenshot',
     ]
 
     dataTypes.forEach((dataType) => {

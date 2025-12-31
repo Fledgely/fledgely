@@ -25,6 +25,7 @@ const VALID_DATA_VIEW_TYPES = [
   'flags',
   'devices', // Story 19.8: Dashboard view logging
   'device_detail', // Story 19.8: Individual device detail view
+  'child_own_screenshot', // Story 19B.6: Child viewing their own screenshot
 ] as const
 
 /**

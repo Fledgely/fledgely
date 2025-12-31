@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ChildScreenshotDetail Component - Story 19B.1 & 19B.3
+ * ChildScreenshotDetail Component - Story 19B.1 & 19B.3 & 19B.6
  *
  * Modal for viewing full-size screenshots with navigation.
  * Uses child-friendly language.
@@ -17,10 +17,15 @@
  * - Swipe-to-dismiss gesture (AC: #6)
  * - Double-tap to reset zoom
  * - Pan support when zoomed in
+ *
+ * Story 19B.6 - Bilateral Transparency:
+ * - Audit logging when child views their own screenshot (AC: #4)
+ * - Logs are separate from parent view logs
  */
 
 import { useEffect, useCallback, useState, useRef } from 'react'
 import type { ChildScreenshot } from '../../hooks/useChildScreenshots'
+import { logDataViewNonBlocking } from '../../services/dataViewAuditService'
 
 /**
  * Touch gesture configuration
@@ -57,6 +62,10 @@ export interface ChildScreenshotDetailProps {
   screenshots: ChildScreenshot[]
   onClose: () => void
   onNavigate: (screenshot: ChildScreenshot) => void
+  /** Story 19B.6: Child ID for audit logging (optional for backward compatibility) */
+  childId?: string
+  /** Story 19B.6: Family ID for audit logging (optional for backward compatibility) */
+  familyId?: string
 }
 
 /**
@@ -337,6 +346,8 @@ export function ChildScreenshotDetail({
   screenshots,
   onClose,
   onNavigate,
+  childId,
+  familyId,
 }: ChildScreenshotDetailProps) {
   const [imageError, setImageError] = useState(false)
   const [touchState, setTouchState] = useState<TouchState>(initialTouchState)
@@ -347,6 +358,20 @@ export function ChildScreenshotDetail({
   const currentIndex = screenshots.findIndex((s) => s.id === screenshot.id)
   const hasPrev = currentIndex > 0
   const hasNext = currentIndex < screenshots.length - 1
+
+  // Story 19B.6: Log child viewing their own screenshot (AC: #4)
+  // This creates a separate audit log from parent view logs
+  useEffect(() => {
+    if (screenshot && childId && familyId) {
+      logDataViewNonBlocking({
+        viewerUid: childId,
+        childId,
+        familyId,
+        dataType: 'child_own_screenshot',
+        metadata: { screenshotId: screenshot.id },
+      })
+    }
+  }, [screenshot, childId, familyId])
 
   // Reset touch state when navigating to new screenshot
   useEffect(() => {

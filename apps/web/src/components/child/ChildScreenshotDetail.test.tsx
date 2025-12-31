@@ -1,14 +1,21 @@
 /**
- * ChildScreenshotDetail Tests - Story 19B.1 & 19B.3
+ * ChildScreenshotDetail Tests - Story 19B.1 & 19B.3 & 19B.6
  *
  * Story 19B.1: Basic modal functionality
  * Story 19B.3: Pinch-to-zoom and swipe-to-dismiss gestures
+ * Story 19B.6: Child view audit logging (bilateral transparency)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ChildScreenshotDetail } from './ChildScreenshotDetail'
 import type { ChildScreenshot } from '../../hooks/useChildScreenshots'
+import * as auditService from '../../services/dataViewAuditService'
+
+// Mock the audit service
+vi.mock('../../services/dataViewAuditService', () => ({
+  logDataViewNonBlocking: vi.fn(),
+}))
 
 describe('ChildScreenshotDetail', () => {
   const mockScreenshots: ChildScreenshot[] = [
@@ -284,6 +291,64 @@ describe('ChildScreenshotDetail', () => {
 
       const image = screen.getByTestId('detail-image')
       expect(image).toHaveAttribute('draggable', 'false')
+    })
+  })
+
+  // Story 19B.6 - Audit Logging Tests (Bilateral Transparency)
+  describe('Audit Logging (Story 19B.6)', () => {
+    const propsWithAudit = {
+      ...defaultProps,
+      childId: 'child-123',
+      familyId: 'family-456',
+    }
+
+    it('should log child view when childId and familyId are provided (AC4)', () => {
+      render(<ChildScreenshotDetail {...propsWithAudit} />)
+
+      expect(auditService.logDataViewNonBlocking).toHaveBeenCalledWith({
+        viewerUid: 'child-123',
+        childId: 'child-123',
+        familyId: 'family-456',
+        dataType: 'child_own_screenshot',
+        metadata: { screenshotId: 'ss-2' },
+      })
+    })
+
+    it('should NOT log when childId is missing', () => {
+      render(<ChildScreenshotDetail {...defaultProps} familyId="family-456" />)
+
+      expect(auditService.logDataViewNonBlocking).not.toHaveBeenCalled()
+    })
+
+    it('should NOT log when familyId is missing', () => {
+      render(<ChildScreenshotDetail {...defaultProps} childId="child-123" />)
+
+      expect(auditService.logDataViewNonBlocking).not.toHaveBeenCalled()
+    })
+
+    it('should log again when screenshot changes', () => {
+      const { rerender } = render(<ChildScreenshotDetail {...propsWithAudit} />)
+
+      expect(auditService.logDataViewNonBlocking).toHaveBeenCalledTimes(1)
+
+      // Navigate to a different screenshot
+      rerender(<ChildScreenshotDetail {...propsWithAudit} screenshot={mockScreenshots[0]} />)
+
+      expect(auditService.logDataViewNonBlocking).toHaveBeenCalledTimes(2)
+      expect(auditService.logDataViewNonBlocking).toHaveBeenLastCalledWith({
+        viewerUid: 'child-123',
+        childId: 'child-123',
+        familyId: 'family-456',
+        dataType: 'child_own_screenshot',
+        metadata: { screenshotId: 'ss-1' },
+      })
+    })
+
+    it('should use correct dataType for child_own_screenshot', () => {
+      render(<ChildScreenshotDetail {...propsWithAudit} />)
+
+      const call = vi.mocked(auditService.logDataViewNonBlocking).mock.calls[0][0]
+      expect(call.dataType).toBe('child_own_screenshot')
     })
   })
 })
