@@ -94,12 +94,16 @@ describe('screenshotDescriptionService', () => {
     _resetDbForTesting()
 
     // Default successful mock responses
+    // Story 28.2: Include quality fields
     mockGenerateDescription.mockResolvedValue({
       description: 'A YouTube video showing Minecraft gameplay with the title visible.',
       wordCount: 150,
       appsIdentified: ['YouTube', 'Chrome'],
       hasText: true,
       textExcerpt: 'Minecraft Building Tutorial',
+      imageQuality: 'clear',
+      confidenceScore: 85,
+      isSensitiveContent: false,
       rawResponse: '{}',
     })
   })

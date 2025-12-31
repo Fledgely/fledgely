@@ -101,9 +101,17 @@ export interface GeminiConcernDetectionResponse {
 }
 
 /**
+ * Image quality assessment for description generation.
+ *
+ * Story 28.2: Description Quality Standards - AC6
+ */
+export type ImageQuality = 'clear' | 'partial' | 'unclear'
+
+/**
  * Description generation response from Gemini.
  *
  * Story 28.1: AI Description Generation - AC1, AC2, AC3
+ * Story 28.2: Description Quality Standards - AC1-AC6
  */
 export interface GeminiDescriptionResponse {
   /** Natural language description of screenshot content */
@@ -116,6 +124,21 @@ export interface GeminiDescriptionResponse {
   hasText: boolean
   /** Excerpt of visible text if any */
   textExcerpt: string | null
+  /**
+   * Story 28.2: Description Quality Standards - AC6
+   * Image quality assessment: clear, partial, or unclear
+   */
+  imageQuality: ImageQuality
+  /**
+   * Story 28.2: Description Quality Standards - AC6
+   * Confidence score 0-100 for description accuracy
+   */
+  confidenceScore: number
+  /**
+   * Story 28.2: Description Quality Standards - AC3
+   * True if sensitive/concerning content detected
+   */
+  isSensitiveContent: boolean
   /** Raw JSON response from Gemini API for debugging */
   rawResponse: string
 }
@@ -635,6 +658,7 @@ export class GeminiClient {
    * Parse Gemini response text into description result.
    *
    * Story 28.1: AI Description Generation - AC1, AC2, AC3
+   * Story 28.2: Description Quality Standards - AC1-AC6
    *
    * @param responseText - Raw text response from Gemini
    * @returns Parsed description response
@@ -662,6 +686,9 @@ export class GeminiClient {
       appsIdentified?: string[]
       hasText?: boolean
       textExcerpt?: string
+      imageQuality?: string
+      confidenceScore?: number
+      isSensitiveContent?: boolean
     }
 
     try {
@@ -697,14 +724,69 @@ export class GeminiClient {
       })
     }
 
+    // Story 28.2: Parse quality assessment fields (AC6)
+    const imageQuality = this.parseImageQuality(parsed.imageQuality)
+    const confidenceScore = this.parseConfidenceScore(parsed.confidenceScore)
+    const isSensitiveContent = Boolean(parsed.isSensitiveContent)
+
+    // Log quality metrics for monitoring
+    if (imageQuality === 'unclear') {
+      logger.info('Description generated for unclear image', {
+        imageQuality,
+        confidenceScore,
+        descriptionLength: description.length,
+      })
+    }
+
+    if (isSensitiveContent) {
+      logger.info('Sensitive content detected in screenshot', {
+        imageQuality,
+        confidenceScore,
+      })
+    }
+
     return {
       description,
       wordCount,
       appsIdentified: Array.isArray(parsed.appsIdentified) ? parsed.appsIdentified : [],
       hasText: Boolean(parsed.hasText),
       textExcerpt: parsed.textExcerpt || null,
+      imageQuality,
+      confidenceScore,
+      isSensitiveContent,
       rawResponse,
     }
+  }
+
+  /**
+   * Parse and validate image quality value.
+   *
+   * Story 28.2: Description Quality Standards - AC6
+   *
+   * @param value - Raw imageQuality value from Gemini
+   * @returns Validated ImageQuality value, defaults to 'clear'
+   */
+  private parseImageQuality(value: string | undefined): ImageQuality {
+    const validValues: ImageQuality[] = ['clear', 'partial', 'unclear']
+    if (value && validValues.includes(value as ImageQuality)) {
+      return value as ImageQuality
+    }
+    return 'clear' // Default to clear if not specified
+  }
+
+  /**
+   * Parse and validate confidence score.
+   *
+   * Story 28.2: Description Quality Standards - AC6
+   *
+   * @param value - Raw confidenceScore value from Gemini
+   * @returns Validated confidence score 0-100, defaults to 80
+   */
+  private parseConfidenceScore(value: number | undefined): number {
+    if (typeof value === 'number' && value >= 0 && value <= 100) {
+      return Math.round(value)
+    }
+    return 80 // Default confidence if not specified
   }
 }
 
