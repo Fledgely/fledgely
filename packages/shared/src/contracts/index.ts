@@ -3197,6 +3197,61 @@ export const aiLearningStatusSchema = z.object({
 })
 export type AILearningStatus = z.infer<typeof aiLearningStatusSchema>
 
+/**
+ * Category improvement detail for learning dashboard.
+ *
+ * Story 24.4: Learning Progress Dashboard - AC2
+ */
+export const categoryImprovementSchema = z.object({
+  category: concernCategorySchema,
+  adjustment: z.number(),
+  description: z.string(),
+})
+export type CategoryImprovement = z.infer<typeof categoryImprovementSchema>
+
+/**
+ * Learned pattern for display on dashboard.
+ *
+ * Story 24.4: Learning Progress Dashboard - AC3
+ */
+export const learnedPatternSchema = z.object({
+  description: z.string(),
+  category: concernCategorySchema,
+  count: z.number(),
+})
+export type LearnedPattern = z.infer<typeof learnedPatternSchema>
+
+/**
+ * Learning dashboard data for parent display.
+ *
+ * Story 24.4: Learning Progress Dashboard - AC1, AC2, AC3, AC4
+ * Shows how AI has learned from parent corrections.
+ */
+export const learningDashboardDataSchema = z.object({
+  /** Total corrections made by the family */
+  totalCorrections: z.number(),
+  /** Corrections that resulted in model adjustments */
+  appliedCorrections: z.number(),
+  /** Recent corrections not yet processed */
+  pendingCorrections: z.number(),
+
+  /** Estimated accuracy improvement percentage (0-30) */
+  accuracyImprovement: z.number(),
+  /** Per-category improvements */
+  improvementCategories: z.array(categoryImprovementSchema),
+
+  /** Top learned patterns for display */
+  learnedPatterns: z.array(learnedPatternSchema),
+
+  /** Whether learning is active (has enough corrections) */
+  isLearningActive: z.boolean(),
+  /** When AI model was last adapted (epoch ms) */
+  lastAdaptedAt: z.number().optional(),
+  /** When next processing will occur (epoch ms) */
+  nextProcessingAt: z.number().optional(),
+})
+export type LearningDashboardData = z.infer<typeof learningDashboardDataSchema>
+
 // ============================================================================
 // Story 24.3: Explicit Approval of Categories
 // ============================================================================

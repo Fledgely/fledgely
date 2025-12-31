@@ -253,3 +253,13 @@ export {
   type AppApprovalStatus,
   type AppCategoryApproval,
 } from './contracts'
+
+// Learning dashboard exports (Story 24.4)
+export {
+  categoryImprovementSchema,
+  learnedPatternSchema,
+  learningDashboardDataSchema,
+  type CategoryImprovement,
+  type LearnedPattern,
+  type LearningDashboardData,
+} from './contracts'

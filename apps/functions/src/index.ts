@@ -66,6 +66,9 @@ export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
 export { grantCaregiverExtension } from './callable/grantCaregiverExtension'
 export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 
+// AI Learning callable functions (Story 24.4)
+export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
+
 // Export triggers here as they are implemented
 export { onScreenshotCreated } from './triggers/onScreenshotCreated'
 export { onDeviceStatusChange } from './triggers/onDeviceStatusChange'
