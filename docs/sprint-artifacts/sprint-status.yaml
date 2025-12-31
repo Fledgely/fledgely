@@ -385,13 +385,13 @@ development_status:
   epic-22-retrospective: done
 
   # Epic 23: Child Annotation Before Parent Alert
-  epic-23: in-progress
+  epic-23: done
   23-1-flag-notification-to-child: done
   23-2-child-annotation-interface: done
   23-3-annotation-timer-and-escalation: done
   23-4-annotation-display-to-parent: done
   23-5-skip-annotation-option: done
-  23-6-annotation-privacy-from-other-children: backlog
+  23-6-annotation-privacy-from-other-children: done
   epic-23-retrospective: optional
 
   # Epic 24: AI Feedback Loop
