@@ -327,3 +327,14 @@ export {
   type HealthCheckIn,
   type CheckInSettings,
 } from './contracts'
+
+// Resolution marker exports (Story 27.5.6)
+export {
+  resolutionMarkerTypeSchema,
+  RESOLUTION_MARKER_LABELS,
+  resolutionCreatorTypeSchema,
+  resolutionSchema,
+  type ResolutionMarkerType,
+  type ResolutionCreatorType,
+  type Resolution,
+} from './contracts'

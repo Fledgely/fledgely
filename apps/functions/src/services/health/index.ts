@@ -40,3 +40,11 @@ export {
   type RelationshipHealthLevel,
   type TrendLevel,
 } from './frictionIndicatorsService'
+
+export {
+  createResolution,
+  getResolutions,
+  getResolutionsForPeriod,
+  countPositiveResolutions,
+  type CreateResolutionParams,
+} from './resolutionService'

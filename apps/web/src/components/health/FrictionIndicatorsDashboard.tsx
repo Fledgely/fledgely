@@ -4,6 +4,7 @@
  * FrictionIndicatorsDashboard Component
  *
  * Story 27.5.4: Friction Indicators Dashboard
+ * Story 27.5.6: Resolution Markers
  *
  * Displays aggregated friction indicators for family health monitoring.
  * - AC1: Aggregated indicators (not specific responses)
@@ -12,9 +13,17 @@
  * - AC4: Privacy protection (no private check-in content revealed)
  * - AC5: Bilateral transparency (same view for both parties)
  * - AC6: Conversation starter
+ *
+ * Also includes resolution markers (Story 27.5.6):
+ * - AC1: Add resolution markers
+ * - AC2: Either party can add
+ * - AC6: Resolution history
  */
 
-import React from 'react'
+import React, { useState } from 'react'
+import type { Resolution, ResolutionMarkerType } from '@fledgely/shared'
+import { ResolutionMarkerModal } from './ResolutionMarkerModal'
+import { ResolutionHistory } from './ResolutionHistory'
 
 interface FrictionIndicators {
   relationshipHealth: 'mostly_positive' | 'stable' | 'some_concerns'
@@ -30,6 +39,14 @@ interface FrictionIndicatorsDashboardProps {
   indicators: FrictionIndicators | null
   isLoading: boolean
   error: string | null
+  // Resolution props (Story 27.5.6)
+  resolutions?: Resolution[]
+  resolutionsLoading?: boolean
+  onCreateResolution?: (
+    markerType: ResolutionMarkerType,
+    note?: string
+  ) => Promise<{ message: string } | null>
+  showResolutions?: boolean
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -124,6 +141,36 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     lineHeight: 1.5,
   },
+  resolutionsSection: {
+    marginTop: '24px',
+    paddingTop: '20px',
+    borderTop: '1px solid #e2e8f0',
+  },
+  resolutionsHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  resolutionsTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1a1a1a',
+    margin: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  addResolutionButton: {
+    padding: '8px 16px',
+    backgroundColor: '#4caf50',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
 }
 
 function getHealthColor(health: string): string {
@@ -195,7 +242,13 @@ export function FrictionIndicatorsDashboard({
   indicators,
   isLoading,
   error,
+  resolutions = [],
+  resolutionsLoading = false,
+  onCreateResolution,
+  showResolutions = true,
 }: FrictionIndicatorsDashboardProps): React.ReactElement {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
   if (isLoading) {
     return (
       <div style={styles.container}>
@@ -292,6 +345,27 @@ export function FrictionIndicatorsDashboard({
             <span style={styles.conversationIcon}>💬</span>
             {indicators.conversationStarter}
           </p>
+        </div>
+      )}
+
+      {/* Resolutions Section (Story 27.5.6) */}
+      {showResolutions && onCreateResolution && (
+        <div style={styles.resolutionsSection}>
+          <div style={styles.resolutionsHeader}>
+            <h4 style={styles.resolutionsTitle}>
+              <span>🌱</span>
+              Resolutions
+            </h4>
+            <button style={styles.addResolutionButton} onClick={() => setIsModalOpen(true)}>
+              Add Resolution
+            </button>
+          </div>
+          <ResolutionHistory resolutions={resolutions} isLoading={resolutionsLoading} />
+          <ResolutionMarkerModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onSubmit={onCreateResolution}
+          />
         </div>
       )}
     </div>

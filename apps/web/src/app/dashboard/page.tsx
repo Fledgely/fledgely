@@ -44,6 +44,7 @@ import {
 } from '../../components/health'
 import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
 import { useFrictionIndicators } from '../../hooks/useFrictionIndicators'
+import { useResolutions } from '../../hooks/useResolutions'
 
 const styles = {
   main: {
@@ -191,6 +192,9 @@ export default function DashboardPage() {
     isLoading: frictionLoading,
     error: frictionError,
   } = useFrictionIndicators()
+
+  // Resolutions (Story 27.5.6)
+  const { resolutions, isLoading: resolutionsLoading, createResolution } = useResolutions()
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -445,11 +449,16 @@ export default function DashboardPage() {
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} />}
 
         {/* Story 27.5.4: Friction Indicators Dashboard */}
+        {/* Story 27.5.6: Resolution Markers */}
         {family && (
           <FrictionIndicatorsDashboard
             indicators={frictionIndicators}
             isLoading={frictionLoading}
             error={frictionError}
+            resolutions={resolutions}
+            resolutionsLoading={resolutionsLoading}
+            onCreateResolution={createResolution}
+            showResolutions={true}
           />
         )}
 

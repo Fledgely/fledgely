@@ -24,7 +24,10 @@ import {
   getFrictionSummary,
   getFrictionIndicators,
   cacheFrictionIndicators,
+  createResolution,
+  getResolutions,
 } from '../../services/health'
+import { RESOLUTION_MARKER_LABELS } from '@fledgely/shared'
 
 const httpOptions: HttpsOptions = {
   cors: true,
@@ -388,6 +391,185 @@ export const getFrictionIndicatorsEndpoint = onRequest(httpOptions, async (req, 
     res.json({ indicators })
   } catch (error) {
     logger.error('Failed to get friction indicators', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * Create a resolution marker.
+ *
+ * Story 27.5.6 - Resolution Markers
+ * - AC1: Resolution markers available
+ * - AC2: Either party can add
+ *
+ * POST /createResolutionEndpoint
+ * Authorization: Bearer <token>
+ * Body: { markerType: string, note?: string }
+ *
+ * Response: { resolution: Resolution, message: string }
+ */
+export const createResolutionEndpoint = onRequest(httpOptions, async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  const userUid = await verifyAuth(req.headers.authorization)
+  if (!userUid) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const familyId = await getUserFamilyId(userUid)
+    if (!familyId) {
+      res.status(404).json({ error: 'No family found' })
+      return
+    }
+
+    const { markerType, note } = req.body
+
+    // Validate marker type
+    const validMarkerTypes = Object.keys(RESOLUTION_MARKER_LABELS)
+    if (!markerType || !validMarkerTypes.includes(markerType)) {
+      res.status(400).json({ error: 'Invalid marker type' })
+      return
+    }
+
+    // Get user info for display
+    const db = getFirestore()
+    const userDoc = await db.collection('users').doc(userUid).get()
+    const userData = userDoc.data()
+    const displayName = userData?.displayName || 'Family member'
+
+    const resolution = await createResolution({
+      familyId,
+      createdBy: userUid,
+      createdByType: 'parent', // HTTP endpoint is for parents
+      createdByName: displayName,
+      markerType,
+      note,
+    })
+
+    // Story 27.5.6 - AC5: Celebrate repair
+    const celebrationMessage =
+      markerType === 'in_progress'
+        ? "Thank you for being honest. You're making progress!"
+        : 'Great job working through this together!'
+
+    res.json({ resolution, message: celebrationMessage })
+  } catch (error) {
+    logger.error('Failed to create resolution', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * Get resolution history for a family.
+ *
+ * Story 27.5.6 - Resolution Markers - AC6
+ *
+ * GET /getResolutionsEndpoint
+ * Authorization: Bearer <token>
+ * Query params: { limit?: number }
+ *
+ * Response: { resolutions: Resolution[] }
+ */
+export const getResolutionsEndpoint = onRequest(httpOptions, async (req, res) => {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  const userUid = await verifyAuth(req.headers.authorization)
+  if (!userUid) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const familyId = await getUserFamilyId(userUid)
+    if (!familyId) {
+      res.status(404).json({ error: 'No family found' })
+      return
+    }
+
+    const limit = parseInt(req.query.limit as string) || 20
+    const resolutions = await getResolutions(familyId, limit)
+    res.json({ resolutions })
+  } catch (error) {
+    logger.error('Failed to get resolutions', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * Create a resolution marker (child endpoint).
+ *
+ * Story 27.5.6 - Resolution Markers
+ * - AC2: Either parent or child can add
+ *
+ * POST /createChildResolutionEndpoint
+ * Body: { familyId: string, childId: string, markerType: string, note?: string }
+ *
+ * Response: { resolution: Resolution, message: string }
+ */
+export const createChildResolutionEndpoint = onRequest(httpOptions, async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  try {
+    const { familyId, childId, markerType, note } = req.body
+
+    if (!familyId || !childId || !markerType) {
+      res.status(400).json({ error: 'Missing required fields' })
+      return
+    }
+
+    // Validate marker type
+    const validMarkerTypes = Object.keys(RESOLUTION_MARKER_LABELS)
+    if (!validMarkerTypes.includes(markerType)) {
+      res.status(400).json({ error: 'Invalid marker type' })
+      return
+    }
+
+    // Verify child belongs to family
+    const db = getFirestore()
+    const childDoc = await db
+      .collection('families')
+      .doc(familyId)
+      .collection('children')
+      .doc(childId)
+      .get()
+
+    if (!childDoc.exists) {
+      res.status(403).json({ error: 'Unauthorized' })
+      return
+    }
+
+    const childData = childDoc.data()
+    const displayName = childData?.name || 'Child'
+
+    const resolution = await createResolution({
+      familyId,
+      createdBy: childId,
+      createdByType: 'child',
+      createdByName: displayName,
+      markerType,
+      note,
+    })
+
+    // Story 27.5.6 - AC5: Celebrate repair
+    const celebrationMessage =
+      markerType === 'in_progress'
+        ? "Thank you for being honest. You're making progress!"
+        : 'Great job working through this together!'
+
+    res.json({ resolution, message: celebrationMessage })
+  } catch (error) {
+    logger.error('Failed to create child resolution', { error })
     res.status(500).json({ error: 'Internal server error' })
   }
 })

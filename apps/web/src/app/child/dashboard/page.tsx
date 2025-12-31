@@ -41,6 +41,7 @@ import {
 } from '../../../components/health'
 import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
 import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndicators'
+import { useChildResolutions } from '../../../hooks/useChildResolutions'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -227,6 +228,13 @@ function DashboardContent() {
     error: frictionError,
   } = useChildFrictionIndicators(childSession?.familyId || null)
 
+  // Resolutions (Story 27.5.6)
+  const {
+    resolutions,
+    isLoading: resolutionsLoading,
+    createResolution,
+  } = useChildResolutions(childSession?.familyId || null)
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -343,10 +351,15 @@ function DashboardContent() {
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}
 
         {/* Story 27.5.4: Friction Indicators Dashboard - bilateral transparency */}
+        {/* Story 27.5.6: Resolution Markers */}
         <FrictionIndicatorsDashboard
           indicators={frictionIndicators}
           isLoading={frictionLoading}
           error={frictionError}
+          resolutions={resolutions}
+          resolutionsLoading={resolutionsLoading}
+          onCreateResolution={createResolution}
+          showResolutions={true}
         />
 
         {/* Story 27.5.5: Repair Resources - shown when friction detected */}

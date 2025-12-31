@@ -3849,3 +3849,63 @@ export const CHECK_IN_FAMILY_AGE_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000
  * Send reminder 3 days after initial prompt if not completed.
  */
 export const CHECK_IN_REMINDER_DELAY_MS = 3 * 24 * 60 * 60 * 1000
+
+// ============================================================================
+// Story 27.5.6: Resolution Markers
+// ============================================================================
+
+/**
+ * Resolution marker types.
+ *
+ * Story 27.5.6: Resolution Markers - AC1
+ * Types of resolutions families can mark.
+ */
+export const resolutionMarkerTypeSchema = z.enum([
+  'talked_through',
+  'parent_apologized',
+  'child_understood',
+  'in_progress',
+])
+export type ResolutionMarkerType = z.infer<typeof resolutionMarkerTypeSchema>
+
+/**
+ * Resolution marker type display labels.
+ */
+export const RESOLUTION_MARKER_LABELS: Record<ResolutionMarkerType, string> = {
+  talked_through: 'We talked it through',
+  parent_apologized: 'Parent apologized',
+  child_understood: 'Child understood',
+  in_progress: 'Still working on it',
+}
+
+/**
+ * Who created the resolution.
+ */
+export const resolutionCreatorTypeSchema = z.enum(['parent', 'child'])
+export type ResolutionCreatorType = z.infer<typeof resolutionCreatorTypeSchema>
+
+/**
+ * Resolution schema.
+ *
+ * Story 27.5.6: Resolution Markers
+ * Stored at /families/{familyId}/resolutions/{resolutionId}
+ */
+export const resolutionSchema = z.object({
+  /** Unique resolution ID */
+  id: z.string(),
+  /** Family this resolution belongs to */
+  familyId: z.string(),
+  /** UID of who created this resolution */
+  createdBy: z.string(),
+  /** Whether created by parent or child */
+  createdByType: resolutionCreatorTypeSchema,
+  /** Display name of creator */
+  createdByName: z.string(),
+  /** Type of resolution marker */
+  markerType: resolutionMarkerTypeSchema,
+  /** Optional note */
+  note: z.string().optional(),
+  /** When created (epoch ms) */
+  createdAt: z.number(),
+})
+export type Resolution = z.infer<typeof resolutionSchema>
