@@ -219,6 +219,9 @@ service cloud.firestore {
       // Only guardians of the specific child can access.
       // Siblings cannot see each other's screenshots (Story 8.2).
       //
+      // Story 19B.1: Child can also view their own screenshots
+      // Child auth uses custom token with childId claim
+      //
       match /screenshots/{screenshotId} {
         // Helper: Check if user is guardian of the parent child document
         function isScreenshotChildGuardian() {
@@ -227,9 +230,17 @@ service cloud.firestore {
             request.auth.uid in child.data.guardianUids;
         }
 
-        // Read: Only child's guardians can view screenshots
+        // Helper: Check if user is the child themselves (via custom token)
+        // Story 19B.1: Child authentication uses custom claims
+        function isChildOwner() {
+          return request.auth != null &&
+            request.auth.token.childId == childId;
+        }
+
+        // Read: Guardians OR the child themselves can view screenshots
         // DATA SYMMETRY: Both co-parents see same screenshots
-        allow read: if isScreenshotChildGuardian();
+        // Story 19B.1 AC6: Child can ONLY view their own screenshots
+        allow read: if isScreenshotChildGuardian() || isChildOwner();
 
         // Create: Only authenticated devices can upload (via Cloud Functions)
         // Direct client upload is denied - must go through validated API
@@ -239,6 +250,7 @@ service cloud.firestore {
         allow update: if false;
 
         // Delete: Only guardians can delete (for retention policy)
+        // Children cannot delete their screenshots
         allow delete: if isScreenshotChildGuardian();
       }
 

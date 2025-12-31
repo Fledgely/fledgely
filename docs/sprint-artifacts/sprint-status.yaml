@@ -321,8 +321,8 @@ development_status:
   epic-19a-retrospective: done
 
   # Epic 19B: Child Dashboard - My Screenshots
-  epic-19b: backlog
-  19b-1-child-screenshot-gallery: backlog
+  epic-19b: in-progress
+  19b-1-child-screenshot-gallery: done
   19b-2-screenshot-timeline-view: backlog
   19b-3-screenshot-detail-view: backlog
   19b-4-activity-summary-for-child: backlog
