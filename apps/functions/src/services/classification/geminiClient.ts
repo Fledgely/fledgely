@@ -12,6 +12,7 @@
 import { VertexAI, GenerativeModel, Part } from '@google-cloud/vertexai'
 import {
   CLASSIFICATION_CONFIG,
+  DESCRIPTION_CONFIG,
   type Category,
   type SecondaryCategory,
   CATEGORY_VALUES,
@@ -28,6 +29,7 @@ import {
 } from '@fledgely/shared'
 import * as logger from 'firebase-functions/logger'
 import { buildClassificationPrompt, buildConcernDetectionPrompt } from './classificationPrompt'
+import { buildDescriptionPrompt } from './descriptionPrompt'
 
 /**
  * Classification response from Gemini.
@@ -94,6 +96,26 @@ export interface GeminiConcernDetectionResponse {
   concerns: DetectedConcern[]
   /** Concern taxonomy version used for detection */
   taxonomyVersion: string
+  /** Raw JSON response from Gemini API for debugging */
+  rawResponse: string
+}
+
+/**
+ * Description generation response from Gemini.
+ *
+ * Story 28.1: AI Description Generation - AC1, AC2, AC3
+ */
+export interface GeminiDescriptionResponse {
+  /** Natural language description of screenshot content */
+  description: string
+  /** Word count for monitoring (AC3: 100-300 words) */
+  wordCount: number
+  /** List of applications identified in screenshot */
+  appsIdentified: string[]
+  /** Whether visible text was found */
+  hasText: boolean
+  /** Excerpt of visible text if any */
+  textExcerpt: string | null
   /** Raw JSON response from Gemini API for debugging */
   rawResponse: string
 }
@@ -538,6 +560,151 @@ export class GeminiClient {
     })
 
     return validConcerns
+  }
+
+  /**
+   * Generate accessibility description for a screenshot.
+   *
+   * Story 28.1: AI Description Generation - AC1, AC2, AC3, AC6
+   *
+   * @param imageBase64 - Base64-encoded image data (without data URL prefix)
+   * @param mimeType - Image MIME type (e.g., 'image/jpeg')
+   * @param url - Optional page URL for context
+   * @param title - Optional page title for context
+   * @returns Description generation result
+   * @throws Error if generation fails or times out
+   */
+  async generateDescription(
+    imageBase64: string,
+    mimeType: string = 'image/jpeg',
+    url?: string,
+    title?: string
+  ): Promise<GeminiDescriptionResponse> {
+    const prompt = buildDescriptionPrompt(url, title)
+
+    // Build request parts
+    const parts: Part[] = [
+      {
+        inlineData: {
+          mimeType,
+          data: imageBase64,
+        },
+      },
+      {
+        text: prompt,
+      },
+    ]
+
+    // Make API call with extended timeout (60 seconds per NFR47)
+    const result = await Promise.race([
+      this.model.generateContent({
+        contents: [{ role: 'user', parts }],
+      }),
+      this.createDescriptionTimeoutPromise(),
+    ])
+
+    // Extract response text
+    const response = result.response
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) {
+      throw new Error('Empty response from Gemini API')
+    }
+
+    // Parse JSON response
+    return this.parseDescriptionResponse(text)
+  }
+
+  /**
+   * Create timeout promise for description generation.
+   *
+   * Story 28.1: AI Description Generation - AC6
+   * Uses 60-second timeout per NFR47.
+   */
+  private createDescriptionTimeoutPromise(): Promise<never> {
+    return new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(`Description generation timed out after ${DESCRIPTION_CONFIG.TIMEOUT_MS}ms`)
+        )
+      }, DESCRIPTION_CONFIG.TIMEOUT_MS)
+    })
+  }
+
+  /**
+   * Parse Gemini response text into description result.
+   *
+   * Story 28.1: AI Description Generation - AC1, AC2, AC3
+   *
+   * @param responseText - Raw text response from Gemini
+   * @returns Parsed description response
+   * @throws Error if response cannot be parsed
+   */
+  private parseDescriptionResponse(responseText: string): GeminiDescriptionResponse {
+    const rawResponse = responseText
+    let jsonText = responseText.trim()
+
+    // Remove markdown code blocks if present
+    const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    if (jsonMatch) {
+      jsonText = jsonMatch[1].trim()
+    }
+
+    // Try to find JSON object in response
+    const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/)
+    if (jsonObjectMatch) {
+      jsonText = jsonObjectMatch[0]
+    }
+
+    let parsed: {
+      description?: string
+      wordCount?: number
+      appsIdentified?: string[]
+      hasText?: boolean
+      textExcerpt?: string
+    }
+
+    try {
+      parsed = JSON.parse(jsonText)
+    } catch (parseError) {
+      logger.error('Failed to parse Gemini description response as JSON', {
+        responseText: responseText.substring(0, 500),
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      })
+      throw new Error('Invalid JSON response from Gemini API')
+    }
+
+    // Validate description
+    const description = parsed.description || ''
+    if (!description) {
+      logger.warn('Empty description in Gemini response')
+    }
+
+    // Calculate word count if not provided
+    const wordCount = parsed.wordCount || description.split(/\s+/).filter(Boolean).length
+
+    // Validate word count against limits (AC3)
+    if (wordCount < DESCRIPTION_CONFIG.MIN_WORDS) {
+      logger.warn('Description below minimum word count', {
+        wordCount,
+        minimum: DESCRIPTION_CONFIG.MIN_WORDS,
+      })
+    }
+    if (wordCount > DESCRIPTION_CONFIG.MAX_WORDS) {
+      logger.warn('Description above maximum word count', {
+        wordCount,
+        maximum: DESCRIPTION_CONFIG.MAX_WORDS,
+      })
+    }
+
+    return {
+      description,
+      wordCount,
+      appsIdentified: Array.isArray(parsed.appsIdentified) ? parsed.appsIdentified : [],
+      hasText: Boolean(parsed.hasText),
+      textExcerpt: parsed.textExcerpt || null,
+      rawResponse,
+    }
   }
 }
 

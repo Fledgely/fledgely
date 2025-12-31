@@ -338,3 +338,12 @@ export {
   type ResolutionCreatorType,
   type Resolution,
 } from './contracts'
+
+// Screenshot description exports (Story 28.1)
+export {
+  descriptionStatusSchema,
+  screenshotDescriptionSchema,
+  DESCRIPTION_CONFIG,
+  type DescriptionStatus,
+  type ScreenshotDescription,
+} from './contracts'

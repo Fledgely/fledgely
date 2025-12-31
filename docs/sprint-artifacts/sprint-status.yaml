@@ -425,8 +425,8 @@ development_status:
   epic-27-5-retrospective: completed
 
   # Epic 28: AI-Generated Screenshot Descriptions
-  epic-28: backlog
-  28-1-ai-description-generation: backlog
+  epic-28: in-progress
+  28-1-ai-description-generation: done
   28-2-description-quality-standards: backlog
   28-3-screen-reader-integration: backlog
   28-4-description-display-in-dashboard: backlog

@@ -34,6 +34,7 @@ import {
   extractAppIdentifier,
   applyAppApprovalsToConcerns,
 } from './appApprovals'
+import { generateScreenshotDescriptionAsync } from '../accessibility'
 
 /**
  * Result of classifyScreenshot operation.
@@ -452,6 +453,16 @@ export async function classifyScreenshot(
       alertedCount: finalConcernFlags.filter((f) => !f.throttled).length,
       // Story 21.5: Log flag document creation
       flagDocumentsCreated: createdFlagIds.length,
+    })
+
+    // Story 28.1: Trigger description generation asynchronously (AC4)
+    // Don't block classification on description generation
+    generateScreenshotDescriptionAsync({
+      childId,
+      screenshotId,
+      storagePath,
+      url,
+      title,
     })
 
     return { success: true, result }

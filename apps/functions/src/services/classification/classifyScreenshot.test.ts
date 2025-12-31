@@ -8,12 +8,43 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import {
-  needsClassification,
-  buildClassificationJob,
-  classifyScreenshot,
-} from './classifyScreenshot'
-import type { ClassificationJob } from '@fledgely/shared'
+
+// Use vi.hoisted to define mocks before module imports
+const {
+  mockUpdate,
+  mockScreenshotDoc,
+  mockScreenshotsCollection,
+  mockChildDoc,
+  mockChildrenCollection,
+  mockDownload,
+  mockExists,
+  mockFile,
+  mockBucket,
+  mockClassifyImage,
+  mockDetectConcerns,
+  mockGetModelVersion,
+} = vi.hoisted(() => ({
+  mockUpdate: vi.fn().mockResolvedValue(undefined),
+  mockScreenshotDoc: vi.fn(),
+  mockScreenshotsCollection: vi.fn(),
+  mockChildDoc: vi.fn(),
+  mockChildrenCollection: vi.fn(),
+  mockDownload: vi.fn().mockResolvedValue([Buffer.from('fake-image-data')]),
+  mockExists: vi.fn().mockResolvedValue([true]),
+  mockFile: vi.fn(),
+  mockBucket: vi.fn(),
+  mockClassifyImage: vi.fn(),
+  mockDetectConcerns: vi.fn(),
+  mockGetModelVersion: vi.fn().mockReturnValue('gemini-1.5-flash'),
+}))
+
+// Wire up nested mock structure
+mockScreenshotDoc.mockReturnValue({ update: mockUpdate })
+mockScreenshotsCollection.mockReturnValue({ doc: mockScreenshotDoc })
+mockChildDoc.mockReturnValue({ collection: mockScreenshotsCollection })
+mockChildrenCollection.mockReturnValue({ doc: mockChildDoc })
+mockFile.mockReturnValue({ exists: mockExists, download: mockDownload })
+mockBucket.mockReturnValue({ file: mockFile })
 
 // Mock logger
 vi.mock('firebase-functions/logger', () => ({
@@ -23,11 +54,6 @@ vi.mock('firebase-functions/logger', () => ({
 }))
 
 // Mock Firebase Admin - supports nested collections
-const mockUpdate = vi.fn().mockResolvedValue(undefined)
-const mockScreenshotDoc = vi.fn().mockReturnValue({ update: mockUpdate })
-const mockScreenshotsCollection = vi.fn().mockReturnValue({ doc: mockScreenshotDoc })
-const mockChildDoc = vi.fn().mockReturnValue({ collection: mockScreenshotsCollection })
-const mockChildrenCollection = vi.fn().mockReturnValue({ doc: mockChildDoc })
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(() => ({
     collection: mockChildrenCollection,
@@ -35,13 +61,6 @@ vi.mock('firebase-admin/firestore', () => ({
 }))
 
 // Mock Firebase Storage
-const mockDownload = vi.fn().mockResolvedValue([Buffer.from('fake-image-data')])
-const mockExists = vi.fn().mockResolvedValue([true])
-const mockFile = vi.fn().mockReturnValue({
-  exists: mockExists,
-  download: mockDownload,
-})
-const mockBucket = vi.fn().mockReturnValue({ file: mockFile })
 vi.mock('firebase-admin/storage', () => ({
   getStorage: vi.fn(() => ({
     bucket: mockBucket,
@@ -49,9 +68,6 @@ vi.mock('firebase-admin/storage', () => ({
 }))
 
 // Mock Gemini client
-const mockClassifyImage = vi.fn()
-const mockDetectConcerns = vi.fn()
-const mockGetModelVersion = vi.fn().mockReturnValue('gemini-1.5-flash')
 vi.mock('./geminiClient', () => ({
   createGeminiClient: vi.fn(() => ({
     classifyImage: mockClassifyImage,
@@ -60,15 +76,33 @@ vi.mock('./geminiClient', () => ({
   })),
 }))
 
+// Import tested modules after mocks are set up
+import {
+  needsClassification,
+  buildClassificationJob,
+  classifyScreenshot,
+} from './classifyScreenshot'
+import type { ClassificationJob } from '@fledgely/shared'
+
 // Mock storeDebug
 vi.mock('./storeDebug', () => ({
   storeClassificationDebug: vi.fn().mockResolvedValue(undefined),
 }))
 
+// Hoist additional mock functions
+const {
+  mockShouldAlertForFlag,
+  mockRecordFlagAlert,
+  mockRecordThrottledFlag,
+  mockGetEffectiveThreshold,
+} = vi.hoisted(() => ({
+  mockShouldAlertForFlag: vi.fn().mockResolvedValue(true), // Default: alert all flags
+  mockRecordFlagAlert: vi.fn().mockResolvedValue(undefined),
+  mockRecordThrottledFlag: vi.fn().mockResolvedValue(undefined),
+  mockGetEffectiveThreshold: vi.fn().mockResolvedValue(75), // Default: balanced
+}))
+
 // Mock flagThrottle (Story 21.3)
-const mockShouldAlertForFlag = vi.fn().mockResolvedValue(true) // Default: alert all flags
-const mockRecordFlagAlert = vi.fn().mockResolvedValue(undefined)
-const mockRecordThrottledFlag = vi.fn().mockResolvedValue(undefined)
 vi.mock('./flagThrottle', () => ({
   shouldAlertForFlag: (...args: unknown[]) => mockShouldAlertForFlag(...args),
   recordFlagAlert: (...args: unknown[]) => mockRecordFlagAlert(...args),
@@ -77,9 +111,13 @@ vi.mock('./flagThrottle', () => ({
 
 // Mock confidenceThreshold (Story 21.4)
 // Note: shouldCreateFlag is no longer used - we call getEffectiveThreshold directly and check inline
-const mockGetEffectiveThreshold = vi.fn().mockResolvedValue(75) // Default: balanced
 vi.mock('./confidenceThreshold', () => ({
   getEffectiveThreshold: (...args: unknown[]) => mockGetEffectiveThreshold(...args),
+}))
+
+// Mock accessibility service (Story 28.1)
+vi.mock('../accessibility', () => ({
+  generateScreenshotDescriptionAsync: vi.fn(),
 }))
 
 describe('classifyScreenshot helpers', () => {

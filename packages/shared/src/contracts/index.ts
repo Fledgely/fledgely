@@ -3135,6 +3135,60 @@ export const classificationResultSchema = z.object({
 })
 export type ClassificationResult = z.infer<typeof classificationResultSchema>
 
+// ============================================================================
+// EPIC 28: AI-GENERATED SCREENSHOT DESCRIPTIONS
+// Story 28.1: AI Description Generation
+// ============================================================================
+
+/**
+ * Description generation status.
+ * Story 28.1: AI Description Generation - AC4, AC5
+ */
+export const descriptionStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed'])
+export type DescriptionStatus = z.infer<typeof descriptionStatusSchema>
+
+/**
+ * AI-generated screenshot description for accessibility.
+ * Story 28.1: AI Description Generation - AC1, AC2, AC3, AC5
+ *
+ * Provides natural language descriptions of screenshot content
+ * for blind or visually impaired parents using screen readers.
+ */
+export const screenshotDescriptionSchema = z.object({
+  /** Generation status */
+  status: descriptionStatusSchema,
+  /** Natural language description of screenshot content (AC1, AC2) */
+  description: z.string().optional(),
+  /** Word count for monitoring (AC3: 100-300 words) */
+  wordCount: z.number().optional(),
+  /** When generation completed */
+  generatedAt: z.number().optional(),
+  /** Model version used */
+  modelVersion: z.string().optional(),
+  /** Error message if failed */
+  error: z.string().optional(),
+  /** Retry count */
+  retryCount: z.number().default(0),
+})
+export type ScreenshotDescription = z.infer<typeof screenshotDescriptionSchema>
+
+/**
+ * Description generation configuration constants.
+ * Story 28.1: AI Description Generation - AC3, AC6
+ */
+export const DESCRIPTION_CONFIG = {
+  /** Maximum time for description generation (NFR47: 60 seconds) */
+  TIMEOUT_MS: 60000,
+  /** Maximum retry attempts */
+  MAX_RETRIES: 3,
+  /** Minimum word count for description (AC3) */
+  MIN_WORDS: 100,
+  /** Maximum word count for description (AC3) */
+  MAX_WORDS: 300,
+  /** Retry base delay (ms) */
+  RETRY_BASE_DELAY_MS: 1000,
+}
+
 /**
  * Classification job input for Cloud Tasks queue.
  *
