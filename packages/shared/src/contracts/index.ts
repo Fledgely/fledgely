@@ -3995,3 +3995,164 @@ export const DEFAULT_ACCESSIBILITY_SETTINGS: AccessibilitySettings = {
   largerText: false,
   audioDescriptions: false,
 }
+
+// ============================================================================
+// Screen Time Data Model (Story 29.1)
+// ============================================================================
+
+/**
+ * Device types supported for screen time tracking.
+ * Story 29.1: Screen Time Data Model - AC1
+ */
+export const screenTimeDeviceTypeSchema = z.enum([
+  'chromebook',
+  'android',
+  'ios',
+  'windows',
+  'macos',
+  'fire_tv',
+  'switch',
+])
+export type ScreenTimeDeviceType = z.infer<typeof screenTimeDeviceTypeSchema>
+
+/**
+ * Categories for screen time tracking.
+ * Note: Uses lowercase snake_case for programmatic use.
+ * These map to CATEGORY_VALUES for display (e.g., 'education' -> 'Educational').
+ * Story 29.1: Screen Time Data Model - AC1
+ */
+export const screenTimeCategorySchema = z.enum([
+  'education',
+  'social_media',
+  'gaming',
+  'entertainment',
+  'productivity',
+  'communication',
+  'news',
+  'shopping',
+  'other',
+])
+export type ScreenTimeCategory = z.infer<typeof screenTimeCategorySchema>
+
+/** Maximum minutes per day (24 hours) */
+export const MAX_SCREEN_TIME_MINUTES_PER_DAY = 1440
+
+/**
+ * App usage entry within a category.
+ * Story 29.1: Screen Time Data Model - AC1
+ */
+export const appTimeEntrySchema = z.object({
+  /** App or website name */
+  appName: z.string(),
+  /** Minutes spent in this app (max 1440 = 24 hours) */
+  minutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+})
+export type AppTimeEntry = z.infer<typeof appTimeEntrySchema>
+
+/**
+ * Per-category time entry within a daily summary.
+ * Story 29.1: Screen Time Data Model - AC1, AC4
+ */
+export const categoryTimeEntrySchema = z.object({
+  /** Category of activity */
+  category: screenTimeCategorySchema,
+  /** Total minutes in this category (max 1440 = 24 hours) */
+  minutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+  /** Top apps in this category (for detailed breakdown) */
+  topApps: z.array(appTimeEntrySchema).optional(),
+})
+export type CategoryTimeEntry = z.infer<typeof categoryTimeEntrySchema>
+
+/**
+ * Per-device time entry within a daily summary.
+ * Story 29.1: Screen Time Data Model - AC1, AC4
+ */
+export const deviceTimeEntrySchema = z.object({
+  /** Unique device identifier */
+  deviceId: z.string(),
+  /** Human-readable device name */
+  deviceName: z.string(),
+  /** Type of device */
+  deviceType: screenTimeDeviceTypeSchema,
+  /** Total minutes on this device (max 1440 = 24 hours) */
+  minutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+  /** Breakdown by category for this device */
+  categories: z.array(categoryTimeEntrySchema).optional(),
+})
+export type DeviceTimeEntry = z.infer<typeof deviceTimeEntrySchema>
+
+/**
+ * Daily screen time summary for a child.
+ * Stored at: /families/{familyId}/children/{childId}/screenTime/{date}
+ *
+ * Story 29.1: Screen Time Data Model - AC1, AC2, AC5, AC6
+ */
+export const screenTimeDailySummarySchema = z.object({
+  /** Child this record belongs to */
+  childId: z.string(),
+  /** Date in YYYY-MM-DD format (child's local date) - AC2 */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** IANA timezone for the child (e.g., 'America/New_York') - AC5 */
+  timezone: z.string(),
+  /** Total minutes across all devices (max 1440 = 24 hours) */
+  totalMinutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+  /** Breakdown by device - AC4 */
+  devices: z.array(deviceTimeEntrySchema),
+  /** Breakdown by category (aggregated across devices) - AC4 */
+  categories: z.array(categoryTimeEntrySchema),
+  /** When this record was last updated (epoch ms) */
+  updatedAt: z.number(),
+  /** When this record expires based on retention policy (epoch ms) - AC6 */
+  expiresAt: z.number().optional(),
+})
+export type ScreenTimeDailySummary = z.infer<typeof screenTimeDailySummarySchema>
+
+/** Maximum minutes per week (7 days * 24 hours) */
+export const MAX_SCREEN_TIME_MINUTES_PER_WEEK = MAX_SCREEN_TIME_MINUTES_PER_DAY * 7
+
+/**
+ * Weekly aggregation for dashboard display.
+ * Story 29.1: Screen Time Data Model - AC4
+ */
+export const screenTimeWeeklySummarySchema = z.object({
+  /** Child this record belongs to */
+  childId: z.string(),
+  /** Week start date (Sunday) in YYYY-MM-DD format */
+  weekStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** IANA timezone for the child */
+  timezone: z.string(),
+  /** Total minutes for the week (max 10080 = 7 days * 24 hours) */
+  totalMinutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_WEEK),
+  /** Daily totals for each day of the week (Sun-Sat, 7 values) */
+  dailyTotals: z.array(z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY)).length(7),
+  /** Average daily minutes (max 1440 = 24 hours) */
+  averageDaily: z.number().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+  /** Category breakdown for the week */
+  categories: z.array(categoryTimeEntrySchema),
+})
+export type ScreenTimeWeeklySummary = z.infer<typeof screenTimeWeeklySummarySchema>
+
+/**
+ * Screen time entry for individual time tracking records.
+ * Used when syncing time data from devices.
+ * Story 29.1: Screen Time Data Model - AC1
+ */
+export const screenTimeEntrySchema = z.object({
+  /** Child this entry belongs to */
+  childId: z.string(),
+  /** Device that recorded this time */
+  deviceId: z.string(),
+  /** Date in YYYY-MM-DD format (child's local date) */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** IANA timezone for the child */
+  timezone: z.string(),
+  /** Category of activity */
+  appCategory: screenTimeCategorySchema,
+  /** Minutes spent (max 1440 = 24 hours) */
+  minutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY),
+  /** Optional app name for detailed tracking */
+  appName: z.string().optional(),
+  /** When this entry was recorded (epoch ms) */
+  recordedAt: z.number(),
+})
+export type ScreenTimeEntry = z.infer<typeof screenTimeEntrySchema>

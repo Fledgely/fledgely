@@ -354,3 +354,25 @@ export {
   DEFAULT_ACCESSIBILITY_SETTINGS,
   type AccessibilitySettings,
 } from './contracts'
+
+// Screen time data model exports (Story 29.1)
+export {
+  MAX_SCREEN_TIME_MINUTES_PER_DAY,
+  MAX_SCREEN_TIME_MINUTES_PER_WEEK,
+  screenTimeDeviceTypeSchema,
+  screenTimeCategorySchema,
+  appTimeEntrySchema,
+  categoryTimeEntrySchema,
+  deviceTimeEntrySchema,
+  screenTimeDailySummarySchema,
+  screenTimeWeeklySummarySchema,
+  screenTimeEntrySchema,
+  type ScreenTimeDeviceType,
+  type ScreenTimeCategory,
+  type AppTimeEntry,
+  type CategoryTimeEntry,
+  type DeviceTimeEntry,
+  type ScreenTimeDailySummary,
+  type ScreenTimeWeeklySummary,
+  type ScreenTimeEntry,
+} from './contracts'
