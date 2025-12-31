@@ -440,7 +440,7 @@ development_status:
   29-2-chromebook-screen-time-capture: done
   29-3-android-screen-time-capture: skipped # No Android app in codebase
   29-4-parent-screen-time-dashboard: done
-  29-5-child-screen-time-view: backlog
+  29-5-child-screen-time-view: done
   29-6-screen-time-accuracy-validation: backlog
   epic-29-retrospective: optional
 

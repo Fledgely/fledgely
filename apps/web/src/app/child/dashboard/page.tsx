@@ -29,6 +29,7 @@ import { ChildAuthGuard } from '../../../components/child/ChildAuthGuard'
 import { ChildScreenshotGallery } from '../../../components/child/ChildScreenshotGallery'
 import { ChildScreenshotDetail } from '../../../components/child/ChildScreenshotDetail'
 import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlagNotificationBanner'
+import { ChildScreenTimeCard } from '../../../components/child/ChildScreenTimeCard'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
@@ -368,6 +369,12 @@ function DashboardContent() {
             frictionIndicators.trend === 'needs_attention') && (
             <RepairResourcesPanel showParentResources={false} showChildResources={true} />
           )}
+
+        {/* Story 29.5 - Child Screen Time Card */}
+        <ChildScreenTimeCard
+          familyId={childSession?.familyId || null}
+          childId={childSession?.childId || null}
+        />
 
         {/* Story 23.1 - Flag notification banners */}
         {pendingFlags.length > 0 && (
