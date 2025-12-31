@@ -174,7 +174,10 @@ const styles = {
  * FlagCard - Displays a flag summary
  */
 export function FlagCard({ flag, childName, onClick, selected = false }: FlagCardProps) {
-  const categoryConfig = CATEGORY_CONFIG[flag.category]
+  // Story 24.1: Use corrected category if available
+  const displayCategory = (flag.correctedCategory as ConcernCategory) || flag.category
+  const wasCorrected = !!flag.correctedCategory
+  const categoryConfig = CATEGORY_CONFIG[displayCategory]
   const severityConfig = SEVERITY_CONFIG[flag.severity]
   const relativeTime = useRelativeTime(flag.createdAt)
 
@@ -237,6 +240,20 @@ export function FlagCard({ flag, childName, onClick, selected = false }: FlagCar
           >
             {severityConfig.label}
           </span>
+          {/* Story 24.1: Show corrected indicator */}
+          {wasCorrected && (
+            <span
+              style={{
+                ...styles.badge,
+                color: '#1e40af',
+                backgroundColor: '#dbeafe',
+              }}
+              data-testid="flag-corrected-badge"
+              title={`Originally: ${flag.category}`}
+            >
+              ✓ Corrected
+            </span>
+          )}
           {flag.throttled && (
             <span
               style={{

@@ -66,6 +66,14 @@ const ACTION_CONFIG: Record<
     buttonText: 'Mark as Discussed Together',
     buttonColor: '#9d174d',
   },
+  // Story 24.1: Correct classification action
+  correct: {
+    title: 'Correct Classification',
+    description:
+      'Correct the AI classification for this flag. Your correction helps improve future AI accuracy for your family.',
+    buttonText: 'Submit Correction',
+    buttonColor: '#3b82f6',
+  },
 }
 
 const styles = {

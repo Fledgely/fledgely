@@ -21,9 +21,23 @@ import { FlagInfoPanel } from './FlagInfoPanel'
 import { AIReasoningPanel } from './AIReasoningPanel'
 import { FlagActionModal } from './FlagActionModal'
 import { FlagNotesPanel } from './FlagNotesPanel'
+import { FlagCorrectionModal } from './FlagCorrectionModal'
 import { takeFlagAction, addFlagNote, type FlagActionType } from '../../services/flagService'
-import type { FlagDocument, FlagNote, AnnotationOption, EscalationReason } from '@fledgely/shared'
-import { ANNOTATION_OPTIONS, ANNOTATION_WINDOW_MS } from '@fledgely/shared'
+import type {
+  FlagDocument,
+  FlagNote,
+  AnnotationOption,
+  EscalationReason,
+  ConcernCategory,
+} from '@fledgely/shared'
+import { ANNOTATION_OPTIONS, ANNOTATION_WINDOW_MS, CONCERN_CATEGORY_VALUES } from '@fledgely/shared'
+
+/**
+ * Story 24.1: Validate category is a valid ConcernCategory
+ */
+function isValidConcernCategory(value: unknown): value is ConcernCategory {
+  return typeof value === 'string' && CONCERN_CATEGORY_VALUES.includes(value as ConcernCategory)
+}
 
 /**
  * Story 23.3: Get annotation option display info
@@ -237,6 +251,11 @@ const styles = {
     backgroundColor: '#fee2e2',
     color: '#991b1b',
   },
+  // Story 24.1: Correct button
+  correctButton: {
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
+  },
   // Story 23.3: Child annotation section styles
   childAnnotationPanel: {
     backgroundColor: '#f0fdf4',
@@ -316,11 +335,29 @@ export function FlagDetailModal({
   const [actionLoading, setActionLoading] = useState(false)
   const [notes, setNotes] = useState<FlagNote[]>(flag.notes ?? [])
   const [notesLoading, setNotesLoading] = useState(false)
+  // Story 24.1: Correction modal state
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false)
+  const [displayedCategory, setDisplayedCategory] = useState<ConcernCategory>(() => {
+    // Validate correctedCategory before using it
+    if (flag.correctedCategory && isValidConcernCategory(flag.correctedCategory)) {
+      return flag.correctedCategory
+    }
+    return flag.category
+  })
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
   // Check if actions are available (need parentId and parentName)
   const canTakeAction = !!(parentId && parentName)
+
+  // Story 24.1: Handle correction callback
+  const handleCorrectionComplete = useCallback(
+    (newCategory: ConcernCategory) => {
+      setDisplayedCategory(newCategory)
+      onActionComplete?.('correct')
+    },
+    [onActionComplete]
+  )
 
   // Handle adding a note
   const handleAddNote = useCallback(
@@ -490,6 +527,9 @@ export function FlagDetailModal({
           .escalate-button:hover {
             background-color: #fecaca;
           }
+          .correct-button:hover {
+            background-color: #bfdbfe;
+          }
         `}
       </style>
 
@@ -626,6 +666,16 @@ export function FlagDetailModal({
             >
               Requires Action
             </button>
+            {/* Story 24.1: Correct classification button */}
+            <button
+              type="button"
+              style={{ ...styles.actionButton, ...styles.correctButton }}
+              className="correct-button"
+              onClick={() => setShowCorrectionModal(true)}
+              data-testid="action-correct"
+            >
+              Correct This
+            </button>
           </div>
         )}
       </div>
@@ -660,6 +710,20 @@ export function FlagDetailModal({
             }
           }}
           onCancel={() => setPendingAction(null)}
+        />
+      )}
+
+      {/* Story 24.1: Classification Correction Modal */}
+      {canTakeAction && (
+        <FlagCorrectionModal
+          isOpen={showCorrectionModal}
+          onClose={() => setShowCorrectionModal(false)}
+          flagId={flag.id}
+          childId={flag.childId}
+          currentCategory={displayedCategory}
+          parentId={parentId!}
+          parentName={parentName!}
+          onCorrected={handleCorrectionComplete}
         />
       )}
     </div>

@@ -31,8 +31,15 @@ import type {
 /**
  * Action types for flag review
  * Story 22.6 - Added 'discussed_together' for co-parent reviews
+ * Story 24.1 - Added 'correct' for parent classification corrections
  */
-export type FlagActionType = 'dismiss' | 'discuss' | 'escalate' | 'view' | 'discussed_together'
+export type FlagActionType =
+  | 'dismiss'
+  | 'discuss'
+  | 'escalate'
+  | 'view'
+  | 'discussed_together'
+  | 'correct'
 
 /**
  * Audit trail entry for flag actions
@@ -275,6 +282,7 @@ function getStatusForAction(action: FlagActionType): FlagStatus {
     case 'view':
     case 'escalate':
     case 'discussed_together':
+    case 'correct': // Story 24.1: Correction marks as reviewed
       return 'reviewed'
   }
 }
@@ -438,4 +446,115 @@ export async function markFlagViewed(
   await updateDoc(flagRef, {
     viewedBy: arrayUnion(parentId),
   })
+}
+
+/**
+ * Parameters for correcting a flag's category
+ * Story 24.1 - Parent Classification Correction
+ */
+export interface CorrectFlagCategoryParams {
+  flagId: string
+  childId: string
+  correctedCategory: ConcernCategory
+  parentId: string
+  parentName: string
+}
+
+/**
+ * Result of flag correction
+ */
+export interface CorrectFlagCategoryResult {
+  success: boolean
+  error?: string
+}
+
+import { CONCERN_CATEGORY_VALUES } from '@fledgely/shared'
+
+/**
+ * Correct a flag's category when parent disagrees with AI classification
+ * Story 24.1 - AC #3: Correction saved with original category, corrected category, parentId
+ */
+export async function correctFlagCategory({
+  flagId,
+  childId,
+  correctedCategory,
+  parentId,
+  parentName,
+}: CorrectFlagCategoryParams): Promise<CorrectFlagCategoryResult> {
+  // Validate required parameters
+  if (!flagId || !childId || !correctedCategory || !parentId || !parentName) {
+    return { success: false, error: 'Missing required parameters' }
+  }
+
+  // Validate category at runtime
+  if (!CONCERN_CATEGORY_VALUES.includes(correctedCategory)) {
+    return { success: false, error: 'Invalid category selected' }
+  }
+
+  const db = getFirestoreDb()
+  const flagRef = doc(db, 'children', childId, 'flags', flagId)
+
+  try {
+    // Use transaction to prevent race conditions
+    const { runTransaction } = await import('firebase/firestore')
+
+    await runTransaction(db, async (transaction) => {
+      // Read current flag state
+      const flagDoc = await transaction.get(flagRef)
+
+      if (!flagDoc.exists()) {
+        throw new Error('Flag not found')
+      }
+
+      const currentFlag = flagDoc.data() as FlagDocument
+
+      // Prevent correction to same category
+      if (correctedCategory === currentFlag.category) {
+        throw new Error('Corrected category must differ from original')
+      }
+
+      // Prevent duplicate corrections (optional: allow re-correction)
+      if (currentFlag.correctedCategory) {
+        throw new Error('Flag has already been corrected')
+      }
+
+      const correctedAt = Date.now()
+
+      // Create audit entry with original category
+      const auditEntry: FlagAction = {
+        action: 'correct' as FlagActionType,
+        parentId,
+        parentName,
+        timestamp: correctedAt,
+        note: `Corrected category from "${currentFlag.category}" to "${correctedCategory}"`,
+      }
+
+      // Apply atomic update
+      transaction.update(flagRef, {
+        correctedCategory,
+        correctionParentId: parentId,
+        correctedAt,
+        status: 'reviewed',
+        reviewedAt: correctedAt,
+        reviewedBy: parentId,
+        auditTrail: arrayUnion(auditEntry),
+      })
+    })
+
+    return { success: true }
+  } catch (error) {
+    // Sanitize error messages for user display
+    const errorMessage =
+      error instanceof Error && error.message.includes('already been corrected')
+        ? 'This flag has already been corrected'
+        : error instanceof Error && error.message.includes('must differ')
+          ? 'Please select a different category than the original'
+          : error instanceof Error && error.message.includes('not found')
+            ? 'Flag not found'
+            : 'Unable to save correction. Please try again.'
+
+    // eslint-disable-next-line no-console
+    console.error('Failed to correct flag category:', error)
+    return { success: false, error: errorMessage }
+  }
 }

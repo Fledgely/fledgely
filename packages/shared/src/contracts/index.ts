@@ -2635,6 +2635,7 @@ export const flagActionTypeSchema = z.enum([
   'escalate',
   'view',
   'discussed_together',
+  'correct', // Story 24.1: Parent classification correction
 ])
 export type FlagActionType = z.infer<typeof flagActionTypeSchema>
 
@@ -2834,6 +2835,14 @@ export const flagDocumentSchema = z.object({
   extensionDeadline: z.number().optional(),
   /** When parent was notified about this flag (epoch ms) */
   parentNotifiedAt: z.number().optional(),
+
+  // Correction fields (from Story 24-1)
+  /** Story 24.1: Corrected category if parent disagreed with AI classification */
+  correctedCategory: concernCategorySchema.optional(),
+  /** Story 24.1: Parent ID who made the correction */
+  correctionParentId: z.string().optional(),
+  /** Story 24.1: When correction was made (epoch ms) */
+  correctedAt: z.number().optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 

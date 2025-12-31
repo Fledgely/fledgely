@@ -395,8 +395,8 @@ development_status:
   epic-23-retrospective: done
 
   # Epic 24: AI Feedback Loop
-  epic-24: backlog
-  24-1-parent-classification-correction: backlog
+  epic-24: in-progress
+  24-1-parent-classification-correction: done
   24-2-family-specific-model-tuning: backlog
   24-3-explicit-approval-of-categories: backlog
   24-4-learning-progress-dashboard: backlog
