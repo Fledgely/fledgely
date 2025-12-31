@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CaregiverQuickView Component - Story 19A.3
+ * CaregiverQuickView Component - Story 19A.3, Story 19D.4
  *
  * Simplified single-screen status view for caregivers (grandparents).
  * Displays overall family status with large, accessible UI.
@@ -12,6 +12,7 @@
  * - Plain language ("Doing well" vs "All Good")
  * - No device details, metrics, or technical information
  * - Prominent help contact (Call Parent button)
+ * - Access window enforcement (Story 19D.4)
  *
  * Acceptance Criteria:
  * - AC1: Simplified status display
@@ -20,12 +21,17 @@
  * - AC4: Call parent button
  * - AC5: View access logging (FR19D-X)
  * - AC6: Accessibility
+ * - 19D.4-AC2: Access only during active window
+ * - 19D.4-AC3: Show "Access not currently active" outside window
  */
 
+import type { AccessWindow } from '@fledgely/shared'
 import { useCaregiverStatus } from '../../hooks/useCaregiverStatus'
 import { useCaregiverAccessLog } from '../../hooks/useCaregiverAccessLog'
+import { useAccessWindowCheck, type OneTimeExtension } from '../../hooks/useAccessWindowCheck'
 import { CaregiverChildCard } from './CaregiverChildCard'
 import { CallParentButton } from './CallParentButton'
+import { AccessDenied } from './AccessDenied'
 import { statusColors } from '../dashboard/statusConstants'
 
 /**
@@ -35,6 +41,10 @@ export interface CaregiverQuickViewProps {
   familyId: string | null
   /** Story 19D.3: Caregiver UID for audit logging */
   viewerUid?: string | null
+  /** Story 19D.4: Access windows for this caregiver */
+  accessWindows?: AccessWindow[]
+  /** Story 19D.4: One-time extension if granted */
+  oneTimeExtension?: OneTimeExtension | null
 }
 
 /**
@@ -157,7 +167,12 @@ function EmptyState() {
 /**
  * CaregiverQuickView - Simplified status view for caregivers
  */
-export function CaregiverQuickView({ familyId, viewerUid }: CaregiverQuickViewProps) {
+export function CaregiverQuickView({
+  familyId,
+  viewerUid,
+  accessWindows = [],
+  oneTimeExtension,
+}: CaregiverQuickViewProps) {
   const {
     overallStatus,
     statusMessage,
@@ -169,9 +184,13 @@ export function CaregiverQuickView({ familyId, viewerUid }: CaregiverQuickViewPr
     refetch,
   } = useCaregiverStatus(familyId)
 
+  // Story 19D.4: Check if caregiver has active access
+  const accessCheck = useAccessWindowCheck(accessWindows, oneTimeExtension)
+
   // Story 19D.3: Log access on mount with Firestore audit (AC5)
+  // Only log if access is active
   const childIds = children.map((c) => c.childId)
-  useCaregiverAccessLog('view', childIds, viewerUid, familyId)
+  useCaregiverAccessLog('view', accessCheck.isAccessActive ? childIds : [], viewerUid, familyId)
 
   // Container styles
   const containerStyles: React.CSSProperties = {
@@ -228,6 +247,28 @@ export function CaregiverQuickView({ familyId, viewerUid }: CaregiverQuickViewPr
     return (
       <div style={containerStyles} data-testid="caregiver-quick-view">
         <ErrorState message={error} onRetry={refetch} />
+      </div>
+    )
+  }
+
+  // Story 19D.4: Access denied state (AC3)
+  // Only enforce if access windows are configured
+  if (accessWindows.length > 0 && !accessCheck.isAccessActive) {
+    const handleContactParent = () => {
+      // Log the contact attempt
+      if (parentContact?.phone) {
+        window.location.href = `tel:${parentContact.phone}`
+      }
+    }
+
+    return (
+      <div style={containerStyles} data-testid="caregiver-quick-view">
+        <AccessDenied
+          statusMessage={accessCheck.statusMessage}
+          accessWindows={accessWindows}
+          parentContact={parentContact}
+          onContactParent={parentContact?.phone ? handleContactParent : undefined}
+        />
       </div>
     )
   }

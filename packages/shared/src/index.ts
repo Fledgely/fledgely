@@ -88,3 +88,11 @@ export {
   type SelfRemoveFromFamilyInput,
   type SelfRemoveFromFamilyResponse,
 } from './contracts'
+
+// Caregiver access window exports (Story 19D.4)
+export {
+  accessWindowSchema,
+  familyCaregiverSchema,
+  type AccessWindow,
+  type FamilyCaregiver,
+} from './contracts'

@@ -1,5 +1,5 @@
 /**
- * CaregiverQuickView Component Tests - Story 19A.3
+ * CaregiverQuickView Component Tests - Story 19A.3, Story 19D.4
  *
  * Tests for the Caregiver Quick View component.
  * Covers all acceptance criteria:
@@ -9,14 +9,17 @@
  * - AC4: Call parent button
  * - AC5: View access logging
  * - AC6: Accessibility
+ * - 19D.4-AC2: Access only during active window
+ * - 19D.4-AC3: Show "Access not currently active" outside window
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CaregiverQuickView } from './CaregiverQuickView'
 import * as useCaregiverStatusModule from '../../hooks/useCaregiverStatus'
 import * as useCaregiverAccessLogModule from '../../hooks/useCaregiverAccessLog'
 import type { CaregiverStatusResult } from '../../hooks/useCaregiverStatus'
+import type { AccessWindow } from '@fledgely/shared'
 
 // Mock hooks
 vi.mock('../../hooks/useCaregiverStatus', () => ({
@@ -373,6 +376,256 @@ describe('CaregiverQuickView', () => {
       expect(screen.getByText('Liam')).toBeInTheDocument()
       expect(screen.getByText('Doing well')).toBeInTheDocument()
       expect(screen.getByText('Check in')).toBeInTheDocument()
+    })
+  })
+
+  describe('Story 19D.4: Access Window Enforcement', () => {
+    beforeEach(() => {
+      // Mock current time: Tuesday, December 30, 2025, 2:30 PM EST
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-12-30T14:30:00-05:00'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should show status when no access windows configured (always active)', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      render(<CaregiverQuickView familyId="family-1" accessWindows={[]} />)
+
+      expect(screen.getByTestId('status-message')).toBeInTheDocument()
+      expect(screen.queryByTestId('access-denied')).not.toBeInTheDocument()
+    })
+
+    it('should show status when within access window (AC2)', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      // Tuesday 2-6 PM window - current time is Tuesday 2:30 PM
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'tuesday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      render(<CaregiverQuickView familyId="family-1" accessWindows={accessWindows} />)
+
+      expect(screen.getByTestId('status-message')).toBeInTheDocument()
+      expect(screen.queryByTestId('access-denied')).not.toBeInTheDocument()
+    })
+
+    it('should show AccessDenied when outside access window (AC3)', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      // Saturday 2-6 PM window - current time is Tuesday 2:30 PM
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'saturday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      render(<CaregiverQuickView familyId="family-1" accessWindows={accessWindows} />)
+
+      expect(screen.getByTestId('access-denied')).toBeInTheDocument()
+      expect(screen.getByText('Access Not Currently Active')).toBeInTheDocument()
+      // Verify children list is NOT shown (main status view)
+      expect(screen.queryByTestId('children-list')).not.toBeInTheDocument()
+    })
+
+    it('should show access windows to caregiver (AC5)', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'saturday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      render(<CaregiverQuickView familyId="family-1" accessWindows={accessWindows} />)
+
+      expect(screen.getByTestId('access-windows')).toBeInTheDocument()
+      expect(screen.getByText('Your Access Times')).toBeInTheDocument()
+      expect(screen.getByText('Saturday 2:00 PM - 6:00 PM')).toBeInTheDocument()
+    })
+
+    it('should allow access with active one-time extension', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      // Saturday window - not active on Tuesday
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'saturday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      // But have active extension until 4 PM today
+      const oneTimeExtension = {
+        grantedAt: new Date('2025-12-30T14:00:00'),
+        expiresAt: new Date('2025-12-30T16:00:00'),
+        grantedBy: 'parent-123',
+      }
+
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          accessWindows={accessWindows}
+          oneTimeExtension={oneTimeExtension}
+        />
+      )
+
+      expect(screen.getByTestId('status-message')).toBeInTheDocument()
+      expect(screen.queryByTestId('access-denied')).not.toBeInTheDocument()
+    })
+
+    it('should not log access when outside window', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      // Saturday window - not active on Tuesday
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'saturday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      render(<CaregiverQuickView familyId="family-1" accessWindows={accessWindows} />)
+
+      // Should be called with empty array (no children logged) when access is denied
+      expect(useCaregiverAccessLogModule.useCaregiverAccessLog).toHaveBeenCalledWith(
+        'view',
+        [], // Empty array when outside window
+        undefined,
+        'family-1'
+      )
+    })
+
+    it('should log access when inside window', () => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+
+      // Tuesday 2-6 PM window - current time is Tuesday 2:30 PM
+      const accessWindows: AccessWindow[] = [
+        {
+          dayOfWeek: 'tuesday',
+          startTime: '14:00',
+          endTime: '18:00',
+          timezone: 'America/New_York',
+        },
+      ]
+
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          viewerUid="caregiver-123"
+          accessWindows={accessWindows}
+        />
+      )
+
+      // Should be called with child IDs when access is active
+      expect(useCaregiverAccessLogModule.useCaregiverAccessLog).toHaveBeenCalledWith(
+        'view',
+        ['child-1'],
+        'caregiver-123',
+        'family-1'
+      )
     })
   })
 })
