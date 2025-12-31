@@ -243,3 +243,13 @@ export {
   type FamilyBiasWeights,
   type AILearningStatus,
 } from './contracts'
+
+// App category approval exports (Story 24.3)
+export {
+  APP_APPROVAL_STATUS_VALUES,
+  appApprovalStatusSchema,
+  APP_APPROVAL_ADJUSTMENTS,
+  appCategoryApprovalSchema,
+  type AppApprovalStatus,
+  type AppCategoryApproval,
+} from './contracts'

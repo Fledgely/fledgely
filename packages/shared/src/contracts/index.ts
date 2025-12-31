@@ -3196,3 +3196,78 @@ export const aiLearningStatusSchema = z.object({
   adjustedCategories: z.array(concernCategorySchema).optional(),
 })
 export type AILearningStatus = z.infer<typeof aiLearningStatusSchema>
+
+// ============================================================================
+// Story 24.3: Explicit Approval of Categories
+// ============================================================================
+
+/**
+ * App approval status values.
+ *
+ * Story 24.3: Explicit Approval of Categories - AC2, AC3, AC4
+ * - approved: Parent has approved this app/category - reduce flag sensitivity
+ * - disapproved: Parent has disapproved - increase flag sensitivity
+ * - neutral: No preference set (default) - use standard thresholds
+ */
+export const APP_APPROVAL_STATUS_VALUES = ['approved', 'disapproved', 'neutral'] as const
+export const appApprovalStatusSchema = z.enum(APP_APPROVAL_STATUS_VALUES)
+export type AppApprovalStatus = z.infer<typeof appApprovalStatusSchema>
+
+/**
+ * Confidence adjustments applied based on app approval status.
+ *
+ * Story 24.3: Explicit Approval of Categories - AC3, AC4, AC6
+ * - approved: Reduce flagging sensitivity (-20 confidence)
+ * - disapproved: Increase flagging sensitivity (+15 confidence)
+ * - neutral: No adjustment (0)
+ */
+export const APP_APPROVAL_ADJUSTMENTS = {
+  approved: -20,
+  disapproved: 15,
+  neutral: 0,
+} as const
+
+/**
+ * App category approval document schema.
+ *
+ * Story 24.3: Explicit Approval of Categories
+ * Stored at /children/{childId}/appApprovals/{approvalId}
+ *
+ * Allows parents to set per-app, per-category approval preferences
+ * that override default classification thresholds.
+ *
+ * AC #2: Parent can mark "YouTube Kids = Educational (approved)"
+ * AC #5: Preferences stored per-family, per-child
+ * AC #7: Child-specific: "Gaming OK for Emma, flag for Jake"
+ */
+export const appCategoryApprovalSchema = z.object({
+  /** Unique approval ID */
+  id: z.string(),
+  /** Child this approval applies to (AC7: child-specific) */
+  childId: z.string(),
+  /** Family this child belongs to (for security validation) */
+  familyId: z.string(),
+  /**
+   * App identifier - domain for web, package name or app name for native.
+   * Examples: "youtube.com", "com.spotify.music", "tiktok"
+   */
+  appIdentifier: z.string(),
+  /** Human-readable display name for the app */
+  appDisplayName: z.string(),
+  /**
+   * Which concern category this approval applies to.
+   * E.g., approving "Violence" for a gaming app.
+   */
+  category: concernCategorySchema,
+  /** Approval status determining threshold adjustment */
+  status: appApprovalStatusSchema,
+  /** Guardian UID who set this approval (audit trail) */
+  setByUid: z.string(),
+  /** When approval was created (epoch ms) */
+  createdAt: z.number(),
+  /** When approval was last updated (epoch ms) */
+  updatedAt: z.number(),
+  /** Optional notes explaining the approval decision */
+  notes: z.string().optional(),
+})
+export type AppCategoryApproval = z.infer<typeof appCategoryApprovalSchema>

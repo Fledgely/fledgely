@@ -29,6 +29,11 @@ import { shouldAlertForFlag, recordFlagAlert, recordThrottledFlag } from './flag
 import { getEffectiveThreshold } from './confidenceThreshold'
 import { createFlagsFromConcerns } from './flagStorage'
 import { applyFamilyBiasToConcerns } from './familyBias'
+import {
+  getChildAppApprovals,
+  extractAppIdentifier,
+  applyAppApprovalsToConcerns,
+} from './appApprovals'
 
 /**
  * Result of classifyScreenshot operation.
@@ -122,12 +127,23 @@ export async function classifyScreenshot(
       // This allows families with many corrections to reduce false positives
       const biasAdjustedConcerns = await applyFamilyBiasToConcerns(familyId, concernResult.concerns)
 
+      // Story 24.3: Explicit Approval of Categories - AC3, AC4, AC6, AC7
+      // Apply per-child, per-app approval adjustments
+      // Approved apps get reduced sensitivity, disapproved apps get increased sensitivity
+      const appIdentifier = extractAppIdentifier(url, title)
+      const childAppApprovals = await getChildAppApprovals(childId)
+      const approvalAdjustedConcerns = applyAppApprovalsToConcerns(
+        biasAdjustedConcerns,
+        childAppApprovals,
+        appIdentifier
+      )
+
       // Story 21.4: Filter concerns by confidence threshold (AC1, AC5)
       // Only create flags for concerns that meet the configured threshold
       const filteredConcerns: DetectedConcern[] = []
       let discardedCount = 0
 
-      for (const concern of biasAdjustedConcerns) {
+      for (const concern of approvalAdjustedConcerns) {
         // Get threshold first (single query), then check if should flag
         const threshold = await getEffectiveThreshold(familyId, concern.category)
         const shouldFlag =

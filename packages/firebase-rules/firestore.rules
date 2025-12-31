@@ -410,6 +410,33 @@ service cloud.firestore {
         // Delete: Guardians can unenroll devices
         allow delete: if isDeviceChildGuardian();
       }
+
+      // App Approvals subcollection: per-app category approvals
+      //
+      // Story 24.3: Explicit Approval of Categories
+      // Guardians can set app-specific category approvals per child.
+      // Approved apps get reduced flag sensitivity, disapproved get increased.
+      //
+      match /appApprovals/{approvalId} {
+        // Helper: Check if user is guardian of the parent child document
+        function isAppApprovalChildGuardian() {
+          let child = get(/databases/$(database)/documents/children/$(childId));
+          return request.auth != null &&
+            request.auth.uid in child.data.guardianUids;
+        }
+
+        // Read: Only child's guardians can view app approvals
+        allow read: if isAppApprovalChildGuardian();
+
+        // Create: Guardians can create app approvals
+        allow create: if isAppApprovalChildGuardian();
+
+        // Update: Guardians can update approvals
+        allow update: if isAppApprovalChildGuardian();
+
+        // Delete: Guardians can remove approvals
+        allow delete: if isAppApprovalChildGuardian();
+      }
     }
 
     // Invitation documents: for co-parent invitations

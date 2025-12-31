@@ -40,3 +40,11 @@ export {
   clearBiasWeightsCache,
   clearAllBiasWeightsCache,
 } from './familyBias'
+export {
+  getChildAppApprovals,
+  extractAppIdentifier,
+  applyAppApprovalsToConcerns,
+  clearAppApprovalsCache,
+  setAppCategoryApproval,
+  removeAppCategoryApproval,
+} from './appApprovals'
