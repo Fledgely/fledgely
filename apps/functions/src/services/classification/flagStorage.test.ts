@@ -575,4 +575,109 @@ describe('Flag Storage Service (Story 21.5)', () => {
       expect(flag).toBeNull()
     })
   })
+
+  describe('updateFlagFeedback (Story 21.7)', () => {
+    it('updates flag with feedback and marks as reviewed', async () => {
+      const originalFlag = {
+        id: 'flag-123',
+        childId: 'child-456',
+        category: 'Violence',
+        status: 'pending',
+      }
+
+      const updatedFlag = {
+        ...originalFlag,
+        status: 'reviewed',
+        feedbackRating: 'helpful',
+        reviewedBy: 'parent-789',
+        reviewedAt: expect.any(Number),
+        feedbackAt: expect.any(Number),
+      }
+
+      mockGet.mockResolvedValue({
+        exists: true,
+        data: () => updatedFlag,
+      })
+      mockUpdate.mockResolvedValue(undefined)
+
+      const { updateFlagFeedback, _resetDbForTesting } = await import('./flagStorage')
+      _resetDbForTesting()
+
+      const result = await updateFlagFeedback('child-456', 'flag-123', {
+        feedbackRating: 'helpful',
+        reviewedBy: 'parent-789',
+      })
+
+      expect(mockUpdate).toHaveBeenCalled()
+      expect(result?.status).toBe('reviewed')
+      expect(result?.feedbackRating).toBe('helpful')
+    })
+
+    it('includes feedback comment when provided', async () => {
+      const updatedFlag = {
+        id: 'flag-123',
+        status: 'reviewed',
+        feedbackRating: 'false_positive',
+        feedbackComment: 'This was actually a game screenshot',
+        reviewedBy: 'parent-789',
+      }
+
+      mockGet.mockResolvedValue({
+        exists: true,
+        data: () => updatedFlag,
+      })
+      mockUpdate.mockResolvedValue(undefined)
+
+      const { updateFlagFeedback, _resetDbForTesting } = await import('./flagStorage')
+      _resetDbForTesting()
+
+      const result = await updateFlagFeedback('child-456', 'flag-123', {
+        feedbackRating: 'false_positive',
+        feedbackComment: 'This was actually a game screenshot',
+        reviewedBy: 'parent-789',
+      })
+
+      expect(mockUpdate).toHaveBeenCalled()
+      expect(result?.feedbackComment).toBe('This was actually a game screenshot')
+    })
+
+    it('returns null when flag not found', async () => {
+      mockGet.mockResolvedValue({
+        exists: false,
+      })
+
+      const { updateFlagFeedback, _resetDbForTesting } = await import('./flagStorage')
+      _resetDbForTesting()
+
+      const result = await updateFlagFeedback('child-456', 'nonexistent', {
+        feedbackRating: 'helpful',
+        reviewedBy: 'parent-789',
+      })
+
+      expect(result).toBeNull()
+      expect(mockUpdate).not.toHaveBeenCalled()
+    })
+
+    it('supports all feedback rating values', async () => {
+      const ratings = ['helpful', 'not_helpful', 'false_positive'] as const
+
+      for (const rating of ratings) {
+        mockGet.mockResolvedValue({
+          exists: true,
+          data: () => ({ feedbackRating: rating }),
+        })
+        mockUpdate.mockResolvedValue(undefined)
+
+        const { updateFlagFeedback, _resetDbForTesting } = await import('./flagStorage')
+        _resetDbForTesting()
+
+        const result = await updateFlagFeedback('child-456', 'flag-123', {
+          feedbackRating: rating,
+          reviewedBy: 'parent-789',
+        })
+
+        expect(result?.feedbackRating).toBe(rating)
+      }
+    })
+  })
 })

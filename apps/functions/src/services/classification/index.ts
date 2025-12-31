@@ -25,6 +25,7 @@ export {
   createFlagsFromConcerns,
   getFlagsForChild,
   getFlagById,
+  updateFlagFeedback,
   generateFlagId,
   generateScreenshotRef,
   updateScreenshotFlagIds,

@@ -189,8 +189,15 @@ export {
   type CategoryConfidenceThresholds,
 } from './contracts'
 
-// Flag document exports (Story 21.5)
-export { flagDocumentSchema, type FlagDocument, type CreateFlagParams } from './contracts'
+// Flag document exports (Story 21.5, 21.7)
+export {
+  flagDocumentSchema,
+  FLAG_FEEDBACK_VALUES,
+  type FlagDocument,
+  type CreateFlagParams,
+  type FlagFeedbackRating,
+  type UpdateFlagFeedbackParams,
+} from './contracts'
 
 // Concern category definitions exports (Story 21.1)
 export {

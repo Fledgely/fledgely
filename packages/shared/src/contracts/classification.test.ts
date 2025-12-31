@@ -1531,6 +1531,96 @@ describe('Classification Contracts', () => {
         expect(flag.screenshotRef).toContain(flag.childId)
         expect(flag.screenshotRef).toContain(flag.screenshotId)
       })
+
+      // Story 21.7: Flag Accuracy Feedback Loop tests
+      describe('feedback fields (Story 21.7)', () => {
+        it('accepts valid feedback rating', () => {
+          const ratings = ['helpful', 'not_helpful', 'false_positive'] as const
+          for (const rating of ratings) {
+            const flag = flagDocumentSchema.parse({
+              ...validFlagDocument,
+              feedbackRating: rating,
+            })
+            expect(flag.feedbackRating).toBe(rating)
+          }
+        })
+
+        it('rejects invalid feedback rating', () => {
+          expect(() =>
+            flagDocumentSchema.parse({
+              ...validFlagDocument,
+              feedbackRating: 'invalid_rating',
+            })
+          ).toThrow()
+        })
+
+        it('accepts feedback comment', () => {
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            feedbackRating: 'false_positive',
+            feedbackComment: 'This was a video game screenshot',
+          })
+          expect(flag.feedbackComment).toBe('This was a video game screenshot')
+        })
+
+        it('limits feedback comment to 500 characters', () => {
+          const longComment = 'a'.repeat(501)
+          expect(() =>
+            flagDocumentSchema.parse({
+              ...validFlagDocument,
+              feedbackComment: longComment,
+            })
+          ).toThrow()
+        })
+
+        it('accepts feedback timestamp', () => {
+          const now = Date.now()
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            feedbackAt: now,
+          })
+          expect(flag.feedbackAt).toBe(now)
+        })
+
+        it('accepts reviewed by and reviewed at fields', () => {
+          const now = Date.now()
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            reviewedBy: 'parent-789',
+            reviewedAt: now,
+          })
+          expect(flag.reviewedBy).toBe('parent-789')
+          expect(flag.reviewedAt).toBe(now)
+        })
+
+        it('allows all feedback fields to be optional', () => {
+          const flag = flagDocumentSchema.parse(validFlagDocument)
+          expect(flag.feedbackRating).toBeUndefined()
+          expect(flag.feedbackComment).toBeUndefined()
+          expect(flag.feedbackAt).toBeUndefined()
+          expect(flag.reviewedBy).toBeUndefined()
+          expect(flag.reviewedAt).toBeUndefined()
+        })
+
+        it('parses flag with complete feedback', () => {
+          const now = Date.now()
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            status: 'reviewed',
+            feedbackRating: 'helpful',
+            feedbackComment: 'Correctly flagged inappropriate content',
+            feedbackAt: now,
+            reviewedBy: 'parent-789',
+            reviewedAt: now,
+          })
+          expect(flag.status).toBe('reviewed')
+          expect(flag.feedbackRating).toBe('helpful')
+          expect(flag.feedbackComment).toBe('Correctly flagged inappropriate content')
+          expect(flag.feedbackAt).toBe(now)
+          expect(flag.reviewedBy).toBe('parent-789')
+          expect(flag.reviewedAt).toBe(now)
+        })
+      })
     })
   })
 })

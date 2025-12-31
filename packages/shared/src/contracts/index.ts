@@ -2664,8 +2664,40 @@ export const flagDocumentSchema = z.object({
   throttled: z.boolean().default(false),
   /** When the flag was throttled (epoch ms) */
   throttledAt: z.number().optional(),
+
+  // Feedback fields (from Story 21-7)
+  /** Parent feedback on flag accuracy */
+  feedbackRating: z.enum(['helpful', 'not_helpful', 'false_positive']).optional(),
+  /** Optional comment explaining feedback */
+  feedbackComment: z.string().max(500).optional(),
+  /** When feedback was provided (epoch ms) */
+  feedbackAt: z.number().optional(),
+  /** User ID who reviewed this flag */
+  reviewedBy: z.string().optional(),
+  /** When the flag was reviewed (epoch ms) */
+  reviewedAt: z.number().optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
+
+/**
+ * Story 21.7: Flag Accuracy Feedback Loop
+ * Valid feedback ratings for flags.
+ */
+export const FLAG_FEEDBACK_VALUES = ['helpful', 'not_helpful', 'false_positive'] as const
+export type FlagFeedbackRating = (typeof FLAG_FEEDBACK_VALUES)[number]
+
+/**
+ * Story 21.7: Flag Accuracy Feedback Loop
+ * Parameters for updating flag with parent feedback.
+ */
+export interface UpdateFlagFeedbackParams {
+  /** Rating of flag accuracy */
+  feedbackRating: FlagFeedbackRating
+  /** Optional comment explaining feedback */
+  feedbackComment?: string
+  /** User ID providing feedback */
+  reviewedBy: string
+}
 
 /**
  * Story 21.5: Flag Creation and Storage - AC1

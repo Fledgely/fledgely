@@ -364,14 +364,14 @@ development_status:
   epic-20-retrospective: done
 
   # Epic 21: AI Classification - Concerning Content Detection
-  epic-21: in-progress
+  epic-21: done
   21-1-concerning-content-categories: done
   21-2-distress-detection-suppression-fr21a: done
   21-3-false-positive-throttling: done
   21-4-concern-confidence-thresholds: done
   21-5-flag-creation-and-storage: done
-  21-6-ai-reasoning-explanation: backlog
-  21-7-flag-accuracy-feedback-loop: backlog
+  21-6-ai-reasoning-explanation: done # Backend: reasoning stored in flags, UI in Epic 22
+  21-7-flag-accuracy-feedback-loop: done # Backend: feedback schema + update function, UI in Epic 22
   epic-21-retrospective: optional
 
   # Epic 22: Parent Dashboard - Flag Review

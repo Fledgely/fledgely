@@ -15,6 +15,7 @@ import {
   type ConcernCategory,
   type ConcernSeverity,
   type FlagStatus,
+  type UpdateFlagFeedbackParams,
 } from '@fledgely/shared'
 
 // Lazy Firestore initialization for testing
@@ -343,4 +344,52 @@ export async function getFlagById(childId: string, flagId: string): Promise<Flag
   }
 
   return flagDoc.data() as FlagDocument
+}
+
+/**
+ * Update flag with parent feedback
+ *
+ * Story 21.7: Flag Accuracy Feedback Loop - AC1, AC2
+ * Stores parent feedback on flag accuracy for model improvement.
+ *
+ * @param childId - Child ID
+ * @param flagId - Flag ID
+ * @param feedback - Feedback parameters
+ * @returns Updated flag document or null if flag not found
+ */
+export async function updateFlagFeedback(
+  childId: string,
+  flagId: string,
+  feedback: UpdateFlagFeedbackParams
+): Promise<FlagDocument | null> {
+  const flagRef = getFlagsCollection(childId).doc(flagId)
+  const flagDoc = await flagRef.get()
+
+  if (!flagDoc.exists) {
+    logger.warn('Flag not found for feedback update', { childId, flagId })
+    return null
+  }
+
+  const now = Date.now()
+  const updateData = {
+    status: 'reviewed' as FlagStatus,
+    feedbackRating: feedback.feedbackRating,
+    feedbackAt: now,
+    reviewedBy: feedback.reviewedBy,
+    reviewedAt: now,
+    ...(feedback.feedbackComment && { feedbackComment: feedback.feedbackComment }),
+  }
+
+  await flagRef.update(updateData)
+
+  logger.info('Flag feedback recorded', {
+    childId,
+    flagId,
+    feedbackRating: feedback.feedbackRating,
+    reviewedBy: feedback.reviewedBy,
+  })
+
+  // Return updated flag document
+  const updatedDoc = await flagRef.get()
+  return updatedDoc.data() as FlagDocument
 }
