@@ -375,14 +375,14 @@ development_status:
   epic-21-retrospective: done
 
   # Epic 22: Parent Dashboard - Flag Review
-  epic-22: in-progress
+  epic-22: done
   22-1-flag-review-queue: done
-  22-2-flag-detail-view: backlog
-  22-3-flag-actions: backlog
-  22-4-flag-discussion-notes: backlog
-  22-5-flag-history-and-patterns: backlog
-  22-6-co-parent-flag-visibility: backlog
-  epic-22-retrospective: optional
+  22-2-flag-detail-view: done
+  22-3-flag-actions: done
+  22-4-flag-discussion-notes: done
+  22-5-flag-history-and-patterns: done
+  22-6-co-parent-flag-visibility: done
+  epic-22-retrospective: done
 
   # Epic 23: Child Annotation Before Parent Alert
   epic-23: backlog
