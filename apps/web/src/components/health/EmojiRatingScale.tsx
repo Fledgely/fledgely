@@ -60,6 +60,12 @@ const styles = {
   labelChild: {
     fontSize: '16px',
   },
+  description: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginTop: '4px',
+    textAlign: 'center' as const,
+  },
 }
 
 interface RatingOption {
@@ -67,26 +73,34 @@ interface RatingOption {
   emoji: string
   label: string
   childLabel: string
+  childDescription: string // Story 27.5.7: Additional context for children
 }
 
+/**
+ * Rating options with age-appropriate labels.
+ * Story 27.5.7: Child-safe check-in language (6th-grade reading level)
+ */
 const RATING_OPTIONS: RatingOption[] = [
   {
     value: 'positive',
     emoji: '😊',
     label: 'Things are going well',
     childLabel: 'Good!',
+    childDescription: 'I feel happy about how things are',
   },
   {
     value: 'neutral',
     emoji: '😐',
     label: "It's okay",
     childLabel: 'Okay',
+    childDescription: "It's not bad, not great",
   },
   {
     value: 'concerned',
     emoji: '😟',
     label: 'Things have been hard',
     childLabel: 'Hard',
+    childDescription: "Something doesn't feel right",
   },
 ]
 
@@ -110,7 +124,7 @@ export function EmojiRatingScale({ value, onChange, isChild = false }: EmojiRati
             ...(value === option.value ? styles.optionSelected : {}),
           }}
           aria-pressed={value === option.value}
-          aria-label={isChild ? option.childLabel : option.label}
+          aria-label={isChild ? `${option.childLabel}: ${option.childDescription}` : option.label}
         >
           <span
             style={{
@@ -130,6 +144,8 @@ export function EmojiRatingScale({ value, onChange, isChild = false }: EmojiRati
           >
             {isChild ? option.childLabel : option.label}
           </span>
+          {/* Story 27.5.7: Show helpful description for children */}
+          {isChild && <span style={styles.description}>{option.childDescription}</span>}
         </button>
       ))}
     </div>

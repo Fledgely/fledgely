@@ -202,18 +202,28 @@ const styles = {
   },
 }
 
-const CHILD_FOLLOW_UP_QUESTIONS: Record<CheckInRating, { title: string; placeholder: string }> = {
+/**
+ * Child-friendly follow-up questions.
+ * Story 27.5.7: Child-safe check-in language (6th-grade reading level)
+ */
+const CHILD_FOLLOW_UP_QUESTIONS: Record<
+  CheckInRating,
+  { title: string; placeholder: string; encouragement: string }
+> = {
   positive: {
-    title: "That's great! What's been good?",
+    title: "That's awesome! What's going well?",
     placeholder: 'Tell us what you like...',
+    encouragement: "It's great to hear things are good! 🌟",
   },
   neutral: {
-    title: 'What could be better?',
+    title: 'What would make things better?',
     placeholder: 'Tell us what you think...',
+    encouragement: 'Thanks for being honest with us.',
   },
   concerned: {
-    title: "We're sorry to hear that. What's hard?",
+    title: "We hear you. What's not working?",
     placeholder: "Tell us what's bothering you...",
+    encouragement: "It's okay to feel this way. We want to help. 💙",
   },
 }
 
@@ -396,8 +406,19 @@ function ChildCheckInContent() {
           </div>
 
           {/* AC2: Follow-up question based on rating */}
+          {/* Story 27.5.7: Age-appropriate encouragement */}
           {rating && (
             <div style={styles.section}>
+              <p
+                style={{
+                  fontSize: '16px',
+                  color: '#0369a1',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                }}
+              >
+                {CHILD_FOLLOW_UP_QUESTIONS[rating].encouragement}
+              </p>
               <h2 style={styles.sectionTitle}>{CHILD_FOLLOW_UP_QUESTIONS[rating].title}</h2>
               <textarea
                 style={styles.textarea}

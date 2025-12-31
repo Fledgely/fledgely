@@ -181,12 +181,13 @@ export async function isCheckInDue(familyId: string): Promise<boolean> {
  *
  * Story 27.5.1 - AC2: Parent prompt
  * Story 27.5.1 - AC3: Child prompt (age-appropriate)
+ * Story 27.5.7 - Child-safe check-in language (6th-grade reading level)
  */
 export function getCheckInPromptText(
   recipientType: CheckInRecipientType,
   childName?: string,
   childAge?: number
-): { title: string; message: string } {
+): { title: string; message: string; helpText?: string } {
   if (recipientType === 'guardian') {
     return {
       title: 'Family Check-In',
@@ -196,18 +197,31 @@ export function getCheckInPromptText(
     }
   }
 
-  // Child prompts - age-appropriate
-  if (childAge && childAge < 13) {
+  // Child prompts - age-appropriate (Story 27.5.7)
+  // Younger children (under 10): Very simple language
+  if (childAge && childAge < 10) {
     return {
-      title: 'How are things going?',
-      message:
-        "How do you feel about mom and dad looking at your phone and computer? We want to know how you're doing!",
+      title: 'How are things going? 💭',
+      message: 'How do you feel about mom and dad looking at your phone and computer?',
+      helpText: 'Pick the face that shows how you feel. Your answer is just for you!',
     }
   }
 
+  // Pre-teens (10-12): Simple but slightly more mature
+  if (childAge && childAge < 13) {
+    return {
+      title: 'How are things going? 💭',
+      message:
+        "We want to know how you feel about your parents checking your phone and computer. It's okay to be honest!",
+      helpText: 'Your answers help your family talk about how things are going.',
+    }
+  }
+
+  // Teens (13+): More mature but still friendly
   return {
-    title: 'Check-In Time',
-    message: 'How do you feel about the monitoring arrangement? Your honest feedback helps.',
+    title: 'Check-In Time 💬',
+    message: 'How do you feel about the monitoring setup? Your honest thoughts matter.',
+    helpText: 'This helps your family understand how you feel about things.',
   }
 }
 
