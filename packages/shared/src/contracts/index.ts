@@ -3600,3 +3600,90 @@ export type FamilyAISettings = z.infer<typeof familyAISettingsSchema>
  * Story 24.5 - AC3: Patterns with >10 corrections flagged
  */
 export const GLOBAL_PATTERN_REVIEW_THRESHOLD = 10
+
+/**
+ * Notification preferences schema.
+ *
+ * Story 27.6: Real-Time Access Notifications
+ * Stored in user document or at /users/{uid}/settings/notifications
+ *
+ * AC1: Enable notifications in settings
+ * AC3: Notifications off by default
+ * AC4: Daily digest option
+ * AC5: Child notification option
+ * AC6: Quiet hours
+ */
+export const notificationPreferencesSchema = z.object({
+  /** Real-time notifications enabled - AC3: off by default */
+  accessNotificationsEnabled: z.boolean().default(false),
+  /** Daily digest summary enabled */
+  accessDigestEnabled: z.boolean().default(false),
+  /** Quiet hours start time in HH:MM format, null if not set */
+  quietHoursStart: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable()
+    .default(null),
+  /** Quiet hours end time in HH:MM format, null if not set */
+  quietHoursEnd: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable()
+    .default(null),
+  /** For parents: notify when child's data is accessed by other guardians */
+  notifyOnChildDataAccess: z.boolean().default(false),
+  /** For children: notify when parents view their data */
+  notifyOnOwnDataAccess: z.boolean().default(false),
+  /** When preferences were last updated (epoch ms) */
+  updatedAt: z.number().optional(),
+})
+export type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>
+
+/**
+ * Default notification preferences.
+ *
+ * Story 27.6 - AC3: All notifications off by default
+ */
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  accessNotificationsEnabled: false,
+  accessDigestEnabled: false,
+  quietHoursStart: null,
+  quietHoursEnd: null,
+  notifyOnChildDataAccess: false,
+  notifyOnOwnDataAccess: false,
+}
+
+/**
+ * Access notification event for queuing.
+ *
+ * Story 27.6: Real-Time Access Notifications
+ * Used to track notifications that need to be sent.
+ */
+export const accessNotificationSchema = z.object({
+  /** Unique notification ID */
+  id: z.string(),
+  /** User to notify */
+  recipientUid: z.string(),
+  /** Related audit event ID */
+  auditEventId: z.string(),
+  /** Actor who triggered the access */
+  actorUid: z.string(),
+  actorDisplayName: z.string(),
+  /** What was accessed */
+  resourceType: auditResourceTypeSchema,
+  childId: z.string().nullable(),
+  childName: z.string().nullable(),
+  /** Notification message */
+  message: z.string(),
+  /** When the access occurred (epoch ms) */
+  accessTimestamp: z.number(),
+  /** When notification was created (epoch ms) */
+  createdAt: z.number(),
+  /** Whether notification was sent */
+  sent: z.boolean().default(false),
+  /** When notification was sent (epoch ms) */
+  sentAt: z.number().optional(),
+  /** Notification type: immediate or digest */
+  notificationType: z.enum(['immediate', 'digest']),
+})
+export type AccessNotification = z.infer<typeof accessNotificationSchema>

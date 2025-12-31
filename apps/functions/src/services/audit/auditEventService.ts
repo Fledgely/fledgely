@@ -18,6 +18,7 @@ import * as logger from 'firebase-functions/logger'
 import * as crypto from 'crypto'
 import type { CreateAuditEventInput, AuditEvent, AuditFailure } from '@fledgely/shared'
 import { createAuditEventInputSchema } from '@fledgely/shared'
+import { processAuditEventForNotifications } from '../notifications'
 
 // Lazy initialization for Firestore (supports test mocking)
 let db: Firestore | null = null
@@ -162,6 +163,14 @@ export async function createAuditEvent(input: CreateAuditEventInput): Promise<st
         resourceType: event.resourceType,
         accessType: event.accessType,
         actorUid: event.actorUid,
+      })
+
+      // Story 27.6: Trigger access notifications (non-blocking)
+      processAuditEventForNotifications(event).catch((error) => {
+        logger.warn('Failed to process notifications for audit event', {
+          eventId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
 
       return eventId

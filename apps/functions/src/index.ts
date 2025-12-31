@@ -85,6 +85,7 @@ export {
   aggregateGlobalFeedback,
   processAuditFailures,
   analyzeViewingPatternsScheduled,
+  sendAccessDigests,
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3
@@ -103,3 +104,9 @@ export {
 
 // Classification HTTP handlers (Story 20.1)
 export { processClassification } from './http/classification'
+
+// Notification HTTP handlers (Story 27.6)
+export {
+  getNotificationPreferencesEndpoint,
+  updateNotificationPreferencesEndpoint,
+} from './http/notifications'

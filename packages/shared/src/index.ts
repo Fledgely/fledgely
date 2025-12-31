@@ -296,3 +296,12 @@ export {
   type GlobalModelMetrics,
   type FamilyAISettings,
 } from './contracts'
+
+// Real-time access notification exports (Story 27.6)
+export {
+  notificationPreferencesSchema,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  accessNotificationSchema,
+  type NotificationPreferences,
+  type AccessNotification,
+} from './contracts'
