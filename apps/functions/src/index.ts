@@ -92,7 +92,7 @@ export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' 
 // Export HTTP functions
 export { uploadScreenshot, syncDeviceHealth } from './http/sync'
 export { viewScreenshot } from './http/screenshots'
-export { familyAuditLog, childAuditLog } from './http/audit'
+export { familyAuditLog, childAuditLog, exportAuditLog } from './http/audit'
 export { getPatternAlerts, dismissPatternAlert } from './http/patterns'
 export {
   checkConsentStatus,

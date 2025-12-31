@@ -31,3 +31,12 @@ export {
   type ChildFriendlyAuditEvent,
   type ChildAuditLogResult,
 } from './childAuditQueryService'
+
+export {
+  generateCSVExport,
+  generateTextExport,
+  queryEventsForExport,
+  getFamilyName,
+  type ExportWatermark,
+  type ExportFilters,
+} from './auditExportService'

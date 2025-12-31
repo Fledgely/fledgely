@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useFamily } from '../../../contexts/FamilyContext'
 import { useAuditLog } from '../../../hooks/useAuditLog'
-import { AuditEventList, AuditLogFilters } from '../../../components/audit'
+import { AuditEventList, AuditLogFilters, AuditExportButton } from '../../../components/audit'
 import { logDataViewNonBlocking } from '../../../services/dataViewAuditService'
 import { useEffect } from 'react'
 
@@ -61,11 +61,16 @@ const styles = {
   pageHeader: {
     marginBottom: '24px',
   },
+  pageHeaderTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '8px',
+  },
   pageTitle: {
     fontSize: '1.5rem',
     fontWeight: 700,
     color: '#1f2937',
-    marginBottom: '8px',
   },
   pageDescription: {
     fontSize: '14px',
@@ -205,7 +210,10 @@ export default function AuditLogPage() {
 
       <div style={styles.content}>
         <div style={styles.pageHeader}>
-          <h1 style={styles.pageTitle}>Family Access History</h1>
+          <div style={styles.pageHeaderTop}>
+            <h1 style={styles.pageTitle}>Family Access History</h1>
+            <AuditExportButton familyId={family.id} filters={filters} disabled={isLoading} />
+          </div>
           <p style={styles.pageDescription}>
             See who has accessed your family&apos;s data, what they viewed, and when.
           </p>

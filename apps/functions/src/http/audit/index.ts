@@ -29,8 +29,15 @@ import {
   hasOnlyFamilyAccess,
   getFamilyMembersForFilter,
   getChildAuditLog,
+  generateCSVExport,
+  generateTextExport,
+  queryEventsForExport,
+  getFamilyName,
   type AuditLogFilters,
+  type ExportFilters,
+  type ExportWatermark,
 } from '../../services/audit'
+import { createAuditEventNonBlocking } from '../../services/audit'
 import type { AuditResourceType } from '@fledgely/shared'
 
 /**
@@ -401,6 +408,211 @@ export const childAuditLog = onRequest(
         errorMessage: error instanceof Error ? error.message : 'Unknown',
       })
       res.status(500).json({ error: 'Failed to retrieve audit log' })
+    }
+  }
+)
+
+/**
+ * Export audit log HTTP endpoint
+ *
+ * Story 27.5: Audit Log Search and Export - AC2, AC3, AC5, AC6
+ *
+ * GET /exportAuditLog?familyId={familyId}&format={csv|txt}&...filters
+ *
+ * Headers:
+ * - Authorization: Bearer {Firebase ID token}
+ *
+ * Query Parameters:
+ * - familyId: required - Family whose audit log to export
+ * - format: required - Export format ('csv' or 'txt')
+ * - startDate: optional - Filter start timestamp (epoch ms)
+ * - endDate: optional - Filter end timestamp (epoch ms)
+ * - actorUid: optional - Filter by specific family member
+ * - resourceType: optional - Filter by resource type
+ * - childId: optional - Filter by child
+ *
+ * Response:
+ * - 200: File download with appropriate content-type
+ * - 400: Invalid request
+ * - 401: Authentication required/failed
+ * - 403: Not a guardian of this family
+ * - 404: Family not found
+ * - 500: Server error
+ */
+export const exportAuditLog = onRequest(
+  {
+    cors: true,
+    maxInstances: 10,
+    timeoutSeconds: 120,
+  },
+  async (req, res) => {
+    // Only allow GET requests
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Method not allowed' })
+      return
+    }
+
+    // 1. Auth (FIRST) - Validate Firebase Auth token
+    const token = extractBearerToken(req.headers.authorization)
+    if (!token) {
+      res.status(401).json({ error: 'Authorization header required' })
+      return
+    }
+
+    let decodedToken
+    try {
+      const auth = getAuth()
+      decodedToken = await auth.verifyIdToken(token)
+    } catch (error) {
+      logger.warn('Invalid auth token for audit export', {
+        errorType: error instanceof Error ? error.name : 'Unknown',
+      })
+      res.status(401).json({ error: 'Invalid authentication token' })
+      return
+    }
+
+    const requesterId = decodedToken.uid
+    const requesterEmail = decodedToken.email || 'unknown@email.com'
+
+    // 2. Validation (SECOND) - Validate request params
+    const { familyId, format, startDate, endDate, actorUid, resourceType, childId } = req.query
+
+    if (!familyId || typeof familyId !== 'string') {
+      res.status(400).json({ error: 'familyId parameter required' })
+      return
+    }
+
+    if (!format || (format !== 'csv' && format !== 'txt')) {
+      res.status(400).json({ error: 'format parameter required (csv or txt)' })
+      return
+    }
+
+    const db = getFirestore()
+
+    // 3. Permission (THIRD) - Verify user is family guardian
+    const familyRef = db.collection('families').doc(familyId)
+    const familyDoc = await familyRef.get()
+
+    if (!familyDoc.exists) {
+      res.status(404).json({ error: 'Family not found' })
+      return
+    }
+
+    const familyData = familyDoc.data()
+    const guardianUids = familyData?.guardianUids || []
+
+    if (!guardianUids.includes(requesterId)) {
+      logger.warn('Unauthorized audit export attempt', {
+        requesterId,
+        familyId,
+      })
+      res.status(403).json({ error: 'Not authorized to export this audit log' })
+      return
+    }
+
+    // 4. Business logic (LAST) - Generate and return export
+    try {
+      // Build filters
+      const filters: ExportFilters = {}
+
+      if (startDate && typeof startDate === 'string') {
+        const startTs = parseInt(startDate)
+        if (!isNaN(startTs)) {
+          filters.startDate = startTs
+        }
+      }
+
+      if (endDate && typeof endDate === 'string') {
+        const endTs = parseInt(endDate)
+        if (!isNaN(endTs)) {
+          filters.endDate = endTs
+        }
+      }
+
+      if (actorUid && typeof actorUid === 'string') {
+        filters.actorUid = actorUid
+      }
+
+      if (resourceType && typeof resourceType === 'string') {
+        filters.resourceType = resourceType
+      }
+
+      if (childId && typeof childId === 'string') {
+        filters.childId = childId
+      }
+
+      // Query events
+      const events = await queryEventsForExport(familyId, filters)
+
+      // Generate export ID
+      const exportId = `exp_${Date.now()}_${requesterId.slice(0, 8)}`
+
+      // Create watermark
+      const watermark: ExportWatermark = {
+        exportId,
+        requestorUid: requesterId,
+        requestorEmail: requesterEmail,
+        exportTimestamp: Date.now(),
+        familyId,
+        eventCount: events.length,
+      }
+
+      // Generate export content
+      let content: string
+      let contentType: string
+      let filename: string
+
+      if (format === 'csv') {
+        content = await generateCSVExport(events, watermark)
+        contentType = 'text/csv'
+        filename = `audit-log-${familyId}-${exportId}.csv`
+      } else {
+        const familyName = await getFamilyName(familyId)
+        content = await generateTextExport(events, watermark, familyName)
+        contentType = 'text/plain'
+        filename = `audit-log-${familyId}-${exportId}.txt`
+      }
+
+      // Log the export event to audit trail (AC6)
+      await createAuditEventNonBlocking({
+        actorUid: requesterId,
+        actorType: 'guardian',
+        actorEmail: requesterEmail,
+        accessType: 'export',
+        resourceType: 'audit_export',
+        resourceId: exportId,
+        familyId,
+        childId: filters.childId || null,
+        deviceId: null,
+        sessionId: null,
+        userAgent: req.headers['user-agent'] || null,
+        ipAddressHash: null,
+        metadata: {
+          format,
+          eventCount: events.length,
+          filters,
+        },
+      })
+
+      logger.info('Audit log exported', {
+        exportId,
+        familyId,
+        requesterId,
+        format,
+        eventCount: events.length,
+      })
+
+      // Send response with appropriate headers
+      res.setHeader('Content-Type', contentType)
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.status(200).send(content)
+    } catch (error) {
+      logger.error('Failed to export audit log', {
+        familyId,
+        errorType: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : 'Unknown',
+      })
+      res.status(500).json({ error: 'Failed to export audit log' })
     }
   }
 )
