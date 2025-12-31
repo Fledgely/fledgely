@@ -84,6 +84,7 @@ export {
   processAIFeedback,
   aggregateGlobalFeedback,
   processAuditFailures,
+  analyzeViewingPatternsScheduled,
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3
@@ -92,6 +93,7 @@ export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' 
 export { uploadScreenshot, syncDeviceHealth } from './http/sync'
 export { viewScreenshot } from './http/screenshots'
 export { familyAuditLog, childAuditLog } from './http/audit'
+export { getPatternAlerts, dismissPatternAlert } from './http/patterns'
 export {
   checkConsentStatus,
   initiateConsentWithdrawal,

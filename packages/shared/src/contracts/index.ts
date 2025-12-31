@@ -485,6 +485,56 @@ export const createAuditEventInputSchema = auditEventSchema.omit({ id: true, tim
 export type CreateAuditEventInput = z.infer<typeof createAuditEventInputSchema>
 
 /**
+ * Guardian view count in pattern analysis.
+ *
+ * Story 27.4: Asymmetric Viewing Pattern Detection
+ */
+export const guardianViewCountSchema = z.object({
+  guardianUid: z.string(),
+  guardianDisplayName: z.string().nullable(),
+  viewCount: z.number(),
+})
+export type GuardianViewCount = z.infer<typeof guardianViewCountSchema>
+
+/**
+ * Viewing pattern analysis result.
+ *
+ * Story 27.4: Asymmetric Viewing Pattern Detection - AC1, AC2
+ * Stores weekly pattern analysis for families with multiple guardians.
+ */
+export const viewingPatternAnalysisSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  periodStart: z.number(), // epoch ms
+  periodEnd: z.number(), // epoch ms
+  guardianViews: z.array(guardianViewCountSchema),
+  totalViews: z.number(),
+  asymmetryRatio: z.number(), // highest/lowest ratio (NaN if only one guardian)
+  isAsymmetric: z.boolean(), // true if ratio >= 10
+  analysisTimestamp: z.number(), // epoch ms
+})
+export type ViewingPatternAnalysis = z.infer<typeof viewingPatternAnalysisSchema>
+
+/**
+ * Pattern alert sent to under-viewing guardian.
+ *
+ * Story 27.4: Asymmetric Viewing Pattern Detection - AC3, AC4
+ */
+export const patternAlertSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  analysisId: z.string(), // Reference to ViewingPatternAnalysis
+  recipientUid: z.string(), // Under-viewing guardian
+  highActivityGuardianUid: z.string(),
+  highActivityCount: z.number(),
+  recipientCount: z.number(),
+  message: z.string(), // Non-accusatory message
+  sentAt: z.number(), // epoch ms
+  readAt: z.number().nullable(),
+})
+export type PatternAlert = z.infer<typeof patternAlertSchema>
+
+/**
  * Safety setting types that require two-parent approval.
  *
  * Story 3A.2: Safety Settings Two-Parent Approval

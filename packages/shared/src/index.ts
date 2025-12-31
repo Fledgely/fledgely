@@ -88,12 +88,18 @@ export {
   auditEventSchema,
   auditFailureSchema,
   createAuditEventInputSchema,
+  guardianViewCountSchema,
+  viewingPatternAnalysisSchema,
+  patternAlertSchema,
   type AccessType,
   type ActorType,
   type AuditResourceType,
   type AuditEvent,
   type AuditFailure,
   type CreateAuditEventInput,
+  type GuardianViewCount,
+  type ViewingPatternAnalysis,
+  type PatternAlert,
 } from './contracts'
 
 // Self-removal exports (Story 2.8)
