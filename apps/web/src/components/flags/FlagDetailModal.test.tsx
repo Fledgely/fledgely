@@ -576,4 +576,148 @@ describe('FlagDetailModal', () => {
       })
     })
   })
+
+  // Story 28.5: Description Generation Failures Tests
+  describe('Story 28.5 - Description Generation Failures', () => {
+    beforeEach(() => {
+      mockGetDoc.mockReset()
+    })
+
+    describe('AC1: Fallback text shown when generation fails', () => {
+      it('should show "Description unavailable" when status is failed', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'failed',
+              error: 'AI service unavailable',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-failed')).toBeInTheDocument()
+        })
+
+        expect(screen.getByText('Description unavailable')).toBeInTheDocument()
+      })
+    })
+
+    describe('AC2: Screenshot still accessible', () => {
+      it('should display screenshot when description fails', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'failed',
+              error: 'AI service unavailable',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('screenshot-image')).toBeInTheDocument()
+        })
+
+        // Screenshot should still be visible and have fallback alt
+        const img = screen.getByTestId('screenshot-image')
+        expect(img).toHaveAttribute('alt', 'Screenshot flagged for Violence')
+      })
+    })
+
+    describe('AC3: Retry option available', () => {
+      it('should show Retry button when description failed', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'failed',
+              error: 'AI service unavailable',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('retry-description-button')).toBeInTheDocument()
+        })
+
+        expect(screen.getByText('Retry')).toBeInTheDocument()
+      })
+
+      it('should have accessible label on retry button', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'failed',
+              error: 'AI service unavailable',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          const retryButton = screen.getByTestId('retry-description-button')
+          expect(retryButton).toHaveAttribute('aria-label', 'Retry generating description')
+        })
+      })
+    })
+
+    describe('AC6: Never blocks screenshot display', () => {
+      it('should show pending state without blocking screenshot', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'pending',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-pending')).toBeInTheDocument()
+        })
+
+        // Screenshot should still be visible
+        expect(screen.getByTestId('screenshot-image')).toBeInTheDocument()
+        expect(screen.getByText('Description pending...')).toBeInTheDocument()
+      })
+
+      it('should show processing state without blocking screenshot', async () => {
+        mockGetDoc.mockResolvedValue({
+          exists: () => true,
+          data: () => ({
+            accessibilityDescription: {
+              status: 'processing',
+            },
+          }),
+        })
+
+        const flag = createMockFlag()
+        render(<FlagDetailModal flag={flag} childName="Emma" onClose={mockOnClose} />)
+
+        await waitFor(() => {
+          expect(screen.getByTestId('ai-description-pending')).toBeInTheDocument()
+        })
+
+        // Screenshot should still be visible
+        expect(screen.getByTestId('screenshot-image')).toBeInTheDocument()
+        expect(screen.getByText('Generating description...')).toBeInTheDocument()
+      })
+    })
+  })
 })

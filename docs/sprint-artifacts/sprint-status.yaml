@@ -430,7 +430,7 @@ development_status:
   28-2-description-quality-standards: done
   28-3-screen-reader-integration: done
   28-4-description-display-in-dashboard: done
-  28-5-description-generation-failures: backlog
+  28-5-description-generation-failures: done
   28-6-accessibility-settings: backlog
   epic-28-retrospective: optional
 

@@ -370,6 +370,52 @@ const styles = {
   aiDescriptionText: {
     margin: 0,
   },
+  // Story 28.5: Failed description panel styles
+  aiDescriptionFailed: {
+    backgroundColor: '#fef2f2', // red-50
+    border: '1px solid #fca5a5', // red-300
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginTop: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  failedMessage: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    color: '#991b1b', // red-800
+  },
+  retryButton: {
+    backgroundColor: '#7dd3fc', // sky-300
+    color: '#0c4a6e', // sky-900
+    border: 'none',
+    borderRadius: '6px',
+    padding: '6px 12px',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    transition: 'background-color 0.15s ease',
+  },
+  // Story 28.5: Pending/Processing description styles
+  aiDescriptionPending: {
+    backgroundColor: '#fef3c7', // amber-100
+    border: '1px solid #fcd34d', // amber-300
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginTop: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    color: '#92400e', // amber-800
+  },
 }
 
 /**
@@ -415,6 +461,9 @@ export function FlagDetailModal({
     return false
   })
 
+  // Story 28.5: Retry description generation state
+  const [isRetrying, setIsRetrying] = useState(false)
+
   // Check if actions are available (need parentId and parentName)
   const canTakeAction = !!(parentId && parentName)
 
@@ -452,6 +501,41 @@ export function FlagDetailModal({
     },
     [flag.id, flag.childId, parentId, parentName]
   )
+
+  // Story 28.5: Handle retry description generation
+  const handleRetryDescription = useCallback(async () => {
+    if (!flag.screenshotId || !flag.childId || isRetrying) return
+
+    setIsRetrying(true)
+    try {
+      const firebaseApp = getFirebaseApp()
+      const db = getFirestore(firebaseApp)
+      const screenshotDocRef = doc(db, 'children', flag.childId, 'screenshots', flag.screenshotId)
+
+      // Reset status to pending to trigger re-processing
+      const { updateDoc } = await import('firebase/firestore')
+      await updateDoc(screenshotDocRef, {
+        'accessibilityDescription.status': 'pending',
+        'accessibilityDescription.error': null,
+        'accessibilityDescription.retryCount': (accessibilityDescription?.retryCount ?? 0) + 1,
+      })
+
+      // Update local state to show pending
+      setAccessibilityDescription({
+        status: 'pending',
+        retryCount: (accessibilityDescription?.retryCount ?? 0) + 1,
+      })
+
+      // eslint-disable-next-line no-console
+      console.log('Description regeneration requested:', flag.screenshotId)
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error requesting description retry:', error)
+      // Keep the failed state visible
+    } finally {
+      setIsRetrying(false)
+    }
+  }, [flag.childId, flag.screenshotId, isRetrying, accessibilityDescription?.retryCount])
 
   // Focus management: capture previous focus and focus close button on mount
   useEffect(() => {
@@ -636,6 +720,13 @@ export function FlagDetailModal({
           .ai-description-toggle:hover {
             background-color: #e0f2fe;
           }
+          .retry-button:hover {
+            background-color: #38bdf8;
+          }
+          .retry-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+          }
         `}
       </style>
 
@@ -735,6 +826,47 @@ export function FlagDetailModal({
                 )}
               </div>
             )}
+
+          {/* Story 28.5: Failed Description State */}
+          {accessibilityDescription?.status === 'failed' && (
+            <div style={styles.aiDescriptionFailed} data-testid="ai-description-failed">
+              <span style={styles.failedMessage}>
+                <span role="img" aria-hidden="true">
+                  ⚠️
+                </span>
+                Description unavailable
+              </span>
+              <button
+                type="button"
+                style={styles.retryButton}
+                className="retry-button"
+                onClick={handleRetryDescription}
+                disabled={isRetrying}
+                aria-label="Retry generating description"
+                data-testid="retry-description-button"
+              >
+                <span role="img" aria-hidden="true">
+                  🔄
+                </span>
+                {isRetrying ? 'Retrying...' : 'Retry'}
+              </button>
+            </div>
+          )}
+
+          {/* Story 28.5: Pending/Processing Description State */}
+          {(accessibilityDescription?.status === 'pending' ||
+            accessibilityDescription?.status === 'processing') && (
+            <div style={styles.aiDescriptionPending} data-testid="ai-description-pending">
+              <span role="img" aria-hidden="true">
+                ⏳
+              </span>
+              <span>
+                {accessibilityDescription.status === 'processing'
+                  ? 'Generating description...'
+                  : 'Description pending...'}
+              </span>
+            </div>
+          )}
 
           {/* Info Panels */}
           <div style={styles.panels}>
