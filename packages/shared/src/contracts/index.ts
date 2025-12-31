@@ -4156,3 +4156,258 @@ export const screenTimeEntrySchema = z.object({
   recordedAt: z.number(),
 })
 export type ScreenTimeEntry = z.infer<typeof screenTimeEntrySchema>
+
+// ============================================================================
+// TIME LIMITS SCHEMAS - Story 30.1: Time Limit Data Model
+// ============================================================================
+
+/**
+ * Types of time limits that can be configured.
+ * Story 30.1: Time Limit Data Model - AC2
+ */
+export const timeLimitTypeSchema = z.enum([
+  'daily_total', // Total screen time per day across all devices
+  'per_device', // Limit per specific device
+  'per_category', // Limit per app category
+])
+export type TimeLimitType = z.infer<typeof timeLimitTypeSchema>
+
+/**
+ * Days of the week for schedule configuration.
+ * Story 30.1: Time Limit Data Model - AC3
+ */
+export const dayOfWeekSchema = z.enum([
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+])
+export type DayOfWeek = z.infer<typeof dayOfWeekSchema>
+
+/**
+ * Schedule type for simplified configuration.
+ * Story 30.1: Time Limit Data Model - AC3
+ */
+export const scheduleTypeSchema = z.enum([
+  'weekdays', // Monday-Friday
+  'weekends', // Saturday-Sunday
+  'school_days', // Custom school day configuration
+  'all_days', // Same limit every day
+  'custom', // Per-day configuration
+])
+export type ScheduleType = z.infer<typeof scheduleTypeSchema>
+
+/**
+ * Custom per-day limits configuration.
+ * Uses explicit object shape for full type safety.
+ * Story 30.1: Time Limit Data Model - AC3
+ */
+const minutesPerDaySchema = z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY)
+export const customDaysSchema = z.object({
+  sunday: minutesPerDaySchema.optional(),
+  monday: minutesPerDaySchema.optional(),
+  tuesday: minutesPerDaySchema.optional(),
+  wednesday: minutesPerDaySchema.optional(),
+  thursday: minutesPerDaySchema.optional(),
+  friday: minutesPerDaySchema.optional(),
+  saturday: minutesPerDaySchema.optional(),
+})
+export type CustomDays = z.infer<typeof customDaysSchema>
+
+/**
+ * Schedule configuration for time limits.
+ * Supports weekday/weekend differences and custom per-day limits.
+ * Story 30.1: Time Limit Data Model - AC3
+ */
+export const timeLimitScheduleSchema = z
+  .object({
+    /** Type of schedule */
+    scheduleType: scheduleTypeSchema,
+    /** Minutes limit for weekdays (Mon-Fri), max 1440 = 24 hours */
+    weekdayMinutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY).optional(),
+    /** Minutes limit for weekends (Sat-Sun), max 1440 = 24 hours */
+    weekendMinutes: z.number().int().min(0).max(MAX_SCREEN_TIME_MINUTES_PER_DAY).optional(),
+    /** Per-day limits for custom schedules, max 1440 = 24 hours per day */
+    customDays: customDaysSchema.optional(),
+    /** Whether this category has no limit (unlimited) */
+    unlimited: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      // 'custom' scheduleType requires customDays with at least one day defined
+      if (data.scheduleType === 'custom') {
+        if (!data.customDays) return false
+        return Object.values(data.customDays).some((v) => v !== undefined)
+      }
+      return true
+    },
+    {
+      message: "scheduleType 'custom' requires customDays with at least one day defined",
+      path: ['customDays'],
+    }
+  )
+  .refine(
+    (data) => {
+      // Non-custom schedules should have weekdayMinutes, weekendMinutes, or unlimited flag
+      if (['weekdays', 'weekends', 'school_days', 'all_days'].includes(data.scheduleType)) {
+        return (
+          data.weekdayMinutes !== undefined ||
+          data.weekendMinutes !== undefined ||
+          data.unlimited === true
+        )
+      }
+      return true
+    },
+    {
+      message: 'Non-custom schedules require weekdayMinutes, weekendMinutes, or unlimited flag',
+      path: ['scheduleType'],
+    }
+  )
+export type TimeLimitSchedule = z.infer<typeof timeLimitScheduleSchema>
+
+/**
+ * Per-category limit configuration within child time limits.
+ * Story 30.1: Time Limit Data Model - AC1
+ */
+export const categoryLimitSchema = z.object({
+  /** Category this limit applies to */
+  category: screenTimeCategorySchema,
+  /** Schedule configuration for this category */
+  schedule: timeLimitScheduleSchema,
+})
+export type CategoryLimit = z.infer<typeof categoryLimitSchema>
+
+/**
+ * Per-device limit configuration within child time limits.
+ * Story 30.1: Time Limit Data Model - AC1
+ */
+export const deviceLimitSchema = z.object({
+  /** Device ID this limit applies to */
+  deviceId: z.string(),
+  /** Human-readable device name */
+  deviceName: z.string(),
+  /** Device type */
+  deviceType: screenTimeDeviceTypeSchema.optional(),
+  /** Schedule configuration for this device */
+  schedule: timeLimitScheduleSchema,
+  /** Category overrides for this specific device */
+  categoryOverrides: z.array(categoryLimitSchema).optional(),
+})
+export type DeviceLimit = z.infer<typeof deviceLimitSchema>
+
+/**
+ * Individual time limit configuration.
+ * Can represent daily total, per-device, or per-category limits.
+ * Story 30.1: Time Limit Data Model - AC1, AC2, AC6
+ *
+ * Validation rules:
+ * - effectiveFrom must be before effectiveUntil (if both provided)
+ * - per_category limits require category field
+ * - per_device limits require deviceId field
+ * - daily_total limits should not have category or deviceId
+ */
+export const timeLimitSchema = z
+  .object({
+    /** Type of limit */
+    limitType: timeLimitTypeSchema,
+    /** Category for per_category limits (required when limitType is per_category) */
+    category: screenTimeCategorySchema.optional(),
+    /** Device ID for per_device limits (required when limitType is per_device) */
+    deviceId: z.string().optional(),
+    /** Schedule configuration */
+    schedule: timeLimitScheduleSchema,
+    /** When this limit becomes effective (epoch ms, inclusive) - AC6 */
+    effectiveFrom: z.number().optional(),
+    /** When this limit expires (epoch ms, exclusive) - AC6 */
+    effectiveUntil: z.number().optional(),
+    /** Whether limit is currently active */
+    isActive: z.boolean().default(true),
+    /** Created timestamp (epoch ms) */
+    createdAt: z.number(),
+    /** Last updated timestamp (epoch ms) */
+    updatedAt: z.number(),
+  })
+  .refine(
+    (data) => {
+      // effectiveFrom must be before effectiveUntil (if both provided)
+      if (data.effectiveFrom !== undefined && data.effectiveUntil !== undefined) {
+        return data.effectiveFrom < data.effectiveUntil
+      }
+      return true
+    },
+    {
+      message: 'effectiveFrom must be before effectiveUntil',
+      path: ['effectiveUntil'],
+    }
+  )
+  .refine(
+    (data) => {
+      // per_category limits require category field
+      if (data.limitType === 'per_category') {
+        return data.category !== undefined
+      }
+      return true
+    },
+    {
+      message: 'per_category limits require category field',
+      path: ['category'],
+    }
+  )
+  .refine(
+    (data) => {
+      // per_device limits require deviceId field
+      if (data.limitType === 'per_device') {
+        return data.deviceId !== undefined && data.deviceId.length > 0
+      }
+      return true
+    },
+    {
+      message: 'per_device limits require deviceId field',
+      path: ['deviceId'],
+    }
+  )
+  .refine(
+    (data) => {
+      // daily_total should not have category or deviceId
+      if (data.limitType === 'daily_total') {
+        return data.category === undefined && data.deviceId === undefined
+      }
+      return true
+    },
+    {
+      message: 'daily_total limits should not specify category or deviceId',
+      path: ['limitType'],
+    }
+  )
+export type TimeLimit = z.infer<typeof timeLimitSchema>
+
+/**
+ * Complete time limits configuration for a child.
+ * Stored at: /families/{familyId}/children/{childId}/timeLimits/config
+ *
+ * Story 30.1: Time Limit Data Model - AC1, AC3, AC5, AC6
+ */
+export const childTimeLimitsSchema = z.object({
+  /** Child this configuration belongs to */
+  childId: z.string(),
+  /** Family this belongs to */
+  familyId: z.string(),
+  /** Reference to the agreement that includes these limits - AC5 */
+  agreementId: z.string().optional(),
+  /** Daily total limit (applies across all devices combined) */
+  dailyTotal: timeLimitScheduleSchema.optional(),
+  /** Per-category limits */
+  categoryLimits: z.array(categoryLimitSchema).optional(),
+  /** Per-device limits */
+  deviceLimits: z.array(deviceLimitSchema).optional(),
+  /** When this configuration becomes effective (epoch ms) - AC6 */
+  effectiveFrom: z.number().optional(),
+  /** Last updated timestamp (epoch ms) */
+  updatedAt: z.number(),
+  /** Version for optimistic locking */
+  version: z.number().default(1),
+})
+export type ChildTimeLimits = z.infer<typeof childTimeLimitsSchema>

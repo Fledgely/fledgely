@@ -376,3 +376,25 @@ export {
   type ScreenTimeWeeklySummary,
   type ScreenTimeEntry,
 } from './contracts'
+
+// Time limit data model exports (Story 30.1)
+export {
+  timeLimitTypeSchema,
+  dayOfWeekSchema,
+  scheduleTypeSchema,
+  customDaysSchema,
+  timeLimitScheduleSchema,
+  categoryLimitSchema,
+  deviceLimitSchema,
+  timeLimitSchema,
+  childTimeLimitsSchema,
+  type TimeLimitType,
+  type DayOfWeek,
+  type ScheduleType,
+  type CustomDays,
+  type TimeLimitSchedule,
+  type CategoryLimit,
+  type DeviceLimit,
+  type TimeLimit,
+  type ChildTimeLimits,
+} from './contracts'
