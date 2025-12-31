@@ -27,6 +27,7 @@ import { isCrisisUrl, isDistressContent, calculateReleasableAfter } from './cris
 import { logSuppressionEvent } from './suppressionAudit'
 import { shouldAlertForFlag, recordFlagAlert, recordThrottledFlag } from './flagThrottle'
 import { getEffectiveThreshold } from './confidenceThreshold'
+import { createFlagsFromConcerns } from './flagStorage'
 
 /**
  * Result of classifyScreenshot operation.
@@ -282,6 +283,47 @@ export async function classifyScreenshot(
       }
     }
 
+    // Story 21.5: Flag Creation and Storage - AC1, AC2, AC3, AC5, AC6
+    // Create flag documents in dedicated collection for querying
+    // This happens after throttling so throttle/suppression status is preserved
+    let createdFlagIds: string[] = []
+    if (throttledFlags.length > 0 && familyId) {
+      try {
+        const createdFlags = await createFlagsFromConcerns(
+          childId,
+          familyId,
+          screenshotId,
+          throttledFlags.map((flag) => ({
+            category: flag.category,
+            severity: flag.severity,
+            confidence: flag.confidence,
+            reasoning: flag.reasoning,
+            status: flag.status,
+            suppressionReason: flag.suppressionReason,
+            releasableAfter: flag.releasableAfter,
+            throttled: flag.throttled,
+            throttledAt: flag.throttledAt,
+          }))
+        )
+        createdFlagIds = createdFlags.map((f) => f.id)
+
+        logger.info('Flag documents created', {
+          screenshotId,
+          childId,
+          familyId,
+          flagCount: createdFlags.length,
+        })
+      } catch (err) {
+        // Log error but don't fail classification - flags collection is supplementary
+        logger.warn('Failed to create flag documents', {
+          screenshotId,
+          childId,
+          familyId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
     // 3. Build result object
     // Story 20.2: Basic Category Taxonomy - AC5, AC6
     // Story 20.3: Confidence Score Assignment - AC4
@@ -289,6 +331,7 @@ export async function classifyScreenshot(
     // Story 21.1: Concerning Content Categories - AC1, AC3, AC4, AC5
     // Story 21.2: Distress Detection Suppression - AC1, AC2, AC3
     // Story 21.3: Flag Throttling - AC1, AC2, AC5
+    // Story 21.5: Flag Creation and Storage - AC1, AC2, AC3
     // Include isLowConfidence, taxonomyVersion, needsReview, secondaryCategories, concernFlags, crisisProtected
     const classifiedAt = Date.now()
     const modelVersion = geminiClient.getModelVersion()
@@ -385,6 +428,8 @@ export async function classifyScreenshot(
       // Story 21.3: Log throttle status
       throttledCount: finalConcernFlags.filter((f) => f.throttled).length,
       alertedCount: finalConcernFlags.filter((f) => !f.throttled).length,
+      // Story 21.5: Log flag document creation
+      flagDocumentsCreated: createdFlagIds.length,
     })
 
     return { success: true, result }

@@ -45,6 +45,8 @@ import {
   CONFIDENCE_THRESHOLD_VALUES,
   ALWAYS_FLAG_THRESHOLD,
   categoryConfidenceThresholdsSchema,
+  // Story 21.5: Flag Document
+  flagDocumentSchema,
 } from './index'
 
 describe('Classification Contracts', () => {
@@ -1318,6 +1320,216 @@ describe('Classification Contracts', () => {
             InvalidCategory: 75,
           })
         ).toThrow()
+      })
+    })
+  })
+
+  // Story 21.5: Flag Document
+  describe('Flag Document Schema (Story 21.5)', () => {
+    const now = Date.now()
+    const validFlagDocument = {
+      id: 'screenshot-123_Violence_1704067200000',
+      childId: 'child-456',
+      familyId: 'family-789',
+      screenshotRef: 'children/child-456/screenshots/screenshot-123',
+      screenshotId: 'screenshot-123',
+      category: 'Violence' as const,
+      severity: 'medium' as const,
+      confidence: 75,
+      reasoning: 'Screenshot shows violent video game content',
+      createdAt: now,
+      status: 'pending' as const,
+      throttled: false,
+    }
+
+    describe('flagDocumentSchema', () => {
+      it('parses valid flag document with all required fields (AC1, AC2)', () => {
+        const flag = flagDocumentSchema.parse(validFlagDocument)
+        expect(flag.id).toBe('screenshot-123_Violence_1704067200000')
+        expect(flag.childId).toBe('child-456')
+        expect(flag.familyId).toBe('family-789')
+        expect(flag.screenshotRef).toBe('children/child-456/screenshots/screenshot-123')
+        expect(flag.screenshotId).toBe('screenshot-123')
+        expect(flag.category).toBe('Violence')
+        expect(flag.severity).toBe('medium')
+        expect(flag.confidence).toBe(75)
+        expect(flag.reasoning).toBe('Screenshot shows violent video game content')
+        expect(flag.createdAt).toBe(now)
+        expect(flag.status).toBe('pending')
+        expect(flag.throttled).toBe(false)
+      })
+
+      it('defaults status to pending when not provided', () => {
+        const { status: _status, ...flagWithoutStatus } = validFlagDocument
+        const flag = flagDocumentSchema.parse(flagWithoutStatus)
+        expect(flag.status).toBe('pending')
+      })
+
+      it('defaults throttled to false when not provided', () => {
+        const { throttled: _throttled, ...flagWithoutThrottle } = validFlagDocument
+        const flag = flagDocumentSchema.parse(flagWithoutThrottle)
+        expect(flag.throttled).toBe(false)
+      })
+
+      it('accepts all valid concern categories (AC2)', () => {
+        for (const category of CONCERN_CATEGORY_VALUES) {
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            category,
+          })
+          expect(flag.category).toBe(category)
+        }
+      })
+
+      it('accepts all valid severity levels (AC2)', () => {
+        for (const severity of ['low', 'medium', 'high'] as const) {
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            severity,
+          })
+          expect(flag.severity).toBe(severity)
+        }
+      })
+
+      it('accepts all valid flag statuses (AC2)', () => {
+        for (const status of FLAG_STATUS_VALUES) {
+          const flag = flagDocumentSchema.parse({
+            ...validFlagDocument,
+            status,
+          })
+          expect(flag.status).toBe(status)
+        }
+      })
+
+      it('validates confidence range (0-100)', () => {
+        // Valid boundary values
+        expect(flagDocumentSchema.parse({ ...validFlagDocument, confidence: 0 }).confidence).toBe(0)
+        expect(flagDocumentSchema.parse({ ...validFlagDocument, confidence: 100 }).confidence).toBe(
+          100
+        )
+
+        // Invalid values
+        expect(() => flagDocumentSchema.parse({ ...validFlagDocument, confidence: -1 })).toThrow()
+        expect(() => flagDocumentSchema.parse({ ...validFlagDocument, confidence: 101 })).toThrow()
+      })
+
+      it('parses flag with suppression fields (AC6)', () => {
+        const releaseTime = now + 48 * 60 * 60 * 1000
+        const flag = flagDocumentSchema.parse({
+          ...validFlagDocument,
+          category: 'Self-Harm Indicators',
+          status: 'sensitive_hold',
+          suppressionReason: 'self_harm_detected',
+          releasableAfter: releaseTime,
+        })
+        expect(flag.status).toBe('sensitive_hold')
+        expect(flag.suppressionReason).toBe('self_harm_detected')
+        expect(flag.releasableAfter).toBe(releaseTime)
+      })
+
+      it('parses flag with throttle fields (AC5)', () => {
+        const throttleTime = now - 1000
+        const flag = flagDocumentSchema.parse({
+          ...validFlagDocument,
+          throttled: true,
+          throttledAt: throttleTime,
+        })
+        expect(flag.throttled).toBe(true)
+        expect(flag.throttledAt).toBe(throttleTime)
+      })
+
+      it('parses flag combining suppression and throttle fields', () => {
+        const releaseTime = now + 48 * 60 * 60 * 1000
+        const throttleTime = now - 1000
+        const flag = flagDocumentSchema.parse({
+          ...validFlagDocument,
+          category: 'Self-Harm Indicators',
+          status: 'sensitive_hold',
+          suppressionReason: 'distress_signals',
+          releasableAfter: releaseTime,
+          throttled: true,
+          throttledAt: throttleTime,
+        })
+        expect(flag.suppressionReason).toBe('distress_signals')
+        expect(flag.releasableAfter).toBe(releaseTime)
+        expect(flag.throttled).toBe(true)
+        expect(flag.throttledAt).toBe(throttleTime)
+      })
+
+      it('requires all mandatory fields', () => {
+        expect(() => flagDocumentSchema.parse({})).toThrow()
+        expect(() =>
+          flagDocumentSchema.parse({
+            id: 'flag-123',
+            // Missing other required fields
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid category', () => {
+        expect(() =>
+          flagDocumentSchema.parse({
+            ...validFlagDocument,
+            category: 'Gaming', // Basic category, not concern
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid severity', () => {
+        expect(() =>
+          flagDocumentSchema.parse({
+            ...validFlagDocument,
+            severity: 'critical', // Invalid severity
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid status', () => {
+        expect(() =>
+          flagDocumentSchema.parse({
+            ...validFlagDocument,
+            status: 'invalid_status',
+          })
+        ).toThrow()
+      })
+
+      it('rejects invalid suppressionReason', () => {
+        expect(() =>
+          flagDocumentSchema.parse({
+            ...validFlagDocument,
+            suppressionReason: 'invalid_reason',
+          })
+        ).toThrow()
+      })
+
+      it('allows optional fields to be undefined', () => {
+        const flag = flagDocumentSchema.parse(validFlagDocument)
+        expect(flag.suppressionReason).toBeUndefined()
+        expect(flag.releasableAfter).toBeUndefined()
+        expect(flag.throttledAt).toBeUndefined()
+      })
+
+      it('generates correct flag ID format (AC1)', () => {
+        // Flag ID format: {screenshotId}_{category}_{timestamp}
+        const flagId = 'screenshot-123_Violence_1704067200000'
+        const flag = flagDocumentSchema.parse({
+          ...validFlagDocument,
+          id: flagId,
+        })
+        expect(flag.id).toBe(flagId)
+        // Verify the ID can be parsed back to components
+        const [screenshotId, category, timestamp] = flag.id.split('_')
+        expect(screenshotId).toBe('screenshot-123')
+        expect(category).toBe('Violence')
+        expect(timestamp).toBe('1704067200000')
+      })
+
+      it('stores correct screenshotRef format (AC3)', () => {
+        const flag = flagDocumentSchema.parse(validFlagDocument)
+        // Format: children/{childId}/screenshots/{screenshotId}
+        expect(flag.screenshotRef).toBe('children/child-456/screenshots/screenshot-123')
+        expect(flag.screenshotRef).toContain(flag.childId)
+        expect(flag.screenshotRef).toContain(flag.screenshotId)
       })
     })
   })

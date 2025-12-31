@@ -189,6 +189,9 @@ export {
   type CategoryConfidenceThresholds,
 } from './contracts'
 
+// Flag document exports (Story 21.5)
+export { flagDocumentSchema, type FlagDocument, type CreateFlagParams } from './contracts'
+
 // Concern category definitions exports (Story 21.1)
 export {
   CONCERN_TAXONOMY_VERSION,

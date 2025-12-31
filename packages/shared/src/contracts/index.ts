@@ -2620,6 +2620,72 @@ export const categoryConfidenceThresholdsSchema = z
   .optional()
 export type CategoryConfidenceThresholds = z.infer<typeof categoryConfidenceThresholdsSchema>
 
+// ============================================================================
+// Flag Document Schema (Story 21.5)
+// ============================================================================
+
+/**
+ * Story 21.5: Flag Creation and Storage - AC1, AC2
+ * Flag document stored in /children/{childId}/flags/{flagId}
+ * Provides dedicated queryable storage for concern flags.
+ */
+export const flagDocumentSchema = z.object({
+  /** Unique flag ID: {screenshotId}_{category}_{timestamp} */
+  id: z.string(),
+  /** Child ID for reference (also in path) */
+  childId: z.string(),
+  /** Family ID for security rules */
+  familyId: z.string(),
+  /** Path to screenshot document: children/{childId}/screenshots/{screenshotId} */
+  screenshotRef: z.string(),
+  /** Screenshot ID for direct reference */
+  screenshotId: z.string(),
+  /** The type of concerning content detected */
+  category: concernCategorySchema,
+  /** Severity level of the concern */
+  severity: concernSeveritySchema,
+  /** Confidence score (0-100) for this concern detection */
+  confidence: z.number().min(0).max(100),
+  /** AI reasoning explaining why this content was flagged */
+  reasoning: z.string(),
+  /** When the flag was created (epoch ms) */
+  createdAt: z.number(),
+  /** Current status of the flag */
+  status: flagStatusSchema.default('pending'),
+
+  // Suppression fields (from Story 21-2)
+  /** Reason for suppression (only set if status is sensitive_hold) */
+  suppressionReason: suppressionReasonSchema.optional(),
+  /** When the flag may be released to parent (epoch ms) */
+  releasableAfter: z.number().optional(),
+
+  // Throttle fields (from Story 21-3)
+  /** Whether alert for this flag was throttled */
+  throttled: z.boolean().default(false),
+  /** When the flag was throttled (epoch ms) */
+  throttledAt: z.number().optional(),
+})
+export type FlagDocument = z.infer<typeof flagDocumentSchema>
+
+/**
+ * Story 21.5: Flag Creation and Storage - AC1
+ * Parameters for creating a new flag document.
+ */
+export interface CreateFlagParams {
+  childId: string
+  familyId: string
+  screenshotId: string
+  category: ConcernCategory
+  severity: ConcernSeverity
+  confidence: number
+  reasoning: string
+  status?: FlagStatus
+  suppressionReason?: SuppressionReason
+  releasableAfter?: number
+  throttled?: boolean
+  throttledAt?: number
+}
+
 /**
  * Classification result stored on screenshot document.
  *

@@ -20,3 +20,14 @@ export {
   shouldCreateFlag,
   getFamilyThresholdLevel,
 } from './confidenceThreshold'
+export {
+  createFlag,
+  createFlagsFromConcerns,
+  getFlagsForChild,
+  getFlagById,
+  generateFlagId,
+  generateScreenshotRef,
+  updateScreenshotFlagIds,
+  type FlagQueryFilters,
+  type FlagQueryPagination,
+} from './flagStorage'
