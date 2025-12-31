@@ -19,6 +19,7 @@ import {
 } from '../../utils/childFriendlyLanguage'
 import { TermExplanation } from './TermExplanation'
 import { AgreementChecklist } from './AgreementChecklist'
+import { AgreementStatus } from './AgreementStatus'
 
 /**
  * Category display configuration
@@ -327,6 +328,17 @@ export function ChildAgreementView({
         appsTracked={agreement.terms.some((t) => t.category === 'apps')}
         captureFrequency={agreement.monitoring.captureFrequency}
         retentionPeriod={agreement.monitoring.retentionPeriod}
+      />
+
+      {/* Agreement Status - Story 19C.4 */}
+      <AgreementStatus
+        status={
+          agreement.status === 'archived'
+            ? 'expired'
+            : agreement.monitoring.paused
+              ? 'paused'
+              : 'active'
+        }
       />
 
       {/* Monitoring Summary Card - AC2 with child-friendly language (Story 19C.2) */}

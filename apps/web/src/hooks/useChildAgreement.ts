@@ -53,7 +53,10 @@ export interface ChildAgreement {
     screenshotsEnabled: boolean
     captureFrequency: string | null
     retentionPeriod: string | null
+    paused: boolean
   }
+  /** Agreement status */
+  status: 'active' | 'archived'
 }
 
 /**
@@ -130,6 +133,7 @@ function extractMonitoringSettings(terms: AgreementTermDisplay[]): ChildAgreemen
     screenshotsEnabled: !!screenshotTerm,
     captureFrequency,
     retentionPeriod,
+    paused: false, // Default to not paused - would come from agreement data if available
   }
 }
 
@@ -248,6 +252,7 @@ export function useChildAgreement({
             activatedAt: toDate(data.activatedAt),
             signatures,
             monitoring: extractMonitoringSettings(terms),
+            status: data.status === 'archived' ? 'archived' : 'active',
           }
 
           setAgreement(childAgreement)

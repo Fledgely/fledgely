@@ -58,7 +58,9 @@ describe('ChildAgreementView', () => {
       screenshotsEnabled: true,
       captureFrequency: 'Every 5 minutes',
       retentionPeriod: '30 days',
+      paused: false,
     },
+    status: 'active',
   }
 
   it('should render with correct test id', () => {
@@ -257,6 +259,38 @@ describe('ChildAgreementView', () => {
       // Checklist should show screenshots as enabled (from mock)
       const screenshotsItem = screen.getByTestId('checklist-item-screenshots')
       expect(screenshotsItem).toHaveTextContent('Yes')
+    })
+  })
+
+  describe('Agreement Status Integration (Story 19C.4)', () => {
+    it('should display agreement status component', () => {
+      render(<ChildAgreementView agreement={mockAgreement} />)
+      expect(screen.getByTestId('agreement-status')).toBeInTheDocument()
+    })
+
+    it('should show active status when agreement is active and not paused', () => {
+      render(<ChildAgreementView agreement={mockAgreement} />)
+      expect(screen.getByTestId('status-title')).toHaveTextContent('Agreement Status: Active')
+    })
+
+    it('should show paused status when monitoring is paused', () => {
+      const pausedAgreement = {
+        ...mockAgreement,
+        monitoring: { ...mockAgreement.monitoring, paused: true },
+      }
+      render(<ChildAgreementView agreement={pausedAgreement} />)
+      expect(screen.getByTestId('status-title')).toHaveTextContent('Agreement Status: Paused')
+    })
+
+    it('should show expired status when agreement is archived', () => {
+      const archivedAgreement = {
+        ...mockAgreement,
+        status: 'archived' as const,
+      }
+      render(<ChildAgreementView agreement={archivedAgreement} />)
+      expect(screen.getByTestId('status-title')).toHaveTextContent(
+        'Agreement Status: Needs Renewal'
+      )
     })
   })
 })
