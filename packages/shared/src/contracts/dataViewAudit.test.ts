@@ -19,6 +19,7 @@ describe('dataViewTypeSchema', () => {
       'devices',
       'device_detail',
       'child_own_screenshot',
+      'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
     ]
 
     validTypes.forEach((type) => {
@@ -116,6 +117,7 @@ describe('dataViewAuditSchema', () => {
       'devices',
       'device_detail',
       'child_own_screenshot',
+      'caregiver_status', // Story 19D.3: Caregiver viewing child's screen time status
     ]
 
     dataTypes.forEach((dataType) => {

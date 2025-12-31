@@ -109,7 +109,8 @@ export default function CaregiverPage() {
 
       {/* Main content */}
       <div style={styles.content}>
-        <CaregiverQuickView familyId={family?.id ?? null} />
+        {/* Story 19D.3: Pass viewerUid for audit logging */}
+        <CaregiverQuickView familyId={family?.id ?? null} viewerUid={firebaseUser?.uid ?? null} />
       </div>
     </main>
   )

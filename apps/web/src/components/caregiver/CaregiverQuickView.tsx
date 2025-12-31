@@ -33,6 +33,8 @@ import { statusColors } from '../dashboard/statusConstants'
  */
 export interface CaregiverQuickViewProps {
   familyId: string | null
+  /** Story 19D.3: Caregiver UID for audit logging */
+  viewerUid?: string | null
 }
 
 /**
@@ -155,7 +157,7 @@ function EmptyState() {
 /**
  * CaregiverQuickView - Simplified status view for caregivers
  */
-export function CaregiverQuickView({ familyId }: CaregiverQuickViewProps) {
+export function CaregiverQuickView({ familyId, viewerUid }: CaregiverQuickViewProps) {
   const {
     overallStatus,
     statusMessage,
@@ -167,9 +169,9 @@ export function CaregiverQuickView({ familyId }: CaregiverQuickViewProps) {
     refetch,
   } = useCaregiverStatus(familyId)
 
-  // Log access on mount (AC5)
+  // Story 19D.3: Log access on mount with Firestore audit (AC5)
   const childIds = children.map((c) => c.childId)
-  useCaregiverAccessLog('view', childIds)
+  useCaregiverAccessLog('view', childIds, viewerUid, familyId)
 
   // Container styles
   const containerStyles: React.CSSProperties = {

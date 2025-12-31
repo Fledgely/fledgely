@@ -236,9 +236,13 @@ describe('CaregiverQuickView', () => {
 
       render(<CaregiverQuickView familyId="family-1" />)
 
-      expect(useCaregiverAccessLogModule.useCaregiverAccessLog).toHaveBeenCalledWith('view', [
-        'child-1',
-      ])
+      // Story 19D.3: Now passes viewerUid and familyId for Firestore logging
+      expect(useCaregiverAccessLogModule.useCaregiverAccessLog).toHaveBeenCalledWith(
+        'view',
+        ['child-1'],
+        undefined, // viewerUid is undefined when not passed
+        'family-1'
+      )
     })
   })
 
