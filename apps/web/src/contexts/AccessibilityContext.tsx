@@ -82,7 +82,7 @@ function useOSAccessibilityPreferences() {
 }
 
 export function AccessibilityProvider({ children }: AccessibilityProviderProps) {
-  const { user } = useAuth()
+  const { firebaseUser: user } = useAuth()
   const [settings, setSettings] = useState<AccessibilitySettings>(DEFAULT_ACCESSIBILITY_SETTINGS)
   const [loading, setLoading] = useState(true)
   const { prefersReducedMotion, prefersHighContrast } = useOSAccessibilityPreferences()

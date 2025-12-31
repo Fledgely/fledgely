@@ -438,8 +438,8 @@ development_status:
   epic-29: in-progress
   29-1-screen-time-data-model: done
   29-2-chromebook-screen-time-capture: done
-  29-3-android-screen-time-capture: backlog
-  29-4-parent-screen-time-dashboard: backlog
+  29-3-android-screen-time-capture: skipped # No Android app in codebase
+  29-4-parent-screen-time-dashboard: done
   29-5-child-screen-time-view: backlog
   29-6-screen-time-accuracy-validation: backlog
   epic-29-retrospective: optional
