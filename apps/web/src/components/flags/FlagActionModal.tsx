@@ -18,7 +18,7 @@ export interface FlagActionModalProps {
   /** The action being taken */
   action: FlagActionType
   /** Callback when action is confirmed */
-  onConfirm: (note?: string) => void
+  onConfirm: (note?: string, causedDifficultConversation?: boolean) => void
   /** Callback when modal is cancelled */
   onCancel: () => void
   /** Whether the action is being processed */
@@ -138,6 +138,40 @@ const styles = {
     color: '#6b7280',
     marginTop: '4px',
   },
+  frictionContainer: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    padding: '12px',
+    backgroundColor: '#fef3c7',
+    borderRadius: '8px',
+    marginTop: '16px',
+    border: '1px solid #fcd34d',
+  },
+  frictionCheckbox: {
+    width: '20px',
+    height: '20px',
+    margin: 0,
+    cursor: 'pointer',
+    flexShrink: 0,
+    marginTop: '2px',
+  },
+  frictionLabel: {
+    fontSize: '14px',
+    color: '#92400e',
+    lineHeight: 1.4,
+    cursor: 'pointer',
+  },
+  frictionLabelText: {
+    fontWeight: 500,
+    display: 'block',
+    marginBottom: '2px',
+  },
+  frictionHint: {
+    fontSize: '12px',
+    color: '#a16207',
+    fontWeight: 400,
+  },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -179,6 +213,7 @@ export function FlagActionModal({
   isLoading = false,
 }: FlagActionModalProps) {
   const [note, setNote] = useState('')
+  const [causedDifficultConversation, setCausedDifficultConversation] = useState(false)
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
   const config = ACTION_CONFIG[action]
@@ -227,8 +262,13 @@ export function FlagActionModal({
   // Handle confirmation
   const handleConfirm = () => {
     if (isLoading) return
-    onConfirm(note.trim() || undefined)
+    onConfirm(note.trim() || undefined, causedDifficultConversation || undefined)
   }
+
+  // Show friction option for resolution actions (dismiss, discuss, escalate, discussed_together)
+  const showFrictionOption = ['dismiss', 'discuss', 'escalate', 'discussed_together'].includes(
+    action
+  )
 
   return (
     <div
@@ -282,6 +322,27 @@ export function FlagActionModal({
             />
           </label>
           <p style={styles.noteHint}>Notes are visible to all guardians in the family.</p>
+
+          {/* Story 27.5.3: Friction marker checkbox */}
+          {showFrictionOption && (
+            <div style={styles.frictionContainer}>
+              <input
+                type="checkbox"
+                id="friction-marker"
+                style={styles.frictionCheckbox}
+                checked={causedDifficultConversation}
+                onChange={(e) => setCausedDifficultConversation(e.target.checked)}
+                disabled={isLoading}
+                data-testid="friction-marker-checkbox"
+              />
+              <label htmlFor="friction-marker" style={styles.frictionLabel}>
+                <span style={styles.frictionLabelText}>This caused a difficult conversation</span>
+                <span style={styles.frictionHint}>
+                  Helps track friction patterns - no details required
+                </span>
+              </label>
+            </div>
+          )}
         </div>
 
         <div style={styles.footer}>

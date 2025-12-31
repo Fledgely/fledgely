@@ -21,6 +21,7 @@ import {
   submitCheckInResponse,
   skipCheckIn,
   getCheckInPromptText,
+  getFrictionSummary,
 } from '../../services/health'
 
 const httpOptions: HttpsOptions = {
@@ -300,6 +301,47 @@ export const skipCheckInEndpoint = onRequest(httpOptions, async (req, res) => {
     res.json({ success: true })
   } catch (error) {
     logger.error('Failed to skip check-in', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * Get friction summary for a family.
+ *
+ * Story 27.5.3 - AC3: Aggregate friction data
+ * Story 27.5.3 - AC4: Pattern visibility
+ *
+ * GET /getFrictionSummaryEndpoint
+ * Authorization: Bearer <token>
+ * Query params: { periodDays?: number }
+ *
+ * Response: { summary: FrictionSummary }
+ */
+export const getFrictionSummaryEndpoint = onRequest(httpOptions, async (req, res) => {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  const userUid = await verifyAuth(req.headers.authorization)
+  if (!userUid) {
+    res.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+
+  try {
+    const familyId = await getUserFamilyId(userUid)
+    if (!familyId) {
+      res.status(404).json({ error: 'No family found' })
+      return
+    }
+
+    const periodDays = parseInt(req.query.periodDays as string) || 30
+
+    const summary = await getFrictionSummary(familyId, periodDays)
+    res.json({ summary })
+  } catch (error) {
+    logger.error('Failed to get friction summary', { error })
     res.status(500).json({ error: 'Internal server error' })
   }
 })

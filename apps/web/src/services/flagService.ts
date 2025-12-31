@@ -62,6 +62,8 @@ export interface TakeFlagActionParams {
   parentId: string
   parentName: string
   note?: string
+  /** Story 27.5.3: Whether this flag caused a difficult conversation */
+  causedDifficultConversation?: boolean
 }
 
 /**
@@ -298,6 +300,7 @@ export async function takeFlagAction({
   parentId,
   parentName,
   note,
+  causedDifficultConversation,
 }: TakeFlagActionParams): Promise<void> {
   const db = getFirestoreDb()
   const flagRef = doc(db, 'children', childId, 'flags', flagId)
@@ -312,12 +315,22 @@ export async function takeFlagAction({
 
   const newStatus = getStatusForAction(action)
 
+  // Story 27.5.3: Include friction marker fields if set
+  const frictionFields = causedDifficultConversation
+    ? {
+        causedDifficultConversation: true,
+        frictionMarkedAt: Date.now(),
+        frictionMarkedBy: parentId,
+      }
+    : {}
+
   await updateDoc(flagRef, {
     status: newStatus,
     reviewedAt: serverTimestamp(),
     reviewedBy: parentId,
     ...(note && { actionNote: note }),
     auditTrail: arrayUnion(auditEntry),
+    ...frictionFields,
   })
 }
 
@@ -330,7 +343,8 @@ export async function dismissFlag(
   childId: string,
   parentId: string,
   parentName: string,
-  note?: string
+  note?: string,
+  causedDifficultConversation?: boolean
 ): Promise<void> {
   return takeFlagAction({
     flagId,
@@ -339,6 +353,7 @@ export async function dismissFlag(
     parentId,
     parentName,
     note,
+    causedDifficultConversation,
   })
 }
 
@@ -351,7 +366,8 @@ export async function markFlagForDiscussion(
   childId: string,
   parentId: string,
   parentName: string,
-  note?: string
+  note?: string,
+  causedDifficultConversation?: boolean
 ): Promise<void> {
   return takeFlagAction({
     flagId,
@@ -360,6 +376,7 @@ export async function markFlagForDiscussion(
     parentId,
     parentName,
     note,
+    causedDifficultConversation,
   })
 }
 
@@ -372,7 +389,8 @@ export async function escalateFlag(
   childId: string,
   parentId: string,
   parentName: string,
-  note?: string
+  note?: string,
+  causedDifficultConversation?: boolean
 ): Promise<void> {
   return takeFlagAction({
     flagId,
@@ -381,6 +399,7 @@ export async function escalateFlag(
     parentId,
     parentName,
     note,
+    causedDifficultConversation,
   })
 }
 

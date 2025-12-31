@@ -3017,6 +3017,14 @@ export const flagDocumentSchema = z.object({
   correctionParentId: z.string().optional(),
   /** Story 24.1: When correction was made (epoch ms) */
   correctedAt: z.number().optional(),
+
+  // Friction marker fields (from Story 27.5.3)
+  /** Story 27.5.3: Whether this flag caused a difficult conversation */
+  causedDifficultConversation: z.boolean().optional(),
+  /** Story 27.5.3: When friction was marked (epoch ms) */
+  frictionMarkedAt: z.number().optional(),
+  /** Story 27.5.3: Parent ID who marked the friction */
+  frictionMarkedBy: z.string().optional(),
 })
 export type FlagDocument = z.infer<typeof flagDocumentSchema>
 
