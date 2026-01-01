@@ -5553,3 +5553,201 @@ export const WORK_MODE_MESSAGES = {
     saturday: 'Saturday',
   } as const,
 } as const
+
+// ============================================================================
+// CALENDAR INTEGRATION SCHEMAS (Story 33.4)
+// ============================================================================
+
+/**
+ * Calendar provider type
+ * Currently only Google Calendar is supported
+ */
+export const calendarProviderSchema = z.enum(['google'])
+
+export type CalendarProvider = z.infer<typeof calendarProviderSchema>
+
+/**
+ * Calendar sync frequency options
+ */
+export const calendarSyncFrequencySchema = z.enum(['15', '30', '60'])
+
+export type CalendarSyncFrequency = z.infer<typeof calendarSyncFrequencySchema>
+
+/**
+ * Calendar sync frequency in minutes
+ */
+export const CALENDAR_SYNC_FREQUENCIES = {
+  '15': 15,
+  '30': 30,
+  '60': 60,
+} as const
+
+/**
+ * Default focus trigger keywords for calendar events
+ * Case-insensitive matching against event titles
+ */
+export const CALENDAR_FOCUS_TRIGGER_KEYWORDS = [
+  'study',
+  'homework',
+  'focus',
+  'work',
+  'exam',
+  'test',
+  'project',
+  'assignment',
+  'reading',
+  'research',
+  'practice',
+  'tutoring',
+  'class',
+  'lecture',
+] as const
+
+/**
+ * Calendar connection status
+ */
+export const calendarConnectionStatusSchema = z.enum([
+  'connected',
+  'disconnected',
+  'error',
+  'pending',
+])
+
+export type CalendarConnectionStatus = z.infer<typeof calendarConnectionStatusSchema>
+
+/**
+ * Calendar integration configuration per child
+ * Stored in Firestore at families/{familyId}/calendarIntegration/{childId}
+ */
+export const calendarIntegrationConfigSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  /** Whether calendar integration is enabled */
+  isEnabled: z.boolean().default(false),
+  /** Calendar provider (currently only Google) */
+  provider: calendarProviderSchema.nullable().default(null),
+  /** Connection status */
+  connectionStatus: calendarConnectionStatusSchema.default('disconnected'),
+  /** Email of connected calendar account */
+  connectedEmail: z.string().nullable().default(null),
+  /** When calendar was connected */
+  connectedAt: z.number().nullable().default(null),
+  /** How often to sync calendar events (in minutes) */
+  syncFrequencyMinutes: z.number().default(30),
+  /** Whether to auto-activate focus mode for calendar events */
+  autoActivateFocusMode: z.boolean().default(false),
+  /** Keywords that trigger focus mode (case-insensitive) */
+  focusTriggerKeywords: z.array(z.string()).default([...CALENDAR_FOCUS_TRIGGER_KEYWORDS]),
+  /** Last successful sync timestamp */
+  lastSyncAt: z.number().nullable().default(null),
+  /** Sync error message if any */
+  lastSyncError: z.string().nullable().default(null),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type CalendarIntegrationConfig = z.infer<typeof calendarIntegrationConfigSchema>
+
+/**
+ * Calendar event as fetched from provider
+ */
+export const calendarEventSchema = z.object({
+  /** Provider's event ID */
+  id: z.string(),
+  /** Event title */
+  title: z.string(),
+  /** Event start time (epoch ms) */
+  startTime: z.number(),
+  /** Event end time (epoch ms) */
+  endTime: z.number(),
+  /** Event description (if any) */
+  description: z.string().nullable().default(null),
+  /** Whether this event triggers focus mode */
+  isFocusEligible: z.boolean().default(false),
+  /** Which keywords matched to make it focus-eligible */
+  matchedKeywords: z.array(z.string()).default([]),
+  /** Whether the event is all-day */
+  isAllDay: z.boolean().default(false),
+  /** Whether this event has been processed */
+  processed: z.boolean().default(false),
+})
+
+export type CalendarEvent = z.infer<typeof calendarEventSchema>
+
+/**
+ * Cached calendar events for a child
+ * Stored in Firestore at families/{familyId}/calendarEvents/{childId}
+ */
+export const cachedCalendarEventsSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  /** Upcoming events (next 7 days) */
+  events: z.array(calendarEventSchema).default([]),
+  /** When events were last fetched */
+  fetchedAt: z.number(),
+  /** Events expiry time (should refetch after this) */
+  expiresAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type CachedCalendarEvents = z.infer<typeof cachedCalendarEventsSchema>
+
+/**
+ * Focus mode trigger type - extends FocusModeSession with calendar support
+ */
+export const focusModeTriggerTypeSchema = z.enum(['manual', 'calendar'])
+
+export type FocusModeTriggerType = z.infer<typeof focusModeTriggerTypeSchema>
+
+/**
+ * Extended focus mode session with calendar trigger support
+ * This extends the base FocusModeSession schema
+ */
+export const focusModeSessionWithCalendarSchema = focusModeSessionSchema.extend({
+  /** How this session was triggered */
+  triggeredBy: focusModeTriggerTypeSchema.default('manual'),
+  /** Calendar event ID if triggered by calendar */
+  calendarEventId: z.string().nullable().default(null),
+  /** Calendar event title if triggered by calendar */
+  calendarEventTitle: z.string().nullable().default(null),
+})
+
+export type FocusModeSessionWithCalendar = z.infer<typeof focusModeSessionWithCalendarSchema>
+
+/**
+ * Calendar integration messages (child-friendly)
+ */
+export const CALENDAR_INTEGRATION_MESSAGES = {
+  // Connection
+  connectPrompt: 'Connect your Google Calendar to auto-start focus mode during study time.',
+  connecting: 'Connecting to Google Calendar...',
+  connected: (email: string) => `Connected to ${email}`,
+  disconnected: 'Calendar not connected',
+  connectionError: 'Unable to connect. Please try again.',
+
+  // Focus mode triggers
+  focusModeStarting: (eventTitle: string) => `Focus mode starting for "${eventTitle}"`,
+  focusModeEnding: (eventTitle: string) => `Focus mode ending for "${eventTitle}"`,
+  focusModeEndedEarly: (eventTitle: string, minutesEarly: number) =>
+    `Focus mode for "${eventTitle}" ended ${minutesEarly} minutes early`,
+
+  // Sync status
+  syncSuccess: 'Calendar synced successfully',
+  syncError: 'Unable to sync calendar. Will retry shortly.',
+  lastSynced: (timestamp: number) => {
+    const minutes = Math.floor((Date.now() - timestamp) / (60 * 1000))
+    if (minutes < 1) return 'Synced just now'
+    if (minutes === 1) return 'Synced 1 minute ago'
+    if (minutes < 60) return `Synced ${minutes} minutes ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours === 1) return 'Synced 1 hour ago'
+    return `Synced ${hours} hours ago`
+  },
+
+  // Parent notifications
+  parentCalendarConnected: (childName: string, email: string) =>
+    `${childName} connected their calendar (${email}) for auto focus mode`,
+  parentCalendarDisconnected: (childName: string) => `${childName} disconnected their calendar`,
+  parentCalendarFocusStarted: (childName: string, eventTitle: string) =>
+    `${childName} started focus mode for "${eventTitle}" (calendar-triggered)`,
+} as const

@@ -476,11 +476,11 @@ development_status:
   epic-32-retrospective: done
 
   # Epic 33: Focus Mode & Work Mode
-  epic-33: backlog
-  33-1-child-initiated-focus-mode: backlog
-  33-2-focus-mode-app-configuration: backlog
-  33-3-work-mode-for-employed-teens: backlog
-  33-4-calendar-integration-for-modes: backlog
+  epic-33: in-progress
+  33-1-child-initiated-focus-mode: done
+  33-2-focus-mode-app-configuration: done
+  33-3-work-mode-for-employed-teens: done
+  33-4-calendar-integration-for-modes: done
   33-5-focus-mode-analytics: backlog
   33-6-work-mode-verification: backlog
   epic-33-retrospective: optional

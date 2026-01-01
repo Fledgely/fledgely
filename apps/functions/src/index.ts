@@ -88,6 +88,7 @@ export {
   sendAccessDigests,
   generateHealthCheckIns,
   sendCheckInReminders,
+  syncCalendarEvents,
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3
@@ -154,3 +155,11 @@ export { getFocusModeState, getFocusModeConfig } from './http/focus'
 
 // Work mode HTTP handlers (Story 33.3)
 export { getWorkModeState, getWorkModeConfig } from './http/work'
+
+// Calendar integration HTTP handlers (Story 33.4)
+export {
+  initiateCalendarOAuth,
+  calendarOAuthCallback,
+  disconnectCalendar,
+  getCalendarStatus,
+} from './http/calendar'

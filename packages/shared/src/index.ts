@@ -511,3 +511,26 @@ export {
   type WorkModeAppEntry,
   type WorkModeConfig,
 } from './contracts'
+
+// Calendar integration exports (Story 33.4)
+export {
+  calendarProviderSchema,
+  calendarSyncFrequencySchema,
+  calendarConnectionStatusSchema,
+  calendarIntegrationConfigSchema,
+  calendarEventSchema,
+  cachedCalendarEventsSchema,
+  focusModeTriggerTypeSchema,
+  focusModeSessionWithCalendarSchema,
+  CALENDAR_SYNC_FREQUENCIES,
+  CALENDAR_FOCUS_TRIGGER_KEYWORDS,
+  CALENDAR_INTEGRATION_MESSAGES,
+  type CalendarProvider,
+  type CalendarSyncFrequency,
+  type CalendarConnectionStatus,
+  type CalendarIntegrationConfig,
+  type CalendarEvent,
+  type CachedCalendarEvents,
+  type FocusModeTriggerType,
+  type FocusModeSessionWithCalendar,
+} from './contracts'

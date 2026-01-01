@@ -1,9 +1,10 @@
 /**
- * Focus Mode Module - Story 33.1 (AC2), Story 33.2 (Configuration)
+ * Focus Mode Module - Story 33.1 (AC2), Story 33.2 (Configuration), Story 33.4 (Calendar)
  *
  * Handles focus mode state sync for Chrome extension.
  * Blocks distracting apps during focus mode based on category config.
  * Story 33.2: Supports custom allow/block lists from parent configuration.
+ * Story 33.4: Supports calendar-triggered focus mode with event title display.
  */
 
 import { FOCUS_MODE_DEFAULT_CATEGORIES } from '@fledgely/shared'
@@ -14,7 +15,14 @@ const FOCUS_MODE_CONFIG_KEY = 'focusModeConfig' // Story 33.2
 const FOCUS_MODE_CHECK_ALARM = 'focus-mode-check'
 
 /**
+ * Focus mode trigger type
+ * Story 33.4: Tracks whether focus mode was started manually or by calendar
+ */
+export type FocusModeTriggerType = 'manual' | 'calendar'
+
+/**
  * Local focus mode state structure
+ * Story 33.4: Extended to include calendar trigger information
  */
 export interface LocalFocusModeState {
   isActive: boolean
@@ -24,6 +32,12 @@ export interface LocalFocusModeState {
   childId: string | null
   familyId: string | null
   lastSyncedAt: number
+  /** Story 33.4: How focus mode was triggered */
+  triggeredBy: FocusModeTriggerType
+  /** Story 33.4: Calendar event ID if triggered by calendar */
+  calendarEventId: string | null
+  /** Story 33.4: Calendar event title for display */
+  calendarEventTitle: string | null
 }
 
 /**
@@ -47,6 +61,9 @@ const DEFAULT_FOCUS_STATE: LocalFocusModeState = {
   childId: null,
   familyId: null,
   lastSyncedAt: 0,
+  triggeredBy: 'manual',
+  calendarEventId: null,
+  calendarEventTitle: null,
 }
 
 const DEFAULT_FOCUS_CONFIG: LocalFocusModeConfig = {
@@ -304,6 +321,11 @@ export async function syncFocusModeState(
 
     const data = await response.json()
 
+    // Story 33.4: Extract calendar trigger information from session
+    const triggeredBy = data.currentSession?.triggeredBy || 'manual'
+    const calendarEventId = data.currentSession?.calendarEventId || null
+    const calendarEventTitle = data.currentSession?.calendarEventTitle || null
+
     const newState: LocalFocusModeState = {
       isActive: data.isActive || false,
       durationType: data.currentSession?.durationType || null,
@@ -312,10 +334,23 @@ export async function syncFocusModeState(
       childId,
       familyId,
       lastSyncedAt: Date.now(),
+      triggeredBy,
+      calendarEventId,
+      calendarEventTitle,
     }
 
     await setFocusModeState(newState)
-    console.log('[Fledgely Focus] State synced:', newState.isActive)
+
+    // Story 33.4: Log calendar trigger info for debugging
+    if (triggeredBy === 'calendar' && calendarEventTitle) {
+      console.log(
+        '[Fledgely Focus] State synced:',
+        newState.isActive,
+        `(calendar: "${calendarEventTitle}")`
+      )
+    } else {
+      console.log('[Fledgely Focus] State synced:', newState.isActive)
+    }
 
     return newState
   } catch (error) {
@@ -365,14 +400,38 @@ export async function handleFocusModeCheckAlarm(): Promise<void> {
 }
 
 /**
- * Inject focus mode blocking script into a tab
+ * Story 33.4: Calendar context for focus mode blocking overlay
  */
-export async function injectFocusModeBlockingScript(tabId: number): Promise<void> {
+export interface FocusModeCalendarContext {
+  triggeredBy: FocusModeTriggerType
+  calendarEventTitle: string | null
+}
+
+/**
+ * Inject focus mode blocking script into a tab
+ * Story 33.4: Passes calendar context for display in overlay
+ */
+export async function injectFocusModeBlockingScript(
+  tabId: number,
+  calendarContext?: FocusModeCalendarContext
+): Promise<void> {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content-scripts/focus-mode-block.js'],
     })
+
+    // Story 33.4: Send calendar context to content script for display
+    if (calendarContext?.triggeredBy === 'calendar' && calendarContext?.calendarEventTitle) {
+      try {
+        await chrome.tabs.sendMessage(tabId, {
+          type: 'FOCUS_MODE_CALENDAR_CONTEXT',
+          calendarEventTitle: calendarContext.calendarEventTitle,
+        })
+      } catch {
+        // Content script might not be ready yet, that's OK
+      }
+    }
   } catch (error) {
     // Tab might be a special page that can't be injected
     console.log('[Fledgely Focus] Could not inject into tab:', tabId, error)
@@ -382,14 +441,23 @@ export async function injectFocusModeBlockingScript(tabId: number): Promise<void
 /**
  * Enforce focus mode blocking on all tabs
  * Story 33.2: Uses custom configuration for blocking decisions
+ * Story 33.4: Passes calendar context for display in blocking overlay
  */
 export async function enforceFocusModeOnAllTabs(): Promise<void> {
   try {
     const config = await getFocusModeConfig()
+    const state = await getFocusModeState()
+
+    // Story 33.4: Build calendar context for overlay display
+    const calendarContext: FocusModeCalendarContext = {
+      triggeredBy: state.triggeredBy,
+      calendarEventTitle: state.calendarEventTitle,
+    }
+
     const tabs = await chrome.tabs.query({})
     for (const tab of tabs) {
       if (tab.id && tab.url && shouldBlockUrl(tab.url, config)) {
-        await injectFocusModeBlockingScript(tab.id)
+        await injectFocusModeBlockingScript(tab.id, calendarContext)
       }
     }
   } catch (error) {
