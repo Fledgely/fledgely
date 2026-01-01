@@ -1,6 +1,6 @@
 # Story 33.2: Focus Mode App Configuration
 
-Status: in-progress
+Status: done
 Epic: 33 - Focus Mode & Work Mode
 Priority: High
 

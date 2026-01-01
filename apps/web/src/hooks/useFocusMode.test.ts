@@ -12,12 +12,15 @@ import { useFocusMode } from './useFocusMode'
 const mockOnSnapshot = vi.fn()
 const mockSetDoc = vi.fn()
 const mockUpdateDoc = vi.fn()
+const mockRunTransaction = vi.fn()
 
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(() => 'mock-doc-ref'),
   onSnapshot: (...args: unknown[]) => mockOnSnapshot(...args),
   setDoc: (...args: unknown[]) => mockSetDoc(...args),
   updateDoc: (...args: unknown[]) => mockUpdateDoc(...args),
+  runTransaction: (...args: unknown[]) => mockRunTransaction(...args),
+  increment: vi.fn((value: number) => ({ _increment: value })),
 }))
 
 vi.mock('../lib/firebase', () => ({

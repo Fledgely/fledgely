@@ -16,11 +16,11 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { doc, updateDoc, setDoc } from 'firebase/firestore'
+import { doc, updateDoc, setDoc, increment } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import { useFocusMode } from './useFocusMode'
 import { useCalendarIntegration } from './useCalendarIntegration'
-import type { FocusModeSession, CalendarEvent } from '@fledgely/shared'
+import type { FocusModeSession, CalendarEvent, FocusModeSessionSummary } from '@fledgely/shared'
 
 interface UseFocusModeWithCalendarOptions {
   childId: string | null
@@ -57,6 +57,19 @@ interface UseFocusModeWithCalendarReturn {
  */
 function generateSessionId(): string {
   return `focus-cal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * Get today's date in YYYY-MM-DD format
+ */
+function getTodayDate(): string {
+  try {
+    return new Date().toLocaleDateString('en-CA', {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
+  } catch {
+    return new Date().toISOString().split('T')[0]
+  }
 }
 
 export function useFocusModeWithCalendar({
@@ -206,10 +219,15 @@ export function useFocusModeWithCalendar({
     async (completedFully: boolean) => {
       if (!childId || !familyId || !focusMode.currentSession) return
 
-      const stateRef = doc(getFirestoreDb(), 'families', familyId, 'focusMode', childId)
+      const db = getFirestoreDb()
+      const stateRef = doc(db, 'families', familyId, 'focusMode', childId)
       const now = Date.now()
-      const session = focusMode.currentSession
+      const session = focusMode.currentSession as FocusModeSession & {
+        calendarEventId?: string
+        calendarEventTitle?: string
+      }
       const sessionDuration = now - session.startedAt
+      const durationMinutes = Math.round(sessionDuration / (60 * 1000))
 
       // Calculate if ended early
       if (!completedFully && session.durationMs) {
@@ -231,6 +249,66 @@ export function useFocusModeWithCalendar({
         totalFocusTimeToday: focusMode.totalFocusTimeToday + sessionDuration,
         updatedAt: now,
       })
+
+      // Save session to history for analytics (Story 33.5)
+      const sessionSummary: FocusModeSessionSummary = {
+        sessionId: session.id,
+        startedAt: session.startedAt,
+        endedAt: now,
+        durationMinutes,
+        durationType: session.durationType,
+        completedFully,
+        triggeredBy: 'calendar',
+        calendarEventTitle: session.calendarEventTitle || null,
+      }
+
+      // Save to history collection
+      const historyRef = doc(
+        db,
+        'families',
+        familyId,
+        'focusModeHistory',
+        childId,
+        'sessions',
+        session.id
+      )
+      await setDoc(historyRef, {
+        ...sessionSummary,
+        childId,
+        familyId,
+        calendarEventId: session.calendarEventId,
+        createdAt: now,
+      })
+
+      // Update daily summary for analytics
+      const todayDate = getTodayDate()
+      const dailySummaryRef = doc(
+        db,
+        'families',
+        familyId,
+        'focusModeDailySummary',
+        childId,
+        'days',
+        todayDate
+      )
+
+      // Use setDoc with merge to create or update
+      await setDoc(
+        dailySummaryRef,
+        {
+          childId,
+          familyId,
+          date: todayDate,
+          sessionCount: increment(1),
+          totalMinutes: increment(durationMinutes),
+          completedSessions: increment(completedFully ? 1 : 0),
+          earlyExits: increment(completedFully ? 0 : 1),
+          manualSessions: increment(0),
+          calendarSessions: increment(1),
+          updatedAt: now,
+        },
+        { merge: true }
+      )
 
       // Reset triggered event ref
       triggeredEventIdRef.current = null

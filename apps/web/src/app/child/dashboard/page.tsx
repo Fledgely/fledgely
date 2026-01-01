@@ -30,6 +30,7 @@ import { ChildScreenshotGallery } from '../../../components/child/ChildScreensho
 import { ChildScreenshotDetail } from '../../../components/child/ChildScreenshotDetail'
 import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlagNotificationBanner'
 import { ChildScreenTimeCard } from '../../../components/child/ChildScreenTimeCard'
+import { ChildFocusModeCard } from '../../../components/child/ChildFocusModeCard'
 import { ChildOfflineScheduleCard } from '../../../components/child/ChildOfflineScheduleCard'
 import { ChildEnrolledDevicesCard } from '../../../components/child/ChildEnrolledDevicesCard'
 import { ParentComplianceCard } from '../../../components/child/ParentComplianceCard'
@@ -485,6 +486,12 @@ function DashboardContent() {
 
         {/* Story 29.5 - Child Screen Time Card */}
         <ChildScreenTimeCard
+          familyId={childSession?.familyId || null}
+          childId={childSession?.childId || null}
+        />
+
+        {/* Story 33.5 - Child Focus Mode Analytics Card */}
+        <ChildFocusModeCard
           familyId={childSession?.familyId || null}
           childId={childSession?.childId || null}
         />

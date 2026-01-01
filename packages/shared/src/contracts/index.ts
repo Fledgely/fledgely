@@ -5751,3 +5751,229 @@ export const CALENDAR_INTEGRATION_MESSAGES = {
   parentCalendarFocusStarted: (childName: string, eventTitle: string) =>
     `${childName} started focus mode for "${eventTitle}" (calendar-triggered)`,
 } as const
+
+// ============================================================================
+// Story 33-5: Focus Mode Analytics
+// ============================================================================
+
+// Note: Reuses existing dayOfWeekSchema and DayOfWeek type from Story 30.1
+
+/**
+ * Time of day category for pattern analysis
+ */
+export const timeOfDaySchema = z.enum(['morning', 'afternoon', 'evening', 'night'])
+
+export type TimeOfDay = z.infer<typeof timeOfDaySchema>
+
+/**
+ * Focus mode session summary - for analytics aggregation
+ * Tracks essential session data for weekly/daily analysis
+ */
+export const focusModeSessionSummarySchema = z.object({
+  sessionId: z.string(),
+  startedAt: z.number(), // epoch ms
+  endedAt: z.number().nullable(), // null if still active
+  durationMinutes: z.number(), // actual duration in minutes
+  durationType: focusModeDurationSchema,
+  completedFully: z.boolean(),
+  triggeredBy: focusModeTriggerTypeSchema,
+  calendarEventTitle: z.string().nullable(),
+})
+
+export type FocusModeSessionSummary = z.infer<typeof focusModeSessionSummarySchema>
+
+/**
+ * Daily focus mode summary - aggregated stats per day
+ * Stored at families/{familyId}/focusModeDailySummary/{childId}/daily/{date}
+ */
+export const focusModeDailySummarySchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  date: z.string(), // YYYY-MM-DD format
+  sessionCount: z.number().default(0),
+  totalMinutes: z.number().default(0),
+  completedSessions: z.number().default(0),
+  earlyExits: z.number().default(0),
+  manualSessions: z.number().default(0),
+  calendarSessions: z.number().default(0),
+  sessions: z.array(focusModeSessionSummarySchema).default([]),
+  updatedAt: z.number(),
+})
+
+export type FocusModeDailySummary = z.infer<typeof focusModeDailySummarySchema>
+
+/**
+ * Focus mode analytics - computed weekly summary
+ * Used for dashboard display, computed on client from daily summaries
+ */
+export const focusModeAnalyticsSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+
+  // Weekly summary
+  weeklySessionCount: z.number().default(0),
+  weeklyTotalMinutes: z.number().default(0),
+  weeklyAverageMinutes: z.number().default(0),
+  weeklyCompletionRate: z.number().default(0), // 0-100 percentage
+
+  // Comparison to previous week
+  sessionCountChange: z.number().default(0), // positive = more, negative = less
+  totalMinutesChange: z.number().default(0),
+  completionRateChange: z.number().default(0),
+
+  // Timing patterns
+  peakDays: z.array(dayOfWeekSchema).default([]),
+  peakTimeOfDay: timeOfDaySchema.nullable().default(null),
+  hourlyDistribution: z.record(z.string(), z.number()).default({}), // hour (0-23) -> count
+  dailyDistribution: z.record(dayOfWeekSchema, z.number()).default({} as Record<DayOfWeek, number>),
+
+  // Session breakdown
+  manualSessions: z.number().default(0),
+  calendarSessions: z.number().default(0),
+
+  // Streaks and achievements
+  currentStreak: z.number().default(0), // consecutive days with focus sessions
+  longestStreak: z.number().default(0),
+
+  // Metadata
+  computedAt: z.number(),
+  periodStart: z.string(), // YYYY-MM-DD
+  periodEnd: z.string(), // YYYY-MM-DD
+})
+
+export type FocusModeAnalytics = z.infer<typeof focusModeAnalyticsSchema>
+
+/**
+ * Focus mode analytics messages - positive framing (Story 33.5 AC5)
+ * All messages celebrate achievements and encourage, never punish
+ */
+export const FOCUS_MODE_ANALYTICS_MESSAGES = {
+  // Session count (AC1)
+  sessionCount: (count: number, childName: string) => {
+    if (count === 0) return `${childName} hasn't used focus mode yet this week - let's start!`
+    if (count === 1) return `${childName} used focus mode once this week - great start!`
+    if (count < 5)
+      return `${childName} used focus mode ${count} times this week - building the habit!`
+    if (count < 10)
+      return `${childName} used focus mode ${count} times this week - great commitment!`
+    return `${childName} used focus mode ${count} times this week - amazing dedication!`
+  },
+
+  // Duration (AC2)
+  averageDuration: (minutes: number) => {
+    if (minutes === 0) return 'No focus sessions yet'
+    if (minutes < 15) return `${minutes} minute average - every bit counts!`
+    if (minutes < 30) return `${minutes} minute average - solid focus sessions!`
+    if (minutes < 60) return `${minutes} minute average - impressive concentration!`
+    return `${Math.round(minutes)} minute average - exceptional focus!`
+  },
+
+  totalTime: (minutes: number) => {
+    if (minutes === 0) return 'No focus time yet this week'
+    const hours = Math.floor(minutes / 60)
+    const mins = Math.round(minutes % 60)
+    if (hours === 0) return `${mins} minutes of focused time this week`
+    if (hours === 1)
+      return `${hours} hour ${mins > 0 ? `${mins} min` : ''} of focused time this week`
+    return `${hours} hours ${mins > 0 ? `${mins} min` : ''} of focused time this week`
+  },
+
+  // Timing patterns (AC3)
+  peakTime: (timeOfDay: TimeOfDay | null) => {
+    if (!timeOfDay) return 'Start focusing to discover your peak times!'
+    const labels: Record<TimeOfDay, string> = {
+      morning: 'morning (6am-12pm)',
+      afternoon: 'afternoon (12pm-5pm)',
+      evening: 'evening (5pm-9pm)',
+      night: 'night (9pm+)',
+    }
+    return `Peak focus: ${labels[timeOfDay]} - you know when you work best!`
+  },
+
+  peakDays: (days: DayOfWeek[]) => {
+    if (days.length === 0) return 'Build your focus routine!'
+    if (days.length === 1) return `Most focused on ${days[0]}s`
+    if (days.length === 2) return `Most focused on ${days[0]}s and ${days[1]}s`
+    return `Most focused on ${days.slice(0, -1).join(', ')} and ${days[days.length - 1]}`
+  },
+
+  // Completion rate (AC4)
+  completionRate: (rate: number) => {
+    if (rate === 0) return 'Start a focus session to track your progress!'
+    if (rate < 50) return `${rate}% completion - keep practicing, you'll get there!`
+    if (rate < 70) return `${rate}% completion - good progress!`
+    if (rate < 90) return `${rate}% completion - excellent follow-through!`
+    return `${rate}% completion - outstanding commitment!`
+  },
+
+  // Trend indicators (AC2)
+  trend: (change: number, metric: string) => {
+    if (change === 0) return `Same ${metric} as last week`
+    if (change > 0) return `${Math.abs(change)} more ${metric} than last week 📈`
+    return `${Math.abs(change)} fewer ${metric} than last week` // No negative emoji, just neutral
+  },
+
+  // Streaks (AC5 achievements)
+  streak: (days: number) => {
+    if (days === 0) return 'Start your focus streak today!'
+    if (days === 1) return "1 day streak - you're on your way!"
+    if (days < 7) return `${days} day streak - keep it going!`
+    if (days < 14) return `${days} day streak - one week strong! 🔥`
+    if (days < 30) return `${days} day streak - incredible consistency! 🔥`
+    return `${days} day streak - unstoppable! 🏆`
+  },
+
+  // Session type breakdown
+  sessionBreakdown: (manual: number, calendar: number) => {
+    const total = manual + calendar
+    if (total === 0) return 'No sessions yet'
+    if (calendar === 0) return `${manual} self-started sessions`
+    if (manual === 0) return `${calendar} calendar-triggered sessions`
+    return `${manual} self-started, ${calendar} calendar-triggered`
+  },
+
+  // Empty state
+  emptyState: {
+    title: 'Focus Mode Analytics',
+    message: 'Start using focus mode to see your patterns and progress here!',
+    cta: 'Start Focus Session',
+  },
+
+  // Child-friendly labels for dashboard
+  labels: {
+    thisWeek: 'This Week',
+    sessions: 'Sessions',
+    totalTime: 'Total Time',
+    avgDuration: 'Avg. Duration',
+    completionRate: 'Completed',
+    peakTimes: 'Best Times',
+    streak: 'Current Streak',
+    trend: 'vs. Last Week',
+  },
+} as const
+
+/**
+ * Helper to get time of day from hour (0-23)
+ */
+export function getTimeOfDay(hour: number): TimeOfDay {
+  if (hour >= 6 && hour < 12) return 'morning'
+  if (hour >= 12 && hour < 17) return 'afternoon'
+  if (hour >= 17 && hour < 21) return 'evening'
+  return 'night'
+}
+
+/**
+ * Helper to get day of week from Date
+ */
+export function getDayOfWeek(date: Date): DayOfWeek {
+  const days: DayOfWeek[] = [
+    'sunday',
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+  ]
+  return days[date.getDay()]
+}

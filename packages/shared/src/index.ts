@@ -534,3 +534,19 @@ export {
   type FocusModeTriggerType,
   type FocusModeSessionWithCalendar,
 } from './contracts'
+
+// Focus mode analytics exports (Story 33.5)
+// Note: DayOfWeek and dayOfWeekSchema are already exported in Story 30.1
+export {
+  timeOfDaySchema,
+  focusModeSessionSummarySchema,
+  focusModeDailySummarySchema,
+  focusModeAnalyticsSchema,
+  FOCUS_MODE_ANALYTICS_MESSAGES,
+  getTimeOfDay,
+  getDayOfWeek,
+  type TimeOfDay,
+  type FocusModeSessionSummary,
+  type FocusModeDailySummary,
+  type FocusModeAnalytics,
+} from './contracts'

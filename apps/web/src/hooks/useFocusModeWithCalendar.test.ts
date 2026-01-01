@@ -21,6 +21,7 @@ vi.mock('firebase/firestore', () => ({
   doc: mockDoc,
   updateDoc: mockUpdateDoc,
   setDoc: mockSetDoc,
+  increment: vi.fn((value: number) => ({ _increment: value })),
 }))
 
 vi.mock('../lib/firebase', () => ({

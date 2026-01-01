@@ -6,9 +6,14 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { doc, onSnapshot, setDoc, updateDoc, runTransaction } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc, updateDoc, runTransaction, increment } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import type { FocusModeState, FocusModeSession, FocusModeDuration } from '@fledgely/shared'
+import type {
+  FocusModeState,
+  FocusModeSession,
+  FocusModeDuration,
+  FocusModeSessionSummary,
+} from '@fledgely/shared'
 import { FOCUS_MODE_DURATIONS } from '@fledgely/shared'
 
 interface UseFocusModeOptions {
@@ -67,6 +72,19 @@ function getTodayStart(): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return today.getTime()
+}
+
+/**
+ * Get today's date in YYYY-MM-DD format
+ */
+function getTodayDate(): string {
+  try {
+    return new Date().toLocaleDateString('en-CA', {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
+  } catch {
+    return new Date().toISOString().split('T')[0]
+  }
 }
 
 const DEFAULT_FOCUS_STATE: Omit<FocusModeState, 'childId' | 'familyId'> = {
@@ -237,10 +255,12 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
       isCompletingRef.current = true
 
       try {
-        const stateRef = doc(getFirestoreDb(), 'families', familyId, 'focusMode', childId)
+        const db = getFirestoreDb()
+        const stateRef = doc(db, 'families', familyId, 'focusMode', childId)
         const now = Date.now()
         const session = focusState.currentSession
         const sessionDuration = now - session.startedAt
+        const durationMinutes = Math.round(sessionDuration / (60 * 1000))
 
         const completedSession: FocusModeSession = {
           ...session,
@@ -250,12 +270,72 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
           updatedAt: now,
         }
 
+        // Update main focus mode state
         await updateDoc(stateRef, {
           isActive: false,
           currentSession: completedSession,
           totalFocusTimeToday: focusState.totalFocusTimeToday + sessionDuration,
           updatedAt: now,
         })
+
+        // Save session to history for analytics (Story 33.5)
+        const sessionSummary: FocusModeSessionSummary = {
+          sessionId: session.id,
+          startedAt: session.startedAt,
+          endedAt: now,
+          durationMinutes,
+          durationType: session.durationType,
+          completedFully,
+          triggeredBy: 'manual', // Note: calendar trigger would come from useFocusModeWithCalendar
+          calendarEventTitle: null,
+        }
+
+        // Save to history collection
+        const historyRef = doc(
+          db,
+          'families',
+          familyId,
+          'focusModeHistory',
+          childId,
+          'sessions',
+          session.id
+        )
+        await setDoc(historyRef, {
+          ...sessionSummary,
+          childId,
+          familyId,
+          createdAt: now,
+        })
+
+        // Update daily summary for analytics
+        const todayDate = getTodayDate()
+        const dailySummaryRef = doc(
+          db,
+          'families',
+          familyId,
+          'focusModeDailySummary',
+          childId,
+          'days',
+          todayDate
+        )
+
+        // Use setDoc with merge to create or update
+        await setDoc(
+          dailySummaryRef,
+          {
+            childId,
+            familyId,
+            date: todayDate,
+            sessionCount: increment(1),
+            totalMinutes: increment(durationMinutes),
+            completedSessions: increment(completedFully ? 1 : 0),
+            earlyExits: increment(completedFully ? 0 : 1),
+            manualSessions: increment(1),
+            calendarSessions: increment(0),
+            updatedAt: now,
+          },
+          { merge: true }
+        )
       } finally {
         isCompletingRef.current = false
       }
