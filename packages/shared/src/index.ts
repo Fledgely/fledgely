@@ -440,3 +440,16 @@ export {
   type ParentComplianceRecord,
   type ParentComplianceSummary,
 } from './contracts'
+
+// Offline exception exports (Story 32.5)
+export {
+  OFFLINE_EXCEPTION_TYPE_VALUES,
+  offlineExceptionTypeSchema,
+  OFFLINE_EXCEPTION_STATUS_VALUES,
+  offlineExceptionStatusSchema,
+  offlineExceptionSchema,
+  OFFLINE_EXCEPTION_MESSAGES,
+  type OfflineExceptionType,
+  type OfflineExceptionStatus,
+  type OfflineException,
+} from './contracts'

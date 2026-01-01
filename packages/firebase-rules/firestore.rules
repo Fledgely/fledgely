@@ -349,6 +349,44 @@ service cloud.firestore {
         // Delete: Not allowed - keep audit trail
         allow delete: if false;
       }
+
+      // =============================================================
+      // Offline Exceptions - Story 32.5
+      // =============================================================
+      //
+      // Story 32.5: Offline Time Exceptions
+      // - Guardians can read and create exceptions
+      // - Children can read exceptions (for UI display)
+      // - Only guardians can update/cancel exceptions
+      //
+      match /offlineExceptions/{exceptionId} {
+        function isExceptionGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardianUids;
+        }
+
+        // Helper: Check if user is a child in this family (via custom token)
+        function isChildInFamily() {
+          return request.auth != null &&
+            request.auth.token.familyId == familyId;
+        }
+
+        // Read: Guardians AND children can view exceptions (transparency)
+        // Story 32.5 AC6: All exceptions visible to family members
+        allow read: if isExceptionGuardian() || isChildInFamily();
+
+        // Create: Only guardians can create exceptions
+        // Story 32.5 AC1, AC3, AC5: Parent-initiated exceptions
+        allow create: if isExceptionGuardian();
+
+        // Update: Only guardians can update exception status
+        // Story 32.5: Cancel or complete exceptions
+        allow update: if isExceptionGuardian();
+
+        // Delete: Not allowed - keep audit trail
+        allow delete: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

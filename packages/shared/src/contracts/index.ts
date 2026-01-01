@@ -4904,3 +4904,111 @@ export const PARENT_COMPLIANCE_MESSAGES = {
   encouragement: 'Every family moment counts!',
   greatJob: 'Great job leading by example!',
 }
+
+// ============================================================================
+// Offline Exception Schemas (Story 32.5)
+// ============================================================================
+
+/**
+ * Offline exception types.
+ * Story 32.5: Offline Time Exceptions
+ */
+export const OFFLINE_EXCEPTION_TYPE_VALUES = [
+  'pause', // Temporary pause by parent
+  'skip', // Skip entire offline window
+  'work', // Work exception for parent
+  'homework', // Homework exception for child
+] as const
+
+export const offlineExceptionTypeSchema = z.enum(OFFLINE_EXCEPTION_TYPE_VALUES)
+export type OfflineExceptionType = z.infer<typeof offlineExceptionTypeSchema>
+
+/**
+ * Offline exception status values.
+ */
+export const OFFLINE_EXCEPTION_STATUS_VALUES = ['active', 'completed', 'cancelled'] as const
+
+export const offlineExceptionStatusSchema = z.enum(OFFLINE_EXCEPTION_STATUS_VALUES)
+export type OfflineExceptionStatus = z.infer<typeof offlineExceptionStatusSchema>
+
+/**
+ * Offline exception record.
+ * Story 32.5: Offline Time Exceptions
+ *
+ * Stored at: /families/{familyId}/offlineExceptions/{exceptionId}
+ *
+ * AC1: Pause offline time with logging
+ * AC3: Work exceptions for parents
+ * AC4: Homework exceptions for children
+ * AC5: One-time skip
+ * AC6: All exceptions in audit trail
+ */
+export const offlineExceptionSchema = z.object({
+  /** Exception document ID */
+  id: z.string(),
+  /** Family ID */
+  familyId: z.string(),
+  /** Type of exception */
+  type: offlineExceptionTypeSchema,
+  /** User ID who requested exception */
+  requestedBy: z.string(),
+  /** Display name of requester */
+  requestedByName: z.string().optional(),
+  /** User ID who approved (for homework requests) */
+  approvedBy: z.string().optional(),
+  /** Optional reason for exception */
+  reason: z.string().optional(),
+  /** Exception start time (epoch ms) */
+  startTime: z.number(),
+  /** Exception end time (epoch ms, null = until end of window) */
+  endTime: z.number().nullable(),
+  /** URLs whitelisted during exception (for work/homework) */
+  whitelistedUrls: z.array(z.string()).optional(),
+  /** Categories whitelisted during exception (for homework: education only) */
+  whitelistedCategories: z.array(z.string()).optional(),
+  /** Exception status */
+  status: offlineExceptionStatusSchema,
+  /** Created timestamp (epoch ms) */
+  createdAt: z.number(),
+  /** Updated timestamp (epoch ms) */
+  updatedAt: z.number().optional(),
+})
+export type OfflineException = z.infer<typeof offlineExceptionSchema>
+
+/**
+ * Messages for exception UI.
+ * Story 32.5 AC6: Transparent logging
+ */
+export const OFFLINE_EXCEPTION_MESSAGES = {
+  // Type labels
+  pause: 'Pause',
+  skip: 'Skip Tonight',
+  work: 'Work Exception',
+  homework: 'Homework Exception',
+
+  // Status labels
+  active: 'Active',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+
+  // Action messages
+  pauseStarted: (name: string) => `${name} paused offline time`,
+  pauseEnded: (name: string) => `${name} resumed offline time`,
+  skipActivated: (name: string) => `${name} skipped tonight's offline time`,
+  workExceptionStarted: (name: string) => `${name} is working during offline time`,
+  homeworkRequested: (name: string) => `${name} requested homework time`,
+  homeworkApproved: (parentName: string, childName: string) =>
+    `${parentName} approved ${childName}'s homework request`,
+  homeworkDenied: (parentName: string, childName: string) =>
+    `${parentName} denied ${childName}'s homework request`,
+
+  // Time remaining
+  timeRemaining: (minutes: number) =>
+    minutes === 1 ? '1 minute remaining' : `${minutes} minutes remaining`,
+
+  // Child-friendly messages
+  childPauseMessage: 'Offline time is paused. Your parent will let you know when it starts again.',
+  childSkipMessage: "Tonight's offline time has been skipped. Enjoy!",
+  childWorkMessage: (name: string) => `${name} is working during family time.`,
+  childHomeworkActive: "You're in homework mode. Only learning sites are available.",
+}
