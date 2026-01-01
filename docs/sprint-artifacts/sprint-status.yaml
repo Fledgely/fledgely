@@ -526,14 +526,14 @@ development_status:
   epic-36-retrospective: optional
 
   # Epic 37: Developmental Rights Recognition
-  epic-37: in-progress
-  37-1-trust-milestone-definitions: in-progress
-  37-2-reduced-screenshot-frequency: backlog
-  37-3-notification-only-mode: backlog
-  37-4-automatic-monitoring-reduction-fr37a: backlog
-  37-5-developmental-framing-in-ui: backlog
-  37-6-regression-handling: backlog
-  epic-37-retrospective: optional
+  epic-37: done
+  37-1-trust-milestone-definitions: done
+  37-2-reduced-screenshot-frequency: done
+  37-3-notification-only-mode: done
+  37-4-automatic-monitoring-reduction-fr37a: done
+  37-5-developmental-framing-in-ui: done
+  37-6-regression-handling: done
+  epic-37-retrospective: done
 
   # Epic 38: Graduation Path & Age 18 Deletion
   epic-38: backlog
