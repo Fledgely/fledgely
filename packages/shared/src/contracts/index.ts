@@ -5012,3 +5012,81 @@ export const OFFLINE_EXCEPTION_MESSAGES = {
   childWorkMessage: (name: string) => `${name} is working during family time.`,
   childHomeworkActive: "You're in homework mode. Only learning sites are available.",
 }
+
+// ================================
+// OFFLINE TIME STREAK (Story 32.6)
+// ================================
+
+/**
+ * Milestone thresholds for streak celebrations
+ */
+export const STREAK_MILESTONE_DAYS = {
+  seven: 7,
+  thirty: 30,
+  hundred: 100,
+} as const
+
+export type StreakMilestone = keyof typeof STREAK_MILESTONE_DAYS
+
+/**
+ * Streak milestones achieved schema
+ */
+export const streakMilestonesSchema = z.object({
+  sevenDays: z.boolean().default(false),
+  thirtyDays: z.boolean().default(false),
+  hundredDays: z.boolean().default(false),
+})
+
+export type StreakMilestones = z.infer<typeof streakMilestonesSchema>
+
+/**
+ * Offline time streak data for a family
+ */
+export const offlineStreakSchema = z.object({
+  familyId: z.string(),
+  currentStreak: z.number().min(0), // consecutive days
+  longestStreak: z.number().min(0), // all-time best
+  lastCompletedDate: z.number().nullable(), // epoch ms of last completion
+  weeklyHours: z.number().min(0), // hours completed this week
+  weeklyStartDate: z.number(), // epoch ms of current week start
+  milestones: streakMilestonesSchema,
+  leaderboardOptIn: z.boolean().default(false),
+  updatedAt: z.number(),
+})
+
+export type OfflineStreak = z.infer<typeof offlineStreakSchema>
+
+/**
+ * Positive reinforcement messages for streak displays
+ */
+export const STREAK_MESSAGES = {
+  // Parent view
+  streakCounter: (days: number) =>
+    days === 1 ? '1 day of family offline time!' : `${days} days of family offline time!`,
+  weeklySummary: (hours: number) =>
+    `Your family unplugged ${hours} ${hours === 1 ? 'hour' : 'hours'} together`,
+  milestoneReached: (days: number) => `Amazing! You've reached ${days} days together!`,
+
+  // Child view
+  childStreakMessage: 'Great job unplugging with your family!',
+  childMilestone7: "You're a superstar! 7 days of family time!",
+  childMilestone30: 'Incredible! 30 days of unplugging together!',
+  childMilestone100: 'LEGENDARY! 100 days of family time!',
+
+  // Encouragement (never punitive)
+  noStreak: 'Start your family offline time streak today!',
+  keepGoing: 'Keep up the great work!',
+  almostMilestone: (daysToGo: number, milestone: number) =>
+    `Only ${daysToGo} more ${daysToGo === 1 ? 'day' : 'days'} until your ${milestone}-day milestone!`,
+}
+
+/**
+ * Leaderboard entry (anonymized)
+ */
+export const leaderboardEntrySchema = z.object({
+  rank: z.number().min(1),
+  streakDays: z.number().min(0),
+  isCurrentFamily: z.boolean().default(false),
+})
+
+export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>

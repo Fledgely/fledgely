@@ -51,6 +51,8 @@ import { useFamilyOfflineSchedule } from '../../../hooks/useFamilyOfflineSchedul
 import { useParentDeviceEnrollment } from '../../../hooks/useParentDeviceEnrollment'
 import { useOfflineExceptions } from '../../../hooks/useOfflineExceptions'
 import { ExceptionHistoryCard } from '../../../components/settings/ExceptionHistoryCard'
+import { StreakCounterCard } from '../../../components/dashboard'
+import { useOfflineTimeStreak } from '../../../hooks/useOfflineTimeStreak'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -261,6 +263,14 @@ function DashboardContent() {
     enabled: !!childSession?.familyId,
   })
 
+  // Story 32.6 - Offline time streak
+  const {
+    streak,
+    loading: streakLoading,
+    celebrationMilestone,
+    dismissCelebration,
+  } = useOfflineTimeStreak({ familyId: childSession?.familyId ?? null })
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -385,6 +395,17 @@ function DashboardContent() {
 
         {/* Story 32.4 - Parent Compliance Card (AC2, AC4) */}
         <ParentComplianceCard familyId={childSession?.familyId} />
+
+        {/* Story 32.6 - Offline Time Streak (Child View) */}
+        <div style={{ marginBottom: '16px' }}>
+          <StreakCounterCard
+            streak={streak}
+            loading={streakLoading}
+            isChildView={true}
+            celebrationMilestone={celebrationMilestone}
+            onCelebrationDismiss={dismissCelebration}
+          />
+        </div>
 
         {/* Story 32.5 - Homework Exception Request (AC4) */}
         <HomeworkExceptionRequest

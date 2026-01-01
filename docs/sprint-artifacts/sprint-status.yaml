@@ -466,13 +466,13 @@ development_status:
   epic-31-retrospective: done
 
   # Epic 32: Family Offline Time
-  epic-32: in-progress
+  epic-32: done
   32-1-family-offline-schedule-configuration: done
   32-2-parent-device-enrollment-for-offline-time: done
   32-3-family-offline-time-enforcement: done
   32-4-parent-compliance-tracking: done
-  32-5-offline-time-exceptions: backlog
-  32-6-offline-time-celebration: backlog
+  32-5-offline-time-exceptions: done
+  32-6-offline-time-celebration: done
   epic-32-retrospective: optional
 
   # Epic 33: Focus Mode & Work Mode

@@ -25,7 +25,9 @@ import {
   WithdrawalPendingAlert,
   OfflineExceptionQuickActions,
   HomeworkApprovalCard,
+  StreakCounterCard,
 } from '../../components/dashboard'
+import { useOfflineTimeStreak } from '../../hooks/useOfflineTimeStreak'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -200,6 +202,14 @@ export default function DashboardPage() {
 
   // Resolutions (Story 27.5.6)
   const { resolutions, isLoading: resolutionsLoading, createResolution } = useResolutions()
+
+  // Offline time streak (Story 32.6)
+  const {
+    streak,
+    loading: streakLoading,
+    celebrationMilestone,
+    dismissCelebration,
+  } = useOfflineTimeStreak({ familyId: family?.id ?? null })
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -483,6 +493,18 @@ export default function DashboardPage() {
 
         {/* Story 32.5: Homework Approval Card (AC4) */}
         {family && <HomeworkApprovalCard familyId={family.id} />}
+
+        {/* Story 32.6: Offline Time Streak Counter */}
+        {family && (
+          <div style={{ marginBottom: '24px' }}>
+            <StreakCounterCard
+              streak={streak}
+              loading={streakLoading}
+              celebrationMilestone={celebrationMilestone}
+              onCelebrationDismiss={dismissCelebration}
+            />
+          </div>
+        )}
 
         {/* Story 6.6: Withdrawal Pending Alerts - urgent notification for parents */}
         {family && <WithdrawalPendingAlert familyId={family.id} />}

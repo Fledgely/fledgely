@@ -453,3 +453,16 @@ export {
   type OfflineExceptionStatus,
   type OfflineException,
 } from './contracts'
+
+// Offline streak exports (Story 32.6)
+export {
+  STREAK_MILESTONE_DAYS,
+  streakMilestonesSchema,
+  offlineStreakSchema,
+  STREAK_MESSAGES,
+  leaderboardEntrySchema,
+  type StreakMilestone,
+  type StreakMilestones,
+  type OfflineStreak,
+  type LeaderboardEntry,
+} from './contracts'
