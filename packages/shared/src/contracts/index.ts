@@ -4816,3 +4816,91 @@ export const PARENT_ENROLLMENT_MESSAGES = {
   enrolled: (name: string) => `${name}'s device is enrolled`,
   allEnrolled: 'Great! All parents have devices enrolled',
 }
+
+// =============================================================================
+// Parent Compliance Tracking Schemas
+// Story 32.4: Parent Compliance Tracking (FR60)
+// =============================================================================
+
+/**
+ * Activity event during offline time for compliance tracking.
+ * Story 32.4 AC5: Real-time activity detection
+ */
+export const parentActivityEventSchema = z.object({
+  /** When activity occurred (epoch ms) */
+  timestamp: z.number(),
+  /** Type of activity detected */
+  type: z.enum(['navigation', 'browser_active']),
+})
+export type ParentActivityEvent = z.infer<typeof parentActivityEventSchema>
+
+/**
+ * Parent compliance record for a single offline time window.
+ * Story 32.4: Parent Compliance Tracking
+ *
+ * Stored at: /families/{familyId}/parentCompliance/{recordId}
+ *
+ * AC1: Compliance logged when offline time period ends
+ * AC2: Child can see parent compliance in their dashboard
+ * AC3: Parents see their own compliance stats
+ * AC4: Transparency without shaming
+ */
+export const parentComplianceRecordSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Parent user ID */
+  parentUid: z.string(),
+  /** Device ID that was tracked */
+  deviceId: z.string(),
+  /** Parent display name for UI */
+  parentDisplayName: z.string().optional(),
+  /** Offline window start time (epoch ms) */
+  offlineWindowStart: z.number(),
+  /** Offline window end time (epoch ms) */
+  offlineWindowEnd: z.number(),
+  /** Whether parent was compliant (no activity during window) */
+  wasCompliant: z.boolean(),
+  /** Activity events during offline window (empty if compliant) */
+  activityEvents: z.array(parentActivityEventSchema).default([]),
+  /** Created timestamp (epoch ms) */
+  createdAt: z.number(),
+})
+export type ParentComplianceRecord = z.infer<typeof parentComplianceRecordSchema>
+
+/**
+ * Summary of parent compliance over time.
+ * Story 32.4 AC3: Parents see their own compliance stats
+ */
+export const parentComplianceSummarySchema = z.object({
+  /** Parent user ID */
+  parentUid: z.string(),
+  /** Total number of offline windows tracked */
+  totalWindows: z.number(),
+  /** Number of compliant windows */
+  compliantWindows: z.number(),
+  /** Compliance percentage (0-100) */
+  compliancePercentage: z.number(),
+  /** Last compliance record date (epoch ms) */
+  lastRecordDate: z.number().nullable(),
+})
+export type ParentComplianceSummary = z.infer<typeof parentComplianceSummarySchema>
+
+/**
+ * Messages for compliance UI - AC4: No shaming, just transparency
+ */
+export const PARENT_COMPLIANCE_MESSAGES = {
+  // Compliant messages
+  compliant: (name: string) => `${name} was offline for family time`,
+  compliantShort: 'Offline',
+
+  // Non-compliant messages (factual, not judgmental)
+  nonCompliant: (name: string) => `${name} used the phone during offline time`,
+  nonCompliantShort: 'Active during offline',
+
+  // Summary messages
+  summaryHeader: 'Family Offline Time',
+  yourStats: 'Your Compliance',
+  familyCompliance: 'Family Participation',
+  encouragement: 'Every family moment counts!',
+  greatJob: 'Great job leading by example!',
+}

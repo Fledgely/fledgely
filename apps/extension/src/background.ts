@@ -68,12 +68,15 @@ import { extractSearchQuery } from './search-detector'
 import { getOrGenerateSchedule, isInPrivacyGap, clearSchedule } from './privacy-gaps'
 import { checkAndUpdateVpnStatus, clearVpnState } from './vpn-detection'
 // Story 32.3: Family Offline Time Enforcement
+// Story 32.4: Parent Compliance Tracking
 import {
   setupOfflineCheckAlarm,
   checkOfflineSchedule,
   getOfflineScheduleState,
   syncOfflineSchedule,
   clearOfflineEnforcementFromAllTabs,
+  onParentTabNavigation,
+  syncQueuedComplianceRecords,
   ALARM_OFFLINE_CHECK,
 } from './offline-schedule-enforcement'
 
@@ -1860,12 +1863,15 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 
   // Story 32.3: Offline schedule check - enforces family offline time
+  // Story 32.4: Also syncs queued parent compliance records
   if (alarm.name === ALARM_OFFLINE_CHECK) {
     console.log('[Fledgely] Offline schedule check alarm triggered')
     const { state: offlineState } = await chrome.storage.local.get('state')
     // Only check if enrolled with a family (consent not required for offline time)
     if (offlineState?.enrollmentState === 'enrolled' && offlineState?.familyId) {
       await checkOfflineSchedule()
+      // Story 32.4: Sync any queued compliance records
+      await syncQueuedComplianceRecords()
     }
     return
   }
@@ -1984,6 +1990,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       await handleTabUpdated(tabId, changeInfo, tab)
     } catch {
       // Screen time tracking failures are non-critical
+    }
+  }
+
+  // Story 32.4: Track parent activity during offline window
+  if (changeInfo.url || changeInfo.status === 'complete') {
+    try {
+      await onParentTabNavigation(tabId, tab.url || '')
+    } catch {
+      // Parent activity tracking failures are non-critical
     }
   }
 })

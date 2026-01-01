@@ -306,6 +306,49 @@ service cloud.firestore {
         // Delete: Not allowed - keep audit trail
         allow delete: if false;
       }
+
+      // Parent Compliance Tracking subcollection: offline time compliance records
+      //
+      // Story 32.4: Parent Compliance Tracking (FR60)
+      // Children can view parent compliance for transparency.
+      // Parents can view their own and family compliance.
+      // Creation is done via Cloud Functions (from extension).
+      //
+      // SECURITY:
+      // - Guardians can read all compliance records
+      // - Children can read compliance records (via custom token)
+      // - Only Cloud Functions can create (validates device enrollment)
+      // - No updates allowed (immutable audit trail)
+      //
+      match /parentCompliance/{complianceId} {
+        function isComplianceGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardianUids;
+        }
+
+        // Helper: Check if user is a child in this family (via custom token)
+        // Story 32.4 AC2: Child can see parent compliance in their dashboard
+        function isChildInFamily() {
+          return request.auth != null &&
+            request.auth.token.familyId == familyId;
+        }
+
+        // Read: Guardians AND children can view compliance records
+        // Story 32.4 AC2: Child can see parent compliance
+        // Story 32.4 AC3: Parents see their own compliance stats
+        allow read: if isComplianceGuardian() || isChildInFamily();
+
+        // Create: Only Cloud Functions can create (via Admin SDK)
+        // This ensures device enrollment is validated before accepting records
+        allow create: if false;
+
+        // Update: Not allowed - compliance records are immutable
+        allow update: if false;
+
+        // Delete: Not allowed - keep audit trail
+        allow delete: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

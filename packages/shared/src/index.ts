@@ -429,3 +429,14 @@ export {
   type ParentEnrolledDevice,
   type ParentDeviceEnrollment,
 } from './contracts'
+
+// Parent compliance tracking exports (Story 32.4)
+export {
+  parentActivityEventSchema,
+  parentComplianceRecordSchema,
+  parentComplianceSummarySchema,
+  PARENT_COMPLIANCE_MESSAGES,
+  type ParentActivityEvent,
+  type ParentComplianceRecord,
+  type ParentComplianceSummary,
+} from './contracts'

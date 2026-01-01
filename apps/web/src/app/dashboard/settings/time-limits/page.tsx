@@ -42,6 +42,7 @@ import { CustomCategoryModal } from '../../../../components/settings/CustomCateg
 import { OfflineScheduleCard } from '../../../../components/settings/OfflineScheduleCard'
 import { ParentDeviceEnrollmentCard } from '../../../../components/settings/ParentDeviceEnrollmentCard'
 import { useFamilyOfflineSchedule } from '../../../../hooks/useFamilyOfflineSchedule'
+import { MyComplianceStats } from '../../../../components/settings/MyComplianceStats'
 import type { CustomCategory } from '@fledgely/shared'
 
 const styles = {
@@ -1381,6 +1382,12 @@ export default function TimeLimitsSettingsPage() {
                 {/* Story 32.2: Parent Device Enrollment for Offline Time */}
                 <ParentDeviceEnrollmentCard
                   offlineScheduleEnabled={localOfflineSchedule?.enabled ?? false}
+                />
+
+                {/* Story 32.4: Parent Compliance Self-View (AC3, AC4) */}
+                <MyComplianceStats
+                  familyId={family?.id ?? null}
+                  parentUid={firebaseUser?.uid ?? null}
                 />
 
                 {/* Story 30.6: Conflict Warnings */}

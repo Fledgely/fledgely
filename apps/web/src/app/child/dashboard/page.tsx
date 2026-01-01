@@ -32,6 +32,7 @@ import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlag
 import { ChildScreenTimeCard } from '../../../components/child/ChildScreenTimeCard'
 import { ChildOfflineScheduleCard } from '../../../components/child/ChildOfflineScheduleCard'
 import { ChildEnrolledDevicesCard } from '../../../components/child/ChildEnrolledDevicesCard'
+import { ParentComplianceCard } from '../../../components/child/ParentComplianceCard'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
@@ -372,6 +373,9 @@ function DashboardContent() {
           offlineScheduleEnabled={offlineSchedule?.enabled ?? false}
           loading={enrollmentLoading}
         />
+
+        {/* Story 32.4 - Parent Compliance Card (AC2, AC4) */}
+        <ParentComplianceCard familyId={childSession?.familyId} />
 
         {/* Story 27.5.2: Health Check-In Prompt Banner */}
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}

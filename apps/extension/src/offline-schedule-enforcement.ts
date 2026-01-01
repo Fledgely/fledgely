@@ -61,6 +61,32 @@ export const OFFLINE_CHECK_INTERVAL_MINUTES = 1
 // Warning threshold (minutes before offline starts)
 export const WARNING_THRESHOLD_MINUTES = 5
 
+// Storage key for parent compliance events during current offline window
+const STORAGE_KEY_PARENT_ACTIVITY = 'parentActivityEvents'
+const STORAGE_KEY_CURRENT_OFFLINE_WINDOW = 'currentOfflineWindow'
+
+/**
+ * Parent activity event during offline window
+ * Story 32.4 AC5: Real-Time Activity Detection
+ */
+export interface ParentActivityEvent {
+  timestamp: number
+  type: 'navigation' | 'browser_active'
+}
+
+/**
+ * Current offline window tracking for compliance
+ * Story 32.4 AC1: Parent Compliance Logging
+ */
+interface CurrentOfflineWindow {
+  familyId: string
+  parentUid: string
+  deviceId: string
+  parentDisplayName?: string
+  offlineWindowStart: number
+  offlineWindowEnd: number
+}
+
 /**
  * Offline schedule state for UI display
  */
@@ -502,6 +528,7 @@ export async function stopOfflineEnforcement(): Promise<void> {
 
 /**
  * Check and handle offline schedule - called periodically
+ * Story 32.4: Also tracks parent compliance during offline windows
  */
 export async function checkOfflineSchedule(): Promise<void> {
   const scheduleState = await getOfflineScheduleState()
@@ -529,6 +556,9 @@ export async function checkOfflineSchedule(): Promise<void> {
         await showParentReminder()
         // Mark as "enforcing" to prevent repeated reminders
         await startOfflineEnforcement()
+
+        // Story 32.4 AC1: Start parent compliance tracking
+        await startParentComplianceWindow()
       }
     } else {
       // Children get full enforcement (AC1, AC2)
@@ -542,6 +572,11 @@ export async function checkOfflineSchedule(): Promise<void> {
     if (enforcementState.isEnforcing) {
       await stopOfflineEnforcement()
       await clearOfflineEnforcementFromAllTabs()
+
+      // Story 32.4 AC1: End parent compliance tracking and record
+      if (isParent) {
+        await endParentComplianceWindow()
+      }
     }
   }
 }
@@ -667,5 +702,312 @@ export async function syncOfflineSchedule(familyId: string): Promise<FamilyOffli
   } catch (error) {
     console.error('[Fledgely] Error syncing offline schedule:', error)
     return null
+  }
+}
+
+// ============================================================================
+// Story 32.4: Parent Compliance Tracking
+// ============================================================================
+
+/**
+ * Get current offline window info from storage
+ * Story 32.4 AC1: Track offline window for compliance recording
+ */
+async function getCurrentOfflineWindow(): Promise<CurrentOfflineWindow | null> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_CURRENT_OFFLINE_WINDOW)
+    return result[STORAGE_KEY_CURRENT_OFFLINE_WINDOW] || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Save current offline window info to storage
+ */
+async function saveCurrentOfflineWindow(window: CurrentOfflineWindow | null): Promise<void> {
+  if (window) {
+    await chrome.storage.local.set({ [STORAGE_KEY_CURRENT_OFFLINE_WINDOW]: window })
+  } else {
+    await chrome.storage.local.remove(STORAGE_KEY_CURRENT_OFFLINE_WINDOW)
+  }
+}
+
+/**
+ * Get parent activity events during current offline window
+ * Story 32.4 AC5: Real-Time Activity Detection
+ */
+async function getParentActivityEvents(): Promise<ParentActivityEvent[]> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_PARENT_ACTIVITY)
+    return result[STORAGE_KEY_PARENT_ACTIVITY] || []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Save parent activity events to storage
+ */
+async function saveParentActivityEvents(events: ParentActivityEvent[]): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEY_PARENT_ACTIVITY]: events })
+}
+
+/**
+ * Clear parent activity events (after recording compliance)
+ */
+async function clearParentActivityEvents(): Promise<void> {
+  await chrome.storage.local.remove(STORAGE_KEY_PARENT_ACTIVITY)
+}
+
+/**
+ * Log a parent activity event during offline window
+ * Story 32.4 AC5: Real-Time Activity Detection
+ *
+ * @param event - The activity event to log
+ */
+export async function logParentActivityEvent(event: ParentActivityEvent): Promise<void> {
+  try {
+    const events = await getParentActivityEvents()
+    events.push(event)
+    await saveParentActivityEvents(events)
+    console.log(
+      `[Fledgely] Parent activity logged: ${event.type} at ${new Date(event.timestamp).toISOString()}`
+    )
+  } catch (error) {
+    console.error('[Fledgely] Failed to log parent activity:', error)
+  }
+}
+
+/**
+ * Track parent activity during offline window
+ * Story 32.4 AC5: Real-Time Activity Detection
+ *
+ * Called periodically to check if parent is using browser during offline time.
+ */
+export async function trackParentActivity(): Promise<void> {
+  const isParent = await isParentDevice()
+  if (!isParent) return
+
+  const state = await getOfflineScheduleState()
+  if (!state.isInOfflineWindow) return
+
+  // Log browser_active event
+  await logParentActivityEvent({
+    timestamp: Date.now(),
+    type: 'browser_active',
+  })
+}
+
+/**
+ * Track parent tab navigation during offline window
+ * Story 32.4 AC5: Real-Time Activity Detection
+ *
+ * Called from background script when parent navigates to a new tab/URL.
+ *
+ * @param _tabId - Tab ID (unused but kept for handler signature)
+ * @param _url - URL being navigated to (unused but kept for handler signature)
+ */
+export async function onParentTabNavigation(_tabId: number, _url: string): Promise<void> {
+  const isParent = await isParentDevice()
+  if (!isParent) return
+
+  const state = await getOfflineScheduleState()
+  if (!state.isInOfflineWindow) return
+
+  // Log navigation event
+  await logParentActivityEvent({
+    timestamp: Date.now(),
+    type: 'navigation',
+  })
+}
+
+/**
+ * Start tracking a new offline window for parent compliance
+ * Story 32.4 AC1: Parent Compliance Logging
+ *
+ * Called when offline window starts for a parent device.
+ */
+export async function startParentComplianceWindow(): Promise<void> {
+  const deviceInfo = await getEnrolledDeviceInfo()
+  if (!deviceInfo?.isParentDevice || !deviceInfo.parentUid) return
+
+  const schedule = await getOfflineSchedule()
+  if (!schedule) return
+
+  const window = getTodayWindow(schedule)
+  if (!window) return
+
+  // Calculate window start/end timestamps
+  const now = new Date()
+  const startMinutes = parseTimeToMinutes(window.startTime)
+  const endMinutes = parseTimeToMinutes(window.endTime)
+
+  const startTime = new Date(now)
+  startTime.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+
+  const endTime = new Date(now)
+  endTime.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
+
+  // Handle overnight windows
+  if (endMinutes < startMinutes) {
+    if (now.getHours() * 60 + now.getMinutes() >= startMinutes) {
+      // After start but before midnight - end is tomorrow
+      endTime.setDate(endTime.getDate() + 1)
+    } else {
+      // After midnight but before end - start was yesterday
+      startTime.setDate(startTime.getDate() - 1)
+    }
+  }
+
+  const currentWindow: CurrentOfflineWindow = {
+    familyId: deviceInfo.familyId,
+    parentUid: deviceInfo.parentUid,
+    deviceId: deviceInfo.deviceId,
+    offlineWindowStart: startTime.getTime(),
+    offlineWindowEnd: endTime.getTime(),
+  }
+
+  await saveCurrentOfflineWindow(currentWindow)
+  await clearParentActivityEvents()
+
+  console.log('[Fledgely] Started tracking parent compliance window')
+}
+
+/**
+ * End offline window and record parent compliance
+ * Story 32.4 AC1: Parent Compliance Logging
+ *
+ * Called when offline window ends for a parent device.
+ * Records compliance status to Firestore.
+ */
+export async function endParentComplianceWindow(): Promise<void> {
+  const currentWindow = await getCurrentOfflineWindow()
+  if (!currentWindow) return
+
+  const events = await getParentActivityEvents()
+  const wasCompliant = events.length === 0
+
+  // Create compliance record
+  const record = {
+    familyId: currentWindow.familyId,
+    parentUid: currentWindow.parentUid,
+    deviceId: currentWindow.deviceId,
+    parentDisplayName: currentWindow.parentDisplayName,
+    offlineWindowStart: currentWindow.offlineWindowStart,
+    offlineWindowEnd: currentWindow.offlineWindowEnd,
+    wasCompliant,
+    activityEvents: events,
+    createdAt: Date.now(),
+  }
+
+  // Try to sync to Firestore
+  try {
+    const response = await fetch(`${API_BASE_URL}/logParentCompliance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    })
+
+    if (response.ok) {
+      console.log(
+        `[Fledgely] Parent compliance recorded: ${wasCompliant ? 'compliant' : 'non-compliant'}`
+      )
+    } else {
+      console.error('[Fledgely] Failed to record parent compliance:', response.status)
+      // Queue for retry - store locally
+      await queueComplianceRecord(record)
+    }
+  } catch (error) {
+    console.error('[Fledgely] Error recording parent compliance:', error)
+    // Queue for retry - store locally
+    await queueComplianceRecord(record)
+  }
+
+  // Clear tracking state
+  await saveCurrentOfflineWindow(null)
+  await clearParentActivityEvents()
+}
+
+/**
+ * Queue a compliance record for later sync
+ * Story 32.4: Offline-first approach for compliance recording
+ */
+const STORAGE_KEY_COMPLIANCE_QUEUE = 'parentComplianceQueue'
+
+async function queueComplianceRecord(record: Record<string, unknown>): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_COMPLIANCE_QUEUE)
+    const queue = result[STORAGE_KEY_COMPLIANCE_QUEUE] || []
+    queue.push(record)
+    await chrome.storage.local.set({ [STORAGE_KEY_COMPLIANCE_QUEUE]: queue })
+    console.log('[Fledgely] Compliance record queued for later sync')
+  } catch (error) {
+    console.error('[Fledgely] Failed to queue compliance record:', error)
+  }
+}
+
+/**
+ * Sync queued compliance records to Firestore
+ * Story 32.4: Called periodically to sync offline records
+ */
+export async function syncQueuedComplianceRecords(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_COMPLIANCE_QUEUE)
+    const queue = result[STORAGE_KEY_COMPLIANCE_QUEUE] || []
+
+    if (queue.length === 0) return
+
+    const successfulIds: number[] = []
+
+    for (let i = 0; i < queue.length; i++) {
+      const record = queue[i]
+      try {
+        const response = await fetch(`${API_BASE_URL}/logParentCompliance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record),
+        })
+
+        if (response.ok) {
+          successfulIds.push(i)
+        }
+      } catch {
+        // Keep in queue for retry
+      }
+    }
+
+    // Remove successfully synced records
+    if (successfulIds.length > 0) {
+      const remainingQueue = queue.filter(
+        (_: unknown, index: number) => !successfulIds.includes(index)
+      )
+      await chrome.storage.local.set({ [STORAGE_KEY_COMPLIANCE_QUEUE]: remainingQueue })
+      console.log(`[Fledgely] Synced ${successfulIds.length} compliance records`)
+    }
+  } catch (error) {
+    console.error('[Fledgely] Error syncing compliance queue:', error)
+  }
+}
+
+/**
+ * Get parent compliance status for current offline window
+ * Story 32.4 AC5: Real-time compliance checking
+ */
+export async function getParentComplianceStatus(): Promise<{
+  isTracking: boolean
+  wasCompliant: boolean
+  activityCount: number
+}> {
+  const currentWindow = await getCurrentOfflineWindow()
+  if (!currentWindow) {
+    return { isTracking: false, wasCompliant: true, activityCount: 0 }
+  }
+
+  const events = await getParentActivityEvents()
+  return {
+    isTracking: true,
+    wasCompliant: events.length === 0,
+    activityCount: events.length,
   }
 }
