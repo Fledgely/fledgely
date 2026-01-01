@@ -497,8 +497,8 @@ development_status:
 
   # Epic 35: Agreement Renewal & Expiry
   epic-35: in-progress
-  35-1-agreement-expiry-configuration: backlog
-  35-2-renewal-reminder-system: backlog
+  35-1-agreement-expiry-configuration: done
+  35-2-renewal-reminder-system: done
   35-3-agreement-renewal-flow: backlog
   35-4-expired-agreement-grace-period: backlog
   35-5-post-grace-period-handling: backlog

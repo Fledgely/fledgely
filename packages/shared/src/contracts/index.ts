@@ -6554,3 +6554,22 @@ export {
   type ExpiryDuration,
   type ExpiryDurationConfig,
 } from './agreementExpiry'
+
+// Re-export renewal reminder types and constants (Story 35.2)
+export {
+  reminderTypeSchema,
+  reminderStatusSchema,
+  REMINDER_THRESHOLDS,
+  SNOOZE_DURATION_DAYS,
+  REMINDER_MESSAGES,
+  REMINDER_CONFIGS,
+  getReminderType,
+  calculateSnoozeExpiry,
+  isSnoozeExpired,
+  shouldShowReminder,
+  getReminderConfig,
+  type ReminderType,
+  type ReminderStatus,
+  type SnoozeInfo,
+  type ReminderConfig,
+} from './renewalReminder'
