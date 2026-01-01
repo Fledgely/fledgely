@@ -989,3 +989,49 @@ export {
   getOverrideStatusMessage,
   getEligibilityMessage,
 } from './services/automaticReductionService'
+
+// Developmental Messaging exports (Story 37.5)
+export {
+  MESSAGING_PRINCIPLES,
+  APPROVED_LANGUAGE,
+  DISCOURAGED_LANGUAGE,
+  CHILD_MILESTONE_MESSAGES,
+  PARENT_MILESTONE_MESSAGES,
+  REDUCTION_MESSAGES,
+  RIGHTS_MESSAGES,
+  SHAME_REDUCING_MESSAGES,
+  messagingContextSchema,
+  viewerTypeSchema,
+  milestoneTypeSchema,
+  developmentalMessageSchema,
+  framingValidationResultSchema,
+  getMilestoneMessage as getDevelopmentalMilestoneMessage,
+  getReductionMessage as getDevelopmentalReductionMessage,
+  getRightsMessage,
+  getShameReducingMessage as getShameMessage,
+  createDevelopmentalMessage,
+  type MessagingContext,
+  type ViewerType,
+  type MilestoneType,
+  type DevelopmentalMessage,
+  type FramingValidationResult,
+} from './contracts/developmentalMessaging'
+
+// Developmental Messaging Service exports (Story 37.5)
+export {
+  getMilestoneMessage as getMilestoneMessageService,
+  getMilestoneHeading,
+  getReductionMessage as getReductionMessageService,
+  getFullReductionNotification,
+  getRegressionMessage as getDevelopmentalRegressionMessage,
+  validateDevelopmentalFraming,
+  validateChildRightsPrinciples,
+  getPrivacyRightsReminder,
+  getTemporaryNatureMessage,
+  getGrowthRecognitionMessage,
+  getShameReducingMessage,
+  getShameReducingContext,
+  getTrustMilestoneNotification,
+  getChildDevelopmentalContext,
+  getParentEducationContext,
+} from './services/developmentalMessagingService'
