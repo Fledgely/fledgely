@@ -67,6 +67,15 @@ import { isCrisisSearch, getRelevantResources } from './crisis-keywords'
 import { extractSearchQuery } from './search-detector'
 import { getOrGenerateSchedule, isInPrivacyGap, clearSchedule } from './privacy-gaps'
 import { checkAndUpdateVpnStatus, clearVpnState } from './vpn-detection'
+// Story 32.3: Family Offline Time Enforcement
+import {
+  setupOfflineCheckAlarm,
+  checkOfflineSchedule,
+  getOfflineScheduleState,
+  syncOfflineSchedule,
+  clearOfflineEnforcementFromAllTabs,
+  ALARM_OFFLINE_CHECK,
+} from './offline-schedule-enforcement'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -901,6 +910,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Story 31.1: Initialize time limit warning check (1 min interval)
   setupWarningCheckAlarm()
 
+  // Story 32.3: Initialize offline schedule check (1 min interval)
+  setupOfflineCheckAlarm()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -947,6 +959,9 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Story 31.1: Initialize time limit warning check (1 min interval)
   setupWarningCheckAlarm()
+
+  // Story 32.3: Initialize offline schedule check (1 min interval)
+  setupOfflineCheckAlarm()
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {
@@ -1140,6 +1155,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Story 31.1: Clear warning state
         await clearWarningState()
+
+        // Story 32.3: Clear offline enforcement
+        await clearOfflineEnforcementFromAllTabs()
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
@@ -1566,6 +1584,58 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ success: true })
       return true
 
+    case 'CHECK_OFFLINE_STATE':
+      // Story 32.3: Check if offline blocking is active for content script
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.familyId) {
+          sendResponse({ isBlocked: false })
+          return
+        }
+
+        try {
+          const scheduleState = await getOfflineScheduleState()
+          sendResponse({
+            isBlocked: scheduleState.isInOfflineWindow,
+            minutesUntilEnd: scheduleState.minutesUntilEnd,
+          })
+        } catch {
+          sendResponse({ isBlocked: false })
+        }
+      })
+      return true
+
+    case 'GET_OFFLINE_STATE':
+      // Story 32.3: Get offline schedule state for content script countdown
+      getOfflineScheduleState()
+        .then((scheduleState) => {
+          sendResponse({
+            minutesUntilEnd: scheduleState.minutesUntilEnd,
+            isInOfflineWindow: scheduleState.isInOfflineWindow,
+          })
+        })
+        .catch(() => {
+          sendResponse({ minutesUntilEnd: null, isInOfflineWindow: false })
+        })
+      return true
+
+    case 'SYNC_OFFLINE_SCHEDULE':
+      // Story 32.3: Sync offline schedule from Firestore
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.familyId) {
+          sendResponse({ success: false, error: 'No family connected' })
+          return
+        }
+        try {
+          const schedule = await syncOfflineSchedule(currentState.familyId)
+          sendResponse({ success: true, schedule })
+        } catch (error) {
+          sendResponse({ success: false, error: String(error) })
+        }
+      })
+      return true
+
     case 'CHECK_TIME_LIMIT_STATE':
       // Story 31.4: Check if enforcement is active for content script
       // Story 31.7: Also check for active override
@@ -1785,6 +1855,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
           await enforceOnAllTabs()
         }
       }
+    }
+    return
+  }
+
+  // Story 32.3: Offline schedule check - enforces family offline time
+  if (alarm.name === ALARM_OFFLINE_CHECK) {
+    console.log('[Fledgely] Offline schedule check alarm triggered')
+    const { state: offlineState } = await chrome.storage.local.get('state')
+    // Only check if enrolled with a family (consent not required for offline time)
+    if (offlineState?.enrollmentState === 'enrolled' && offlineState?.familyId) {
+      await checkOfflineSchedule()
     }
     return
   }
