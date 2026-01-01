@@ -566,3 +566,12 @@ export {
   type WorkModeWeeklyAnalytics,
   type WorkModeCheckIn,
 } from './contracts'
+
+// Decline handling exports (Story 34.5)
+export {
+  DECLINE_REASONS,
+  DECLINE_MESSAGES,
+  AFTER_DECLINE_MESSAGES,
+  declineReasonIdSchema,
+  type DeclineReasonId,
+} from './contracts'

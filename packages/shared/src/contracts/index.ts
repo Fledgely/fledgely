@@ -6462,3 +6462,69 @@ export const CHILD_PROPOSAL_MESSAGES = {
   // Celebratory confirmation
   confirmationMessage: "Your request has been sent! We're proud of you for sharing your thoughts.",
 } as const
+
+/**
+ * Decline reason options with respectful, non-punitive language.
+ *
+ * Story 34.5: Change Decline Handling - AC1, AC2
+ */
+export const DECLINE_REASONS = [
+  { id: 'not-ready', label: "I'm not ready for this change yet" },
+  { id: 'need-discussion', label: "Let's discuss this together first" },
+  { id: 'too-soon', label: "It's too soon since our last change" },
+  { id: 'need-more-info', label: 'I need more information about this' },
+  { id: 'prefer-different', label: "I'd prefer a different approach" },
+  { id: 'custom', label: 'Other reason...' },
+] as const
+
+export const declineReasonIdSchema = z.enum([
+  'not-ready',
+  'need-discussion',
+  'too-soon',
+  'need-more-info',
+  'prefer-different',
+  'custom',
+])
+export type DeclineReasonId = z.infer<typeof declineReasonIdSchema>
+
+/**
+ * Decline UI messages with supportive tone.
+ *
+ * Story 34.5: Change Decline Handling - AC1, AC2
+ */
+export const DECLINE_MESSAGES = {
+  header: 'Why are you declining?',
+  subheader: 'A thoughtful response helps continue the conversation',
+  customPrompt: 'Share your thoughts:',
+  customMinChars: 10,
+  encouragement: 'Your response helps the other person understand your perspective.',
+} as const
+
+/**
+ * Messages shown after a proposal is declined.
+ *
+ * Story 34.5: Change Decline Handling - AC3, AC5, AC6
+ */
+export const AFTER_DECLINE_MESSAGES = {
+  proposer: {
+    title: 'Proposal Declined',
+    body: "This isn't the end of the conversation.",
+    tryAgain: 'You can propose again after some time has passed.',
+    cooldownInfo: 'Wait 7 days before proposing the same change.',
+    suggestions: [
+      'Wait a few days and try a modified proposal',
+      'Discuss in person to understand their concerns',
+      'Consider a smaller step toward your goal',
+    ],
+  },
+  responder: {
+    title: 'You Declined the Proposal',
+    body: 'Thank you for your thoughtful response.',
+    next: 'Consider discussing this together to find common ground.',
+  },
+  notification: {
+    title: 'Proposal Response',
+    body: (responderName: string) => `${responderName} isn't ready for this change yet.`,
+    supportive: 'You can discuss this together or propose something different later.',
+  },
+} as const
