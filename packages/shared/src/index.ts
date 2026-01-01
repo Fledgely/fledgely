@@ -873,3 +873,71 @@ export {
   type FrequencyChange,
   type FrequencyUpdate,
 } from './services/frequencyReductionService'
+
+// Notification-Only Mode exports (Story 37.3)
+export {
+  NOTIFICATION_ONLY_TRUST_THRESHOLD,
+  NOTIFICATION_ONLY_DURATION_DAYS,
+  NOTIFICATION_ONLY_MILESTONE,
+  notificationOnlyConfigSchema,
+  concerningPatternSchema,
+  appUsageSummarySchema,
+  dailySummarySchema,
+  modeTransitionSchema,
+  createDefaultNotificationOnlyConfig,
+  createDailySummary,
+  createConcerningPattern,
+  determineSummaryStatus,
+  getNotificationOnlyDescription,
+  getModeTransitionMessage,
+  type NotificationOnlyConfig,
+  type ConcerningPattern,
+  type AppUsageSummary,
+  type DailySummary,
+  type ModeTransition,
+  type ConcerningPatternType,
+  type PatternSeverity,
+  type SummaryStatus,
+  type TransitionReason,
+} from './contracts/notificationOnlyMode'
+
+// Notification-Only Mode Service exports (Story 37.3)
+export {
+  isQualifiedForNotificationOnlyMode,
+  getDaysUntilQualification,
+  getQualificationProgress,
+  isInNotificationOnlyMode,
+  hasEverQualified,
+  getTimeSinceEnabled,
+  enableNotificationOnlyMode,
+  disableNotificationOnlyMode,
+  updateModeSettings,
+  shouldCaptureScreenshots as shouldCaptureScreenshotsNotificationMode,
+  getCaptureStatusMessage,
+  shouldEnforceTimeLimits as shouldEnforceTimeLimitsNotificationMode,
+  getTimeLimitsMessage,
+  getNotificationOnlyModeStatus,
+  getQualificationMessage,
+} from './services/notificationOnlyModeService'
+
+// Daily Summary Service exports (Story 37.3)
+export {
+  generateDailySummary,
+  calculateTotalUsage,
+  getTopApps,
+  checkTimeLimitReached,
+  detectConcerningPatterns,
+  detectExcessiveUsage,
+  detectLateNightUsage,
+  detectNewCategories,
+  detectRapidAppSwitching,
+  formatSummaryForParent,
+  formatSummaryForChild,
+  getSummaryStatusMessage,
+  formatMinutes,
+  formatHour,
+  formatDate,
+  DEFAULT_PATTERN_CONFIG,
+  type UsageData,
+  type PatternConfig,
+} from './services/dailySummaryService'
