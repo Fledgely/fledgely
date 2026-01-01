@@ -579,10 +579,25 @@ export {
 // Agreement history exports (Story 34.6)
 export {
   agreementChangeSchema,
-  agreementVersionSchema,
+  historyVersionSchema,
   HISTORY_MESSAGES,
   getUpdateCountMessage,
   getGrowthMessage,
   type AgreementChange,
-  type AgreementVersion,
+  type HistoryVersion,
+} from './contracts'
+
+// Agreement expiry exports (Story 35.1)
+export {
+  expiryDurationSchema,
+  EXPIRY_DURATIONS,
+  EXPIRY_DURATION_LABELS,
+  EXPIRY_MESSAGES,
+  getRecommendedExpiry,
+  calculateExpiryDate,
+  isExpiringSoon,
+  getDaysUntilExpiry,
+  getAnnualReviewDate,
+  type ExpiryDuration,
+  type ExpiryDurationConfig,
 } from './contracts'

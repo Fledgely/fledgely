@@ -496,7 +496,7 @@ development_status:
   epic-34-retrospective: completed
 
   # Epic 35: Agreement Renewal & Expiry
-  epic-35: backlog
+  epic-35: in-progress
   35-1-agreement-expiry-configuration: backlog
   35-2-renewal-reminder-system: backlog
   35-3-agreement-renewal-flow: backlog

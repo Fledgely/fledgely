@@ -5,14 +5,14 @@
  * AC3: Diff view available for any two versions
  */
 
-import { HISTORY_MESSAGES, type AgreementVersion } from '@fledgely/shared'
+import { HISTORY_MESSAGES, type HistoryVersion } from '@fledgely/shared'
 import { computeVersionDiff, formatDiffForDisplay, hasChanges } from '../../utils/agreementDiff'
 
 export interface AgreementVersionDiffProps {
   /** The older version to compare from */
-  fromVersion: AgreementVersion | null
+  fromVersion: HistoryVersion | null
   /** The newer version to compare to */
-  toVersion: AgreementVersion | null
+  toVersion: HistoryVersion | null
   /** Optional callback to swap versions */
   onSwap?: () => void
 }

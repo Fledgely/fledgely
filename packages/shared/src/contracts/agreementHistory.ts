@@ -32,7 +32,7 @@ export type AgreementChange = z.infer<typeof agreementChangeSchema>
  * AC1: Timeline with versions and dates
  * AC2: Who proposed, who accepted, what changed
  */
-export const agreementVersionSchema = z.object({
+export const historyVersionSchema = z.object({
   /** Unique version ID */
   id: z.string().min(1),
   /** Sequential version number */
@@ -53,7 +53,7 @@ export const agreementVersionSchema = z.object({
   note: z.string().optional(),
 })
 
-export type AgreementVersion = z.infer<typeof agreementVersionSchema>
+export type HistoryVersion = z.infer<typeof historyVersionSchema>
 
 /**
  * UI messaging constants for agreement history.

@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AgreementVersionDiff } from './AgreementVersionDiff'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 // Mock shared package
 vi.mock('@fledgely/shared', () => ({
@@ -24,7 +24,7 @@ vi.mock('@fledgely/shared', () => ({
 }))
 
 describe('AgreementVersionDiff - Story 34.6', () => {
-  const fromVersion: AgreementVersion = {
+  const fromVersion: HistoryVersion = {
     id: 'v1',
     versionNumber: 1,
     proposerId: 'parent-1',
@@ -35,7 +35,7 @@ describe('AgreementVersionDiff - Story 34.6', () => {
     createdAt: new Date('2024-01-01'),
   }
 
-  const toVersion: AgreementVersion = {
+  const toVersion: HistoryVersion = {
     id: 'v2',
     versionNumber: 2,
     proposerId: 'parent-2',
@@ -122,7 +122,7 @@ describe('AgreementVersionDiff - Story 34.6', () => {
     })
 
     it('should show removed field indicator when present', () => {
-      const versionWithRemoval: AgreementVersion = {
+      const versionWithRemoval: HistoryVersion = {
         ...toVersion,
         changes: [
           {

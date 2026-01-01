@@ -5,7 +5,7 @@
  * AC6: Export available for records
  */
 
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 /**
  * Supported export formats.
@@ -44,7 +44,7 @@ interface JsonExport {
  * @param familyName - Name of the family
  * @returns JSON string of the export
  */
-export function exportHistoryAsJson(versions: AgreementVersion[], familyName: string): string {
+export function exportHistoryAsJson(versions: HistoryVersion[], familyName: string): string {
   const exportData: JsonExport = {
     familyName,
     exportedAt: new Date().toISOString(),
@@ -89,7 +89,7 @@ function formatDate(date: Date): string {
  * @param version - Agreement version to format
  * @returns Formatted text string
  */
-export function formatVersionForText(version: AgreementVersion): string {
+export function formatVersionForText(version: HistoryVersion): string {
   const lines: string[] = []
 
   lines.push(`=== Version ${version.versionNumber} ===`)
@@ -129,7 +129,7 @@ export function formatVersionForText(version: AgreementVersion): string {
  * @param familyName - Name of the family
  * @returns Text string of the export
  */
-export function exportHistoryAsText(versions: AgreementVersion[], familyName: string): string {
+export function exportHistoryAsText(versions: HistoryVersion[], familyName: string): string {
   const lines: string[] = []
 
   lines.push('═'.repeat(50))
@@ -170,7 +170,7 @@ export function exportHistoryAsText(versions: AgreementVersion[], familyName: st
  * @param format - Export format (json or text)
  */
 export function downloadExport(
-  versions: AgreementVersion[],
+  versions: HistoryVersion[],
   familyName: string,
   format: ExportFormat
 ): void {

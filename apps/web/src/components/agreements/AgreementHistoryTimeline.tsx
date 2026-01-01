@@ -7,15 +7,15 @@
  * AC4: "We've updated the agreement X times" summary
  */
 
-import { HISTORY_MESSAGES, getUpdateCountMessage, type AgreementVersion } from '@fledgely/shared'
+import { HISTORY_MESSAGES, getUpdateCountMessage, type HistoryVersion } from '@fledgely/shared'
 
 export interface AgreementHistoryTimelineProps {
   /** List of agreement versions to display */
-  versions: AgreementVersion[]
+  versions: HistoryVersion[]
   /** Currently selected version ID */
   selectedVersionId?: string
   /** Callback when a version is selected */
-  onVersionSelect?: (version: AgreementVersion) => void
+  onVersionSelect?: (version: HistoryVersion) => void
 }
 
 /**

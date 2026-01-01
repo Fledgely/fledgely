@@ -13,7 +13,7 @@ import {
   downloadExport,
   ExportFormat,
 } from './agreementExportService'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 // Mock Blob and URL
 const mockCreateObjectURL = vi.fn(() => 'blob:mock-url')
@@ -26,7 +26,7 @@ Object.defineProperty(global, 'URL', {
 })
 
 describe('Agreement Export Service - Story 34.6', () => {
-  const mockVersions: AgreementVersion[] = [
+  const mockVersions: HistoryVersion[] = [
     {
       id: 'v2',
       versionNumber: 2,

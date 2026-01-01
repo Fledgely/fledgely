@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useAgreementHistory } from './useAgreementHistory'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 // Mock Firebase
 vi.mock('firebase/firestore', () => ({
@@ -27,7 +27,7 @@ vi.mock('../lib/firebase', () => ({
 import { collection, orderBy, getDocs } from 'firebase/firestore'
 
 describe('useAgreementHistory - Story 34.6', () => {
-  const mockVersions: AgreementVersion[] = [
+  const mockVersions: HistoryVersion[] = [
     {
       id: 'v3',
       versionNumber: 3,

@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { collection, query, orderBy, getDocs } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 export interface UseAgreementHistoryParams {
   familyId: string
@@ -18,11 +18,11 @@ export interface UseAgreementHistoryParams {
 
 export interface UseAgreementHistoryResult {
   /** List of agreement versions, ordered by versionNumber descending */
-  versions: AgreementVersion[]
+  versions: HistoryVersion[]
   /** Total number of versions */
   versionCount: number
   /** Most recent version */
-  latestVersion: AgreementVersion | null
+  latestVersion: HistoryVersion | null
   /** Whether data is being fetched */
   loading: boolean
   /** Error message if fetch failed */
@@ -30,7 +30,7 @@ export interface UseAgreementHistoryResult {
   /** Refetch the history */
   refetch: () => Promise<void>
   /** Get a specific version by ID */
-  getVersionById: (id: string) => AgreementVersion | undefined
+  getVersionById: (id: string) => HistoryVersion | undefined
 }
 
 /**
@@ -41,7 +41,7 @@ export function useAgreementHistory({
   familyId,
   agreementId,
 }: UseAgreementHistoryParams): UseAgreementHistoryResult {
-  const [versions, setVersions] = useState<AgreementVersion[]>([])
+  const [versions, setVersions] = useState<HistoryVersion[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isMountedRef = useRef(true)
@@ -69,7 +69,7 @@ export function useAgreementHistory({
 
       if (!isMountedRef.current) return
 
-      const fetchedVersions: AgreementVersion[] = snapshot.docs.map((doc) => {
+      const fetchedVersions: HistoryVersion[] = snapshot.docs.map((doc) => {
         const data = doc.data()
         return {
           id: doc.id,
@@ -107,7 +107,7 @@ export function useAgreementHistory({
   }, [fetchVersions])
 
   const getVersionById = useCallback(
-    (id: string): AgreementVersion | undefined => {
+    (id: string): HistoryVersion | undefined => {
       return versions.find((v) => v.id === id)
     },
     [versions]

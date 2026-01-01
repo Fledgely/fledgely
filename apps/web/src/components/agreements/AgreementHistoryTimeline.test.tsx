@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AgreementHistoryTimeline } from './AgreementHistoryTimeline'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 // Mock shared package
 vi.mock('@fledgely/shared', () => ({
@@ -35,7 +35,7 @@ vi.mock('@fledgely/shared', () => ({
 }))
 
 describe('AgreementHistoryTimeline - Story 34.6', () => {
-  const mockVersions: AgreementVersion[] = [
+  const mockVersions: HistoryVersion[] = [
     {
       id: 'v3',
       versionNumber: 3,

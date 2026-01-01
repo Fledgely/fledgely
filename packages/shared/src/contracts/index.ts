@@ -6532,10 +6532,25 @@ export const AFTER_DECLINE_MESSAGES = {
 // Re-export agreement history types and constants (Story 34.6)
 export {
   agreementChangeSchema,
-  agreementVersionSchema,
+  historyVersionSchema,
   HISTORY_MESSAGES,
   getUpdateCountMessage,
   getGrowthMessage,
   type AgreementChange,
-  type AgreementVersion,
+  type HistoryVersion,
 } from './agreementHistory'
+
+// Re-export agreement expiry types and constants (Story 35.1)
+export {
+  expiryDurationSchema,
+  EXPIRY_DURATIONS,
+  EXPIRY_DURATION_LABELS,
+  EXPIRY_MESSAGES,
+  getRecommendedExpiry,
+  calculateExpiryDate,
+  isExpiringSoon,
+  getDaysUntilExpiry,
+  getAnnualReviewDate,
+  type ExpiryDuration,
+  type ExpiryDurationConfig,
+} from './agreementExpiry'

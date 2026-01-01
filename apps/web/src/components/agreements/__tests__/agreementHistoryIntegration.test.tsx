@@ -12,7 +12,7 @@ import { AgreementVersionDiff } from '../AgreementVersionDiff'
 import { AgreementHistorySummary } from '../AgreementHistorySummary'
 import { computeVersionDiff, hasChanges } from '../../../utils/agreementDiff'
 import { exportHistoryAsJson, exportHistoryAsText } from '../../../services/agreementExportService'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 // Mock shared package
 vi.mock('@fledgely/shared', () => ({
@@ -68,7 +68,7 @@ vi.mock('@fledgely/shared', () => ({
 }))
 
 describe('Agreement History Integration - Story 34.6', () => {
-  const mockVersions: AgreementVersion[] = [
+  const mockVersions: HistoryVersion[] = [
     {
       id: 'v5',
       versionNumber: 5,
@@ -290,7 +290,7 @@ describe('Agreement History Integration - Story 34.6', () => {
 
   describe('complete workflow integration', () => {
     it('should support timeline selection to diff view flow', async () => {
-      let selectedVersion: AgreementVersion | null = null
+      let selectedVersion: HistoryVersion | null = null
 
       const { rerender } = render(
         <div>

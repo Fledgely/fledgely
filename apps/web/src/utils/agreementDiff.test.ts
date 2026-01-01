@@ -12,10 +12,10 @@ import {
   hasChanges,
   type DiffEntry,
 } from './agreementDiff'
-import type { AgreementVersion } from '@fledgely/shared'
+import type { HistoryVersion } from '@fledgely/shared'
 
 describe('Agreement Diff Utility - Story 34.6', () => {
-  const baseVersion: AgreementVersion = {
+  const baseVersion: HistoryVersion = {
     id: 'v1',
     versionNumber: 1,
     proposerId: 'parent-1',
@@ -26,7 +26,7 @@ describe('Agreement Diff Utility - Story 34.6', () => {
     createdAt: new Date('2024-01-01'),
   }
 
-  const newerVersion: AgreementVersion = {
+  const newerVersion: HistoryVersion = {
     id: 'v2',
     versionNumber: 2,
     proposerId: 'parent-2',
@@ -80,7 +80,7 @@ describe('Agreement Diff Utility - Story 34.6', () => {
     })
 
     it('should identify removed fields', () => {
-      const versionWithRemoval: AgreementVersion = {
+      const versionWithRemoval: HistoryVersion = {
         ...newerVersion,
         changes: [
           {
@@ -198,7 +198,7 @@ describe('Agreement Diff Utility - Story 34.6', () => {
     })
 
     it('should handle complex nested field paths', () => {
-      const versionWithNested: AgreementVersion = {
+      const versionWithNested: HistoryVersion = {
         ...newerVersion,
         changes: [
           {
@@ -217,7 +217,7 @@ describe('Agreement Diff Utility - Story 34.6', () => {
     })
 
     it('should handle empty string values', () => {
-      const versionWithEmpty: AgreementVersion = {
+      const versionWithEmpty: HistoryVersion = {
         ...newerVersion,
         changes: [
           {

@@ -5,7 +5,7 @@
  * AC3: Diff view available for any two versions
  */
 
-import type { AgreementVersion, AgreementChange } from '@fledgely/shared'
+import type { HistoryVersion, AgreementChange } from '@fledgely/shared'
 
 /**
  * Type of change for a diff entry.
@@ -83,8 +83,8 @@ function getChangeType(change: AgreementChange): DiffEntryType {
  * @returns A VersionDiff object containing all changes
  */
 export function computeVersionDiff(
-  fromVersion: AgreementVersion,
-  toVersion: AgreementVersion
+  fromVersion: HistoryVersion,
+  toVersion: HistoryVersion
 ): VersionDiff {
   const entries: DiffEntry[] = toVersion.changes.map((change) => ({
     type: getChangeType(change),

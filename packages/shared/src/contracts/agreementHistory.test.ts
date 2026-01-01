@@ -10,12 +10,12 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  agreementVersionSchema,
+  historyVersionSchema,
   agreementChangeSchema,
   HISTORY_MESSAGES,
   getUpdateCountMessage,
   getGrowthMessage,
-  type AgreementVersion,
+  type HistoryVersion,
   type AgreementChange,
 } from './agreementHistory'
 
@@ -80,9 +80,9 @@ describe('Agreement History Types - Story 34.6', () => {
     })
   })
 
-  describe('agreementVersionSchema', () => {
+  describe('historyVersionSchema', () => {
     it('should validate a complete version record', () => {
-      const version: AgreementVersion = {
+      const version: HistoryVersion = {
         id: 'version-1',
         versionNumber: 1,
         proposerId: 'parent-1',
@@ -101,12 +101,12 @@ describe('Agreement History Types - Story 34.6', () => {
         note: 'Discussed and agreed during family meeting',
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(true)
     })
 
     it('should validate version without optional note', () => {
-      const version: AgreementVersion = {
+      const version: HistoryVersion = {
         id: 'version-2',
         versionNumber: 2,
         proposerId: 'parent-1',
@@ -117,7 +117,7 @@ describe('Agreement History Types - Story 34.6', () => {
         createdAt: new Date(),
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(true)
     })
 
@@ -131,7 +131,7 @@ describe('Agreement History Types - Story 34.6', () => {
         createdAt: new Date(),
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(false)
     })
 
@@ -145,7 +145,7 @@ describe('Agreement History Types - Story 34.6', () => {
         createdAt: new Date(),
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(false)
     })
 
@@ -160,7 +160,7 @@ describe('Agreement History Types - Story 34.6', () => {
         createdAt: new Date(),
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(false)
     })
 
@@ -175,7 +175,7 @@ describe('Agreement History Types - Story 34.6', () => {
         changes: [],
       }
 
-      const result = agreementVersionSchema.safeParse(version)
+      const result = historyVersionSchema.safeParse(version)
       expect(result.success).toBe(false)
     })
   })
