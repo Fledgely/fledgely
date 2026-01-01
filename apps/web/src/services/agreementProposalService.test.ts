@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createProposalNotification, logProposalActivity } from './agreementProposalService'
+import {
+  createProposalNotification,
+  logProposalActivity,
+  createParentNotifications,
+} from './agreementProposalService'
 
 // Mock @fledgely/shared
 vi.mock('@fledgely/shared', () => ({
@@ -15,15 +19,27 @@ vi.mock('@fledgely/shared', () => ({
     withdrawConfirmation: 'Are you sure you want to withdraw?',
     reasonPrompts: ["You've been responsible with gaming"],
   },
+  CHILD_PROPOSAL_MESSAGES: {
+    parentNotification: (name: string) => `${name} proposed a change to the agreement`,
+    pendingStatus: (name: string) => `Waiting for ${name} to review`,
+    encouragement: 'Tell your parents why this change would help you',
+    reasonPrompts: ["I've been responsible with my screen time lately"],
+    successMessage: 'Great job speaking up!',
+    confirmationMessage: 'Your request has been sent!',
+  },
 }))
 
 // Mock Firestore
 const mockAddDoc = vi.fn()
 const mockCollection = vi.fn()
+const mockDoc = vi.fn()
+const mockGetDoc = vi.fn()
 
 vi.mock('firebase/firestore', () => ({
   collection: (...args: unknown[]) => mockCollection(...args),
   addDoc: (...args: unknown[]) => mockAddDoc(...args),
+  doc: (...args: unknown[]) => mockDoc(...args),
+  getDoc: (...args: unknown[]) => mockGetDoc(...args),
   serverTimestamp: () => ({ _serverTimestamp: true }),
 }))
 
@@ -176,6 +192,118 @@ describe('agreementProposalService - Story 34.1', () => {
           description: expect.stringContaining('Mom'),
         })
       )
+    })
+  })
+
+  describe('createParentNotifications - Story 34.2 (AC4)', () => {
+    beforeEach(() => {
+      mockDoc.mockReturnValue({ _doc: 'family-ref' })
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          guardianUids: ['parent-1', 'parent-2'],
+        }),
+      })
+      mockAddDoc.mockResolvedValue({ id: 'notification-123' })
+    })
+
+    it('should get guardian UIDs from family document', async () => {
+      await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        childName: 'Emma',
+      })
+
+      expect(mockDoc).toHaveBeenCalled()
+      expect(mockGetDoc).toHaveBeenCalled()
+    })
+
+    it('should create notification for each guardian', async () => {
+      await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        childName: 'Emma',
+      })
+
+      // Should be called twice - once for each guardian
+      expect(mockAddDoc).toHaveBeenCalledTimes(2)
+    })
+
+    it('should include child name in notification body', async () => {
+      await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        childName: 'Emma',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('Emma'),
+        })
+      )
+    })
+
+    it('should include proposal ID in notification data', async () => {
+      await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-456',
+        childName: 'Emma',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            proposalId: 'proposal-456',
+          }),
+        })
+      )
+    })
+
+    it('should return all notification IDs', async () => {
+      mockAddDoc
+        .mockResolvedValueOnce({ id: 'notification-1' })
+        .mockResolvedValueOnce({ id: 'notification-2' })
+
+      const result = await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        childName: 'Emma',
+      })
+
+      expect(result).toEqual(['notification-1', 'notification-2'])
+    })
+
+    it('should handle single guardian family', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({
+          guardianUids: ['parent-1'],
+        }),
+      })
+
+      await createParentNotifications({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        childName: 'Emma',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledTimes(1)
+    })
+
+    it('should throw error if family not found', async () => {
+      mockGetDoc.mockResolvedValue({
+        exists: () => false,
+      })
+
+      await expect(
+        createParentNotifications({
+          familyId: 'invalid-family',
+          proposalId: 'proposal-123',
+          childName: 'Emma',
+        })
+      ).rejects.toThrow('Family not found')
     })
   })
 })

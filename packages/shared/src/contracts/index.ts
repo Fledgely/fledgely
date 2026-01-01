@@ -6351,3 +6351,33 @@ export const AGREEMENT_PROPOSAL_MESSAGES = {
     general: 'General Terms',
   },
 } as const
+
+/**
+ * Child proposal messages with age-appropriate, encouraging language.
+ *
+ * Story 34.2: Child-Initiated Agreement Change - AC2
+ */
+export const CHILD_PROPOSAL_MESSAGES = {
+  // Parent notification message (AC4)
+  parentNotification: (childName: string) => `${childName} proposed a change to the agreement`,
+
+  // Pending status message (AC5)
+  pendingStatus: (parentName: string) => `Waiting for ${parentName} to review`,
+
+  // Encouragement for reason field
+  encouragement: 'Tell your parents why this change would help you',
+
+  // Age-appropriate reason prompts (AC2)
+  reasonPrompts: [
+    "I've been responsible with my screen time lately",
+    'I need more gaming time for playing with friends',
+    'I think this rule is too strict for my age',
+    'I want to try having more freedom',
+  ],
+
+  // Success message on submission
+  successMessage: 'Great job speaking up!',
+
+  // Celebratory confirmation
+  confirmationMessage: "Your request has been sent! We're proud of you for sharing your thoughts.",
+} as const

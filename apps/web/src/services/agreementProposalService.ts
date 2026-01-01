@@ -1,13 +1,13 @@
 /**
- * Agreement Proposal Service - Story 34.1
+ * Agreement Proposal Service - Story 34.1, 34.2
  *
  * Handles proposal notifications and activity logging.
  * Follows patterns from agreementChangeService.ts.
  */
 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import { AGREEMENT_PROPOSAL_MESSAGES } from '@fledgely/shared'
+import { AGREEMENT_PROPOSAL_MESSAGES, CHILD_PROPOSAL_MESSAGES } from '@fledgely/shared'
 
 /**
  * Input for creating a proposal notification
@@ -97,4 +97,61 @@ export async function logProposalActivity(input: ProposalActivityInput): Promise
   const activityDoc = await addDoc(activityRef, activityData)
 
   return activityDoc.id
+}
+
+/**
+ * Input for creating parent notifications (child-initiated proposal)
+ */
+export interface ParentNotificationInput {
+  familyId: string
+  proposalId: string
+  childName: string
+}
+
+/**
+ * Create notifications for all guardians when a child submits a proposal.
+ *
+ * Story 34.2 AC4: All guardians in family receive notification
+ *
+ * @param input - Notification input data
+ * @returns Array of notification IDs
+ */
+export async function createParentNotifications(input: ParentNotificationInput): Promise<string[]> {
+  const db = getFirestoreDb()
+
+  // Get all guardian UIDs from family document
+  const familyRef = doc(db, 'families', input.familyId)
+  const familySnapshot = await getDoc(familyRef)
+
+  if (!familySnapshot.exists()) {
+    throw new Error('Family not found')
+  }
+
+  const familyData = familySnapshot.data()
+  const guardianUids: string[] = familyData.guardianUids || []
+
+  // Create notification for each guardian
+  const notificationIds: string[] = []
+  const notificationsRef = collection(db, 'notifications')
+
+  for (const guardianUid of guardianUids) {
+    const notificationData = {
+      familyId: input.familyId,
+      recipientId: guardianUid,
+      type: 'child_agreement_proposal',
+      title: 'Agreement Change Request',
+      body: CHILD_PROPOSAL_MESSAGES.parentNotification(input.childName),
+      data: {
+        proposalId: input.proposalId,
+        action: 'review_proposal',
+      },
+      read: false,
+      createdAt: serverTimestamp(),
+    }
+
+    const notificationDoc = await addDoc(notificationsRef, notificationData)
+    notificationIds.push(notificationDoc.id)
+  }
+
+  return notificationIds
 }

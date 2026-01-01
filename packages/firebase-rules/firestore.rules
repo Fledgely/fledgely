@@ -391,10 +391,12 @@ service cloud.firestore {
       // =========================================================================
       // EPIC 34: AGREEMENT CHANGES & PROPOSALS
       // Story 34.1: Parent-Initiated Agreement Change
+      // Story 34.2: Child-Initiated Agreement Change
       // =========================================================================
       //
       // Agreement proposals allow parents/children to propose changes to agreements.
-      // Only family guardians can create parent-initiated proposals.
+      // Guardians can create parent-initiated proposals.
+      // Children can create child-initiated proposals for their own agreements.
       // Both guardians and children can read proposals for transparency.
       // Proposals are preserved for audit trail (no deletion).
       //
@@ -406,16 +408,36 @@ service cloud.firestore {
             request.auth.uid in family.data.guardianUids;
         }
 
-        // Read: Guardians can view all proposals for their family
-        // Story 34.1 AC5: Child can review proposals (via custom token in future)
-        allow read: if isProposalGuardian();
+        // Helper: Check if user is a child in this family (via custom token)
+        // Story 34.2: Child authentication uses custom claims
+        function isChildInProposalFamily() {
+          return request.auth != null &&
+            request.auth.token.familyId == familyId;
+        }
 
-        // Create: Only guardians can create proposals
+        // Read: Guardians AND children can view proposals for their family
+        // Story 34.1 AC5: Child can review proposals
+        // Story 34.2 AC5: Child sees proposal status
+        allow read: if isProposalGuardian() || isChildInProposalFamily();
+
+        // Create: Guardians can create parent-initiated proposals
         // Story 34.1 AC4: Parent submits proposal
         // Must set themselves as proposer and start with pending status
         allow create: if isProposalGuardian() &&
           request.resource.data.familyId == familyId &&
           request.resource.data.proposerId == request.auth.uid &&
+          request.resource.data.proposedBy == 'parent' &&
+          request.resource.data.status == 'pending';
+
+        // Create: Children can create child-initiated proposals
+        // Story 34.2 AC3: Child submits proposal
+        // Must set themselves as proposer and start with pending status
+        // Child can only propose changes for their own agreement
+        allow create: if isChildInProposalFamily() &&
+          request.resource.data.familyId == familyId &&
+          request.resource.data.proposerId == request.auth.uid &&
+          request.resource.data.childId == request.auth.token.childId &&
+          request.resource.data.proposedBy == 'child' &&
           request.resource.data.status == 'pending';
 
         // Update: Guardians can withdraw their own proposals
@@ -423,6 +445,19 @@ service cloud.firestore {
         // Can only change status from pending to withdrawn
         allow update: if isProposalGuardian() &&
           resource.data.proposerId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'withdrawn' &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId;
+
+        // Update: Children can withdraw their own proposals
+        // Story 34.2 AC5: Child can withdraw proposal before parent responds
+        // Can only change status from pending to withdrawn
+        allow update: if isChildInProposalFamily() &&
+          resource.data.proposerId == request.auth.uid &&
+          resource.data.proposedBy == 'child' &&
           resource.data.status == 'pending' &&
           request.resource.data.status == 'withdrawn' &&
           // Preserve immutable fields

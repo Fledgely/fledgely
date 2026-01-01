@@ -488,7 +488,7 @@ development_status:
   # Epic 34: Agreement Changes & Proposals
   epic-34: in-progress
   34-1-parent-initiated-agreement-change: done
-  34-2-child-initiated-agreement-change: backlog
+  34-2-child-initiated-agreement-change: done
   34-3-change-review-and-negotiation: backlog
   34-4-dual-signature-change-activation: backlog
   34-5-change-decline-handling: backlog
