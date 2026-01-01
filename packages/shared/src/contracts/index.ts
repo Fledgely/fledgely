@@ -4411,3 +4411,36 @@ export const childTimeLimitsSchema = z.object({
   version: z.number().default(1),
 })
 export type ChildTimeLimits = z.infer<typeof childTimeLimitsSchema>
+
+// ============================================================================
+// Custom Category Schema (Story 30.4)
+// ============================================================================
+
+/**
+ * Custom category for family-specific app grouping.
+ * Story 30.4: Custom Category Creation - AC1, AC2, AC6
+ *
+ * Stored at: /families/{familyId}/customCategories/{categoryId}
+ */
+export const customCategorySchema = z.object({
+  /** Unique category identifier */
+  id: z.string(),
+  /** Family this category belongs to */
+  familyId: z.string(),
+  /** Category name (max 30 characters) - AC1 */
+  name: z.string().max(30),
+  /** Apps/sites assigned to this category (URLs or app identifiers) - AC2 */
+  apps: z.array(z.string()).default([]),
+  /** Icon color for display */
+  color: z.string().optional(),
+  /** User ID who created this category */
+  createdBy: z.string(),
+  /** Created timestamp (epoch ms) */
+  createdAt: z.number(),
+  /** Last updated timestamp (epoch ms) */
+  updatedAt: z.number(),
+})
+export type CustomCategory = z.infer<typeof customCategorySchema>
+
+/** Maximum custom categories per family - AC6 */
+export const MAX_CUSTOM_CATEGORIES_PER_FAMILY = 10

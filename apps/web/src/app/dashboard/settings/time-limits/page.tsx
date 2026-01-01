@@ -5,6 +5,7 @@
  *
  * Story 30.2: Daily Total Limit Configuration
  * Story 30.3: Per-Category Limit Configuration
+ * Story 30.4: Custom Category Creation
  *
  * Allows guardians to configure daily screen time limits:
  * - AC1: Slider for total minutes (30m-8h range)
@@ -14,6 +15,7 @@
  * - AC5: Cross-device limit indication
  * - AC6: Agreement update notification
  * - Story 30.3: Per-category limits with icons
+ * - Story 30.4: Custom category creation
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -21,12 +23,15 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamily } from '../../../../contexts/FamilyContext'
 import { useChildTimeLimits, type TimeLimitsConfig } from '../../../../hooks/useChildTimeLimits'
+import { useCustomCategories } from '../../../../hooks/useCustomCategories'
 import { formatMinutes } from '../../../../utils/formatTime'
 import {
   CategoryLimitCard,
   getDefaultCategoryLimits,
   type CategoryLimit as CategoryLimitUI,
 } from '../../../../components/settings/CategoryLimitCard'
+import { CustomCategoryModal } from '../../../../components/settings/CustomCategoryModal'
+import type { CustomCategory } from '@fledgely/shared'
 
 const styles = {
   main: {
@@ -332,6 +337,81 @@ const styles = {
     fontSize: '14px',
     textAlign: 'center' as const,
   },
+  addCategoryButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    width: '100%',
+    padding: '14px',
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#10b981',
+    backgroundColor: '#f0fdf4',
+    border: '1px dashed #86efac',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    marginTop: '12px',
+    transition: 'background-color 0.2s',
+  },
+  addCategoryButtonDisabled: {
+    color: '#9ca3af',
+    backgroundColor: '#f9fafb',
+    border: '1px dashed #d1d5db',
+    cursor: 'not-allowed',
+  },
+  customCategorySection: {
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #e5e7eb',
+  },
+  customCategoryHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '12px',
+  },
+  customCategoryTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#374151',
+  },
+  customCategoryItem: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '12px 16px',
+    backgroundColor: '#f9fafb',
+    borderRadius: '8px',
+    marginBottom: '8px',
+  },
+  customCategoryName: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#1f2937',
+  },
+  customCategoryApps: {
+    fontSize: '12px',
+    color: '#6b7280',
+    marginTop: '2px',
+  },
+  customCategoryActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  iconButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    color: '#6b7280',
+    transition: 'background-color 0.2s, color 0.2s',
+  },
 }
 
 // Time limit range: 30 minutes to 8 hours (480 minutes)
@@ -375,6 +455,10 @@ export default function TimeLimitsSettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Custom categories modal state - Story 30.4
+  const [isCustomCategoryModalOpen, setIsCustomCategoryModalOpen] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<CustomCategory | null>(null)
+
   const {
     limits,
     categoryLimits,
@@ -385,6 +469,19 @@ export default function TimeLimitsSettingsPage() {
     familyId: family?.id ?? null,
     childId: selectedChildId,
     enabled: !!selectedChildId,
+  })
+
+  // Custom categories - Story 30.4
+  const {
+    categories: customCategories,
+    loading: customCategoriesLoading,
+    canAddMore: canAddMoreCategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+  } = useCustomCategories({
+    familyId: family?.id ?? null,
+    enabled: !!family?.id,
   })
 
   // Compute hasChanges locally by comparing localLimits with limits from hook
@@ -459,6 +556,49 @@ export default function TimeLimitsSettingsPage() {
     []
   )
 
+  // Custom category handlers - Story 30.4
+  const handleOpenCreateCategory = useCallback(() => {
+    setEditingCategory(null)
+    setIsCustomCategoryModalOpen(true)
+  }, [])
+
+  const handleOpenEditCategory = useCallback((category: CustomCategory) => {
+    setEditingCategory(category)
+    setIsCustomCategoryModalOpen(true)
+  }, [])
+
+  const handleCloseCustomCategoryModal = useCallback(() => {
+    setIsCustomCategoryModalOpen(false)
+    setEditingCategory(null)
+  }, [])
+
+  const handleSaveCustomCategory = useCallback(
+    async (name: string, apps: string[]) => {
+      if (!firebaseUser) {
+        return { success: false, error: 'Not authenticated' }
+      }
+
+      if (editingCategory) {
+        // Update existing category
+        return await updateCategory(editingCategory.id, { name, apps })
+      } else {
+        // Create new category
+        return await createCategory(name, firebaseUser.uid, apps)
+      }
+    },
+    [firebaseUser, editingCategory, createCategory, updateCategory]
+  )
+
+  const handleDeleteCustomCategory = useCallback(
+    async (categoryId: string) => {
+      const result = await deleteCategory(categoryId)
+      if (!result.success) {
+        setSaveError(result.error || 'Failed to delete category')
+      }
+    },
+    [deleteCategory]
+  )
+
   // Clear success/error message after 3 seconds
   useEffect(() => {
     if (saveSuccess || saveError) {
@@ -519,7 +659,11 @@ export default function TimeLimitsSettingsPage() {
     }
   }
 
-  const isLoading = authLoading || familyLoading || (selectedChildId ? limitsLoading : false)
+  const isLoading =
+    authLoading ||
+    familyLoading ||
+    customCategoriesLoading ||
+    (selectedChildId ? limitsLoading : false)
 
   if (isLoading) {
     return (
@@ -847,6 +991,88 @@ export default function TimeLimitsSettingsPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Custom Categories - Story 30.4 */}
+                  <div style={styles.customCategorySection}>
+                    <div style={styles.customCategoryHeader}>
+                      <span style={styles.customCategoryTitle}>Custom Categories</span>
+                    </div>
+
+                    {customCategories.length > 0 && (
+                      <div style={{ marginBottom: '12px' }}>
+                        {customCategories.map((category) => (
+                          <div key={category.id} style={styles.customCategoryItem}>
+                            <div>
+                              <div style={styles.customCategoryName}>{category.name}</div>
+                              <div style={styles.customCategoryApps}>
+                                {category.apps.length > 0
+                                  ? `${category.apps.length} app${category.apps.length > 1 ? 's' : ''}`
+                                  : 'No apps assigned'}
+                              </div>
+                            </div>
+                            <div style={styles.customCategoryActions}>
+                              <button
+                                style={styles.iconButton}
+                                onClick={() => handleOpenEditCategory(category)}
+                                aria-label={`Edit ${category.name}`}
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                              <button
+                                style={{ ...styles.iconButton, color: '#ef4444' }}
+                                onClick={() => handleDeleteCustomCategory(category.id)}
+                                aria-label={`Delete ${category.name}`}
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                >
+                                  <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      style={{
+                        ...styles.addCategoryButton,
+                        ...(canAddMoreCategories ? {} : styles.addCategoryButtonDisabled),
+                      }}
+                      onClick={handleOpenCreateCategory}
+                      disabled={!canAddMoreCategories}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      {canAddMoreCategories
+                        ? 'Create Custom Category'
+                        : 'Maximum categories reached (10)'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Save Button */}
@@ -899,6 +1125,19 @@ export default function TimeLimitsSettingsPage() {
           background: #9ca3af;
         }
       `}</style>
+
+      {/* Custom Category Modal - Story 30.4 */}
+      <CustomCategoryModal
+        isOpen={isCustomCategoryModalOpen}
+        onClose={handleCloseCustomCategoryModal}
+        onSave={handleSaveCustomCategory}
+        existingCategory={
+          editingCategory
+            ? { id: editingCategory.id, name: editingCategory.name, apps: editingCategory.apps }
+            : undefined
+        }
+        canAddMore={canAddMoreCategories}
+      />
     </main>
   )
 }

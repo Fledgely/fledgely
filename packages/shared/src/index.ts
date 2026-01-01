@@ -398,3 +398,10 @@ export {
   type TimeLimit,
   type ChildTimeLimits,
 } from './contracts'
+
+// Custom category exports (Story 30.4)
+export {
+  customCategorySchema,
+  MAX_CUSTOM_CATEGORIES_PER_FAMILY,
+  type CustomCategory,
+} from './contracts'
