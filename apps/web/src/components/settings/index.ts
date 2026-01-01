@@ -19,3 +19,7 @@ export type { GrantExtensionButtonProps, OneTimeExtension } from './GrantExtensi
 // Story 19D.5: Caregiver Quick Revocation
 export { RevokeAccessButton } from './RevokeAccessButton'
 export type { RevokeAccessButtonProps } from './RevokeAccessButton'
+
+// Story 32.5: Offline Time Exceptions
+export { OfflineExceptionCard } from './OfflineExceptionCard'
+export { ExceptionHistoryCard } from './ExceptionHistoryCard'

@@ -24,6 +24,11 @@
 interface FamilyOfflineBlockMessage {
   type: 'SHOW_FAMILY_OFFLINE_BLOCK'
   minutesUntilEnd: number | null
+  // Story 32.5: Exception info for overlay display
+  exception?: {
+    type: 'pause' | 'skip' | 'work' | 'homework'
+    requestedByName?: string
+  } | null
 }
 
 interface FamilyOfflineUnblockMessage {
@@ -35,14 +40,104 @@ let isOverlayVisible = false
 let countdownInterval: ReturnType<typeof setInterval> | null = null
 
 /**
- * Create the family offline overlay element
+ * Get overlay content based on exception type
+ * Story 32.5 AC4: Show exception status in blocking overlay
  */
-function createFamilyOfflineOverlay(minutesUntilEnd: number | null): HTMLDivElement {
+function getOverlayContent(exception?: FamilyOfflineBlockMessage['exception']): {
+  icon: string
+  title: string
+  message: string
+  showActivities: boolean
+  activitiesContent: string
+  countdownLabel: string
+  footerMessage: string
+  bgGradient: string
+} {
+  // Default family offline content
+  const defaultContent = {
+    icon: '👨‍👩‍👧‍👦',
+    title: "It's Family Offline Time!",
+    message:
+      'Time to connect with your family - screens off, together time on!<br>This is your special time to be present with each other.',
+    showActivities: true,
+    activitiesContent: `
+      <h3>Family activity ideas:</h3>
+      <ul>
+        <li><span class="emoji">🎲</span> Play a board game together</li>
+        <li><span class="emoji">🍽️</span> Help prepare or enjoy dinner</li>
+        <li><span class="emoji">📖</span> Read stories together</li>
+        <li><span class="emoji">🚶</span> Take a family walk</li>
+        <li><span class="emoji">💬</span> Share stories from your day</li>
+        <li><span class="emoji">🎨</span> Create something together</li>
+      </ul>
+    `,
+    countdownLabel: 'Family time ends in',
+    footerMessage: 'Quality time together makes families stronger',
+    bgGradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #15803d 100%)',
+  }
+
+  if (!exception) {
+    return defaultContent
+  }
+
+  // Story 32.5 AC4: Homework exception - education sites only
+  if (exception.type === 'homework') {
+    return {
+      icon: '📚',
+      title: 'Homework Mode Active',
+      message:
+        "You're in homework mode! This site isn't for schoolwork.<br>Try visiting an education website like Khan Academy or Wikipedia.",
+      showActivities: true,
+      activitiesContent: `
+        <h3>Try these education sites:</h3>
+        <ul>
+          <li><span class="emoji">🎓</span> Khan Academy for lessons</li>
+          <li><span class="emoji">📖</span> Wikipedia for research</li>
+          <li><span class="emoji">📝</span> Google Docs for writing</li>
+          <li><span class="emoji">🔢</span> Mathway for math help</li>
+          <li><span class="emoji">🌍</span> Duolingo for languages</li>
+        </ul>
+      `,
+      countdownLabel: 'Homework time ends in',
+      footerMessage: 'Focus on your studies - you can do it! 📖',
+      bgGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)',
+    }
+  }
+
+  // Story 32.5 AC3: Work exception - whitelisted work sites only
+  if (exception.type === 'work') {
+    const parentName = exception.requestedByName || 'A parent'
+    return {
+      icon: '💼',
+      title: `${parentName} is Working`,
+      message:
+        "This site isn't on the work list during family offline time.<br>Non-work browsing is blocked right now.",
+      showActivities: false,
+      activitiesContent: '',
+      countdownLabel: 'Work exception ends in',
+      footerMessage: 'Work exception is active',
+      bgGradient: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+    }
+  }
+
+  return defaultContent
+}
+
+/**
+ * Create the family offline overlay element
+ * Story 32.5: Now supports exception-specific messaging
+ */
+function createFamilyOfflineOverlay(
+  minutesUntilEnd: number | null,
+  exception?: FamilyOfflineBlockMessage['exception']
+): HTMLDivElement {
   const overlay = document.createElement('div')
   overlay.id = 'fledgely-family-offline'
   overlay.setAttribute('role', 'dialog')
   overlay.setAttribute('aria-modal', 'true')
   overlay.setAttribute('aria-labelledby', 'fledgely-family-title')
+
+  const content = getOverlayContent(exception)
 
   overlay.innerHTML = `
     <style>
@@ -52,7 +147,7 @@ function createFamilyOfflineOverlay(minutesUntilEnd: number | null): HTMLDivElem
         left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
-        background: linear-gradient(135deg, #22c55e 0%, #16a34a 50%, #15803d 100%) !important;
+        background: ${content.bgGradient} !important;
         z-index: 2147483647 !important;
         display: flex !important;
         flex-direction: column !important;
@@ -174,31 +269,24 @@ function createFamilyOfflineOverlay(minutesUntilEnd: number | null): HTMLDivElem
     </style>
 
     <div class="fledgely-family-container">
-      <div class="fledgely-family-icon">👨‍👩‍👧‍👦</div>
+      <div class="fledgely-family-icon">${content.icon}</div>
 
       <h1 id="fledgely-family-title" class="fledgely-family-title">
-        It's Family Offline Time!
+        ${content.title}
       </h1>
 
       <p class="fledgely-family-message">
-        Time to connect with your family - screens off, together time on!<br>
-        This is your special time to be present with each other.
+        ${content.message}
       </p>
 
-      <div class="fledgely-family-activities">
-        <h3>Family activity ideas:</h3>
-        <ul>
-          <li><span class="emoji">🎲</span> Play a board game together</li>
-          <li><span class="emoji">🍽️</span> Help prepare or enjoy dinner</li>
-          <li><span class="emoji">📖</span> Read stories together</li>
-          <li><span class="emoji">🚶</span> Take a family walk</li>
-          <li><span class="emoji">💬</span> Share stories from your day</li>
-          <li><span class="emoji">🎨</span> Create something together</li>
-        </ul>
-      </div>
+      ${
+        content.showActivities
+          ? `<div class="fledgely-family-activities">${content.activitiesContent}</div>`
+          : ''
+      }
 
       <div class="fledgely-family-countdown" id="fledgely-countdown-container">
-        Family time ends in
+        ${content.countdownLabel}
         <span class="fledgely-family-countdown-time" id="fledgely-countdown-time">
           ${formatCountdown(minutesUntilEnd)}
         </span>
@@ -206,7 +294,7 @@ function createFamilyOfflineOverlay(minutesUntilEnd: number | null): HTMLDivElem
 
       <p class="fledgely-family-footer">
         <span class="fledgely-family-heart">❤️</span>
-        Quality time together makes families stronger
+        ${content.footerMessage}
         <span class="fledgely-family-heart">❤️</span>
       </p>
     </div>
@@ -251,8 +339,12 @@ function updateCountdown(): void {
 
 /**
  * Show the family offline overlay
+ * Story 32.5: Now accepts exception info for appropriate messaging
  */
-function showFamilyOfflineOverlay(minutesUntilEnd: number | null): void {
+function showFamilyOfflineOverlay(
+  minutesUntilEnd: number | null,
+  exception?: FamilyOfflineBlockMessage['exception']
+): void {
   if (isOverlayVisible) return
 
   // Remove any existing overlay
@@ -261,7 +353,7 @@ function showFamilyOfflineOverlay(minutesUntilEnd: number | null): void {
     existing.remove()
   }
 
-  const overlay = createFamilyOfflineOverlay(minutesUntilEnd)
+  const overlay = createFamilyOfflineOverlay(minutesUntilEnd, exception)
   document.body.appendChild(overlay)
   isOverlayVisible = true
 
@@ -271,7 +363,7 @@ function showFamilyOfflineOverlay(minutesUntilEnd: number | null): void {
   }
   countdownInterval = setInterval(updateCountdown, 60000) // Every minute
 
-  console.log('[Fledgely] Family offline overlay shown')
+  console.log('[Fledgely] Family offline overlay shown', exception ? `(${exception.type})` : '')
 }
 
 /**
@@ -311,11 +403,13 @@ async function checkOfflineBlockingState(): Promise<void> {
 
 /**
  * Listen for messages from background script
+ * Story 32.5: Now handles exception info for appropriate messaging
  */
 chrome.runtime.onMessage.addListener(
   (message: FamilyOfflineBlockMessage | FamilyOfflineUnblockMessage, _sender, sendResponse) => {
     if (message.type === 'SHOW_FAMILY_OFFLINE_BLOCK') {
-      showFamilyOfflineOverlay((message as FamilyOfflineBlockMessage).minutesUntilEnd)
+      const blockMessage = message as FamilyOfflineBlockMessage
+      showFamilyOfflineOverlay(blockMessage.minutesUntilEnd, blockMessage.exception)
       sendResponse({ success: true })
     } else if (message.type === 'HIDE_FAMILY_OFFLINE_BLOCK') {
       hideFamilyOfflineOverlay()

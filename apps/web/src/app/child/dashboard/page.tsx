@@ -33,6 +33,7 @@ import { ChildScreenTimeCard } from '../../../components/child/ChildScreenTimeCa
 import { ChildOfflineScheduleCard } from '../../../components/child/ChildOfflineScheduleCard'
 import { ChildEnrolledDevicesCard } from '../../../components/child/ChildEnrolledDevicesCard'
 import { ParentComplianceCard } from '../../../components/child/ParentComplianceCard'
+import { HomeworkExceptionRequest } from '../../../components/child/HomeworkExceptionRequest'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
@@ -48,6 +49,8 @@ import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndic
 import { useChildResolutions } from '../../../hooks/useChildResolutions'
 import { useFamilyOfflineSchedule } from '../../../hooks/useFamilyOfflineSchedule'
 import { useParentDeviceEnrollment } from '../../../hooks/useParentDeviceEnrollment'
+import { useOfflineExceptions } from '../../../hooks/useOfflineExceptions'
+import { ExceptionHistoryCard } from '../../../components/settings/ExceptionHistoryCard'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -252,6 +255,12 @@ function DashboardContent() {
     childSession?.familyId
   )
 
+  // Story 32.5 - Offline exceptions for audit display (AC6)
+  const { exceptions: offlineExceptions, loading: exceptionsLoading } = useOfflineExceptions({
+    familyId: childSession?.familyId ?? null,
+    enabled: !!childSession?.familyId,
+  })
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -376,6 +385,22 @@ function DashboardContent() {
 
         {/* Story 32.4 - Parent Compliance Card (AC2, AC4) */}
         <ParentComplianceCard familyId={childSession?.familyId} />
+
+        {/* Story 32.5 - Homework Exception Request (AC4) */}
+        <HomeworkExceptionRequest
+          familyId={childSession?.familyId ?? null}
+          childId={childSession?.childId ?? null}
+          childName={childSession?.childName ?? 'Child'}
+          isOfflineTimeActive={offlineSchedule?.enabled ?? false}
+        />
+
+        {/* Story 32.5 - Exception History (AC6) - Child-friendly view */}
+        <ExceptionHistoryCard
+          exceptions={offlineExceptions}
+          loading={exceptionsLoading}
+          isChildView={true}
+          limit={5}
+        />
 
         {/* Story 27.5.2: Health Check-In Prompt Banner */}
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}

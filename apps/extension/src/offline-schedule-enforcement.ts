@@ -48,6 +48,60 @@ export interface ParentEnrolledDevice {
 // Storage keys
 const STORAGE_KEY_OFFLINE_SCHEDULE = 'offlineSchedule'
 const STORAGE_KEY_DEVICE_INFO = 'enrolledDeviceInfo'
+const STORAGE_KEY_ACTIVE_EXCEPTION = 'activeOfflineException'
+
+// ============================================================================
+// Story 32.5: Offline Exception Types
+// ============================================================================
+
+/**
+ * Offline exception types - matches shared schema
+ */
+export type OfflineExceptionType = 'pause' | 'skip' | 'work' | 'homework'
+export type OfflineExceptionStatus = 'active' | 'completed' | 'cancelled'
+
+/**
+ * Offline exception record
+ * Story 32.5: Exceptions to offline time enforcement
+ */
+export interface OfflineException {
+  id: string
+  familyId: string
+  type: OfflineExceptionType
+  requestedBy: string
+  requestedByName?: string
+  approvedBy?: string
+  startTime: number
+  endTime: number | null
+  status: OfflineExceptionStatus
+  createdAt: number
+  whitelistedUrls?: string[]
+  whitelistedCategories?: string[]
+}
+
+/**
+ * Education-related categories for homework exceptions
+ * Story 32.5 AC4: Only education apps allowed during homework exception
+ */
+export const EDUCATION_CATEGORIES = ['education', 'reference', 'learning', 'research', 'academic']
+
+/**
+ * Common education domains for homework exceptions
+ */
+export const EDUCATION_DOMAINS = [
+  'khanacademy.org',
+  'coursera.org',
+  'edx.org',
+  'wikipedia.org',
+  'wolframalpha.com',
+  'quizlet.com',
+  'mathway.com',
+  'duolingo.com',
+  'google.com/search', // Google Search for research
+  'scholar.google.com',
+  'docs.google.com',
+  'drive.google.com',
+]
 
 // Firebase Cloud Functions API
 const FIREBASE_PROJECT_ID = 'fledgely-cns-me'
@@ -96,6 +150,10 @@ export interface OfflineScheduleState {
   isWarningActive: boolean
   minutesUntilStart: number | null
   minutesUntilEnd: number | null
+  /** Story 32.5: Active exception that bypasses enforcement */
+  activeException: OfflineException | null
+  /** Story 32.5: Whether enforcement is bypassed due to exception */
+  isExceptionActive: boolean
 }
 
 /**
@@ -145,6 +203,140 @@ export async function getEnrolledDeviceInfo(): Promise<EnrolledDeviceInfo | null
  */
 export async function saveEnrolledDeviceInfo(info: EnrolledDeviceInfo): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY_DEVICE_INFO]: info })
+}
+
+// ============================================================================
+// Story 32.5: Exception Storage Functions
+// ============================================================================
+
+/**
+ * Get cached active exception from storage
+ * Story 32.5 AC1-5: Check for active exceptions before blocking
+ */
+export async function getActiveException(): Promise<OfflineException | null> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_ACTIVE_EXCEPTION)
+    const exception = result[STORAGE_KEY_ACTIVE_EXCEPTION] as OfflineException | null
+
+    if (!exception) return null
+
+    // Check if exception is still valid
+    if (exception.status !== 'active') return null
+
+    // Check if exception has expired
+    if (exception.endTime && exception.endTime < Date.now()) {
+      // Exception expired, clear it
+      await clearActiveException()
+      return null
+    }
+
+    return exception
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Save active exception to storage
+ * Story 32.5: Cache exception for quick access during enforcement
+ */
+export async function saveActiveException(exception: OfflineException): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEY_ACTIVE_EXCEPTION]: exception })
+}
+
+/**
+ * Clear active exception from storage
+ * Story 32.5: Called when exception ends or is cancelled
+ */
+export async function clearActiveException(): Promise<void> {
+  await chrome.storage.local.remove(STORAGE_KEY_ACTIVE_EXCEPTION)
+}
+
+/**
+ * Sync active exception from Firestore
+ * Story 32.5: Fetch latest exception state from server
+ */
+export async function syncActiveException(familyId: string): Promise<OfflineException | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/getActiveOfflineException`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ familyId }),
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        // No active exception
+        await clearActiveException()
+        return null
+      }
+      console.error('[Fledgely] Failed to fetch active exception:', response.status)
+      return null
+    }
+
+    const exception = (await response.json()) as OfflineException
+    await saveActiveException(exception)
+    console.log('[Fledgely] Active exception synced:', exception.type)
+    return exception
+  } catch (error) {
+    console.error('[Fledgely] Error syncing active exception:', error)
+    return null
+  }
+}
+
+/**
+ * Check if URL is allowed during a homework exception
+ * Story 32.5 AC4: Only education apps allowed during homework exception
+ */
+export function isUrlAllowedForHomework(url: string, exception: OfflineException): boolean {
+  try {
+    const urlObj = new URL(url)
+    const hostname = urlObj.hostname.toLowerCase()
+
+    // Check whitelisted URLs from exception
+    if (exception.whitelistedUrls?.length) {
+      for (const whitelistedUrl of exception.whitelistedUrls) {
+        if (hostname.includes(whitelistedUrl.toLowerCase())) {
+          return true
+        }
+      }
+    }
+
+    // Check default education domains
+    for (const eduDomain of EDUCATION_DOMAINS) {
+      if (hostname.includes(eduDomain) || url.includes(eduDomain)) {
+        return true
+      }
+    }
+
+    return false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if URL is allowed during a work exception
+ * Story 32.5 AC3: Whitelisted work apps/sites during work exception
+ */
+export function isUrlAllowedForWork(url: string, exception: OfflineException): boolean {
+  try {
+    const urlObj = new URL(url)
+    const hostname = urlObj.hostname.toLowerCase()
+
+    // Check whitelisted URLs from exception
+    if (exception.whitelistedUrls?.length) {
+      for (const whitelistedUrl of exception.whitelistedUrls) {
+        if (hostname.includes(whitelistedUrl.toLowerCase())) {
+          return true
+        }
+      }
+    }
+
+    return false
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -282,7 +474,7 @@ export async function isParentDevice(): Promise<boolean> {
  * Never blocks:
  * - Chrome internal pages
  * - Extension pages
- * - Crisis/emergency resources
+ * - Crisis/emergency resources (AC2: Emergency contacts always reachable)
  */
 export function shouldBlockForOffline(url: string): boolean {
   try {
@@ -293,7 +485,7 @@ export function shouldBlockForOffline(url: string): boolean {
       return false
     }
 
-    // Never block crisis resources (AC4)
+    // Story 32.5 AC2: Never block crisis resources
     // Uses the same isUrlProtected logic as screenshot capture
     if (isUrlProtected(url)) {
       return false
@@ -307,10 +499,53 @@ export function shouldBlockForOffline(url: string): boolean {
 }
 
 /**
+ * Check if URL should be blocked considering active exceptions
+ * Story 32.5: Check for pause, skip, work, homework exceptions
+ *
+ * @param url - URL to check
+ * @param exception - Active exception (if any)
+ * @returns true if URL should be blocked
+ */
+export function shouldBlockForOfflineWithException(
+  url: string,
+  exception: OfflineException | null
+): boolean {
+  // First check basic blocking rules
+  if (!shouldBlockForOffline(url)) {
+    return false
+  }
+
+  // If no exception, block normally
+  if (!exception || exception.status !== 'active') {
+    return true
+  }
+
+  // Story 32.5 AC1 & AC5: Pause or Skip exceptions bypass all blocking
+  if (exception.type === 'pause' || exception.type === 'skip') {
+    return false
+  }
+
+  // Story 32.5 AC3: Work exception - only whitelisted work sites allowed
+  if (exception.type === 'work') {
+    return !isUrlAllowedForWork(url, exception)
+  }
+
+  // Story 32.5 AC4: Homework exception - only education sites allowed
+  if (exception.type === 'homework') {
+    return !isUrlAllowedForHomework(url, exception)
+  }
+
+  // Unknown exception type, block normally
+  return true
+}
+
+/**
  * Get current offline schedule state
+ * Story 32.5: Now includes active exception info
  */
 export async function getOfflineScheduleState(): Promise<OfflineScheduleState> {
   const schedule = await getOfflineSchedule()
+  const activeException = await getActiveException()
 
   if (!schedule || !schedule.enabled) {
     return {
@@ -319,15 +554,21 @@ export async function getOfflineScheduleState(): Promise<OfflineScheduleState> {
       isWarningActive: false,
       minutesUntilStart: null,
       minutesUntilEnd: null,
+      activeException: null,
+      isExceptionActive: false,
     }
   }
 
+  const isInWindow = isWithinOfflineWindow(schedule)
+
   return {
     schedule,
-    isInOfflineWindow: isWithinOfflineWindow(schedule),
+    isInOfflineWindow: isInWindow,
     isWarningActive: isWarningActive(schedule),
     minutesUntilStart: getMinutesUntilStart(schedule),
     minutesUntilEnd: getMinutesUntilEnd(schedule),
+    activeException: isInWindow ? activeException : null,
+    isExceptionActive: isInWindow && activeException !== null,
   }
 }
 
@@ -529,6 +770,7 @@ export async function stopOfflineEnforcement(): Promise<void> {
 /**
  * Check and handle offline schedule - called periodically
  * Story 32.4: Also tracks parent compliance during offline windows
+ * Story 32.5: Now checks for active exceptions before enforcing
  */
 export async function checkOfflineSchedule(): Promise<void> {
   const scheduleState = await getOfflineScheduleState()
@@ -550,6 +792,13 @@ export async function checkOfflineSchedule(): Promise<void> {
 
   // Handle offline window
   if (scheduleState.isInOfflineWindow) {
+    // Story 32.5: Check for active exceptions
+    const exception = scheduleState.activeException
+
+    // Story 32.5 AC1 & AC5: If pause or skip exception, no enforcement
+    const shouldSkipEnforcement =
+      exception && (exception.type === 'pause' || exception.type === 'skip')
+
     if (isParent) {
       // Parents get reminder only (AC3)
       if (!enforcementState.isEnforcing) {
@@ -561,9 +810,20 @@ export async function checkOfflineSchedule(): Promise<void> {
         await startParentComplianceWindow()
       }
     } else {
-      // Children get full enforcement (AC1, AC2)
-      if (!enforcementState.isEnforcing) {
+      // Children get enforcement (AC1, AC2)
+      if (shouldSkipEnforcement) {
+        // Story 32.5: Exception active - stop enforcement if running
+        if (enforcementState.isEnforcing) {
+          await stopOfflineEnforcement()
+          await clearOfflineEnforcementFromAllTabs()
+          console.log(`[Fledgely] Offline enforcement paused due to ${exception?.type} exception`)
+        }
+      } else if (!enforcementState.isEnforcing) {
+        // No exception or partial exception (work/homework) - enforce
         await startOfflineEnforcement()
+        await enforceOfflineOnAllTabs()
+      } else if (exception && (exception.type === 'work' || exception.type === 'homework')) {
+        // Re-evaluate tabs for partial exceptions (work/homework may allow some URLs)
         await enforceOfflineOnAllTabs()
       }
     }
@@ -583,10 +843,12 @@ export async function checkOfflineSchedule(): Promise<void> {
 
 /**
  * Inject offline blocking script into a tab
+ * Story 32.5 AC4: Show exception status in blocking overlay
  */
 export async function injectOfflineBlockingScript(
   tabId: number,
-  minutesUntilEnd: number | null
+  minutesUntilEnd: number | null,
+  exception: OfflineException | null = null
 ): Promise<boolean> {
   try {
     await chrome.scripting.executeScript({
@@ -594,10 +856,17 @@ export async function injectOfflineBlockingScript(
       files: ['content-scripts/family-offline-block.js'],
     })
 
-    // Send message to show the overlay
+    // Story 32.5: Include exception info for overlay display
     await chrome.tabs.sendMessage(tabId, {
       type: 'SHOW_FAMILY_OFFLINE_BLOCK',
       minutesUntilEnd,
+      // Story 32.5 AC4: Exception status for overlay message
+      exception: exception
+        ? {
+            type: exception.type,
+            requestedByName: exception.requestedByName,
+          }
+        : null,
     })
 
     console.log(`[Fledgely] Offline blocking script injected into tab ${tabId}`)
@@ -621,6 +890,7 @@ export async function removeOfflineBlockingFromTab(tabId: number): Promise<void>
 
 /**
  * Enforce offline time on all open tabs
+ * Story 32.5: Now respects active exceptions (work/homework whitelists)
  */
 export async function enforceOfflineOnAllTabs(): Promise<void> {
   const scheduleState = await getOfflineScheduleState()
@@ -631,15 +901,24 @@ export async function enforceOfflineOnAllTabs(): Promise<void> {
   try {
     const tabs = await chrome.tabs.query({})
     const blockedTabIds: number[] = []
+    const exception = scheduleState.activeException
 
     for (const tab of tabs) {
       if (!tab.id || !tab.url) continue
 
-      if (shouldBlockForOffline(tab.url)) {
-        const success = await injectOfflineBlockingScript(tab.id, scheduleState.minutesUntilEnd)
+      // Story 32.5: Use exception-aware blocking check
+      if (shouldBlockForOfflineWithException(tab.url, exception)) {
+        const success = await injectOfflineBlockingScript(
+          tab.id,
+          scheduleState.minutesUntilEnd,
+          exception
+        )
         if (success) {
           blockedTabIds.push(tab.id)
         }
+      } else if (exception) {
+        // URL is allowed during exception - clear any existing block
+        await removeOfflineBlockingFromTab(tab.id)
       }
     }
 

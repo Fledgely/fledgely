@@ -43,6 +43,8 @@ import { OfflineScheduleCard } from '../../../../components/settings/OfflineSche
 import { ParentDeviceEnrollmentCard } from '../../../../components/settings/ParentDeviceEnrollmentCard'
 import { useFamilyOfflineSchedule } from '../../../../hooks/useFamilyOfflineSchedule'
 import { MyComplianceStats } from '../../../../components/settings/MyComplianceStats'
+import { OfflineExceptionCard, ExceptionHistoryCard } from '../../../../components/settings'
+import { useOfflineExceptions } from '../../../../hooks/useOfflineExceptions'
 import type { CustomCategory } from '@fledgely/shared'
 
 const styles = {
@@ -594,6 +596,12 @@ export default function TimeLimitsSettingsPage() {
     hasChanges: hasOfflineChanges,
   } = useFamilyOfflineSchedule({
     familyId: family?.id,
+    enabled: !!family?.id,
+  })
+
+  // Story 32.5: Offline exceptions for audit display
+  const { exceptions: offlineExceptions, loading: exceptionsLoading } = useOfflineExceptions({
+    familyId: family?.id ?? null,
     enabled: !!family?.id,
   })
 
@@ -1388,6 +1396,19 @@ export default function TimeLimitsSettingsPage() {
                 <MyComplianceStats
                   familyId={family?.id ?? null}
                   parentUid={firebaseUser?.uid ?? null}
+                />
+
+                {/* Story 32.5: Offline Time Exceptions (AC1, AC5, AC6) */}
+                <OfflineExceptionCard
+                  offlineScheduleEnabled={localOfflineSchedule?.enabled ?? false}
+                />
+
+                {/* Story 32.5: Exception History (AC6) */}
+                <ExceptionHistoryCard
+                  exceptions={offlineExceptions}
+                  loading={exceptionsLoading}
+                  isChildView={false}
+                  limit={10}
                 />
 
                 {/* Story 30.6: Conflict Warnings */}

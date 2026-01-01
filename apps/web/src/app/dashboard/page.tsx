@@ -20,7 +20,12 @@ import RemoveChildModal from '../../components/RemoveChildModal'
 import DissolveFamilyModal from '../../components/DissolveFamilyModal'
 import InviteCoParentModal from '../../components/InviteCoParentModal'
 import { AddDeviceModal, DevicesList } from '../../components/devices'
-import { FamilyStatusCard, WithdrawalPendingAlert } from '../../components/dashboard'
+import {
+  FamilyStatusCard,
+  WithdrawalPendingAlert,
+  OfflineExceptionQuickActions,
+  HomeworkApprovalCard,
+} from '../../components/dashboard'
 import GuardianBadge from '../../components/GuardianBadge'
 import InvitationStatusCard from '../../components/InvitationStatusCard'
 import InvitationHistoryList from '../../components/InvitationHistoryList'
@@ -472,6 +477,12 @@ export default function DashboardPage() {
 
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}
+
+        {/* Story 32.5: Offline Exception Quick Actions (AC1, AC5) */}
+        {family && <OfflineExceptionQuickActions familyId={family.id} />}
+
+        {/* Story 32.5: Homework Approval Card (AC4) */}
+        {family && <HomeworkApprovalCard familyId={family.id} />}
 
         {/* Story 6.6: Withdrawal Pending Alerts - urgent notification for parents */}
         {family && <WithdrawalPendingAlert familyId={family.id} />}

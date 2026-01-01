@@ -1,6 +1,6 @@
 # Story 32.5: Offline Time Exceptions
 
-Status: in-progress
+Status: done
 
 ## Story
 
@@ -59,34 +59,34 @@ So that **emergencies and special cases are handled**.
   - [x] 1.2 Add exception types: pause, skip, work, homework
   - [x] 1.3 Create Firestore collection for exceptions
 
-- [ ] Task 2: Implement pause and skip functionality (AC: #1, #5)
-  - [ ] 2.1 Create `useOfflineExceptions` hook
-  - [ ] 2.2 Add pause/resume functions
-  - [ ] 2.3 Add skip-tonight function
-  - [ ] 2.4 Log exceptions to audit trail
+- [x] Task 2: Implement pause and skip functionality (AC: #1, #5)
+  - [x] 2.1 Create `useOfflineExceptions` hook
+  - [x] 2.2 Add pause/resume functions
+  - [x] 2.3 Add skip-tonight function
+  - [x] 2.4 Log exceptions to audit trail
 
-- [ ] Task 3: Create exception UI for parents (AC: #1, #3, #5)
-  - [ ] 3.1 Add "Pause Offline Time" button to parent dashboard
-  - [ ] 3.2 Add "Skip Tonight" button to settings
-  - [ ] 3.3 Create work exception configuration
-  - [ ] 3.4 Show exception status on dashboard
+- [x] Task 3: Create exception UI for parents (AC: #1, #3, #5)
+  - [x] 3.1 Add "Pause Offline Time" button to parent dashboard
+  - [x] 3.2 Add "Skip Tonight" button to settings
+  - [x] 3.3 Create work exception configuration (via OfflineExceptionCard)
+  - [x] 3.4 Show exception status on dashboard
 
-- [ ] Task 4: Implement homework exception flow (AC: #4)
-  - [ ] 4.1 Create homework exception request UI for child
-  - [ ] 4.2 Create parent approval notification
-  - [ ] 4.3 Limit access to education category during exception
-  - [ ] 4.4 Time-limited exception (e.g., 1 hour max)
+- [x] Task 4: Implement homework exception flow (AC: #4)
+  - [x] 4.1 Create homework exception request UI for child
+  - [x] 4.2 Create parent approval notification
+  - [x] 4.3 Limit access to education category during exception
+  - [x] 4.4 Time-limited exception (e.g., 1 hour max)
 
-- [ ] Task 5: Update extension enforcement (AC: #2-4)
-  - [ ] 5.1 Check for active exceptions before blocking
-  - [ ] 5.2 Always allow crisis/emergency URLs
-  - [ ] 5.3 Respect work/homework whitelist when active
-  - [ ] 5.4 Show exception status in blocking overlay
+- [x] Task 5: Update extension enforcement (AC: #2-4)
+  - [x] 5.1 Check for active exceptions before blocking
+  - [x] 5.2 Always allow crisis/emergency URLs
+  - [x] 5.3 Respect work/homework whitelist when active
+  - [x] 5.4 Show exception status in blocking overlay
 
-- [ ] Task 6: Create exception audit display (AC: #6)
-  - [ ] 6.1 Add exception history to family audit log
-  - [ ] 6.2 Show exceptions in child-friendly format
-  - [ ] 6.3 Display in parent settings
+- [x] Task 6: Create exception audit display (AC: #6)
+  - [x] 6.1 Add exception history to family audit log
+  - [x] 6.2 Show exceptions in child-friendly format
+  - [x] 6.3 Display in parent settings
 
 ## Dev Notes
 
