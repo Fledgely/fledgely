@@ -3,9 +3,10 @@
  *
  * Story 31.1: Countdown Warning System
  * Story 31.2: Neurodivergent Transition Accommodations
+ * Story 31.3: Education Content Exemption
  *
  * Allows the extension to fetch time limit configuration for a child.
- * Returns the configured limits, warning thresholds, and accommodations.
+ * Returns the configured limits, warning thresholds, accommodations, and exemptions.
  *
  * Endpoint: POST /getTimeLimitConfig
  * Body: { childId: string, familyId: string }
@@ -16,6 +17,7 @@
  * - deviceLimits: DeviceLimit[]
  * - warningThresholds: WarningThresholds
  * - accommodations: NeurodivergentAccommodations
+ * - educationExemption: EducationExemption
  */
 
 import { onRequest } from 'firebase-functions/v2/https'
@@ -44,6 +46,16 @@ const DEFAULT_ACCOMMODATIONS = {
   calmingColorsEnabled: true,
   silentModeEnabled: false,
   gradualTransitionEnabled: true,
+}
+
+/**
+ * Default education exemption settings (Story 31.3)
+ */
+const DEFAULT_EDUCATION_EXEMPTION = {
+  enabled: false,
+  customDomains: [],
+  includeHomework: true,
+  showExemptNotification: true,
 }
 
 /**
@@ -112,19 +124,21 @@ export const getTimeLimitConfig = onRequest({ cors: true }, async (req, res) => 
         deviceLimits: [],
         warningThresholds: DEFAULT_WARNING_THRESHOLDS,
         accommodations: DEFAULT_ACCOMMODATIONS,
+        educationExemption: DEFAULT_EDUCATION_EXEMPTION,
       })
       return
     }
 
     const data = configDoc.data()
 
-    // Return the time limit configuration with accommodations (Story 31.2)
+    // Return the time limit configuration with accommodations (Story 31.2) and exemptions (Story 31.3)
     const response = {
       dailyTotal: data?.dailyTotal || null,
       categoryLimits: data?.categoryLimits || [],
       deviceLimits: data?.deviceLimits || [],
       warningThresholds: data?.warningThresholds || DEFAULT_WARNING_THRESHOLDS,
       accommodations: data?.accommodations || DEFAULT_ACCOMMODATIONS,
+      educationExemption: data?.educationExemption || DEFAULT_EDUCATION_EXEMPTION,
     }
 
     logger.info('Time limit config fetched', {
@@ -132,6 +146,7 @@ export const getTimeLimitConfig = onRequest({ cors: true }, async (req, res) => 
       childId,
       hasLimits: !!data?.dailyTotal,
       hasAccommodations: data?.accommodations?.enabled || false,
+      hasEducationExemption: data?.educationExemption?.enabled || false,
     })
 
     res.status(200).json(response)

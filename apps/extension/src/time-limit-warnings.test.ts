@@ -2,16 +2,22 @@
  * Tests for Time Limit Warning System
  *
  * Story 31.1: Countdown Warning System
+ * Story 31.3: Education Content Exemption
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   DEFAULT_WARNING_THRESHOLDS,
+  DEFAULT_EDUCATION_EXEMPTION,
+  CURATED_EDUCATION_DOMAINS,
   determineWarningLevel,
   getWarningMessage,
   getWarningTitle,
+  isEducationDomain,
+  isEducationCategory,
   type WarningLevel,
   type WarningThresholds,
+  type EducationExemption,
 } from './time-limit-warnings'
 
 describe('Time Limit Warning System - Story 31.1', () => {
@@ -175,6 +181,212 @@ describe('Time Limit Warning System - Story 31.1', () => {
       expect(title).not.toMatch(/urgent/i)
       expect(title).not.toMatch(/alert/i)
       expect(title).toBe('Screen Time Reminder')
+    })
+  })
+})
+
+describe('Education Content Exemption - Story 31.3', () => {
+  describe('DEFAULT_EDUCATION_EXEMPTION', () => {
+    it('has correct default values', () => {
+      expect(DEFAULT_EDUCATION_EXEMPTION.enabled).toBe(false)
+      expect(DEFAULT_EDUCATION_EXEMPTION.customDomains).toEqual([])
+      expect(DEFAULT_EDUCATION_EXEMPTION.includeHomework).toBe(true)
+      expect(DEFAULT_EDUCATION_EXEMPTION.showExemptNotification).toBe(true)
+    })
+  })
+
+  describe('CURATED_EDUCATION_DOMAINS', () => {
+    it('contains expected education domains', () => {
+      expect(CURATED_EDUCATION_DOMAINS).toContain('khanacademy.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('wikipedia.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('coursera.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('duolingo.com')
+    })
+
+    it('has at least 10 curated domains', () => {
+      expect(CURATED_EDUCATION_DOMAINS.length).toBeGreaterThanOrEqual(10)
+    })
+  })
+
+  describe('isEducationDomain', () => {
+    const enabledExemption: EducationExemption = {
+      enabled: true,
+      customDomains: [],
+      includeHomework: true,
+      showExemptNotification: true,
+    }
+
+    const disabledExemption: EducationExemption = {
+      enabled: false,
+      customDomains: [],
+      includeHomework: true,
+      showExemptNotification: true,
+    }
+
+    it('returns false when exemption is disabled (AC1)', () => {
+      expect(isEducationDomain('khanacademy.org', disabledExemption)).toBe(false)
+      expect(isEducationDomain('wikipedia.org', disabledExemption)).toBe(false)
+    })
+
+    it('matches curated education domains (AC2)', () => {
+      expect(isEducationDomain('khanacademy.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('wikipedia.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('coursera.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('duolingo.com', enabledExemption)).toBe(true)
+    })
+
+    it('matches subdomains of curated domains', () => {
+      expect(isEducationDomain('www.khanacademy.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('en.wikipedia.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('learn.coursera.org', enabledExemption)).toBe(true)
+    })
+
+    it('matches .edu domains', () => {
+      expect(isEducationDomain('stanford.edu', enabledExemption)).toBe(true)
+      expect(isEducationDomain('www.mit.edu', enabledExemption)).toBe(true)
+      expect(isEducationDomain('cs.berkeley.edu', enabledExemption)).toBe(true)
+    })
+
+    it('matches custom domains added by parent (AC3)', () => {
+      const exemptionWithCustom: EducationExemption = {
+        enabled: true,
+        customDomains: ['myschool.com', 'homeworksite.net'],
+        includeHomework: true,
+        showExemptNotification: true,
+      }
+
+      expect(isEducationDomain('myschool.com', exemptionWithCustom)).toBe(true)
+      expect(isEducationDomain('www.myschool.com', exemptionWithCustom)).toBe(true)
+      expect(isEducationDomain('homeworksite.net', exemptionWithCustom)).toBe(true)
+    })
+
+    it('does not match non-education domains', () => {
+      expect(isEducationDomain('youtube.com', enabledExemption)).toBe(false)
+      expect(isEducationDomain('facebook.com', enabledExemption)).toBe(false)
+      expect(isEducationDomain('reddit.com', enabledExemption)).toBe(false)
+      expect(isEducationDomain('google.com', enabledExemption)).toBe(false)
+    })
+
+    it('is case insensitive', () => {
+      expect(isEducationDomain('KhanAcademy.org', enabledExemption)).toBe(true)
+      expect(isEducationDomain('WIKIPEDIA.ORG', enabledExemption)).toBe(true)
+      expect(isEducationDomain('Stanford.EDU', enabledExemption)).toBe(true)
+    })
+
+    describe('security edge cases', () => {
+      it('rejects empty domains', () => {
+        expect(isEducationDomain('', enabledExemption)).toBe(false)
+      })
+
+      it('rejects whitespace-only domains', () => {
+        expect(isEducationDomain('   ', enabledExemption)).toBe(false)
+        expect(isEducationDomain('\n', enabledExemption)).toBe(false)
+        expect(isEducationDomain('\t', enabledExemption)).toBe(false)
+      })
+
+      it('rejects overly long domains', () => {
+        const longDomain = 'a'.repeat(300) + '.com'
+        expect(isEducationDomain(longDomain, enabledExemption)).toBe(false)
+      })
+
+      it('handles empty strings in custom domains gracefully', () => {
+        const exemptionWithEmpty: EducationExemption = {
+          enabled: true,
+          customDomains: ['', '   ', 'valid.com'],
+          includeHomework: true,
+          showExemptNotification: true,
+        }
+        // Empty strings should not match anything
+        expect(isEducationDomain('youtube.com', exemptionWithEmpty)).toBe(false)
+        // But valid custom domain should still work
+        expect(isEducationDomain('valid.com', exemptionWithEmpty)).toBe(true)
+      })
+
+      it('handles invalid custom domains gracefully', () => {
+        const exemptionWithInvalid: EducationExemption = {
+          enabled: true,
+          customDomains: ['nodot', 'a'.repeat(300), 'valid.edu'],
+          includeHomework: true,
+          showExemptNotification: true,
+        }
+        // Invalid domains should not cause errors
+        expect(isEducationDomain('youtube.com', exemptionWithInvalid)).toBe(false)
+        // Valid custom domain should still work
+        expect(isEducationDomain('valid.edu', exemptionWithInvalid)).toBe(true)
+      })
+
+      it('does not match .edu.cn or other .edu substrings', () => {
+        // .edu as TLD is exempt, but .edu.cn is not
+        expect(isEducationDomain('stanford.edu', enabledExemption)).toBe(true)
+        expect(isEducationDomain('some.edu.cn', enabledExemption)).toBe(false)
+      })
+
+      it('does not match partial domain names', () => {
+        // Should not match "khanacademy.org.evil.com"
+        expect(isEducationDomain('khanacademy.org.evil.com', enabledExemption)).toBe(false)
+        // But should match "www.khanacademy.org"
+        expect(isEducationDomain('www.khanacademy.org', enabledExemption)).toBe(true)
+      })
+
+      it('trims whitespace from input domains', () => {
+        expect(isEducationDomain('  khanacademy.org  ', enabledExemption)).toBe(true)
+        expect(isEducationDomain('\nwikipedia.org\t', enabledExemption)).toBe(true)
+      })
+    })
+  })
+
+  describe('isEducationCategory', () => {
+    const enabledExemption: EducationExemption = {
+      enabled: true,
+      customDomains: [],
+      includeHomework: true,
+      showExemptNotification: true,
+    }
+
+    const disabledExemption: EducationExemption = {
+      enabled: false,
+      customDomains: [],
+      includeHomework: true,
+      showExemptNotification: true,
+    }
+
+    const noHomeworkExemption: EducationExemption = {
+      enabled: true,
+      customDomains: [],
+      includeHomework: false,
+      showExemptNotification: true,
+    }
+
+    it('returns false when exemption is disabled', () => {
+      expect(isEducationCategory('Education', disabledExemption)).toBe(false)
+      expect(isEducationCategory('Homework', disabledExemption)).toBe(false)
+    })
+
+    it('matches Education category (AC1)', () => {
+      expect(isEducationCategory('Education', enabledExemption)).toBe(true)
+      expect(isEducationCategory('education', enabledExemption)).toBe(true)
+      expect(isEducationCategory('EDUCATION', enabledExemption)).toBe(true)
+    })
+
+    it('matches Homework category when includeHomework is true (AC1)', () => {
+      expect(isEducationCategory('Homework', enabledExemption)).toBe(true)
+      expect(isEducationCategory('homework', enabledExemption)).toBe(true)
+    })
+
+    it('does not match Homework when includeHomework is false', () => {
+      expect(isEducationCategory('Homework', noHomeworkExemption)).toBe(false)
+      expect(isEducationCategory('homework', noHomeworkExemption)).toBe(false)
+    })
+
+    it('does not match non-education categories', () => {
+      expect(isEducationCategory('Entertainment', enabledExemption)).toBe(false)
+      expect(isEducationCategory('Social', enabledExemption)).toBe(false)
+      expect(isEducationCategory('Gaming', enabledExemption)).toBe(false)
+      expect(isEducationCategory('Productivity', enabledExemption)).toBe(false)
+    })
+
+    it('Education category is always matched even when includeHomework is false', () => {
+      expect(isEducationCategory('Education', noHomeworkExemption)).toBe(true)
     })
   })
 })

@@ -4449,6 +4449,74 @@ export const DEFAULT_ACCOMMODATIONS: NeurodivergentAccommodations = {
 }
 
 /**
+ * Domain validation schema for custom education domains.
+ * Prevents injection attacks via empty strings, wildcards, or malformed input.
+ */
+const customDomainSchema = z
+  .string()
+  .min(1, 'Domain cannot be empty')
+  .max(253, 'Domain too long')
+  .transform((domain) => domain.toLowerCase().trim())
+  .refine(
+    (domain) => domain.length > 0 && !domain.startsWith('.') && !domain.endsWith('.'),
+    'Domain cannot start or end with a dot'
+  )
+  .refine(
+    (domain) => domain.includes('.') && domain.split('.').every((part) => part.length > 0),
+    'Domain must have at least one dot (e.g., example.com)'
+  )
+  .refine((domain) => !/[*?<>|"\\]/.test(domain), 'Domain contains invalid characters')
+
+/**
+ * Education exemption settings for time limits.
+ * Story 31.3: Education Content Exemption - FR104, FR129
+ *
+ * Allows educational content to be exempt from time limits while still tracking usage.
+ */
+export const educationExemptionSchema = z.object({
+  /** Whether education exemption is enabled. Default: false */
+  enabled: z.boolean().default(false),
+  /** Custom domains added by parent (in addition to curated list) */
+  customDomains: z.array(customDomainSchema).max(50, 'Too many custom domains').default([]),
+  /** Include Homework category in exemption. Default: true */
+  includeHomework: z.boolean().default(true),
+  /** Show notification when on exempt site. Default: true */
+  showExemptNotification: z.boolean().default(true),
+})
+export type EducationExemption = z.infer<typeof educationExemptionSchema>
+
+/** Default education exemption settings */
+export const DEFAULT_EDUCATION_EXEMPTION: EducationExemption = {
+  enabled: false,
+  customDomains: [],
+  includeHomework: true,
+  showExemptNotification: true,
+}
+
+/**
+ * Curated list of educational domains that are always exempt when exemption is enabled.
+ * These are well-known educational platforms and resources.
+ */
+export const CURATED_EDUCATION_DOMAINS = [
+  'khanacademy.org',
+  'coursera.org',
+  'edx.org',
+  'duolingo.com',
+  'quizlet.com',
+  'wolframalpha.com',
+  'britannica.com',
+  'wikipedia.org',
+  'mathway.com',
+  'brainly.com',
+  'chegg.com',
+  'studyblue.com',
+  'codecademy.com',
+  'brilliant.org',
+  'ted.com',
+  'nationalgeographic.com',
+] as const
+
+/**
  * Complete time limits configuration for a child.
  * Stored at: /families/{familyId}/children/{childId}/timeLimits/config
  *
@@ -4473,6 +4541,8 @@ export const childTimeLimitsSchema = z.object({
   warningThresholds: warningThresholdsSchema.optional(),
   /** Neurodivergent accommodations - Story 31.2 AC6 */
   accommodations: neurodivergentAccommodationsSchema.optional(),
+  /** Education exemption settings - Story 31.3 */
+  educationExemption: educationExemptionSchema.optional(),
   /** When this configuration becomes effective (epoch ms) - AC6 */
   effectiveFrom: z.number().optional(),
   /** Last updated timestamp (epoch ms) */

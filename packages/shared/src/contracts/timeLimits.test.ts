@@ -19,6 +19,9 @@ import {
   MAX_SCREEN_TIME_MINUTES_PER_DAY,
   neurodivergentAccommodationsSchema,
   DEFAULT_ACCOMMODATIONS,
+  educationExemptionSchema,
+  DEFAULT_EDUCATION_EXEMPTION,
+  CURATED_EDUCATION_DOMAINS,
 } from './index'
 
 describe('Time Limit Data Model - Story 30.1', () => {
@@ -1039,6 +1042,168 @@ describe('Neurodivergent Accommodations - Story 31.2', () => {
       expect(result.accommodations?.earlyWarningMinutes).toBe(30)
       expect(result.accommodations?.gracePeriodMinutes).toBe(5)
       expect(result.accommodations?.calmingColorsEnabled).toBe(true)
+    })
+  })
+})
+
+describe('Education Exemption - Story 31.3', () => {
+  describe('educationExemptionSchema', () => {
+    it('accepts valid exemption settings', () => {
+      const exemption = {
+        enabled: true,
+        customDomains: ['school.edu', 'myschool.com'],
+        includeHomework: true,
+        showExemptNotification: true,
+      }
+      expect(() => educationExemptionSchema.parse(exemption)).not.toThrow()
+    })
+
+    it('applies default values for all fields', () => {
+      const result = educationExemptionSchema.parse({})
+      expect(result.enabled).toBe(false)
+      expect(result.customDomains).toEqual([])
+      expect(result.includeHomework).toBe(true)
+      expect(result.showExemptNotification).toBe(true)
+    })
+
+    it('accepts empty customDomains array', () => {
+      const result = educationExemptionSchema.parse({ enabled: true })
+      expect(result.customDomains).toEqual([])
+    })
+
+    it('validates customDomains as string array', () => {
+      expect(() => educationExemptionSchema.parse({ customDomains: ['valid.com', 123] })).toThrow()
+    })
+
+    describe('customDomains security validation', () => {
+      it('rejects empty string domains', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: [''] })).toThrow()
+      })
+
+      it('rejects whitespace-only domains', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: ['   '] })).toThrow()
+      })
+
+      it('rejects domains without a dot', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: ['nodot'] })).toThrow()
+      })
+
+      it('rejects domains starting with dot', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: ['.example.com'] })).toThrow()
+      })
+
+      it('rejects domains ending with dot', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: ['example.com.'] })).toThrow()
+      })
+
+      it('rejects wildcard characters', () => {
+        expect(() => educationExemptionSchema.parse({ customDomains: ['*.com'] })).toThrow()
+        expect(() => educationExemptionSchema.parse({ customDomains: ['*'] })).toThrow()
+      })
+
+      it('rejects overly long domains', () => {
+        const longDomain = 'a'.repeat(300) + '.com'
+        expect(() => educationExemptionSchema.parse({ customDomains: [longDomain] })).toThrow()
+      })
+
+      it('rejects too many custom domains', () => {
+        const manyDomains = Array.from({ length: 60 }, (_, i) => `site${i}.com`)
+        expect(() => educationExemptionSchema.parse({ customDomains: manyDomains })).toThrow()
+      })
+
+      it('normalizes domains to lowercase', () => {
+        const result = educationExemptionSchema.parse({
+          customDomains: ['MySchool.EDU', 'EXAMPLE.COM'],
+        })
+        expect(result.customDomains).toEqual(['myschool.edu', 'example.com'])
+      })
+
+      it('trims whitespace from domains', () => {
+        const result = educationExemptionSchema.parse({
+          customDomains: ['  school.edu  ', '\texample.com '],
+        })
+        expect(result.customDomains).toEqual(['school.edu', 'example.com'])
+      })
+
+      it('accepts valid domains', () => {
+        const result = educationExemptionSchema.parse({
+          customDomains: ['school.edu', 'my-school.org', 'sub.domain.com'],
+        })
+        expect(result.customDomains).toEqual(['school.edu', 'my-school.org', 'sub.domain.com'])
+      })
+    })
+  })
+
+  describe('DEFAULT_EDUCATION_EXEMPTION', () => {
+    it('has correct default values', () => {
+      expect(DEFAULT_EDUCATION_EXEMPTION.enabled).toBe(false)
+      expect(DEFAULT_EDUCATION_EXEMPTION.customDomains).toEqual([])
+      expect(DEFAULT_EDUCATION_EXEMPTION.includeHomework).toBe(true)
+      expect(DEFAULT_EDUCATION_EXEMPTION.showExemptNotification).toBe(true)
+    })
+
+    it('passes schema validation', () => {
+      expect(() => educationExemptionSchema.parse(DEFAULT_EDUCATION_EXEMPTION)).not.toThrow()
+    })
+  })
+
+  describe('CURATED_EDUCATION_DOMAINS', () => {
+    it('contains expected educational domains', () => {
+      expect(CURATED_EDUCATION_DOMAINS).toContain('khanacademy.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('coursera.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('wikipedia.org')
+      expect(CURATED_EDUCATION_DOMAINS).toContain('duolingo.com')
+    })
+
+    it('has at least 10 curated domains', () => {
+      expect(CURATED_EDUCATION_DOMAINS.length).toBeGreaterThanOrEqual(10)
+    })
+
+    it('contains only valid domain strings', () => {
+      CURATED_EDUCATION_DOMAINS.forEach((domain) => {
+        expect(typeof domain).toBe('string')
+        expect(domain).toMatch(/^[a-z0-9.-]+\.[a-z]+$/)
+      })
+    })
+  })
+
+  describe('childTimeLimitsSchema with educationExemption', () => {
+    const now = Date.now()
+    const validChildTimeLimits = {
+      childId: 'child-123',
+      familyId: 'family-456',
+      updatedAt: now,
+    }
+
+    it('accepts educationExemption field', () => {
+      const config = {
+        ...validChildTimeLimits,
+        educationExemption: {
+          enabled: true,
+          customDomains: ['myschool.edu'],
+        },
+      }
+      const result = childTimeLimitsSchema.parse(config)
+      expect(result.educationExemption?.enabled).toBe(true)
+      expect(result.educationExemption?.customDomains).toEqual(['myschool.edu'])
+    })
+
+    it('allows config without educationExemption', () => {
+      const result = childTimeLimitsSchema.parse(validChildTimeLimits)
+      expect(result.educationExemption).toBeUndefined()
+    })
+
+    it('applies defaults for partial educationExemption', () => {
+      const config = {
+        ...validChildTimeLimits,
+        educationExemption: {
+          enabled: true,
+        },
+      }
+      const result = childTimeLimitsSchema.parse(config)
+      expect(result.educationExemption?.enabled).toBe(true)
+      expect(result.educationExemption?.customDomains).toEqual([])
+      expect(result.educationExemption?.includeHomework).toBe(true)
     })
   })
 })

@@ -3,6 +3,7 @@
  *
  * Story 31.1: Countdown Warning System
  * Story 31.2: Neurodivergent Transition Accommodations
+ * Story 31.3: Education Content Exemption
  *
  * Tracks time usage against configured limits and triggers warnings
  * at configurable thresholds (default: 15m, 5m, 1m before limit).
@@ -20,6 +21,12 @@
  * - Extended grace period before enforcement
  * - Calming colors instead of alarming red/orange
  * - Silent mode for notifications
+ *
+ * Story 31.3 Education Exemption:
+ * - Educational content exempt from time limits
+ * - Curated education domains list
+ * - Custom domains configurable by parent
+ * - Usage still tracked for visibility
  */
 
 import { getScreenTimeQueue, aggregateQueueEntries } from './screen-time'
@@ -61,6 +68,41 @@ export const DEFAULT_ACCOMMODATIONS: NeurodivergentAccommodations = {
   silentModeEnabled: false,
   gradualTransitionEnabled: true,
 }
+
+// Education exemption settings (Story 31.3)
+export interface EducationExemption {
+  enabled: boolean
+  customDomains: string[]
+  includeHomework: boolean
+  showExemptNotification: boolean
+}
+
+export const DEFAULT_EDUCATION_EXEMPTION: EducationExemption = {
+  enabled: false,
+  customDomains: [],
+  includeHomework: true,
+  showExemptNotification: true,
+}
+
+// Curated education domains (Story 31.3 AC2)
+export const CURATED_EDUCATION_DOMAINS = [
+  'khanacademy.org',
+  'coursera.org',
+  'edx.org',
+  'duolingo.com',
+  'quizlet.com',
+  'wolframalpha.com',
+  'britannica.com',
+  'wikipedia.org',
+  'mathway.com',
+  'brainly.com',
+  'chegg.com',
+  'studyblue.com',
+  'codecademy.com',
+  'brilliant.org',
+  'ted.com',
+  'nationalgeographic.com',
+] as const
 
 // Calming color palette for accommodated mode (Story 31.2 AC3)
 export const CALMING_COLORS = {
@@ -115,6 +157,7 @@ export interface TimeLimitConfig {
   dailyTotalMinutes: number | null // null = unlimited
   warningThresholds: WarningThresholds
   accommodations: NeurodivergentAccommodations
+  educationExemption: EducationExemption
   lastSyncedAt: number
 }
 
@@ -200,9 +243,83 @@ function getCurrentDateString(): string {
 }
 
 /**
- * Calculate total minutes used today from screen time queue
+ * Check if a domain is an educational domain (Story 31.3 AC1, AC2)
+ * Matches against curated list and custom domains
+ *
+ * Security: Validates input to prevent bypass via empty strings or malformed domains
  */
-export async function getTodayUsageMinutes(): Promise<number> {
+export function isEducationDomain(domain: string, exemption: EducationExemption): boolean {
+  if (!exemption.enabled) return false
+
+  const normalizedDomain = domain.toLowerCase().trim()
+
+  // Security: Reject empty, whitespace-only, or overly long domains
+  if (!normalizedDomain || normalizedDomain.length > 253) return false
+
+  // Check if it's a .edu domain (but NOT .edu.something like .edu.cn)
+  const domainParts = normalizedDomain.split('.')
+  if (domainParts.length >= 2 && domainParts[domainParts.length - 1] === 'edu') {
+    return true
+  }
+
+  // Check against curated education domains
+  for (const eduDomain of CURATED_EDUCATION_DOMAINS) {
+    if (normalizedDomain === eduDomain || normalizedDomain.endsWith(`.${eduDomain}`)) {
+      return true
+    }
+  }
+
+  // Check against custom domains added by parent (Story 31.3 AC3)
+  // Security: Skip invalid entries (empty, whitespace, too long)
+  for (const customDomain of exemption.customDomains) {
+    // Skip if not a valid string
+    if (!customDomain || typeof customDomain !== 'string') continue
+
+    const normalizedCustom = customDomain.toLowerCase().trim()
+
+    // Security: Skip empty, whitespace-only, or suspicious domains
+    if (!normalizedCustom || normalizedCustom.length > 253) continue
+    if (!normalizedCustom.includes('.')) continue // Must have TLD
+
+    if (
+      normalizedDomain === normalizedCustom ||
+      normalizedDomain.endsWith(`.${normalizedCustom}`)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Check if a category is education-related (Story 31.3)
+ */
+export function isEducationCategory(category: string, exemption: EducationExemption): boolean {
+  if (!exemption.enabled) return false
+
+  const normalizedCategory = category.toLowerCase()
+
+  // Always exempt "Education" category
+  if (normalizedCategory === 'education') {
+    return true
+  }
+
+  // Optionally exempt "Homework" category (Story 31.3 AC1)
+  if (exemption.includeHomework && normalizedCategory === 'homework') {
+    return true
+  }
+
+  return false
+}
+
+/**
+ * Calculate total minutes used today from screen time queue
+ * Story 31.3: Optionally excludes education categories from count
+ *
+ * @param exemption - Education exemption settings. If enabled, education categories are excluded.
+ */
+export async function getTodayUsageMinutes(exemption?: EducationExemption): Promise<number> {
   const queue = await getScreenTimeQueue()
   if (queue.length === 0) return 0
 
@@ -213,7 +330,11 @@ export async function getTodayUsageMinutes(): Promise<number> {
   for (const [dateKey, categoryMap] of aggregated) {
     const [date] = dateKey.split('|')
     if (date === today) {
-      for (const minutes of categoryMap.values()) {
+      for (const [category, minutes] of categoryMap.entries()) {
+        // Story 31.3 AC1: Skip education categories if exemption enabled
+        if (exemption && isEducationCategory(category, exemption)) {
+          continue
+        }
         totalMinutes += minutes
       }
     }
@@ -223,7 +344,37 @@ export async function getTodayUsageMinutes(): Promise<number> {
 }
 
 /**
+ * Calculate education time used today (for visibility - Story 31.3 AC5)
+ * Returns minutes spent on educational content (tracked but not counted toward limit)
+ */
+export async function getTodayEducationMinutes(): Promise<number> {
+  const config = await getTimeLimitConfig()
+  if (!config?.educationExemption?.enabled) return 0
+
+  const queue = await getScreenTimeQueue()
+  if (queue.length === 0) return 0
+
+  const today = getCurrentDateString()
+  const aggregated = aggregateQueueEntries(queue)
+
+  let educationMinutes = 0
+  for (const [dateKey, categoryMap] of aggregated) {
+    const [date] = dateKey.split('|')
+    if (date === today) {
+      for (const [category, minutes] of categoryMap.entries()) {
+        if (isEducationCategory(category, config.educationExemption)) {
+          educationMinutes += minutes
+        }
+      }
+    }
+  }
+
+  return Math.round(educationMinutes)
+}
+
+/**
  * Calculate remaining time based on usage and limit
+ * Story 31.3: Excludes education content from calculation when exemption enabled
  */
 export async function getRemainingMinutes(): Promise<number | null> {
   const config = await getTimeLimitConfig()
@@ -231,7 +382,8 @@ export async function getRemainingMinutes(): Promise<number | null> {
     return null // Unlimited
   }
 
-  const usedMinutes = await getTodayUsageMinutes()
+  // Pass education exemption to exclude education time from usage (Story 31.3 AC1)
+  const usedMinutes = await getTodayUsageMinutes(config.educationExemption)
   return Math.max(0, config.dailyTotalMinutes - usedMinutes)
 }
 
@@ -634,10 +786,23 @@ export async function syncTimeLimitConfig(
         DEFAULT_ACCOMMODATIONS.gradualTransitionEnabled,
     }
 
+    // Parse education exemption with defaults (Story 31.3)
+    const educationExemption: EducationExemption = {
+      enabled: data.educationExemption?.enabled ?? DEFAULT_EDUCATION_EXEMPTION.enabled,
+      customDomains:
+        data.educationExemption?.customDomains ?? DEFAULT_EDUCATION_EXEMPTION.customDomains,
+      includeHomework:
+        data.educationExemption?.includeHomework ?? DEFAULT_EDUCATION_EXEMPTION.includeHomework,
+      showExemptNotification:
+        data.educationExemption?.showExemptNotification ??
+        DEFAULT_EDUCATION_EXEMPTION.showExemptNotification,
+    }
+
     const config: TimeLimitConfig = {
       dailyTotalMinutes,
       warningThresholds: data.warningThresholds || DEFAULT_WARNING_THRESHOLDS,
       accommodations,
+      educationExemption,
       lastSyncedAt: Date.now(),
     }
 
@@ -661,6 +826,7 @@ export async function clearWarningState(): Promise<void> {
 /**
  * Get current time limit status for popup display
  * Story 31.2: Added accommodation status
+ * Story 31.3: Added education exemption status
  */
 export interface TimeLimitStatus {
   hasLimit: boolean
@@ -672,17 +838,26 @@ export interface TimeLimitStatus {
   accommodationsEnabled: boolean
   inGracePeriod: boolean
   graceMinutesRemaining: number | null
+  // Story 31.3: Education exemption status
+  educationExemptionEnabled: boolean
+  educationMinutes: number
 }
 
 export async function getTimeLimitStatus(): Promise<TimeLimitStatus> {
   const config = await getTimeLimitConfig()
   const state = await getWarningState()
-  const usedMinutes = await getTodayUsageMinutes()
+  const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
+  const accommodations = config?.accommodations || DEFAULT_ACCOMMODATIONS
+
+  // Get usage minutes - education is excluded if exemption enabled (Story 31.3 AC1)
+  const usedMinutes = await getTodayUsageMinutes(educationExemption)
   const remainingMinutes = await getRemainingMinutes()
+
+  // Get education minutes for visibility (Story 31.3 AC5)
+  const educationMinutes = await getTodayEducationMinutes()
 
   const hasLimit = config !== null && config.dailyTotalMinutes !== null
   const dailyLimitMinutes = config?.dailyTotalMinutes ?? null
-  const accommodations = config?.accommodations || DEFAULT_ACCOMMODATIONS
 
   let warningLevel: WarningLevel = 'none'
   let percentUsed: number | null = null
@@ -717,5 +892,8 @@ export async function getTimeLimitStatus(): Promise<TimeLimitStatus> {
     accommodationsEnabled: accommodations.enabled,
     inGracePeriod,
     graceMinutesRemaining,
+    // Story 31.3: Education exemption status
+    educationExemptionEnabled: educationExemption.enabled,
+    educationMinutes,
   }
 }
