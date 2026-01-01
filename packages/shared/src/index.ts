@@ -645,3 +645,26 @@ export {
   type ConsentRole,
   type RenewalModeConfig,
 } from './contracts'
+
+// Agreement grace period exports (Story 35.4)
+export {
+  gracePeriodStatusSchema,
+  gracePeriodInfoSchema,
+  GRACE_PERIOD_DAYS,
+  GRACE_PERIOD_STATUS,
+  GRACE_PERIOD_MESSAGES,
+  getGracePeriodEndDate,
+  getDaysRemainingInGracePeriod,
+  isInGracePeriod,
+  hasGracePeriodExpired,
+  getGracePeriodInfo,
+  isMonitoringActiveInGracePeriod,
+  getGracePeriodStatusConfig,
+  formatGracePeriodMessage,
+  getGracePeriodMessage,
+  type GracePeriodStatus,
+  type GracePeriodInfo,
+  type GracePeriodUrgency,
+  type GracePeriodStatusConfig,
+  type AgreementForGracePeriod,
+} from './contracts'
