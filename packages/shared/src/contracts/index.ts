@@ -6528,3 +6528,14 @@ export const AFTER_DECLINE_MESSAGES = {
     supportive: 'You can discuss this together or propose something different later.',
   },
 } as const
+
+// Re-export agreement history types and constants (Story 34.6)
+export {
+  agreementChangeSchema,
+  agreementVersionSchema,
+  HISTORY_MESSAGES,
+  getUpdateCountMessage,
+  getGrowthMessage,
+  type AgreementChange,
+  type AgreementVersion,
+} from './agreementHistory'

@@ -575,3 +575,14 @@ export {
   declineReasonIdSchema,
   type DeclineReasonId,
 } from './contracts'
+
+// Agreement history exports (Story 34.6)
+export {
+  agreementChangeSchema,
+  agreementVersionSchema,
+  HISTORY_MESSAGES,
+  getUpdateCountMessage,
+  getGrowthMessage,
+  type AgreementChange,
+  type AgreementVersion,
+} from './contracts'
