@@ -153,6 +153,60 @@ function createBlockingOverlay(useCalmingColors = true): HTMLDivElement {
         font-size: 14px !important;
         opacity: 0.7 !important;
       }
+
+      /* Story 31.6: Reason selection styles */
+      .fledgely-reason-picker {
+        display: none;
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
+        margin-bottom: 24px !important;
+      }
+
+      .fledgely-reason-picker.visible {
+        display: block !important;
+      }
+
+      .fledgely-reason-picker h3 {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        margin-bottom: 16px !important;
+      }
+
+      .fledgely-reason-option {
+        display: block !important;
+        width: 100% !important;
+        background: rgba(255, 255, 255, 0.2) !important;
+        border: 2px solid rgba(255, 255, 255, 0.3) !important;
+        color: white !important;
+        padding: 12px 16px !important;
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        border-radius: 8px !important;
+        cursor: pointer !important;
+        margin-bottom: 8px !important;
+        text-align: left !important;
+        transition: all 0.2s ease !important;
+      }
+
+      .fledgely-reason-option:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.6) !important;
+      }
+
+      .fledgely-reason-option:last-child {
+        margin-bottom: 0 !important;
+      }
+
+      .fledgely-reason-cancel {
+        margin-top: 12px !important;
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 14px !important;
+        cursor: pointer !important;
+        text-decoration: underline !important;
+      }
     </style>
 
     <div class="fledgely-block-container">
@@ -181,6 +235,23 @@ function createBlockingOverlay(useCalmingColors = true): HTMLDivElement {
       <button class="fledgely-request-btn" id="fledgely-request-time-btn">
         Request more time
       </button>
+
+      <!-- Story 31.6: Reason picker (hidden by default) -->
+      <div class="fledgely-reason-picker" id="fledgely-reason-picker">
+        <h3>Why do you need more time?</h3>
+        <button class="fledgely-reason-option" data-reason="finishing_homework">
+          📚 Finishing homework
+        </button>
+        <button class="fledgely-reason-option" data-reason="five_more_minutes">
+          ⏱️ Just 5 more minutes
+        </button>
+        <button class="fledgely-reason-option" data-reason="important_project">
+          🎯 Important project
+        </button>
+        <button class="fledgely-reason-cancel" id="fledgely-reason-cancel">
+          Cancel
+        </button>
+      </div>
 
       <p class="fledgely-footer">
         Need help? Ask a parent to adjust your time limits.
@@ -213,6 +284,23 @@ function showBlockingOverlay(useCalmingColors = true): void {
     requestBtn.addEventListener('click', handleRequestMoreTime)
   }
 
+  // Story 31.6: Add click handlers for reason options
+  const reasonOptions = overlay.querySelectorAll('.fledgely-reason-option')
+  reasonOptions.forEach((option) => {
+    option.addEventListener('click', (e) => {
+      const reason = (e.target as HTMLElement).getAttribute('data-reason')
+      if (reason) {
+        handleReasonSelected(reason)
+      }
+    })
+  })
+
+  // Add cancel button handler
+  const cancelBtn = document.getElementById('fledgely-reason-cancel')
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', hideReasonPicker)
+  }
+
   console.log('[Fledgely] Time limit blocking overlay shown')
 }
 
@@ -230,25 +318,133 @@ function hideBlockingOverlay(): void {
 
 /**
  * Handle "Request more time" button click
- * Story 31.6 integration point - for now shows placeholder message
+ * Story 31.6: Shows reason picker instead of sending immediately
  */
 function handleRequestMoreTime(): void {
-  // Send message to background script to initiate time extension request
-  chrome.runtime.sendMessage({ type: 'REQUEST_TIME_EXTENSION' }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.error('[Fledgely] Failed to send time extension request:', chrome.runtime.lastError)
-      showRequestMessage('Unable to send request. Please ask a parent to help.')
-      return
-    }
+  showReasonPicker()
+}
 
-    if (response?.success) {
-      showRequestMessage('Request sent! Waiting for parent approval...')
-    } else if (response?.error === 'limit_reached') {
-      showRequestMessage("You've already used your daily requests. Try again tomorrow!")
-    } else {
-      showRequestMessage('Request sent to parent.')
+/**
+ * Show the reason picker UI
+ * Story 31.6 AC2
+ */
+function showReasonPicker(): void {
+  const picker = document.getElementById('fledgely-reason-picker')
+  const requestBtn = document.getElementById('fledgely-request-time-btn')
+  const breakIdeas = document.querySelector('.fledgely-break-ideas') as HTMLElement
+
+  if (picker) {
+    picker.classList.add('visible')
+  }
+  if (requestBtn) {
+    requestBtn.style.display = 'none'
+  }
+  if (breakIdeas) {
+    breakIdeas.style.display = 'none'
+  }
+}
+
+/**
+ * Hide the reason picker UI
+ */
+function hideReasonPicker(): void {
+  const picker = document.getElementById('fledgely-reason-picker')
+  const requestBtn = document.getElementById('fledgely-request-time-btn')
+  const breakIdeas = document.querySelector('.fledgely-break-ideas') as HTMLElement
+
+  if (picker) {
+    picker.classList.remove('visible')
+  }
+  if (requestBtn) {
+    requestBtn.style.display = ''
+  }
+  if (breakIdeas) {
+    breakIdeas.style.display = ''
+  }
+}
+
+/**
+ * Handle reason selection and send request
+ * Story 31.6 AC1, AC2
+ */
+function handleReasonSelected(reason: string): void {
+  hideReasonPicker()
+
+  // Send message to background script with the selected reason
+  chrome.runtime.sendMessage(
+    {
+      type: 'REQUEST_TIME_EXTENSION',
+      reason,
+    },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Fledgely] Failed to send time extension request:', chrome.runtime.lastError)
+        showRequestMessage('Unable to send request. Please ask a parent to help.')
+        return
+      }
+
+      if (response?.success) {
+        showRequestMessage('Request sent! Waiting for parent approval...')
+        // Start polling for response
+        if (response.requestId) {
+          pollForResponse(response.requestId)
+        }
+      } else if (response?.error === 'limit_reached') {
+        showRequestMessage("You've already used your daily requests. Try again tomorrow!")
+      } else if (response?.error) {
+        showRequestMessage(response.message || 'Unable to send request.')
+      } else {
+        showRequestMessage('Request sent to parent.')
+      }
     }
-  })
+  )
+}
+
+/**
+ * Poll for parent response to extension request
+ * Story 31.6 AC4, AC5, AC7
+ */
+function pollForResponse(requestId: string): void {
+  let pollCount = 0
+  const maxPolls = 60 // 10 minutes at 10 second intervals
+  const pollInterval = 10000 // 10 seconds
+
+  const poll = (): void => {
+    pollCount++
+
+    chrome.runtime.sendMessage(
+      {
+        type: 'CHECK_TIME_EXTENSION_STATUS',
+        requestId,
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.log('[Fledgely] Polling stopped due to error')
+          return
+        }
+
+        if (response?.status === 'approved') {
+          // AC4: Time was added, hide the overlay
+          showRequestMessage('More time approved!')
+          setTimeout(() => {
+            hideBlockingOverlay()
+          }, 2000)
+        } else if (response?.status === 'denied') {
+          // AC5: Parent denied the request
+          showRequestMessage('Your parent said not right now.')
+        } else if (response?.status === 'expired') {
+          // AC7: Request timed out
+          showRequestMessage('Request timed out. Try again later.')
+        } else if (response?.status === 'pending' && pollCount < maxPolls) {
+          // Still pending, continue polling
+          setTimeout(poll, pollInterval)
+        }
+      }
+    )
+  }
+
+  // Start polling after a short delay
+  setTimeout(poll, pollInterval)
 }
 
 /**

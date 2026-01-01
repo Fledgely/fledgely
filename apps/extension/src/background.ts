@@ -1580,11 +1580,103 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
 
     case 'REQUEST_TIME_EXTENSION':
-      // Story 31.4 AC4 / Story 31.6: Handle time extension request from blocked page
-      // For now, acknowledge the request. Full implementation in Story 31.6.
-      console.log('[Fledgely] Time extension requested from blocked page')
-      // TODO Story 31.6: Route to parent notification, track request count
-      sendResponse({ success: true, message: 'Request acknowledged' })
+      // Story 31.6: Handle time extension request from blocked page
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.childId || !currentState.familyId || !currentState.deviceId) {
+          sendResponse({ success: false, error: 'not_enrolled', message: 'Device not enrolled' })
+          return
+        }
+
+        const reason = message.reason || 'five_more_minutes'
+        console.log('[Fledgely] Time extension requested:', { reason })
+
+        try {
+          // Call the cloud function to create the request
+          const response = await fetch(
+            'https://us-central1-fledgely-cns-me.cloudfunctions.net/requestTimeExtension',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                childId: currentState.childId,
+                familyId: currentState.familyId,
+                deviceId: currentState.deviceId,
+                reason,
+                extensionMinutes: 30,
+              }),
+            }
+          )
+
+          const result = await response.json()
+
+          if (response.status === 429) {
+            // AC6: Daily limit reached
+            sendResponse({
+              success: false,
+              error: 'limit_reached',
+              message: result.message || "You've already used your daily requests.",
+            })
+          } else if (response.ok && result.success) {
+            sendResponse({
+              success: true,
+              requestId: result.requestId,
+              message: 'Request sent to parent',
+            })
+          } else {
+            sendResponse({
+              success: false,
+              error: 'request_failed',
+              message: result.message || 'Failed to send request',
+            })
+          }
+        } catch (error) {
+          console.error('[Fledgely] Time extension request error:', error)
+          sendResponse({
+            success: false,
+            error: 'network_error',
+            message: 'Unable to send request. Please ask a parent to help.',
+          })
+        }
+      })
+      return true
+
+    case 'CHECK_TIME_EXTENSION_STATUS':
+      // Story 31.6: Poll for status of a time extension request
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.familyId) {
+          sendResponse({ success: false, error: 'not_enrolled' })
+          return
+        }
+
+        const requestId = message.requestId
+        if (!requestId) {
+          sendResponse({ success: false, error: 'missing_request_id' })
+          return
+        }
+
+        try {
+          const response = await fetch(
+            `https://us-central1-fledgely-cns-me.cloudfunctions.net/getTimeExtensionStatus?requestId=${requestId}&familyId=${currentState.familyId}`
+          )
+
+          if (!response.ok) {
+            sendResponse({ success: false, error: 'request_failed' })
+            return
+          }
+
+          const result = await response.json()
+          sendResponse({
+            success: true,
+            status: result.status,
+            extensionMinutes: result.extensionMinutes,
+          })
+        } catch (error) {
+          console.error('[Fledgely] Check time extension status error:', error)
+          sendResponse({ success: false, error: 'network_error' })
+        }
+      })
       return true
 
     default:

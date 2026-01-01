@@ -107,6 +107,14 @@ export {
 // Time limits HTTP handlers (Story 31.1)
 export { getTimeLimitConfig } from './http/timeLimits'
 
+// Time extension callable and HTTP handlers (Story 31.6)
+export {
+  requestTimeExtension,
+  respondToTimeExtension,
+  getTimeExtensionStatus,
+  expireTimeExtensionRequests,
+} from './callable/timeExtension'
+
 // Classification HTTP handlers (Story 20.1)
 export { processClassification } from './http/classification'
 

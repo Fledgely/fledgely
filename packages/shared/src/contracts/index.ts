@@ -4584,3 +4584,75 @@ export type CustomCategory = z.infer<typeof customCategorySchema>
 
 /** Maximum custom categories per family - AC6 */
 export const MAX_CUSTOM_CATEGORIES_PER_FAMILY = 10
+
+// ============================================================================
+// Time Extension Request Schema (Story 31.6)
+// ============================================================================
+
+/**
+ * Reason options for time extension requests.
+ * Story 31.6: Time Extension Requests - AC2
+ */
+export const timeExtensionReasonSchema = z.enum([
+  'finishing_homework',
+  'five_more_minutes',
+  'important_project',
+])
+export type TimeExtensionReason = z.infer<typeof timeExtensionReasonSchema>
+
+/**
+ * Status of a time extension request.
+ * Story 31.6: Time Extension Requests
+ */
+export const timeExtensionStatusSchema = z.enum([
+  'pending',
+  'approved',
+  'denied',
+  'expired', // Auto-denied after timeout (AC7)
+])
+export type TimeExtensionStatus = z.infer<typeof timeExtensionStatusSchema>
+
+/**
+ * Time extension request schema.
+ * Story 31.6: Time Extension Requests
+ *
+ * Stored at: /families/{familyId}/timeExtensionRequests/{requestId}
+ */
+export const timeExtensionRequestSchema = z.object({
+  /** Unique request identifier */
+  id: z.string(),
+  /** Child who made the request */
+  childId: z.string(),
+  /** Family the child belongs to */
+  familyId: z.string(),
+  /** Device the request came from */
+  deviceId: z.string(),
+  /** Reason for request - AC2 */
+  reason: timeExtensionReasonSchema,
+  /** Current status */
+  status: timeExtensionStatusSchema,
+  /** Minutes to add if approved (default 30) */
+  extensionMinutes: z.number().default(30),
+  /** When request was created (epoch ms) */
+  requestedAt: z.number(),
+  /** When request was responded to (epoch ms) */
+  respondedAt: z.number().nullable(),
+  /** Parent who responded */
+  respondedBy: z.string().nullable(),
+  /** Child-friendly name for display */
+  childName: z.string().optional(),
+})
+export type TimeExtensionRequest = z.infer<typeof timeExtensionRequestSchema>
+
+/** Maximum extension requests per child per day - AC6 */
+export const MAX_EXTENSION_REQUESTS_PER_DAY = 2
+
+/** Auto-deny timeout in minutes - AC7 */
+export const EXTENSION_REQUEST_TIMEOUT_MINUTES = 10
+
+/** Human-readable reason labels */
+export const TIME_EXTENSION_REASON_LABELS: Record<TimeExtensionReason, string> = {
+  finishing_homework: 'Finishing homework',
+  five_more_minutes: '5 more minutes',
+  important_project: 'Important project',
+}
