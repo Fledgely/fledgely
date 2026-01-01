@@ -2,9 +2,10 @@
  * Get Time Limit Configuration HTTP Endpoint
  *
  * Story 31.1: Countdown Warning System
+ * Story 31.2: Neurodivergent Transition Accommodations
  *
  * Allows the extension to fetch time limit configuration for a child.
- * Returns the configured limits and warning thresholds.
+ * Returns the configured limits, warning thresholds, and accommodations.
  *
  * Endpoint: POST /getTimeLimitConfig
  * Body: { childId: string, familyId: string }
@@ -14,6 +15,7 @@
  * - categoryLimits: CategoryLimit[]
  * - deviceLimits: DeviceLimit[]
  * - warningThresholds: WarningThresholds
+ * - accommodations: NeurodivergentAccommodations
  */
 
 import { onRequest } from 'firebase-functions/v2/https'
@@ -32,14 +34,33 @@ const DEFAULT_WARNING_THRESHOLDS = {
 }
 
 /**
+ * Default neurodivergent accommodations (Story 31.2)
+ */
+const DEFAULT_ACCOMMODATIONS = {
+  enabled: false,
+  earlyWarningEnabled: true,
+  earlyWarningMinutes: 30,
+  gracePeriodMinutes: 5,
+  calmingColorsEnabled: true,
+  silentModeEnabled: false,
+  gradualTransitionEnabled: true,
+}
+
+/**
  * Get time limit configuration for a child.
  *
  * Story 31.1: Countdown Warning System
  * - AC4: Countdown timer in extension badge
  * - AC6: Configurable warning thresholds
  *
+ * Story 31.2: Neurodivergent Accommodations
+ * - AC1: Early 30-minute warning
+ * - AC2: Extended grace period
+ * - AC3: Calming visual design
+ * - AC4: Optional audio warnings
+ *
  * This endpoint is called by the extension to get the time limit config
- * including warning thresholds for the countdown warning system.
+ * including warning thresholds and accommodations for the warning system.
  */
 export const getTimeLimitConfig = onRequest({ cors: true }, async (req, res) => {
   // Only allow POST requests
@@ -90,24 +111,27 @@ export const getTimeLimitConfig = onRequest({ cors: true }, async (req, res) => 
         categoryLimits: [],
         deviceLimits: [],
         warningThresholds: DEFAULT_WARNING_THRESHOLDS,
+        accommodations: DEFAULT_ACCOMMODATIONS,
       })
       return
     }
 
     const data = configDoc.data()
 
-    // Return the time limit configuration
+    // Return the time limit configuration with accommodations (Story 31.2)
     const response = {
       dailyTotal: data?.dailyTotal || null,
       categoryLimits: data?.categoryLimits || [],
       deviceLimits: data?.deviceLimits || [],
       warningThresholds: data?.warningThresholds || DEFAULT_WARNING_THRESHOLDS,
+      accommodations: data?.accommodations || DEFAULT_ACCOMMODATIONS,
     }
 
     logger.info('Time limit config fetched', {
       familyId,
       childId,
       hasLimits: !!data?.dailyTotal,
+      hasAccommodations: data?.accommodations?.enabled || false,
     })
 
     res.status(200).json(response)

@@ -17,6 +17,8 @@ import {
   warningThresholdsSchema,
   DEFAULT_WARNING_THRESHOLDS,
   MAX_SCREEN_TIME_MINUTES_PER_DAY,
+  neurodivergentAccommodationsSchema,
+  DEFAULT_ACCOMMODATIONS,
 } from './index'
 
 describe('Time Limit Data Model - Story 30.1', () => {
@@ -911,6 +913,132 @@ describe('Warning Thresholds - Story 31.1', () => {
         },
       }
       expect(() => childTimeLimitsSchema.parse(invalidConfig)).toThrow()
+    })
+  })
+})
+
+describe('Neurodivergent Accommodations - Story 31.2', () => {
+  describe('neurodivergentAccommodationsSchema', () => {
+    it('accepts valid accommodation settings', () => {
+      const accommodations = {
+        enabled: true,
+        earlyWarningEnabled: true,
+        earlyWarningMinutes: 30,
+        gracePeriodMinutes: 5,
+        calmingColorsEnabled: true,
+        silentModeEnabled: false,
+        gradualTransitionEnabled: true,
+      }
+      expect(() => neurodivergentAccommodationsSchema.parse(accommodations)).not.toThrow()
+    })
+
+    it('applies default values for all fields', () => {
+      const result = neurodivergentAccommodationsSchema.parse({})
+      expect(result.enabled).toBe(false)
+      expect(result.earlyWarningEnabled).toBe(true)
+      expect(result.earlyWarningMinutes).toBe(30)
+      expect(result.gracePeriodMinutes).toBe(5)
+      expect(result.calmingColorsEnabled).toBe(true)
+      expect(result.silentModeEnabled).toBe(false)
+      expect(result.gradualTransitionEnabled).toBe(true)
+    })
+
+    it('validates earlyWarningMinutes range (15-60)', () => {
+      expect(() => neurodivergentAccommodationsSchema.parse({ earlyWarningMinutes: 14 })).toThrow()
+      expect(() => neurodivergentAccommodationsSchema.parse({ earlyWarningMinutes: 61 })).toThrow()
+      expect(() =>
+        neurodivergentAccommodationsSchema.parse({ earlyWarningMinutes: 15 })
+      ).not.toThrow()
+      expect(() =>
+        neurodivergentAccommodationsSchema.parse({ earlyWarningMinutes: 60 })
+      ).not.toThrow()
+    })
+
+    it('validates gracePeriodMinutes range (1-10)', () => {
+      expect(() => neurodivergentAccommodationsSchema.parse({ gracePeriodMinutes: 0 })).toThrow()
+      expect(() => neurodivergentAccommodationsSchema.parse({ gracePeriodMinutes: 11 })).toThrow()
+      expect(() =>
+        neurodivergentAccommodationsSchema.parse({ gracePeriodMinutes: 1 })
+      ).not.toThrow()
+      expect(() =>
+        neurodivergentAccommodationsSchema.parse({ gracePeriodMinutes: 10 })
+      ).not.toThrow()
+    })
+
+    it('requires integer values for minutes', () => {
+      expect(() =>
+        neurodivergentAccommodationsSchema.parse({ earlyWarningMinutes: 30.5 })
+      ).toThrow()
+      expect(() => neurodivergentAccommodationsSchema.parse({ gracePeriodMinutes: 5.5 })).toThrow()
+    })
+  })
+
+  describe('DEFAULT_ACCOMMODATIONS', () => {
+    it('has correct default values', () => {
+      expect(DEFAULT_ACCOMMODATIONS.enabled).toBe(false)
+      expect(DEFAULT_ACCOMMODATIONS.earlyWarningEnabled).toBe(true)
+      expect(DEFAULT_ACCOMMODATIONS.earlyWarningMinutes).toBe(30)
+      expect(DEFAULT_ACCOMMODATIONS.gracePeriodMinutes).toBe(5)
+      expect(DEFAULT_ACCOMMODATIONS.calmingColorsEnabled).toBe(true)
+      expect(DEFAULT_ACCOMMODATIONS.silentModeEnabled).toBe(false)
+      expect(DEFAULT_ACCOMMODATIONS.gradualTransitionEnabled).toBe(true)
+    })
+
+    it('passes schema validation', () => {
+      expect(() => neurodivergentAccommodationsSchema.parse(DEFAULT_ACCOMMODATIONS)).not.toThrow()
+    })
+  })
+
+  describe('childTimeLimitsSchema with accommodations', () => {
+    const now = Date.now()
+    const validChildTimeLimits = {
+      childId: 'child-123',
+      familyId: 'family-456',
+      updatedAt: now,
+    }
+
+    it('accepts accommodations field', () => {
+      const config = {
+        ...validChildTimeLimits,
+        accommodations: {
+          enabled: true,
+          earlyWarningMinutes: 45,
+          gracePeriodMinutes: 7,
+        },
+      }
+      const result = childTimeLimitsSchema.parse(config)
+      expect(result.accommodations?.enabled).toBe(true)
+      expect(result.accommodations?.earlyWarningMinutes).toBe(45)
+      expect(result.accommodations?.gracePeriodMinutes).toBe(7)
+    })
+
+    it('allows config without accommodations', () => {
+      const result = childTimeLimitsSchema.parse(validChildTimeLimits)
+      expect(result.accommodations).toBeUndefined()
+    })
+
+    it('validates accommodations when provided', () => {
+      const invalidConfig = {
+        ...validChildTimeLimits,
+        accommodations: {
+          gracePeriodMinutes: 100, // Out of range
+        },
+      }
+      expect(() => childTimeLimitsSchema.parse(invalidConfig)).toThrow()
+    })
+
+    it('applies defaults for partial accommodations', () => {
+      const config = {
+        ...validChildTimeLimits,
+        accommodations: {
+          enabled: true,
+        },
+      }
+      const result = childTimeLimitsSchema.parse(config)
+      expect(result.accommodations?.enabled).toBe(true)
+      expect(result.accommodations?.earlyWarningMinutes).toBe(30)
+      expect(result.accommodations?.gracePeriodMinutes).toBe(5)
+      expect(result.accommodations?.calmingColorsEnabled).toBe(true)
     })
   })
 })

@@ -4414,11 +4414,47 @@ export const DEFAULT_WARNING_THRESHOLDS: WarningThresholds = {
 }
 
 /**
+ * Neurodivergent accommodations for time limits.
+ * Story 31.2: Neurodivergent Transition Accommodations - FR129
+ *
+ * Extra transition time and gentle warnings for neurodivergent children.
+ */
+export const neurodivergentAccommodationsSchema = z.object({
+  /** Whether accommodations are enabled for this child. Default: false */
+  enabled: z.boolean().default(false),
+  /** Extra warning at early threshold before limit. Default: true */
+  earlyWarningEnabled: z.boolean().default(true),
+  /** Minutes for early warning (15-60). Default: 30 */
+  earlyWarningMinutes: z.number().int().min(15).max(60).default(30),
+  /** Grace period minutes after limit reached (1-10). Default: 5 */
+  gracePeriodMinutes: z.number().int().min(1).max(10).default(5),
+  /** Use calming colors instead of alarming red/orange. Default: true */
+  calmingColorsEnabled: z.boolean().default(true),
+  /** Disable audio notifications. Default: false */
+  silentModeEnabled: z.boolean().default(false),
+  /** Enable gradual screen dimming instead of hard cutoff. Default: true */
+  gradualTransitionEnabled: z.boolean().default(true),
+})
+export type NeurodivergentAccommodations = z.infer<typeof neurodivergentAccommodationsSchema>
+
+/** Default neurodivergent accommodations */
+export const DEFAULT_ACCOMMODATIONS: NeurodivergentAccommodations = {
+  enabled: false,
+  earlyWarningEnabled: true,
+  earlyWarningMinutes: 30,
+  gracePeriodMinutes: 5,
+  calmingColorsEnabled: true,
+  silentModeEnabled: false,
+  gradualTransitionEnabled: true,
+}
+
+/**
  * Complete time limits configuration for a child.
  * Stored at: /families/{familyId}/children/{childId}/timeLimits/config
  *
  * Story 30.1: Time Limit Data Model - AC1, AC3, AC5, AC6
  * Story 31.1: Countdown Warning System - AC6 warning thresholds
+ * Story 31.2: Neurodivergent Transition Accommodations - AC6
  */
 export const childTimeLimitsSchema = z.object({
   /** Child this configuration belongs to */
@@ -4435,6 +4471,8 @@ export const childTimeLimitsSchema = z.object({
   deviceLimits: z.array(deviceLimitSchema).optional(),
   /** Warning thresholds for notifications - Story 31.1 AC6 */
   warningThresholds: warningThresholdsSchema.optional(),
+  /** Neurodivergent accommodations - Story 31.2 AC6 */
+  accommodations: neurodivergentAccommodationsSchema.optional(),
   /** When this configuration becomes effective (epoch ms) - AC6 */
   effectiveFrom: z.number().optional(),
   /** Last updated timestamp (epoch ms) */
