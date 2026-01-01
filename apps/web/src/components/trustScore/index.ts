@@ -33,3 +33,14 @@ export type { MilestoneTimelineProps } from './MilestoneTimeline'
 export type { FactorDetailModalProps } from './FactorDetailModal'
 export type { TrustGuidanceCardProps } from './TrustGuidanceCard'
 export type { ParentTrustScoreViewProps } from './ParentTrustScoreView'
+
+// Bypass attempt components (Story 36-5)
+export { BypassAttemptCard } from './BypassAttemptCard'
+export { BypassAttemptList } from './BypassAttemptList'
+export { ChildBypassView } from './ChildBypassView'
+export { ParentBypassView } from './ParentBypassView'
+
+export type { BypassAttemptCardProps } from './BypassAttemptCard'
+export type { BypassAttemptListProps } from './BypassAttemptList'
+export type { ChildBypassViewProps } from './ChildBypassView'
+export type { ParentBypassViewProps } from './ParentBypassView'
