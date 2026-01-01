@@ -6,16 +6,16 @@ As **the system**,
 I want **to log bypass attempts and their impact on trust score**,
 So that **parents can understand behavior patterns and children see consequences**.
 
-## Status: In Progress
+## Status: Done
 
 ## Acceptance Criteria
 
-- [ ] AC1: Log bypass attempts with timestamp and context
-- [ ] AC2: Show bypass attempt impact on trust score
-- [ ] AC3: Bypass attempts expire after configurable period
-- [ ] AC4: Child can see their own bypass attempt history
-- [ ] AC5: Parent can see bypass attempts with non-punitive framing
-- [ ] AC6: Distinguish between intentional bypass vs accidental
+- [x] AC1: Log bypass attempts with timestamp and context
+- [x] AC2: Show bypass attempt impact on trust score
+- [x] AC3: Bypass attempts expire after configurable period
+- [x] AC4: Child can see their own bypass attempt history
+- [x] AC5: Parent can see bypass attempts with non-punitive framing
+- [x] AC6: Distinguish between intentional bypass vs accidental
 
 ## Technical Tasks
 
