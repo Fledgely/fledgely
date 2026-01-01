@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * useChildTimeLimits Hook - Story 30.2
+ * useChildTimeLimits Hook - Story 30.2, 30.3
  *
  * Real-time listener for child time limits configuration.
  * Provides methods to read and update time limits.
@@ -9,12 +9,13 @@
  * Requirements:
  * - AC5: Limit applies across all enrolled devices combined
  * - AC6: Changes require child acknowledgment
+ * - Story 30.3: Per-category limits
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import type { TimeLimitSchedule, ChildTimeLimits } from '@fledgely/shared'
+import type { TimeLimitSchedule, ChildTimeLimits, CategoryLimit } from '@fledgely/shared'
 
 /**
  * Simplified time limits for UI
@@ -26,6 +27,18 @@ export interface TimeLimitsConfig {
   unlimited: boolean
 }
 
+/**
+ * Category limit for UI (Story 30.3)
+ */
+export interface CategoryLimitConfig {
+  categoryId: string
+  categoryName: string
+  enabled: boolean
+  weekdayMinutes: number
+  weekendMinutes: number
+  unlimited: boolean
+}
+
 interface UseChildTimeLimitsOptions {
   familyId: string | null
   childId: string | null
@@ -34,9 +47,13 @@ interface UseChildTimeLimitsOptions {
 
 interface UseChildTimeLimitsResult {
   limits: TimeLimitsConfig | null
+  categoryLimits: CategoryLimitConfig[]
   loading: boolean
   error: string | null
   saveLimits: (config: TimeLimitsConfig) => Promise<{ success: boolean; error?: string }>
+  saveCategoryLimits: (
+    categories: CategoryLimitConfig[]
+  ) => Promise<{ success: boolean; error?: string }>
   hasChanges: boolean
 }
 
@@ -62,6 +79,8 @@ export function useChildTimeLimits({
 }: UseChildTimeLimitsOptions): UseChildTimeLimitsResult {
   const [limits, setLimits] = useState<TimeLimitsConfig | null>(null)
   const [originalLimits, setOriginalLimits] = useState<TimeLimitsConfig | null>(null)
+  const [categoryLimits, setCategoryLimits] = useState<CategoryLimitConfig[]>([])
+  const [_originalCategoryLimits, setOriginalCategoryLimits] = useState<CategoryLimitConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -78,6 +97,8 @@ export function useChildTimeLimits({
     if (!familyId || !childId || !enabled) {
       setLimits(null)
       setOriginalLimits(null)
+      setCategoryLimits([])
+      setOriginalCategoryLimits([])
       setLoading(false)
       return
     }
@@ -95,6 +116,7 @@ export function useChildTimeLimits({
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data() as ChildTimeLimits
+          // Load daily total limits
           const config: TimeLimitsConfig = {
             weekdayMinutes: data.dailyTotal?.weekdayMinutes ?? DEFAULT_LIMITS.weekdayMinutes,
             weekendMinutes: data.dailyTotal?.weekendMinutes ?? DEFAULT_LIMITS.weekendMinutes,
@@ -104,10 +126,31 @@ export function useChildTimeLimits({
           }
           setLimits(config)
           setOriginalLimits(config)
+
+          // Load category limits (Story 30.3)
+          if (data.categoryLimits && Array.isArray(data.categoryLimits)) {
+            const catLimits: CategoryLimitConfig[] = data.categoryLimits.map(
+              (cat: CategoryLimit) => ({
+                categoryId: cat.category,
+                categoryName: cat.category.charAt(0).toUpperCase() + cat.category.slice(1),
+                enabled: true,
+                weekdayMinutes: cat.schedule.weekdayMinutes ?? 60,
+                weekendMinutes: cat.schedule.weekendMinutes ?? 120,
+                unlimited: cat.schedule.unlimited ?? false,
+              })
+            )
+            setCategoryLimits(catLimits)
+            setOriginalCategoryLimits(catLimits)
+          } else {
+            setCategoryLimits([])
+            setOriginalCategoryLimits([])
+          }
         } else {
           // No limits configured yet - use defaults
           setLimits(DEFAULT_LIMITS)
           setOriginalLimits(DEFAULT_LIMITS)
+          setCategoryLimits([])
+          setOriginalCategoryLimits([])
         }
         setLoading(false)
       },
@@ -175,11 +218,68 @@ export function useChildTimeLimits({
     [familyId, childId]
   )
 
+  /**
+   * Save category limits to Firestore.
+   * Story 30.3: Per-category limit configuration.
+   */
+  const saveCategoryLimits = useCallback(
+    async (categories: CategoryLimitConfig[]): Promise<{ success: boolean; error?: string }> => {
+      if (!familyId || !childId) {
+        return { success: false, error: 'Missing family or child ID' }
+      }
+
+      try {
+        const db = getFirestoreDb()
+        const limitsRef = doc(db, 'families', familyId, 'children', childId, 'timeLimits', 'config')
+
+        // Check if document exists to get current version
+        const existingDoc = await getDoc(limitsRef)
+        const currentVersion = existingDoc.exists() ? (existingDoc.data()?.version ?? 0) + 1 : 1
+
+        // Convert to Firestore format - only save enabled categories
+        const categoryLimitsData: CategoryLimit[] = categories
+          .filter((cat) => cat.enabled)
+          .map((cat) => ({
+            category: cat.categoryId as CategoryLimit['category'],
+            schedule: {
+              scheduleType: 'weekdays' as const, // Use the same schedule as daily total
+              weekdayMinutes: cat.unlimited ? undefined : cat.weekdayMinutes,
+              weekendMinutes: cat.unlimited ? undefined : cat.weekendMinutes,
+              unlimited: cat.unlimited || undefined,
+            },
+          }))
+
+        const timeLimitsData: Partial<ChildTimeLimits> = {
+          childId,
+          familyId,
+          categoryLimits: categoryLimitsData,
+          updatedAt: Date.now(),
+          version: currentVersion,
+        }
+
+        await setDoc(limitsRef, timeLimitsData, { merge: true })
+
+        // Update original category limits to match saved state
+        setOriginalCategoryLimits(categories)
+
+        return { success: true }
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error saving category limits:', err)
+        }
+        return { success: false, error: 'Failed to save category limits' }
+      }
+    },
+    [familyId, childId]
+  )
+
   return {
     limits,
+    categoryLimits,
     loading,
     error,
     saveLimits,
+    saveCategoryLimits,
     hasChanges,
   }
 }

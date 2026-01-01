@@ -4,6 +4,7 @@
  * Time Limits Settings Page
  *
  * Story 30.2: Daily Total Limit Configuration
+ * Story 30.3: Per-Category Limit Configuration
  *
  * Allows guardians to configure daily screen time limits:
  * - AC1: Slider for total minutes (30m-8h range)
@@ -12,14 +13,20 @@
  * - AC4: Preview of configured limits
  * - AC5: Cross-device limit indication
  * - AC6: Agreement update notification
+ * - Story 30.3: Per-category limits with icons
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamily } from '../../../../contexts/FamilyContext'
 import { useChildTimeLimits, type TimeLimitsConfig } from '../../../../hooks/useChildTimeLimits'
 import { formatMinutes } from '../../../../utils/formatTime'
+import {
+  CategoryLimitCard,
+  getDefaultCategoryLimits,
+  type CategoryLimit as CategoryLimitUI,
+} from '../../../../components/settings/CategoryLimitCard'
 
 const styles = {
   main: {
@@ -361,14 +368,19 @@ export default function TimeLimitsSettingsPage() {
 
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
   const [localLimits, setLocalLimits] = useState<TimeLimitsConfig | null>(null)
+  const [localCategoryLimits, setLocalCategoryLimits] = useState<CategoryLimitUI[]>(
+    getDefaultCategoryLimits()
+  )
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const {
     limits,
+    categoryLimits,
     loading: limitsLoading,
     saveLimits,
+    saveCategoryLimits,
   } = useChildTimeLimits({
     familyId: family?.id ?? null,
     childId: selectedChildId,
@@ -384,6 +396,21 @@ export default function TimeLimitsSettingsPage() {
       localLimits.scheduleType !== limits.scheduleType ||
       localLimits.unlimited !== limits.unlimited)
 
+  // Check if category limits have changed
+  const hasCategoryChanges = localCategoryLimits.some((local) => {
+    const original = categoryLimits.find((c) => c.categoryId === local.categoryId)
+    if (!original) {
+      // If category wasn't in original but is now enabled, it's a change
+      return local.enabled
+    }
+    return (
+      local.enabled !== true || // original from Firestore is always enabled
+      local.weekdayMinutes !== original.weekdayMinutes ||
+      local.weekendMinutes !== original.weekendMinutes ||
+      local.unlimited !== original.unlimited
+    )
+  })
+
   // Auto-select first child
   useEffect(() => {
     if (children.length > 0 && !selectedChildId) {
@@ -397,6 +424,40 @@ export default function TimeLimitsSettingsPage() {
       setLocalLimits(limits)
     }
   }, [limits])
+
+  // Sync category limits from Firestore (Story 30.3)
+  useEffect(() => {
+    if (categoryLimits.length > 0) {
+      // Merge Firestore data with default categories
+      const merged = getDefaultCategoryLimits().map((defaultCat) => {
+        const fromFirestore = categoryLimits.find((c) => c.categoryId === defaultCat.categoryId)
+        if (fromFirestore) {
+          return {
+            ...defaultCat,
+            enabled: true,
+            weekdayMinutes: fromFirestore.weekdayMinutes,
+            weekendMinutes: fromFirestore.weekendMinutes,
+            unlimited: fromFirestore.unlimited,
+          }
+        }
+        return defaultCat
+      })
+      setLocalCategoryLimits(merged)
+    } else {
+      // Reset to defaults when no category limits in Firestore
+      setLocalCategoryLimits(getDefaultCategoryLimits())
+    }
+  }, [categoryLimits])
+
+  // Handler for updating a category limit
+  const handleCategoryUpdate = useCallback(
+    (categoryId: string, updates: Partial<CategoryLimitUI>) => {
+      setLocalCategoryLimits((prev) =>
+        prev.map((cat) => (cat.categoryId === categoryId ? { ...cat, ...updates } : cat))
+      )
+    },
+    []
+  )
 
   // Clear success/error message after 3 seconds
   useEffect(() => {
@@ -425,7 +486,30 @@ export default function TimeLimitsSettingsPage() {
     setIsSaving(true)
     setSaveSuccess(false)
     setSaveError(null)
+
+    // Save daily total limits
     const result = await saveLimits(localLimits)
+
+    // Save category limits if any are enabled
+    const enabledCategories = localCategoryLimits.filter((c) => c.enabled)
+    if (enabledCategories.length > 0) {
+      const categoryResult = await saveCategoryLimits(
+        enabledCategories.map((c) => ({
+          categoryId: c.categoryId,
+          categoryName: c.categoryName,
+          enabled: c.enabled,
+          weekdayMinutes: c.weekdayMinutes,
+          weekendMinutes: c.weekendMinutes,
+          unlimited: c.unlimited,
+        }))
+      )
+      if (!categoryResult.success) {
+        setIsSaving(false)
+        setSaveError(categoryResult.error || 'Failed to save category limits')
+        return
+      }
+    }
+
     setIsSaving(false)
 
     if (result.success) {
@@ -718,16 +802,69 @@ export default function TimeLimitsSettingsPage() {
                   </span>
                 </div>
 
+                {/* Category Limits - Story 30.3 */}
+                <div style={styles.card}>
+                  <h2 style={styles.cardTitle}>Per-Category Limits</h2>
+                  <p
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      marginBottom: '16px',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Set different time limits for each app category. Category limits are independent
+                    of the daily total.
+                  </p>
+
+                  {localCategoryLimits.map((category) => (
+                    <CategoryLimitCard
+                      key={category.categoryId}
+                      category={category}
+                      scheduleType={localLimits?.scheduleType || 'weekdays'}
+                      onUpdate={handleCategoryUpdate}
+                    />
+                  ))}
+
+                  {/* Category Limits Preview - AC6 */}
+                  {localCategoryLimits.some((c) => c.enabled) && (
+                    <div
+                      style={{
+                        ...styles.previewBox,
+                        marginTop: '16px',
+                      }}
+                    >
+                      <div style={styles.previewTitle}>Category Limits Preview</div>
+                      <div style={{ fontSize: '14px', color: '#166534', lineHeight: 1.6 }}>
+                        {localCategoryLimits
+                          .filter((c) => c.enabled)
+                          .map((c) => (
+                            <div key={c.categoryId}>
+                              <strong>{c.categoryName}:</strong>{' '}
+                              {c.unlimited ? 'Unlimited' : `${formatMinutes(c.weekdayMinutes)}/day`}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Save Button */}
                 <button
                   style={{
                     ...styles.saveButton,
-                    ...(isSaving || !hasLocalChanges ? styles.saveButtonDisabled : {}),
+                    ...(isSaving || (!hasLocalChanges && !hasCategoryChanges)
+                      ? styles.saveButtonDisabled
+                      : {}),
                   }}
                   onClick={handleSave}
-                  disabled={isSaving || !hasLocalChanges}
+                  disabled={isSaving || (!hasLocalChanges && !hasCategoryChanges)}
                 >
-                  {isSaving ? 'Saving...' : hasLocalChanges ? 'Save Changes' : 'No Changes'}
+                  {isSaving
+                    ? 'Saving...'
+                    : hasLocalChanges || hasCategoryChanges
+                      ? 'Save Changes'
+                      : 'No Changes'}
                 </button>
               </>
             )}
