@@ -6639,3 +6639,20 @@ export {
   type PostGraceStatus,
   type AgreementForPostGrace,
 } from './agreementPostGrace'
+
+// Annual Review (Story 35.6)
+export {
+  ANNUAL_REVIEW_INTERVAL_DAYS,
+  annualReviewStatusSchema,
+  ANNUAL_REVIEW_MESSAGES,
+  AGE_SUGGESTION_THRESHOLDS,
+  annualReviewPromptSchema,
+  isAnnualReviewDue,
+  getDaysSinceLastReview,
+  getAgeBasedSuggestions,
+  getAnnualReviewStatus,
+  type AnnualReviewStatus,
+  type AnnualReviewPrompt,
+  type AgreementForAnnualReview,
+  type AgeSuggestionThreshold,
+} from './annualReview'
