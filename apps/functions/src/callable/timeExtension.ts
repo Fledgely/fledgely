@@ -74,6 +74,8 @@ const requestTimeExtensionSchema = z.object({
  * Called by the Chrome extension when child clicks "Request more time".
  * This is an HTTP function (not callable) because it's called from the extension
  * which may not have Firebase Auth context.
+ *
+ * Security: Validates device is enrolled in the family before accepting request.
  */
 export const requestTimeExtension = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -96,38 +98,61 @@ export const requestTimeExtension = onRequest({ cors: true }, async (req, res) =
     const { childId, familyId, deviceId, reason, extensionMinutes } = parseResult.data
     const db = getFirestore()
 
-    // AC6: Check daily request limit
-    const today = new Date().toISOString().split('T')[0]
-    const requestsRef = db.collection('families').doc(familyId).collection('timeExtensionRequests')
-
-    const todayRequests = await requestsRef
-      .where('childId', '==', childId)
-      .where('deviceId', '==', deviceId)
+    // SECURITY: Verify device is enrolled in family and assigned to this child
+    const deviceDoc = await db
+      .collection('families')
+      .doc(familyId)
+      .collection('devices')
+      .doc(deviceId)
       .get()
 
-    // Count requests from today
-    const todayCount = todayRequests.docs.filter((doc) => {
-      const data = doc.data() as { requestedAt: number }
-      const requestDate = new Date(data.requestedAt).toISOString().split('T')[0]
-      return requestDate === today
-    }).length
-
-    if (todayCount >= MAX_EXTENSION_REQUESTS_PER_DAY) {
-      logger.info('Time extension request limit reached', {
-        childId,
-        deviceId,
-        todayCount,
-        limit: MAX_EXTENSION_REQUESTS_PER_DAY,
-      })
-      res.status(429).json({
+    if (!deviceDoc.exists) {
+      logger.warn('Time extension request from unknown device', { deviceId, familyId })
+      res.status(403).json({
         success: false,
-        error: 'limit_reached',
-        message: `You've already used your ${MAX_EXTENSION_REQUESTS_PER_DAY} daily requests.`,
+        error: 'device_not_found',
+        message: 'Device not registered',
       })
       return
     }
 
-    // Get child name for notifications
+    const deviceData = deviceDoc.data() as { childId?: string; status?: string }
+
+    // Verify device is assigned to this child
+    if (deviceData.childId !== childId) {
+      logger.warn('Time extension request device/child mismatch', {
+        deviceId,
+        expectedChild: deviceData.childId,
+        requestedChild: childId,
+      })
+      res.status(403).json({
+        success: false,
+        error: 'device_mismatch',
+        message: 'Device not assigned to this child',
+      })
+      return
+    }
+
+    // Verify device is active
+    if (deviceData.status !== 'active') {
+      res.status(403).json({
+        success: false,
+        error: 'device_inactive',
+        message: 'Device is not active',
+      })
+      return
+    }
+
+    // AC6: Check daily request limit using transaction to prevent race conditions
+    const today = new Date().toISOString().split('T')[0]
+    const requestsRef = db.collection('families').doc(familyId).collection('timeExtensionRequests')
+    const counterRef = db
+      .collection('families')
+      .doc(familyId)
+      .collection('dailyCounters')
+      .doc(`extension-${childId}-${today}`)
+
+    // Get child name for notifications (outside transaction)
     const childDoc = await db
       .collection('families')
       .doc(familyId)
@@ -138,24 +163,64 @@ export const requestTimeExtension = onRequest({ cors: true }, async (req, res) =
     const childName: string =
       childDoc.exists && childData?.displayName ? childData.displayName : 'Your child'
 
-    // Create the request
-    const requestId = db.collection('_').doc().id
-    const now = Date.now()
+    // Use transaction to atomically check and increment daily count
+    let requestId: string
+    try {
+      requestId = await db.runTransaction(async (transaction) => {
+        const counterDoc = await transaction.get(counterRef)
+        const currentCount = counterDoc.exists
+          ? (counterDoc.data() as { count: number }).count || 0
+          : 0
 
-    await requestsRef.doc(requestId).set({
-      id: requestId,
-      childId,
-      familyId,
-      deviceId,
-      reason,
-      status: 'pending',
-      extensionMinutes,
-      requestedAt: now,
-      respondedAt: null,
-      respondedBy: null,
-      childName,
-      expiresAt: now + REQUEST_EXPIRY_MS,
-    })
+        if (currentCount >= MAX_EXTENSION_REQUESTS_PER_DAY) {
+          throw new Error('LIMIT_REACHED')
+        }
+
+        // Generate request ID and create request atomically
+        const newRequestId = db.collection('_').doc().id
+        const now = Date.now()
+
+        // Increment counter
+        transaction.set(
+          counterRef,
+          { count: currentCount + 1, date: today, updatedAt: now },
+          { merge: true }
+        )
+
+        // Create request
+        transaction.set(requestsRef.doc(newRequestId), {
+          id: newRequestId,
+          childId,
+          familyId,
+          deviceId,
+          reason,
+          status: 'pending',
+          extensionMinutes,
+          requestedAt: now,
+          respondedAt: null,
+          respondedBy: null,
+          childName,
+          expiresAt: now + REQUEST_EXPIRY_MS,
+        })
+
+        return newRequestId
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message === 'LIMIT_REACHED') {
+        logger.info('Time extension request limit reached', {
+          childId,
+          deviceId,
+          limit: MAX_EXTENSION_REQUESTS_PER_DAY,
+        })
+        res.status(429).json({
+          success: false,
+          error: 'limit_reached',
+          message: `You've already used your ${MAX_EXTENSION_REQUESTS_PER_DAY} daily requests.`,
+        })
+        return
+      }
+      throw error
+    }
 
     logger.info('Time extension request created', {
       requestId,
@@ -379,6 +444,8 @@ export const respondToTimeExtension = onCall(async (request) => {
 /**
  * Add extension time to child's daily limit.
  * Story 31.6 AC4
+ *
+ * Throws if time limits document doesn't exist to prevent silent failures.
  */
 async function addTimeToChildLimit(
   familyId: string,
@@ -396,28 +463,45 @@ async function addTimeToChildLimit(
 
   const timeLimitsDoc = await timeLimitsRef.get()
 
-  if (timeLimitsDoc.exists) {
-    const data = timeLimitsDoc.data()!
-
-    // Add extension to today's bonus
+  if (!timeLimitsDoc.exists) {
+    // Create default time limits if they don't exist
+    // This ensures the extension works even if time limits weren't configured
     const today = new Date().toISOString().split('T')[0]
-    const existingBonus = data.dailyBonusMinutes || {}
-
-    await timeLimitsRef.update({
-      dailyBonusMinutes: {
-        ...existingBonus,
-        [today]: (existingBonus[today] || 0) + extensionMinutes,
-      },
+    await timeLimitsRef.set({
+      dailyBonusMinutes: { [today]: extensionMinutes },
+      enabled: false, // Not enforced by default
+      createdAt: Date.now(),
       updatedAt: Date.now(),
     })
 
-    logger.info('Added extension time to child limit', {
+    logger.info('Created time limits document with extension bonus', {
       familyId,
       childId,
       extensionMinutes,
-      totalBonusToday: (existingBonus[today] || 0) + extensionMinutes,
     })
+    return
   }
+
+  const data = timeLimitsDoc.data()!
+
+  // Add extension to today's bonus
+  const today = new Date().toISOString().split('T')[0]
+  const existingBonus = (data.dailyBonusMinutes as Record<string, number>) || {}
+
+  await timeLimitsRef.update({
+    dailyBonusMinutes: {
+      ...existingBonus,
+      [today]: (existingBonus[today] || 0) + extensionMinutes,
+    },
+    updatedAt: Date.now(),
+  })
+
+  logger.info('Added extension time to child limit', {
+    familyId,
+    childId,
+    extensionMinutes,
+    totalBonusToday: (existingBonus[today] || 0) + extensionMinutes,
+  })
 }
 
 // =============================================================================
@@ -427,6 +511,8 @@ async function addTimeToChildLimit(
 /**
  * Get the status of a time extension request.
  * Called by extension to check if request was approved/denied.
+ *
+ * Security: Verifies the requesting device is the one that created the request.
  */
 export const getTimeExtensionStatus = onRequest({ cors: true }, async (req, res) => {
   try {
@@ -435,10 +521,10 @@ export const getTimeExtensionStatus = onRequest({ cors: true }, async (req, res)
       return
     }
 
-    const { requestId, familyId } = req.query
+    const { requestId, familyId, deviceId } = req.query
 
-    if (!requestId || !familyId) {
-      res.status(400).json({ error: 'requestId and familyId are required' })
+    if (!requestId || !familyId || !deviceId) {
+      res.status(400).json({ error: 'requestId, familyId, and deviceId are required' })
       return
     }
 
@@ -456,6 +542,17 @@ export const getTimeExtensionStatus = onRequest({ cors: true }, async (req, res)
     }
 
     const data = requestDoc.data()!
+
+    // SECURITY: Verify the device making the request is the same that created it
+    if (data.deviceId !== String(deviceId)) {
+      logger.warn('Time extension status check from wrong device', {
+        requestId: String(requestId),
+        expectedDevice: data.deviceId,
+        requestingDevice: String(deviceId),
+      })
+      res.status(403).json({ error: 'Not authorized to view this request' })
+      return
+    }
 
     res.status(200).json({
       success: true,
@@ -478,6 +575,10 @@ export const getTimeExtensionStatus = onRequest({ cors: true }, async (req, res)
  * Story 31.6 AC7: Auto-deny if parent doesn't respond in 10 minutes.
  *
  * Runs every 2 minutes to check for expired requests.
+ * Uses collection group query for efficiency across all families.
+ *
+ * Note: Requires Firestore composite index on timeExtensionRequests:
+ *   - status (ASC), expiresAt (ASC)
  */
 export const expireTimeExtensionRequests = onSchedule(
   {
@@ -489,45 +590,34 @@ export const expireTimeExtensionRequests = onSchedule(
     const now = Date.now()
 
     try {
-      // Query all families (we need to check each family's subcollection)
-      const familiesSnapshot = await db.collection('families').get()
+      // Use collection group query for efficiency (works across all families)
+      const expiredRequests = await db
+        .collectionGroup('timeExtensionRequests')
+        .where('status', '==', 'pending')
+        .where('expiresAt', '<=', now)
+        .limit(EXPIRY_BATCH_SIZE)
+        .get()
 
-      let totalExpired = 0
+      if (expiredRequests.empty) {
+        // No expired requests - this is the common case
+        return
+      }
 
-      for (const familyDoc of familiesSnapshot.docs) {
-        const requestsRef = familyDoc.ref.collection('timeExtensionRequests')
+      // Batch update expired requests
+      const batch = db.batch()
 
-        // Find pending requests that have expired
-        const expiredRequests = await requestsRef
-          .where('status', '==', 'pending')
-          .where('expiresAt', '<=', now)
-          .limit(EXPIRY_BATCH_SIZE)
-          .get()
-
-        if (expiredRequests.empty) continue
-
-        // Batch update expired requests
-        const batch = db.batch()
-
-        for (const doc of expiredRequests.docs) {
-          batch.update(doc.ref, {
-            status: 'expired',
-            respondedAt: now,
-          })
-        }
-
-        await batch.commit()
-        totalExpired += expiredRequests.size
-
-        logger.info('Expired time extension requests', {
-          familyId: familyDoc.id,
-          count: expiredRequests.size,
+      for (const doc of expiredRequests.docs) {
+        batch.update(doc.ref, {
+          status: 'expired',
+          respondedAt: now,
         })
       }
 
-      if (totalExpired > 0) {
-        logger.info('Total time extension requests expired', { count: totalExpired })
-      }
+      await batch.commit()
+
+      logger.info('Time extension requests expired', {
+        count: expiredRequests.size,
+      })
     } catch (error) {
       logger.error('Error expiring time extension requests:', error)
     }

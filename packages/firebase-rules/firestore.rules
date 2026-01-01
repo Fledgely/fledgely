@@ -208,6 +208,59 @@ service cloud.firestore {
         // Delete: Not allowed - feedback is audit trail
         allow delete: if false;
       }
+
+      // Time Extension Requests subcollection: child requests for more screen time
+      //
+      // Story 31.6: Time Extension Requests
+      // Guardians can view requests and respond (approve/deny).
+      // Creation is done via Cloud Functions (from extension HTTP call).
+      //
+      // SECURITY:
+      // - Requests come from unauthenticated extension via HTTP function
+      // - Only Cloud Functions can create (validates device enrollment)
+      // - Guardians can update status to approve/deny
+      //
+      match /timeExtensionRequests/{requestId} {
+        function isTimeExtensionGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardianUids;
+        }
+
+        // Read: Guardians can view extension requests
+        allow read: if isTimeExtensionGuardian();
+
+        // Create: Only Cloud Functions can create (via Admin SDK)
+        // This ensures device enrollment is validated before accepting requests
+        allow create: if false;
+
+        // Update: Guardians can approve/deny pending requests
+        // Can only change status, respondedAt, respondedBy fields
+        allow update: if isTimeExtensionGuardian() &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status in ['approved', 'denied'] &&
+          // Preserve immutable fields
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.deviceId == resource.data.deviceId &&
+          request.resource.data.reason == resource.data.reason &&
+          request.resource.data.extensionMinutes == resource.data.extensionMinutes &&
+          request.resource.data.requestedAt == resource.data.requestedAt;
+
+        // Delete: Not allowed - keep audit trail
+        allow delete: if false;
+      }
+
+      // Daily Counters subcollection: atomic counters for rate limiting
+      //
+      // Story 31.6: Time Extension Requests
+      // Used to prevent race conditions in daily limit enforcement.
+      // Only Cloud Functions can read/write these counters.
+      //
+      match /dailyCounters/{counterId} {
+        // Only Cloud Functions can access daily counters
+        allow read, write: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

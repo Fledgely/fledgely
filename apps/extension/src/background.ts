@@ -118,6 +118,12 @@ const ALARM_SYNC_QUEUE = 'sync-queue'
 const ALARM_ALLOWLIST_SYNC = 'allowlist-sync' // Story 11.2
 const ALARM_CONSENT_CHECK = 'consent-check' // Story 6.5: Periodic consent verification
 
+// Story 31.6: Cloud Functions API endpoint
+// Uses project ID from manifest or defaults to production
+const FIREBASE_PROJECT_ID = 'fledgely-cns-me'
+const FIREBASE_REGION = 'us-central1'
+const API_BASE_URL = `https://${FIREBASE_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net`
+
 // Consent check interval (15 minutes)
 const CONSENT_CHECK_INTERVAL_MINUTES = 15
 
@@ -1593,20 +1599,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         try {
           // Call the cloud function to create the request
-          const response = await fetch(
-            'https://us-central1-fledgely-cns-me.cloudfunctions.net/requestTimeExtension',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                childId: currentState.childId,
-                familyId: currentState.familyId,
-                deviceId: currentState.deviceId,
-                reason,
-                extensionMinutes: 30,
-              }),
-            }
-          )
+          const response = await fetch(`${API_BASE_URL}/requestTimeExtension`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              childId: currentState.childId,
+              familyId: currentState.familyId,
+              deviceId: currentState.deviceId,
+              reason,
+              extensionMinutes: 30,
+            }),
+          })
 
           const result = await response.json()
 
@@ -1645,7 +1648,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       // Story 31.6: Poll for status of a time extension request
       chrome.storage.local.get('state').then(async ({ state }) => {
         const currentState = state || DEFAULT_STATE
-        if (!currentState.familyId) {
+        if (!currentState.familyId || !currentState.deviceId) {
           sendResponse({ success: false, error: 'not_enrolled' })
           return
         }
@@ -1657,8 +1660,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         try {
+          // Include deviceId for security verification
           const response = await fetch(
-            `https://us-central1-fledgely-cns-me.cloudfunctions.net/getTimeExtensionStatus?requestId=${requestId}&familyId=${currentState.familyId}`
+            `${API_BASE_URL}/getTimeExtensionStatus?requestId=${requestId}&familyId=${currentState.familyId}&deviceId=${currentState.deviceId}`
           )
 
           if (!response.ok) {
