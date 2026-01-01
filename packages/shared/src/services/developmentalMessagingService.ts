@@ -39,7 +39,7 @@ export function getMilestoneMessage(
   const messages = viewerType === 'child' ? CHILD_MILESTONE_MESSAGES : PARENT_MILESTONE_MESSAGES
   const template = messages[milestone]
 
-  let message = template.message
+  let message: string = template.message
   if (viewerType === 'parent') {
     message = message.replace(/Your child/g, childName)
   }

@@ -23,8 +23,8 @@ let mockWorkModeState = {
   isInScheduledHours: false,
   currentSchedule: null as WorkSchedule | null,
   nextScheduleStart: null as Date | null,
-  totalSessionsToday: 0,
-  totalWorkTimeToday: 0,
+  totalSessionsThisWeek: 0,
+  totalWorkTimeThisWeek: 0,
   workState: null,
   timeElapsedMs: null,
   timeRemainingMs: null,
@@ -80,8 +80,8 @@ describe('WorkModeControls - Story 33.3', () => {
       isInScheduledHours: false,
       currentSchedule: null,
       nextScheduleStart: null,
-      totalSessionsToday: 0,
-      totalWorkTimeToday: 0,
+      totalSessionsThisWeek: 0,
+      totalWorkTimeThisWeek: 0,
       workState: null,
       timeElapsedMs: null,
       timeRemainingMs: null,
@@ -248,8 +248,8 @@ describe('WorkModeControls - Story 33.3', () => {
 
   describe('stats display', () => {
     it('shows stats when there are sessions today', () => {
-      mockWorkModeState.totalSessionsToday = 2
-      mockWorkModeState.totalWorkTimeToday = 7200000 // 2 hours
+      mockWorkModeState.totalSessionsThisWeek = 2
+      mockWorkModeState.totalWorkTimeThisWeek = 7200000 // 2 hours
 
       render(<WorkModeControls {...defaultProps} />)
 
@@ -259,8 +259,8 @@ describe('WorkModeControls - Story 33.3', () => {
     })
 
     it('hides stats when no sessions today', () => {
-      mockWorkModeState.totalSessionsToday = 0
-      mockWorkModeState.totalWorkTimeToday = 0
+      mockWorkModeState.totalSessionsThisWeek = 0
+      mockWorkModeState.totalWorkTimeThisWeek = 0
 
       render(<WorkModeControls {...defaultProps} />)
 

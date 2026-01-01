@@ -50,8 +50,8 @@ interface UseWorkModeReturn {
   nextScheduleStart: Date | null
 
   // Stats
-  totalSessionsToday: number
-  totalWorkTimeToday: number
+  totalSessionsThisWeek: number
+  totalWorkTimeThisWeek: number
 }
 
 /**
@@ -202,8 +202,9 @@ function getNextScheduleStart(schedules: WorkSchedule[]): Date | null {
 const DEFAULT_WORK_STATE: Omit<WorkModeState, 'childId' | 'familyId'> = {
   isActive: false,
   currentSession: null,
-  totalSessionsToday: 0,
-  totalWorkTimeToday: 0,
+  totalSessionsThisWeek: 0,
+  totalWorkTimeThisWeek: 0,
+  weekStartDate: Date.now(),
   updatedAt: Date.now(),
 }
 
@@ -264,8 +265,8 @@ export function useWorkMode({
           if (data.updatedAt < todayStart) {
             try {
               await updateDoc(stateRef, {
-                totalSessionsToday: 0,
-                totalWorkTimeToday: 0,
+                totalSessionsThisWeek: 0,
+                totalWorkTimeThisWeek: 0,
                 updatedAt: Date.now(),
               })
             } catch (err) {
@@ -322,17 +323,18 @@ export function useWorkMode({
             scheduleId: activeSchedule.id,
             scheduleName: activeSchedule.name,
             startedAt: now,
+            scheduledEndAt: null,
             endedAt: null,
             createdAt: now,
             updatedAt: now,
           }
 
-          const currentSessionsToday = workState?.totalSessionsToday ?? 0
+          const currentSessionsThisWeek = workState?.totalSessionsThisWeek ?? 0
 
           await updateDoc(stateRef, {
             isActive: true,
             currentSession: newSession,
-            totalSessionsToday: currentSessionsToday + 1,
+            totalSessionsThisWeek: currentSessionsThisWeek + 1,
             updatedAt: now,
           }).catch(async () => {
             await setDoc(stateRef, {
@@ -340,8 +342,9 @@ export function useWorkMode({
               familyId,
               isActive: true,
               currentSession: newSession,
-              totalSessionsToday: 1,
-              totalWorkTimeToday: 0,
+              totalSessionsThisWeek: 1,
+              totalWorkTimeThisWeek: 0,
+              weekStartDate: now,
               updatedAt: now,
             })
           })
@@ -366,7 +369,7 @@ export function useWorkMode({
             'currentSession.status': 'inactive',
             'currentSession.endedAt': now,
             'currentSession.updatedAt': now,
-            totalWorkTimeToday: (workState.totalWorkTimeToday ?? 0) + sessionDuration,
+            totalWorkTimeThisWeek: (workState.totalWorkTimeThisWeek ?? 0) + sessionDuration,
             updatedAt: now,
           })
 
@@ -401,8 +404,8 @@ export function useWorkMode({
     schedules,
     workState?.isActive,
     workState?.currentSession?.activationType,
-    workState?.totalSessionsToday,
-    workState?.totalWorkTimeToday,
+    workState?.totalSessionsThisWeek,
+    workState?.totalWorkTimeThisWeek,
   ])
 
   // Timer effect for elapsed time and schedule-based remaining time
@@ -463,17 +466,18 @@ export function useWorkMode({
       scheduleId: null,
       scheduleName: null,
       startedAt: now,
+      scheduledEndAt: null,
       endedAt: null,
       createdAt: now,
       updatedAt: now,
     }
 
-    const currentSessionsToday = workState?.totalSessionsToday ?? 0
+    const currentSessionsToday = workState?.totalSessionsThisWeek ?? 0
 
     await updateDoc(stateRef, {
       isActive: true,
       currentSession: newSession,
-      totalSessionsToday: currentSessionsToday + 1,
+      totalSessionsThisWeek: currentSessionsToday + 1,
       updatedAt: now,
     }).catch(async () => {
       await setDoc(stateRef, {
@@ -481,8 +485,9 @@ export function useWorkMode({
         familyId,
         isActive: true,
         currentSession: newSession,
-        totalSessionsToday: 1,
-        totalWorkTimeToday: 0,
+        totalSessionsThisWeek: 1,
+        totalWorkTimeThisWeek: 0,
+        weekStartDate: now,
         updatedAt: now,
       })
     })
@@ -511,7 +516,7 @@ export function useWorkMode({
       'currentSession.status': 'inactive',
       'currentSession.endedAt': now,
       'currentSession.updatedAt': now,
-      totalWorkTimeToday: (workState.totalWorkTimeToday ?? 0) + sessionDuration,
+      totalWorkTimeThisWeek: (workState.totalWorkTimeThisWeek ?? 0) + sessionDuration,
       updatedAt: now,
     })
 
@@ -546,7 +551,7 @@ export function useWorkMode({
     isInScheduledHours,
     currentSchedule,
     nextScheduleStart,
-    totalSessionsToday: workState?.totalSessionsToday ?? 0,
-    totalWorkTimeToday: workState?.totalWorkTimeToday ?? 0,
+    totalSessionsThisWeek: workState?.totalSessionsThisWeek ?? 0,
+    totalWorkTimeThisWeek: workState?.totalWorkTimeThisWeek ?? 0,
   }
 }

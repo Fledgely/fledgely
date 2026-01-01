@@ -50,7 +50,7 @@ const MILESTONE_BENEFITS: Record<TrustMilestoneLevel, string[]> = {
  * Uses developmental language - recognition, not reward.
  */
 function getRecognitionMessage(
-  milestoneLevel: TrustMilestoneLevel,
+  _milestoneLevel: TrustMilestoneLevel,
   viewerType: 'child' | 'parent',
   childName: string
 ): string {

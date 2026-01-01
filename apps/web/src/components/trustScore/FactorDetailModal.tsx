@@ -28,13 +28,13 @@ export interface FactorDetailModalProps {
 // ============================================================================
 
 function getFactorExplanation(type: TrustFactor['type']): string {
-  const explanations: Record<TrustFactor['type'], string> = {
+  const explanations: Partial<Record<TrustFactor['type'], string>> = {
     'time-limit-compliance': 'Your child has been following the agreed screen time limits.',
     'focus-mode-usage': 'Focus mode helps your child concentrate during homework time.',
-    'parental-request-response': 'Responding to parental requests builds trust.',
-    'app-category-usage': 'Using apps within approved categories shows responsibility.',
     'bypass-attempt': 'Bypass attempts may indicate the need to discuss boundaries.',
-    'manual-adjustment': 'This score was manually adjusted.',
+    'no-bypass-attempts': 'No bypass attempts shows trustworthy behavior.',
+    'normal-app-usage': 'Using apps in expected ways demonstrates responsibility.',
+    'monitoring-disabled': 'Monitoring was disabled during this period.',
   }
   return explanations[type] || 'This factor affects the trust score.'
 }

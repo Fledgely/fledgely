@@ -64,7 +64,7 @@ export async function sendDeclineNotification(
  * AC6: Suggestions for alternative approaches
  */
 export function getSuggestionsAfterDecline(): string[] {
-  return AFTER_DECLINE_MESSAGES.proposer.suggestions
+  return [...AFTER_DECLINE_MESSAGES.proposer.suggestions]
 }
 
 /**

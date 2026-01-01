@@ -536,9 +536,9 @@ development_status:
   epic-37-retrospective: done
 
   # Epic 38: Graduation Path & Age 18 Deletion
-  epic-38: backlog
-  38-1-graduation-eligibility-tracking: backlog
-  38-2-graduation-conversation-trigger: backlog
+  epic-38: in-progress
+  38-1-graduation-eligibility-tracking: done
+  38-2-graduation-conversation-trigger: ready-for-dev
   38-3-formal-graduation-process: backlog
   38-4-annual-proportionality-check: backlog
   38-5-age-18-automatic-deletion: backlog

@@ -31,8 +31,8 @@ export function WorkModeControls({ childId, familyId }: WorkModeControlsProps) {
     isInScheduledHours,
     currentSchedule: _currentSchedule,
     nextScheduleStart,
-    totalSessionsToday,
-    totalWorkTimeToday,
+    totalSessionsThisWeek,
+    totalWorkTimeThisWeek,
   } = useWorkMode({
     childId,
     familyId,
@@ -178,19 +178,19 @@ export function WorkModeControls({ childId, familyId }: WorkModeControlsProps) {
       )}
 
       {/* Today's Stats */}
-      {(totalSessionsToday > 0 || totalWorkTimeToday > 0) && (
+      {(totalSessionsThisWeek > 0 || totalWorkTimeThisWeek > 0) && (
         <div className="bg-gray-50 rounded-lg p-4" data-testid="work-mode-stats">
           <h4 className="text-sm font-medium text-gray-700 mb-3">Today&apos;s Work</h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-2xl font-bold text-gray-900" data-testid="sessions-today">
-                {totalSessionsToday}
+                {totalSessionsThisWeek}
               </p>
               <p className="text-xs text-gray-500">Sessions</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900" data-testid="total-work-time">
-                {formatTotalTime(totalWorkTimeToday)}
+                {formatTotalTime(totalWorkTimeThisWeek)}
               </p>
               <p className="text-xs text-gray-500">Total Time</p>
             </div>

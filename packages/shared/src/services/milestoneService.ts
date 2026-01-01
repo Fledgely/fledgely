@@ -125,7 +125,7 @@ export function calculateConsecutiveDays(history: ScoreHistoryEntry[], threshold
  * @returns Eligibility status and progress information
  */
 export function checkMilestoneEligibility(
-  childId: string,
+  _childId: string,
   scoreHistory: ScoreHistoryEntry[]
 ): MilestoneEligibility {
   if (scoreHistory.length === 0) {
@@ -232,7 +232,7 @@ function getTransitionType(
 
 function getTransitionMessage(
   type: 'achievement' | 'progression' | 'regression',
-  from: TrustMilestoneLevel | null,
+  _from: TrustMilestoneLevel | null,
   to: TrustMilestoneLevel | null
 ): string {
   switch (type) {

@@ -576,6 +576,24 @@ export {
   type DeclineReasonId,
 } from './contracts'
 
+// Agreement proposal exports (Story 34.1, 34.2, 34.4)
+export {
+  proposalChangeTypeSchema,
+  proposalChangeSchema,
+  agreementProposalSchema,
+  signatureRecordSchema,
+  dualSignaturesSchema,
+  activatedAgreementVersionSchema,
+  AGREEMENT_PROPOSAL_MESSAGES,
+  CHILD_PROPOSAL_MESSAGES,
+  type ProposalChangeType,
+  type ProposalChange,
+  type AgreementProposal,
+  type SignatureRecord,
+  type DualSignatures,
+  type ActivatedAgreementVersion,
+} from './contracts'
+
 // Agreement history exports (Story 34.6)
 export {
   agreementChangeSchema,
@@ -1094,3 +1112,56 @@ export {
   validateSupportiveFraming,
   getAllRegressionMessages,
 } from './services/regressionNotificationService'
+
+// Graduation Eligibility exports (Story 38.1)
+export {
+  GRADUATION_TRUST_THRESHOLD,
+  GRADUATION_DURATION_MONTHS,
+  GraduationEligibilityConfigSchema,
+  TrustScoreHistoryEntrySchema as GraduationTrustScoreHistorySchema,
+  GraduationEligibilityStatusSchema,
+  GraduationMilestoneSchema,
+  StreakBreakEventSchema,
+  DEFAULT_GRADUATION_CONFIG,
+  GRADUATION_MESSAGES,
+  createDefaultGraduationConfig,
+  createInitialEligibilityStatus,
+  calculateProgressPercentage,
+  getGraduationMilestones,
+  isPerfectTrust,
+  validateTrustScoreHistory,
+  type GraduationEligibilityConfig,
+  type TrustScoreHistoryEntry as GraduationTrustScoreHistoryEntry,
+  type GraduationEligibilityStatus,
+  type GraduationMilestone,
+  type StreakBreakEvent,
+} from './contracts/graduationEligibility'
+
+// Graduation Eligibility Service exports (Story 38.1)
+export {
+  checkGraduationEligibility,
+  calculateMonthsAtPerfectTrust,
+  projectEligibilityDate,
+  checkStreakContinuity,
+  getStoredEligibilityStatus,
+  recordStreakBreak,
+  getStreakBreakHistory,
+  isNearGraduation,
+  getRemainingMonths,
+  isAtPerfectTrust,
+  clearAllEligibilityData,
+  createMockTrustScoreHistory,
+} from './services/graduationEligibilityService'
+
+// Graduation Progress Message Service exports (Story 38.1)
+export {
+  getChildProgressMessage,
+  getParentProgressMessage,
+  getMilestoneMessage as getGraduationMilestoneMessage,
+  getMotivationalMessage,
+  getStreakBreakMessage,
+  getEligibilityExplanation,
+  getPathOverview,
+  formatProgressDisplay,
+  getAllGraduationMessages,
+} from './services/graduationProgressMessageService'
