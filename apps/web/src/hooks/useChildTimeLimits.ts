@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * useChildTimeLimits Hook - Story 30.2, 30.3
+ * useChildTimeLimits Hook - Story 30.2, 30.3, 30.5
  *
  * Real-time listener for child time limits configuration.
  * Provides methods to read and update time limits.
@@ -10,12 +10,18 @@
  * - AC5: Limit applies across all enrolled devices combined
  * - AC6: Changes require child acknowledgment
  * - Story 30.3: Per-category limits
+ * - Story 30.5: Per-device limits
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
-import type { TimeLimitSchedule, ChildTimeLimits, CategoryLimit } from '@fledgely/shared'
+import type {
+  TimeLimitSchedule,
+  ChildTimeLimits,
+  CategoryLimit,
+  DeviceLimit,
+} from '@fledgely/shared'
 
 /**
  * Simplified time limits for UI
@@ -39,6 +45,19 @@ export interface CategoryLimitConfig {
   unlimited: boolean
 }
 
+/**
+ * Device limit for UI (Story 30.5)
+ */
+export interface DeviceLimitConfig {
+  deviceId: string
+  deviceName: string
+  deviceType: 'chromebook' | 'android_phone' | 'android_tablet'
+  enabled: boolean
+  weekdayMinutes: number
+  weekendMinutes: number
+  unlimited: boolean
+}
+
 interface UseChildTimeLimitsOptions {
   familyId: string | null
   childId: string | null
@@ -48,12 +67,14 @@ interface UseChildTimeLimitsOptions {
 interface UseChildTimeLimitsResult {
   limits: TimeLimitsConfig | null
   categoryLimits: CategoryLimitConfig[]
+  deviceLimits: DeviceLimitConfig[]
   loading: boolean
   error: string | null
   saveLimits: (config: TimeLimitsConfig) => Promise<{ success: boolean; error?: string }>
   saveCategoryLimits: (
     categories: CategoryLimitConfig[]
   ) => Promise<{ success: boolean; error?: string }>
+  saveDeviceLimits: (devices: DeviceLimitConfig[]) => Promise<{ success: boolean; error?: string }>
   hasChanges: boolean
 }
 
@@ -62,6 +83,44 @@ const DEFAULT_LIMITS: TimeLimitsConfig = {
   weekendMinutes: 180, // 3 hours
   scheduleType: 'weekdays',
   unlimited: false,
+}
+
+/**
+ * Map Firestore device type to UI-friendly device type.
+ * The shared schema supports many device types, but UI only displays 3.
+ */
+function mapDeviceTypeFromFirestore(
+  firestoreType: string | undefined
+): DeviceLimitConfig['deviceType'] {
+  switch (firestoreType) {
+    case 'chromebook':
+      return 'chromebook'
+    case 'android_phone':
+      return 'android_phone'
+    case 'android_tablet':
+      return 'android_tablet'
+    case 'android':
+      // Default android to phone
+      return 'android_phone'
+    default:
+      // For unsupported types, default to android_phone
+      return 'android_phone'
+  }
+}
+
+/**
+ * Map UI device type back to Firestore-compatible type.
+ */
+function mapDeviceTypeToFirestore(
+  uiType: DeviceLimitConfig['deviceType']
+): 'chromebook' | 'android' {
+  switch (uiType) {
+    case 'chromebook':
+      return 'chromebook'
+    case 'android_phone':
+    case 'android_tablet':
+      return 'android'
+  }
 }
 
 /**
@@ -81,6 +140,8 @@ export function useChildTimeLimits({
   const [originalLimits, setOriginalLimits] = useState<TimeLimitsConfig | null>(null)
   const [categoryLimits, setCategoryLimits] = useState<CategoryLimitConfig[]>([])
   const [_originalCategoryLimits, setOriginalCategoryLimits] = useState<CategoryLimitConfig[]>([])
+  const [deviceLimits, setDeviceLimits] = useState<DeviceLimitConfig[]>([])
+  const [_originalDeviceLimits, setOriginalDeviceLimits] = useState<DeviceLimitConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -99,6 +160,8 @@ export function useChildTimeLimits({
       setOriginalLimits(null)
       setCategoryLimits([])
       setOriginalCategoryLimits([])
+      setDeviceLimits([])
+      setOriginalDeviceLimits([])
       setLoading(false)
       return
     }
@@ -145,12 +208,32 @@ export function useChildTimeLimits({
             setCategoryLimits([])
             setOriginalCategoryLimits([])
           }
+
+          // Load device limits (Story 30.5)
+          if (data.deviceLimits && Array.isArray(data.deviceLimits)) {
+            const devLimits: DeviceLimitConfig[] = data.deviceLimits.map((dev: DeviceLimit) => ({
+              deviceId: dev.deviceId,
+              deviceName: dev.deviceName,
+              deviceType: mapDeviceTypeFromFirestore(dev.deviceType),
+              enabled: true,
+              weekdayMinutes: dev.schedule.weekdayMinutes ?? 120,
+              weekendMinutes: dev.schedule.weekendMinutes ?? 180,
+              unlimited: dev.schedule.unlimited ?? false,
+            }))
+            setDeviceLimits(devLimits)
+            setOriginalDeviceLimits(devLimits)
+          } else {
+            setDeviceLimits([])
+            setOriginalDeviceLimits([])
+          }
         } else {
           // No limits configured yet - use defaults
           setLimits(DEFAULT_LIMITS)
           setOriginalLimits(DEFAULT_LIMITS)
           setCategoryLimits([])
           setOriginalCategoryLimits([])
+          setDeviceLimits([])
+          setOriginalDeviceLimits([])
         }
         setLoading(false)
       },
@@ -273,13 +356,72 @@ export function useChildTimeLimits({
     [familyId, childId]
   )
 
+  /**
+   * Save device limits to Firestore.
+   * Story 30.5: Per-device limit configuration.
+   */
+  const saveDeviceLimits = useCallback(
+    async (devices: DeviceLimitConfig[]): Promise<{ success: boolean; error?: string }> => {
+      if (!familyId || !childId) {
+        return { success: false, error: 'Missing family or child ID' }
+      }
+
+      try {
+        const db = getFirestoreDb()
+        const limitsRef = doc(db, 'families', familyId, 'children', childId, 'timeLimits', 'config')
+
+        // Check if document exists to get current version
+        const existingDoc = await getDoc(limitsRef)
+        const currentVersion = existingDoc.exists() ? (existingDoc.data()?.version ?? 0) + 1 : 1
+
+        // Convert to Firestore format - only save enabled devices
+        const deviceLimitsData: DeviceLimit[] = devices
+          .filter((dev) => dev.enabled)
+          .map((dev) => ({
+            deviceId: dev.deviceId,
+            deviceName: dev.deviceName,
+            deviceType: mapDeviceTypeToFirestore(dev.deviceType),
+            schedule: {
+              scheduleType: 'weekdays' as const,
+              weekdayMinutes: dev.unlimited ? undefined : dev.weekdayMinutes,
+              weekendMinutes: dev.unlimited ? undefined : dev.weekendMinutes,
+              unlimited: dev.unlimited || undefined,
+            },
+          }))
+
+        const timeLimitsData: Partial<ChildTimeLimits> = {
+          childId,
+          familyId,
+          deviceLimits: deviceLimitsData,
+          updatedAt: Date.now(),
+          version: currentVersion,
+        }
+
+        await setDoc(limitsRef, timeLimitsData, { merge: true })
+
+        // Update original device limits to match saved state
+        setOriginalDeviceLimits(devices)
+
+        return { success: true }
+      } catch (err) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error saving device limits:', err)
+        }
+        return { success: false, error: 'Failed to save device limits' }
+      }
+    },
+    [familyId, childId]
+  )
+
   return {
     limits,
     categoryLimits,
+    deviceLimits,
     loading,
     error,
     saveLimits,
     saveCategoryLimits,
+    saveDeviceLimits,
     hasChanges,
   }
 }

@@ -6,6 +6,7 @@
  * Story 30.2: Daily Total Limit Configuration
  * Story 30.3: Per-Category Limit Configuration
  * Story 30.4: Custom Category Creation
+ * Story 30.5: Per-Device Limit Configuration
  *
  * Allows guardians to configure daily screen time limits:
  * - AC1: Slider for total minutes (30m-8h range)
@@ -16,6 +17,7 @@
  * - AC6: Agreement update notification
  * - Story 30.3: Per-category limits with icons
  * - Story 30.4: Custom category creation
+ * - Story 30.5: Per-device limits
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -24,12 +26,18 @@ import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamily } from '../../../../contexts/FamilyContext'
 import { useChildTimeLimits, type TimeLimitsConfig } from '../../../../hooks/useChildTimeLimits'
 import { useCustomCategories } from '../../../../hooks/useCustomCategories'
+import { useDevices } from '../../../../hooks/useDevices'
 import { formatMinutes } from '../../../../utils/formatTime'
 import {
   CategoryLimitCard,
   getDefaultCategoryLimits,
   type CategoryLimit as CategoryLimitUI,
 } from '../../../../components/settings/CategoryLimitCard'
+import {
+  DeviceLimitCard,
+  deviceToLimitConfig,
+  type DeviceLimitConfig as DeviceLimitCardConfig,
+} from '../../../../components/settings/DeviceLimitCard'
 import { CustomCategoryModal } from '../../../../components/settings/CustomCategoryModal'
 import type { CustomCategory } from '@fledgely/shared'
 
@@ -451,6 +459,7 @@ export default function TimeLimitsSettingsPage() {
   const [localCategoryLimits, setLocalCategoryLimits] = useState<CategoryLimitUI[]>(
     getDefaultCategoryLimits()
   )
+  const [localDeviceLimits, setLocalDeviceLimits] = useState<DeviceLimitCardConfig[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -462,14 +471,25 @@ export default function TimeLimitsSettingsPage() {
   const {
     limits,
     categoryLimits,
+    deviceLimits,
     loading: limitsLoading,
     saveLimits,
     saveCategoryLimits,
+    saveDeviceLimits,
   } = useChildTimeLimits({
     familyId: family?.id ?? null,
     childId: selectedChildId,
     enabled: !!selectedChildId,
   })
+
+  // Devices for selected child - Story 30.5
+  const { devices, loading: devicesLoading } = useDevices({
+    familyId: family?.id ?? null,
+    enabled: !!family?.id,
+  })
+
+  // Filter devices for selected child
+  const childDevices = devices.filter((d) => d.childId === selectedChildId && d.status === 'active')
 
   // Custom categories - Story 30.4
   const {
@@ -502,6 +522,20 @@ export default function TimeLimitsSettingsPage() {
     }
     return (
       local.enabled !== true || // original from Firestore is always enabled
+      local.weekdayMinutes !== original.weekdayMinutes ||
+      local.weekendMinutes !== original.weekendMinutes ||
+      local.unlimited !== original.unlimited
+    )
+  })
+
+  // Check if device limits have changed (Story 30.5)
+  const hasDeviceChanges = localDeviceLimits.some((local) => {
+    const original = deviceLimits.find((d) => d.deviceId === local.deviceId)
+    if (!original) {
+      return local.enabled
+    }
+    return (
+      local.enabled !== original.enabled ||
       local.weekdayMinutes !== original.weekdayMinutes ||
       local.weekendMinutes !== original.weekendMinutes ||
       local.unlimited !== original.unlimited
@@ -546,11 +580,46 @@ export default function TimeLimitsSettingsPage() {
     }
   }, [categoryLimits])
 
+  // Sync device limits from Firestore and child devices (Story 30.5)
+  useEffect(() => {
+    if (childDevices.length > 0 && selectedChildId) {
+      // Build device limit configs from child devices
+      const deviceConfigs: DeviceLimitCardConfig[] = childDevices.map((device) => {
+        const existingLimit = deviceLimits.find((d) => d.deviceId === device.deviceId)
+        if (existingLimit) {
+          return {
+            deviceId: existingLimit.deviceId,
+            deviceName: existingLimit.deviceName,
+            deviceType: existingLimit.deviceType,
+            enabled: true,
+            weekdayMinutes: existingLimit.weekdayMinutes,
+            weekendMinutes: existingLimit.weekendMinutes,
+            unlimited: existingLimit.unlimited,
+          }
+        }
+        return deviceToLimitConfig(device, selectedChildId)
+      })
+      setLocalDeviceLimits(deviceConfigs)
+    } else {
+      setLocalDeviceLimits([])
+    }
+  }, [childDevices, deviceLimits, selectedChildId])
+
   // Handler for updating a category limit
   const handleCategoryUpdate = useCallback(
     (categoryId: string, updates: Partial<CategoryLimitUI>) => {
       setLocalCategoryLimits((prev) =>
         prev.map((cat) => (cat.categoryId === categoryId ? { ...cat, ...updates } : cat))
+      )
+    },
+    []
+  )
+
+  // Handler for updating a device limit (Story 30.5)
+  const handleDeviceUpdate = useCallback(
+    (deviceId: string, updates: Partial<DeviceLimitCardConfig>) => {
+      setLocalDeviceLimits((prev) =>
+        prev.map((dev) => (dev.deviceId === deviceId ? { ...dev, ...updates } : dev))
       )
     },
     []
@@ -650,6 +719,27 @@ export default function TimeLimitsSettingsPage() {
       }
     }
 
+    // Save device limits if any are enabled (Story 30.5)
+    const enabledDevices = localDeviceLimits.filter((d) => d.enabled)
+    if (enabledDevices.length > 0) {
+      const deviceResult = await saveDeviceLimits(
+        enabledDevices.map((d) => ({
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+          deviceType: d.deviceType,
+          enabled: d.enabled,
+          weekdayMinutes: d.weekdayMinutes,
+          weekendMinutes: d.weekendMinutes,
+          unlimited: d.unlimited,
+        }))
+      )
+      if (!deviceResult.success) {
+        setIsSaving(false)
+        setSaveError(deviceResult.error || 'Failed to save device limits')
+        return
+      }
+    }
+
     setIsSaving(false)
 
     if (result.success) {
@@ -661,6 +751,7 @@ export default function TimeLimitsSettingsPage() {
 
   const isLoading =
     authLoading ||
+    devicesLoading ||
     familyLoading ||
     customCategoriesLoading ||
     (selectedChildId ? limitsLoading : false)
@@ -1075,20 +1166,73 @@ export default function TimeLimitsSettingsPage() {
                   </div>
                 </div>
 
+                {/* Device Limits - Story 30.5 */}
+                {localDeviceLimits.length > 0 && (
+                  <div style={styles.card}>
+                    <h2 style={styles.cardTitle}>Per-Device Limits</h2>
+                    <p
+                      style={{
+                        fontSize: '14px',
+                        color: '#6b7280',
+                        marginBottom: '16px',
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Set different time limits for each device. Device limits are independent of
+                      the daily total and category limits.
+                    </p>
+
+                    {localDeviceLimits.map((device) => (
+                      <DeviceLimitCard
+                        key={device.deviceId}
+                        device={device}
+                        scheduleType={localLimits?.scheduleType || 'weekdays'}
+                        onUpdate={handleDeviceUpdate}
+                      />
+                    ))}
+
+                    {/* Device Limits Preview */}
+                    {localDeviceLimits.some((d) => d.enabled) && (
+                      <div
+                        style={{
+                          ...styles.previewBox,
+                          marginTop: '16px',
+                        }}
+                      >
+                        <div style={styles.previewTitle}>Device Limits Preview</div>
+                        <div style={{ fontSize: '14px', color: '#166534', lineHeight: 1.6 }}>
+                          {localDeviceLimits
+                            .filter((d) => d.enabled)
+                            .map((d) => (
+                              <div key={d.deviceId}>
+                                <strong>{d.deviceName}:</strong>{' '}
+                                {d.unlimited
+                                  ? 'Unlimited'
+                                  : `${formatMinutes(d.weekdayMinutes)}/day`}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Save Button */}
                 <button
                   style={{
                     ...styles.saveButton,
-                    ...(isSaving || (!hasLocalChanges && !hasCategoryChanges)
+                    ...(isSaving || (!hasLocalChanges && !hasCategoryChanges && !hasDeviceChanges)
                       ? styles.saveButtonDisabled
                       : {}),
                   }}
                   onClick={handleSave}
-                  disabled={isSaving || (!hasLocalChanges && !hasCategoryChanges)}
+                  disabled={
+                    isSaving || (!hasLocalChanges && !hasCategoryChanges && !hasDeviceChanges)
+                  }
                 >
                   {isSaving
                     ? 'Saving...'
-                    : hasLocalChanges || hasCategoryChanges
+                    : hasLocalChanges || hasCategoryChanges || hasDeviceChanges
                       ? 'Save Changes'
                       : 'No Changes'}
                 </button>
