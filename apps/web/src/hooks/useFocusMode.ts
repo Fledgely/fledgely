@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc, runTransaction } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { getFirestoreDb } from '../lib/firebase'
 import type { FocusModeState, FocusModeSession, FocusModeDuration } from '@fledgely/shared'
 import { FOCUS_MODE_DURATIONS } from '@fledgely/shared'
 
@@ -93,7 +93,7 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
       return
     }
 
-    const stateRef = doc(db, 'families', familyId, 'focusMode', childId)
+    const stateRef = doc(getFirestoreDb(), 'families', familyId, 'focusMode', childId)
 
     const unsubscribe = onSnapshot(
       stateRef,
@@ -106,7 +106,7 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
           const todayStart = getTodayStart()
           if (data.updatedAt < todayStart) {
             try {
-              await runTransaction(db, async (transaction) => {
+              await runTransaction(getFirestoreDb(), async (transaction) => {
                 const freshDoc = await transaction.get(stateRef)
                 if (freshDoc.exists()) {
                   const freshData = freshDoc.data() as FocusModeState
@@ -193,7 +193,13 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
         }
         try {
           // Complete session directly here to avoid stale closure
-          const stateRef = doc(db, 'families', currentFamilyId, 'focusMode', currentChildId)
+          const stateRef = doc(
+            getFirestoreDb(),
+            'families',
+            currentFamilyId,
+            'focusMode',
+            currentChildId
+          )
           const now = Date.now()
           const sessionDuration = now - sessionStartedAt
           const currentTotalTime = focusState?.totalFocusTimeToday ?? 0
@@ -231,7 +237,7 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
       isCompletingRef.current = true
 
       try {
-        const stateRef = doc(db, 'families', familyId, 'focusMode', childId)
+        const stateRef = doc(getFirestoreDb(), 'families', familyId, 'focusMode', childId)
         const now = Date.now()
         const session = focusState.currentSession
         const sessionDuration = now - session.startedAt
@@ -262,7 +268,7 @@ export function useFocusMode({ childId, familyId }: UseFocusModeOptions): UseFoc
     async (duration: FocusModeDuration) => {
       if (!childId || !familyId) return
 
-      const stateRef = doc(db, 'families', familyId, 'focusMode', childId)
+      const stateRef = doc(getFirestoreDb(), 'families', familyId, 'focusMode', childId)
       const now = Date.now()
       const durationMs = FOCUS_MODE_DURATIONS[duration]
 

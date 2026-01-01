@@ -149,5 +149,5 @@ export {
   createChildResolutionEndpoint,
 } from './http/health'
 
-// Focus mode HTTP handlers (Story 33.1)
-export { getFocusModeState } from './http/focus'
+// Focus mode HTTP handlers (Story 33.1, 33.2)
+export { getFocusModeState, getFocusModeConfig } from './http/focus'

@@ -5190,3 +5190,166 @@ export const FOCUS_MODE_MESSAGES = {
     untilOff: 'Until I turn off',
   } as const,
 }
+
+/**
+ * Story 33-2: Focus Mode App Configuration
+ *
+ * Custom app entry for focus mode allow/block lists
+ */
+export const focusModeAppEntrySchema = z.object({
+  /** Domain or app identifier (e.g., "spotify.com", "docs.google.com") */
+  pattern: z.string().min(1).max(255),
+  /** Human-readable name for display */
+  name: z.string().min(1).max(100),
+  /** Whether this is a domain pattern (*.spotify.com) or exact match */
+  isWildcard: z.boolean().default(false),
+  /** When this entry was added */
+  addedAt: z.number(),
+  /** Who added this entry (parent or approved from child suggestion) */
+  addedByUid: z.string(),
+})
+
+export type FocusModeAppEntry = z.infer<typeof focusModeAppEntrySchema>
+
+/**
+ * Focus mode configuration per child
+ * Stored in Firestore at families/{familyId}/focusModeConfig/{childId}
+ */
+export const focusModeConfigSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  /** Use default categories (from FOCUS_MODE_DEFAULT_CATEGORIES) */
+  useDefaultCategories: z.boolean().default(true),
+  /** Custom allowed domains/apps (in addition to defaults if useDefaultCategories is true) */
+  customAllowList: z.array(focusModeAppEntrySchema).default([]),
+  /** Custom blocked domains/apps (in addition to defaults if useDefaultCategories is true) */
+  customBlockList: z.array(focusModeAppEntrySchema).default([]),
+  /** Override defaults: explicitly allow these default-blocked categories */
+  allowedCategories: z.array(z.string()).optional(),
+  /** Override defaults: explicitly block these default-allowed categories */
+  blockedCategories: z.array(z.string()).optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type FocusModeConfig = z.infer<typeof focusModeConfigSchema>
+
+/**
+ * App suggestion status for child requests
+ */
+export const appSuggestionStatusSchema = z.enum(['pending', 'approved', 'denied'])
+export type AppSuggestionStatus = z.infer<typeof appSuggestionStatusSchema>
+
+/**
+ * Child's app suggestion for focus mode
+ * Stored in Firestore at families/{familyId}/focusModeConfig/{childId}/suggestions/{suggestionId}
+ */
+export const focusModeAppSuggestionSchema = z.object({
+  id: z.string(),
+  childId: z.string(),
+  familyId: z.string(),
+  /** Domain or app identifier suggested by child */
+  pattern: z.string().min(1).max(255),
+  /** Child's name for the app */
+  name: z.string().min(1).max(100),
+  /** Child's reason for requesting (optional, encourages communication) */
+  reason: z.string().max(500).nullable(),
+  /** Current status of the suggestion */
+  status: appSuggestionStatusSchema,
+  /** Parent who responded (if any) */
+  respondedByUid: z.string().nullable(),
+  /** When parent responded */
+  respondedAt: z.number().nullable(),
+  /** Parent's note when denying (explains reason to child) */
+  denialReason: z.string().max(500).nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type FocusModeAppSuggestion = z.infer<typeof focusModeAppSuggestionSchema>
+
+/**
+ * Default app domains for focus mode
+ * Maps to categories from FOCUS_MODE_DEFAULT_CATEGORIES
+ */
+export const FOCUS_MODE_DEFAULT_APPS = {
+  allowed: {
+    education: [
+      { pattern: 'docs.google.com', name: 'Google Docs' },
+      { pattern: 'drive.google.com', name: 'Google Drive' },
+      { pattern: 'classroom.google.com', name: 'Google Classroom' },
+      { pattern: 'sheets.google.com', name: 'Google Sheets' },
+      { pattern: 'slides.google.com', name: 'Google Slides' },
+      { pattern: 'khanacademy.org', name: 'Khan Academy' },
+      { pattern: 'quizlet.com', name: 'Quizlet' },
+      { pattern: 'desmos.com', name: 'Desmos' },
+      { pattern: 'notion.so', name: 'Notion' },
+      { pattern: 'coursera.org', name: 'Coursera' },
+      { pattern: 'edx.org', name: 'edX' },
+      { pattern: 'duolingo.com', name: 'Duolingo' },
+    ],
+    productivity: [
+      { pattern: 'calendar.google.com', name: 'Google Calendar' },
+      { pattern: 'mail.google.com', name: 'Gmail' },
+      { pattern: 'outlook.com', name: 'Outlook' },
+      { pattern: 'trello.com', name: 'Trello' },
+      { pattern: 'asana.com', name: 'Asana' },
+      { pattern: 'todoist.com', name: 'Todoist' },
+    ],
+    reference: [
+      { pattern: 'wikipedia.org', name: 'Wikipedia' },
+      { pattern: 'wolframalpha.com', name: 'Wolfram Alpha' },
+      { pattern: 'dictionary.com', name: 'Dictionary' },
+      { pattern: 'thesaurus.com', name: 'Thesaurus' },
+    ],
+  },
+  blocked: {
+    social_media: [
+      { pattern: 'facebook.com', name: 'Facebook' },
+      { pattern: 'instagram.com', name: 'Instagram' },
+      { pattern: 'twitter.com', name: 'X (Twitter)' },
+      { pattern: 'x.com', name: 'X (Twitter)' },
+      { pattern: 'tiktok.com', name: 'TikTok' },
+      { pattern: 'snapchat.com', name: 'Snapchat' },
+      { pattern: 'reddit.com', name: 'Reddit' },
+      { pattern: 'discord.com', name: 'Discord' },
+      { pattern: 'tumblr.com', name: 'Tumblr' },
+      { pattern: 'pinterest.com', name: 'Pinterest' },
+    ],
+    games: [
+      { pattern: 'roblox.com', name: 'Roblox' },
+      { pattern: 'minecraft.net', name: 'Minecraft' },
+      { pattern: 'steam.com', name: 'Steam' },
+      { pattern: 'steampowered.com', name: 'Steam' },
+      { pattern: 'epicgames.com', name: 'Epic Games' },
+      { pattern: 'twitch.tv', name: 'Twitch' },
+      { pattern: 'coolmathgames.com', name: 'Cool Math Games' },
+      { pattern: 'y8.com', name: 'Y8 Games' },
+      { pattern: 'poki.com', name: 'Poki' },
+    ],
+    entertainment: [
+      { pattern: 'youtube.com', name: 'YouTube' },
+      { pattern: 'netflix.com', name: 'Netflix' },
+      { pattern: 'disneyplus.com', name: 'Disney+' },
+      { pattern: 'hulu.com', name: 'Hulu' },
+      { pattern: 'primevideo.com', name: 'Prime Video' },
+      { pattern: 'hbomax.com', name: 'Max (HBO)' },
+      { pattern: 'max.com', name: 'Max (HBO)' },
+      { pattern: 'peacocktv.com', name: 'Peacock' },
+    ],
+    streaming: [
+      { pattern: 'spotify.com', name: 'Spotify' },
+      { pattern: 'open.spotify.com', name: 'Spotify' },
+      { pattern: 'music.apple.com', name: 'Apple Music' },
+      { pattern: 'soundcloud.com', name: 'SoundCloud' },
+      { pattern: 'pandora.com', name: 'Pandora' },
+    ],
+    shopping: [
+      { pattern: 'amazon.com', name: 'Amazon' },
+      { pattern: 'ebay.com', name: 'eBay' },
+      { pattern: 'etsy.com', name: 'Etsy' },
+      { pattern: 'walmart.com', name: 'Walmart' },
+      { pattern: 'target.com', name: 'Target' },
+    ],
+  },
+} as const

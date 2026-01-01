@@ -1,14 +1,16 @@
 /**
- * Focus Mode Module - Story 33.1 (AC2)
+ * Focus Mode Module - Story 33.1 (AC2), Story 33.2 (Configuration)
  *
  * Handles focus mode state sync for Chrome extension.
  * Blocks distracting apps during focus mode based on category config.
+ * Story 33.2: Supports custom allow/block lists from parent configuration.
  */
 
 import { FOCUS_MODE_DEFAULT_CATEGORIES } from '@fledgely/shared'
 
-// Storage key for focus mode state
+// Storage keys
 const FOCUS_MODE_STATE_KEY = 'focusModeState'
+const FOCUS_MODE_CONFIG_KEY = 'focusModeConfig' // Story 33.2
 const FOCUS_MODE_CHECK_ALARM = 'focus-mode-check'
 
 /**
@@ -24,6 +26,19 @@ export interface LocalFocusModeState {
   lastSyncedAt: number
 }
 
+/**
+ * Story 33.2: Local focus mode configuration
+ * Stores custom allow/block lists from parent configuration
+ */
+export interface LocalFocusModeConfig {
+  useDefaultCategories: boolean
+  customAllowPatterns: string[]
+  customBlockPatterns: string[]
+  allowedCategories: string[] // Categories to move to allowed
+  blockedCategories: string[] // Categories to move to blocked
+  lastSyncedAt: number
+}
+
 const DEFAULT_FOCUS_STATE: LocalFocusModeState = {
   isActive: false,
   durationType: null,
@@ -31,6 +46,15 @@ const DEFAULT_FOCUS_STATE: LocalFocusModeState = {
   durationMs: null,
   childId: null,
   familyId: null,
+  lastSyncedAt: 0,
+}
+
+const DEFAULT_FOCUS_CONFIG: LocalFocusModeConfig = {
+  useDefaultCategories: true,
+  customAllowPatterns: [],
+  customBlockPatterns: [],
+  allowedCategories: [],
+  blockedCategories: [],
   lastSyncedAt: 0,
 }
 
@@ -124,6 +148,21 @@ export async function setFocusModeState(state: LocalFocusModeState): Promise<voi
 }
 
 /**
+ * Story 33.2: Get focus mode configuration from local storage
+ */
+export async function getFocusModeConfig(): Promise<LocalFocusModeConfig> {
+  const result = await chrome.storage.local.get(FOCUS_MODE_CONFIG_KEY)
+  return result[FOCUS_MODE_CONFIG_KEY] || DEFAULT_FOCUS_CONFIG
+}
+
+/**
+ * Story 33.2: Update focus mode configuration in local storage
+ */
+export async function setFocusModeConfig(config: LocalFocusModeConfig): Promise<void> {
+  await chrome.storage.local.set({ [FOCUS_MODE_CONFIG_KEY]: config })
+}
+
+/**
  * Check if focus mode has expired based on duration
  */
 export function isFocusModeExpired(state: LocalFocusModeState): boolean {
@@ -149,8 +188,9 @@ export function getTimeRemainingMs(state: LocalFocusModeState): number | null {
 
 /**
  * Check if a URL should be blocked during focus mode
+ * Story 33.2: Uses custom configuration if available
  */
-export function shouldBlockUrl(url: string): boolean {
+export function shouldBlockUrl(url: string, config?: LocalFocusModeConfig): boolean {
   try {
     const parsedUrl = new URL(url)
     const hostname = parsedUrl.hostname.toLowerCase()
@@ -165,15 +205,54 @@ export function shouldBlockUrl(url: string): boolean {
       return false
     }
 
-    // Always allow education/productivity sites
+    // Story 33.2: Check custom allow list first
+    if (config) {
+      for (const pattern of config.customAllowPatterns) {
+        if (matchesPattern(hostname, pattern)) {
+          return false
+        }
+      }
+
+      // Story 33.2: Check custom block list
+      for (const pattern of config.customBlockPatterns) {
+        if (matchesPattern(hostname, pattern)) {
+          return true
+        }
+      }
+    }
+
+    // Always allow education/productivity sites (from default list)
     for (const allowed of ALLOWED_DOMAINS) {
       if (hostname.includes(allowed)) {
         return false
       }
     }
 
-    // Check blocked categories
-    const blockedCategories = FOCUS_MODE_DEFAULT_CATEGORIES.blocked
+    // Story 33.2: If custom config says not to use defaults, only block custom list
+    if (config && !config.useDefaultCategories) {
+      return false
+    }
+
+    // Check blocked categories, respecting any overrides from config
+    const blockedCategories = [...FOCUS_MODE_DEFAULT_CATEGORIES.blocked]
+
+    // Story 33.2: Remove categories that were moved to allowed
+    if (config?.allowedCategories) {
+      for (const cat of config.allowedCategories) {
+        const idx = blockedCategories.indexOf(cat)
+        if (idx !== -1) blockedCategories.splice(idx, 1)
+      }
+    }
+
+    // Story 33.2: Add default-allowed categories that were moved to blocked
+    if (config?.blockedCategories) {
+      for (const cat of config.blockedCategories) {
+        if (!blockedCategories.includes(cat)) {
+          blockedCategories.push(cat)
+        }
+      }
+    }
+
     for (const category of blockedCategories) {
       const domains = DISTRACTION_DOMAINS[category] || []
       for (const domain of domains) {
@@ -187,6 +266,18 @@ export function shouldBlockUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Story 33.2: Check if hostname matches a pattern
+ * Supports exact match and wildcard (*.example.com)
+ */
+function matchesPattern(hostname: string, pattern: string): boolean {
+  if (pattern.startsWith('*.')) {
+    const suffix = pattern.slice(2)
+    return hostname === suffix || hostname.endsWith(`.${suffix}`)
+  }
+  return hostname === pattern || hostname.endsWith(`.${pattern}`)
 }
 
 /**
@@ -290,17 +381,65 @@ export async function injectFocusModeBlockingScript(tabId: number): Promise<void
 
 /**
  * Enforce focus mode blocking on all tabs
+ * Story 33.2: Uses custom configuration for blocking decisions
  */
 export async function enforceFocusModeOnAllTabs(): Promise<void> {
   try {
+    const config = await getFocusModeConfig()
     const tabs = await chrome.tabs.query({})
     for (const tab of tabs) {
-      if (tab.id && tab.url && shouldBlockUrl(tab.url)) {
+      if (tab.id && tab.url && shouldBlockUrl(tab.url, config)) {
         await injectFocusModeBlockingScript(tab.id)
       }
     }
   } catch (error) {
     console.error('[Fledgely Focus] Enforce all tabs error:', error)
+  }
+}
+
+/**
+ * Story 33.2: Sync focus mode configuration from Firestore
+ */
+export async function syncFocusModeConfig(
+  childId: string,
+  familyId: string
+): Promise<LocalFocusModeConfig | null> {
+  try {
+    const { state } = await chrome.storage.local.get('state')
+    const deviceId = state?.deviceId
+
+    const response = await fetch(
+      `https://us-central1-fledgely-cns-me.cloudfunctions.net/getFocusModeConfig`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ childId, familyId, deviceId }),
+      }
+    )
+
+    if (!response.ok) {
+      console.error('[Fledgely Focus] Config sync failed:', response.status)
+      return null
+    }
+
+    const data = await response.json()
+
+    const newConfig: LocalFocusModeConfig = {
+      useDefaultCategories: data.useDefaultCategories ?? true,
+      customAllowPatterns: data.customAllowList?.map((a: { pattern: string }) => a.pattern) || [],
+      customBlockPatterns: data.customBlockList?.map((a: { pattern: string }) => a.pattern) || [],
+      allowedCategories: data.allowedCategories || [],
+      blockedCategories: data.blockedCategories || [],
+      lastSyncedAt: Date.now(),
+    }
+
+    await setFocusModeConfig(newConfig)
+    console.log('[Fledgely Focus] Config synced')
+
+    return newConfig
+  } catch (error) {
+    console.error('[Fledgely Focus] Config sync error:', error)
+    return null
   }
 }
 

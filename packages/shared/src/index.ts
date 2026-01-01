@@ -476,8 +476,18 @@ export {
   focusModeStateSchema,
   FOCUS_MODE_DEFAULT_CATEGORIES,
   FOCUS_MODE_MESSAGES,
+  // Story 33-2: Focus Mode Configuration
+  focusModeAppEntrySchema,
+  focusModeConfigSchema,
+  appSuggestionStatusSchema,
+  focusModeAppSuggestionSchema,
+  FOCUS_MODE_DEFAULT_APPS,
   type FocusModeDuration,
   type FocusModeStatus,
   type FocusModeSession,
   type FocusModeState,
+  type FocusModeAppEntry,
+  type FocusModeConfig,
+  type AppSuggestionStatus,
+  type FocusModeAppSuggestion,
 } from './contracts'

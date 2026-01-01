@@ -21,7 +21,7 @@ vi.mock('firebase/firestore', () => ({
 }))
 
 vi.mock('../lib/firebase', () => ({
-  db: {},
+  getFirestoreDb: vi.fn(() => ({})),
 }))
 
 describe('useFocusMode - Story 33.1', () => {

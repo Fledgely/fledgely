@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { getFirestoreDb } from '../lib/firebase'
 import type { OfflineStreak, StreakMilestones } from '@fledgely/shared'
 import { STREAK_MILESTONE_DAYS } from '@fledgely/shared'
 
@@ -133,7 +133,7 @@ export function useOfflineTimeStreak({
       return
     }
 
-    const streakRef = doc(db, 'families', familyId, 'settings', 'offlineStreak')
+    const streakRef = doc(getFirestoreDb(), 'families', familyId, 'settings', 'offlineStreak')
 
     const unsubscribe = onSnapshot(
       streakRef,
@@ -182,7 +182,7 @@ export function useOfflineTimeStreak({
       if (!familyId || !streak) return
 
       const now = Date.now()
-      const streakRef = doc(db, 'families', familyId, 'settings', 'offlineStreak')
+      const streakRef = doc(getFirestoreDb(), 'families', familyId, 'settings', 'offlineStreak')
 
       let newCurrentStreak = streak.currentStreak
 
@@ -246,7 +246,7 @@ export function useOfflineTimeStreak({
   const resetStreak = useCallback(async () => {
     if (!familyId) return
 
-    const streakRef = doc(db, 'families', familyId, 'settings', 'offlineStreak')
+    const streakRef = doc(getFirestoreDb(), 'families', familyId, 'settings', 'offlineStreak')
 
     await updateDoc(streakRef, {
       currentStreak: 0,
@@ -259,7 +259,7 @@ export function useOfflineTimeStreak({
   const toggleLeaderboardOptIn = useCallback(async () => {
     if (!familyId || !streak) return
 
-    const streakRef = doc(db, 'families', familyId, 'settings', 'offlineStreak')
+    const streakRef = doc(getFirestoreDb(), 'families', familyId, 'settings', 'offlineStreak')
 
     await updateDoc(streakRef, {
       leaderboardOptIn: !streak.leaderboardOptIn,
