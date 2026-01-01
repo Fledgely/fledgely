@@ -387,6 +387,53 @@ service cloud.firestore {
         // Delete: Not allowed - keep audit trail
         allow delete: if false;
       }
+
+      // =========================================================================
+      // EPIC 34: AGREEMENT CHANGES & PROPOSALS
+      // Story 34.1: Parent-Initiated Agreement Change
+      // =========================================================================
+      //
+      // Agreement proposals allow parents/children to propose changes to agreements.
+      // Only family guardians can create parent-initiated proposals.
+      // Both guardians and children can read proposals for transparency.
+      // Proposals are preserved for audit trail (no deletion).
+      //
+      match /agreementProposals/{proposalId} {
+        // Helper: Check if user is a guardian of this family
+        function isProposalGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardianUids;
+        }
+
+        // Read: Guardians can view all proposals for their family
+        // Story 34.1 AC5: Child can review proposals (via custom token in future)
+        allow read: if isProposalGuardian();
+
+        // Create: Only guardians can create proposals
+        // Story 34.1 AC4: Parent submits proposal
+        // Must set themselves as proposer and start with pending status
+        allow create: if isProposalGuardian() &&
+          request.resource.data.familyId == familyId &&
+          request.resource.data.proposerId == request.auth.uid &&
+          request.resource.data.status == 'pending';
+
+        // Update: Guardians can withdraw their own proposals
+        // Story 34.1 AC6: Proposal can be withdrawn before acceptance
+        // Can only change status from pending to withdrawn
+        allow update: if isProposalGuardian() &&
+          resource.data.proposerId == request.auth.uid &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'withdrawn' &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId;
+
+        // Delete: Not allowed - keep audit trail
+        // Story 34.1: Proposals are versioned for history tracking
+        allow delete: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

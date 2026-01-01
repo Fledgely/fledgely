@@ -6209,3 +6209,145 @@ export function formatWorkDuration(minutes: number): string {
 export function minutesToHours(minutes: number): number {
   return Math.round((minutes / 60) * 10) / 10
 }
+
+// =============================================================================
+// Story 34.1: Agreement Proposal Schemas
+// =============================================================================
+
+/**
+ * Status of an agreement change proposal.
+ *
+ * Story 34.1: Parent-Initiated Agreement Change - AC4, AC6
+ */
+export const proposalStatusSchema = z.enum([
+  'pending', // Awaiting response
+  'accepted', // Accepted by recipient
+  'declined', // Declined by recipient
+  'withdrawn', // Withdrawn by proposer
+  'counter-proposed', // Counter-proposal made
+])
+export type ProposalStatus = z.infer<typeof proposalStatusSchema>
+
+/**
+ * Type of change being proposed.
+ *
+ * Story 34.1: Parent-Initiated Agreement Change - AC2
+ */
+export const proposalChangeTypeSchema = z.enum([
+  'add', // Adding a new term or value
+  'modify', // Modifying an existing term
+  'remove', // Removing a term
+])
+export type ProposalChangeType = z.infer<typeof proposalChangeTypeSchema>
+
+/**
+ * A single change within a proposal.
+ *
+ * Story 34.1: Parent-Initiated Agreement Change - AC1, AC2
+ */
+export const proposalChangeSchema = z.object({
+  sectionId: z.string(), // e.g., 'time-limits', 'app-restrictions'
+  sectionName: z.string(), // Display name for the section
+  fieldPath: z.string(), // Dot-notation path to the field
+  oldValue: z.unknown().nullable(), // Previous value (null for adds)
+  newValue: z.unknown().nullable(), // New value (null for removes)
+  changeType: proposalChangeTypeSchema,
+})
+export type ProposalChange = z.infer<typeof proposalChangeSchema>
+
+/**
+ * Agreement change proposal schema.
+ *
+ * Story 34.1: Parent-Initiated Agreement Change - All ACs
+ * Represents a proposed change to an active agreement.
+ */
+export const agreementProposalSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  childId: z.string(),
+  agreementId: z.string(), // The active agreement being modified
+  proposedBy: z.enum(['parent', 'child']),
+  proposerId: z.string(),
+  proposerName: z.string(),
+
+  // Changes being proposed
+  changes: z.array(proposalChangeSchema),
+  reason: z.string().nullable(), // Optional reason for the change (AC3)
+
+  // Status tracking
+  status: proposalStatusSchema,
+
+  // Timestamps
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  respondedAt: z.number().nullable(), // When response was received
+
+  // Versioning for optimistic locking and history
+  version: z.number(),
+  proposalNumber: z.number(), // Sequential within family
+})
+export type AgreementProposal = z.infer<typeof agreementProposalSchema>
+
+/**
+ * Response action types.
+ *
+ * Story 34.3, 34.4: For future stories but defined here for completeness
+ */
+export const proposalResponseActionSchema = z.enum([
+  'accept', // Accept the proposal as-is
+  'decline', // Decline the proposal
+  'counter', // Make a counter-proposal
+])
+export type ProposalResponseAction = z.infer<typeof proposalResponseActionSchema>
+
+/**
+ * Proposal response schema.
+ *
+ * Story 34.3, 34.4: Response to a proposal (accept/decline/counter)
+ */
+export const proposalResponseSchema = z.object({
+  id: z.string(),
+  proposalId: z.string(),
+  responderId: z.string(),
+  responderName: z.string(),
+  action: proposalResponseActionSchema,
+  comment: z.string().nullable(), // Optional comment with response
+  counterChanges: z.array(proposalChangeSchema).nullable(), // For counter-proposals
+  createdAt: z.number(),
+})
+export type ProposalResponse = z.infer<typeof proposalResponseSchema>
+
+/**
+ * Agreement proposal messages with positive framing.
+ *
+ * Story 34.1: Parent-Initiated Agreement Change - AC3, AC5, AC6
+ */
+export const AGREEMENT_PROPOSAL_MESSAGES = {
+  // Child notification message (AC5)
+  childNotification: (proposerName: string) =>
+    `${proposerName} proposed a change to your agreement`,
+
+  // Pending status message (AC6)
+  pendingStatus: (childName: string) => `Waiting for ${childName} to review`,
+
+  // Withdraw confirmation
+  withdrawConfirmation: 'Are you sure you want to withdraw this proposal?',
+
+  // Positive framing prompts for reason field (AC3)
+  reasonPrompts: [
+    "You've been responsible with gaming",
+    "You've shown great time management",
+    'Your grades have improved',
+    "You've been helpful around the house",
+    'As a reward for your hard work',
+  ],
+
+  // Section names for display
+  sectionNames: {
+    timeLimits: 'Time Limits',
+    appRestrictions: 'App Restrictions',
+    monitoringSettings: 'Monitoring Settings',
+    rewards: 'Rewards & Privileges',
+    general: 'General Terms',
+  },
+} as const

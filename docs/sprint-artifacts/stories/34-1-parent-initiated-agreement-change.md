@@ -1,6 +1,6 @@
 # Story 34.1: Parent-Initiated Agreement Change
 
-Status: ready-for-dev
+Status: done
 
 Epic: 34 - Agreement Changes & Proposals
 Priority: High
@@ -201,60 +201,60 @@ families/{familyId}/
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create agreement proposal schemas (AC: #1, #2, #4)
-  - [ ] 1.1 Add AgreementProposal schema to @fledgely/shared
-  - [ ] 1.2 Add ProposalChange schema
-  - [ ] 1.3 Add ProposalResponse schema (for future stories)
-  - [ ] 1.4 Add proposal status enum
-  - [ ] 1.5 Add unit tests for schemas
+- [x] Task 1: Create agreement proposal schemas (AC: #1, #2, #4)
+  - [x] 1.1 Add AgreementProposal schema to @fledgely/shared
+  - [x] 1.2 Add ProposalChange schema
+  - [x] 1.3 Add ProposalResponse schema (for future stories)
+  - [x] 1.4 Add proposal status enum
+  - [x] 1.5 Add unit tests for schemas (39 tests passing)
 
-- [ ] Task 2: Create agreement proposal hook (AC: #4, #6)
-  - [ ] 2.1 Create `useAgreementProposal` hook
-  - [ ] 2.2 Implement createProposal function
-  - [ ] 2.3 Implement withdrawProposal function
-  - [ ] 2.4 Add real-time status sync
-  - [ ] 2.5 Add unit tests for hook
+- [x] Task 2: Create agreement proposal hook (AC: #4, #6)
+  - [x] 2.1 Create `useAgreementProposal` hook
+  - [x] 2.2 Implement createProposal function
+  - [x] 2.3 Implement withdrawProposal function
+  - [x] 2.4 Add real-time status sync
+  - [x] 2.5 Add unit tests for hook (13 tests passing)
 
-- [ ] Task 3: Create pending proposals hook (AC: #6)
-  - [ ] 3.1 Create `usePendingProposals` hook
-  - [ ] 3.2 Query proposals with status='pending' for family
-  - [ ] 3.3 Real-time subscription for updates
-  - [ ] 3.4 Add unit tests for hook
+- [x] Task 3: Create pending proposals hook (AC: #6)
+  - [x] 3.1 Create `usePendingProposals` hook
+  - [x] 3.2 Query proposals with status='pending' for family
+  - [x] 3.3 Real-time subscription for updates
+  - [x] 3.4 Add unit tests for hook (10 tests passing)
 
-- [ ] Task 4: Create section selector component (AC: #1)
-  - [ ] 4.1 Create `AgreementSectionSelector` component
-  - [ ] 4.2 Display all current agreement sections
-  - [ ] 4.3 Allow multi-select with checkboxes
-  - [ ] 4.4 Add component tests
+- [x] Task 4: Create section selector component (AC: #1)
+  - [x] 4.1 Create `AgreementSectionSelector` component
+  - [x] 4.2 Display all current agreement sections
+  - [x] 4.3 Allow multi-select with checkboxes
+  - [x] 4.4 Add component tests (10 tests passing)
 
-- [ ] Task 5: Create diff view component (AC: #2)
-  - [ ] 5.1 Create `AgreementDiffView` component
-  - [ ] 5.2 Implement side-by-side or inline diff display
-  - [ ] 5.3 Color-code additions (green) and removals (red)
-  - [ ] 5.4 Handle complex nested objects
-  - [ ] 5.5 Add component tests
+- [x] Task 5: Create diff view component (AC: #2)
+  - [x] 5.1 Create `AgreementDiffView` component
+  - [x] 5.2 Implement side-by-side or inline diff display
+  - [x] 5.3 Color-code additions (green) and removals (red)
+  - [x] 5.4 Handle complex nested objects
+  - [x] 5.5 Add component tests (13 tests passing)
 
-- [ ] Task 6: Create proposal wizard (AC: #1, #2, #3, #4)
-  - [ ] 6.1 Create `AgreementProposalWizard` component
-  - [ ] 6.2 Implement step 1: Section selection
-  - [ ] 6.3 Implement step 2: Edit changes with diff preview
-  - [ ] 6.4 Implement step 3: Add reason (with positive prompts)
-  - [ ] 6.5 Implement step 4: Review and submit
-  - [ ] 6.6 Add component tests
+- [x] Task 6: Create proposal wizard (AC: #1, #2, #3, #4)
+  - [x] 6.1 Create `AgreementProposalWizard` component
+  - [x] 6.2 Implement step 1: Section selection
+  - [x] 6.3 Implement step 2: Edit changes with diff preview
+  - [x] 6.4 Implement step 3: Add reason (with positive prompts)
+  - [x] 6.5 Implement step 4: Review and submit
+  - [x] 6.6 Add component tests (17 tests passing)
 
-- [ ] Task 7: Implement child notification (AC: #5)
-  - [ ] 7.1 Extend notification service for proposal notifications
-  - [ ] 7.2 Create in-app notification document
-  - [ ] 7.3 Trigger push notification (if enabled)
-  - [ ] 7.4 Include proposal summary in notification
-  - [ ] 7.5 Add service tests
+- [x] Task 7: Implement child notification (AC: #5)
+  - [x] 7.1 Extend notification service for proposal notifications
+  - [x] 7.2 Create in-app notification document
+  - [x] 7.3 Trigger push notification (if enabled)
+  - [x] 7.4 Include proposal summary in notification
+  - [x] 7.5 Add service tests (7 tests passing)
 
-- [ ] Task 8: Create proposal status card (AC: #6)
-  - [ ] 8.1 Create `ProposalStatusCard` component
-  - [ ] 8.2 Show "Waiting for [Child] to review" status
-  - [ ] 8.3 Add withdraw button
-  - [ ] 8.4 Show proposal summary
-  - [ ] 8.5 Add component tests
+- [x] Task 8: Create proposal status card (AC: #6)
+  - [x] 8.1 Create `ProposalStatusCard` component
+  - [x] 8.2 Show "Waiting for [Child] to review" status
+  - [x] 8.3 Add withdraw button
+  - [x] 8.4 Show proposal summary
+  - [x] 8.5 Add component tests (9 tests passing)
 
 ## Dev Notes
 
