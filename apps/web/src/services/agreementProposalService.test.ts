@@ -9,6 +9,8 @@ import {
   createProposalNotification,
   logProposalActivity,
   createParentNotifications,
+  notifyProposerOfResponse,
+  logProposalResponse,
 } from './agreementProposalService'
 
 // Mock @fledgely/shared
@@ -304,6 +306,173 @@ describe('agreementProposalService - Story 34.1', () => {
           childName: 'Emma',
         })
       ).rejects.toThrow('Family not found')
+    })
+  })
+
+  describe('notifyProposerOfResponse - Story 34.3 (AC2)', () => {
+    beforeEach(() => {
+      mockAddDoc.mockResolvedValue({ id: 'notification-123' })
+    })
+
+    it('should create notification for proposer on accept', async () => {
+      const result = await notifyProposerOfResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        proposerId: 'parent-1',
+        responderName: 'Emma',
+        action: 'accept',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          familyId: 'family-1',
+          recipientId: 'parent-1',
+          type: 'proposal_response',
+        })
+      )
+      expect(result).toBe('notification-123')
+    })
+
+    it('should include correct body for accept', async () => {
+      await notifyProposerOfResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        proposerId: 'parent-1',
+        responderName: 'Emma',
+        action: 'accept',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('accepted'),
+        })
+      )
+    })
+
+    it('should include correct body for decline', async () => {
+      await notifyProposerOfResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        proposerId: 'parent-1',
+        responderName: 'Emma',
+        action: 'decline',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('declined'),
+        })
+      )
+    })
+
+    it('should include correct body for counter', async () => {
+      await notifyProposerOfResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        proposerId: 'parent-1',
+        responderName: 'Emma',
+        action: 'counter',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          body: expect.stringContaining('counter'),
+        })
+      )
+    })
+
+    it('should include proposal ID in notification data', async () => {
+      await notifyProposerOfResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-456',
+        proposerId: 'parent-1',
+        responderName: 'Emma',
+        action: 'accept',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            proposalId: 'proposal-456',
+          }),
+        })
+      )
+    })
+  })
+
+  describe('logProposalResponse - Story 34.3', () => {
+    beforeEach(() => {
+      mockAddDoc.mockResolvedValue({ id: 'activity-123' })
+    })
+
+    it('should log response activity', async () => {
+      const result = await logProposalResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        responderId: 'child-1',
+        responderName: 'Emma',
+        responderType: 'child',
+        action: 'accept',
+        proposerName: 'Mom',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          familyId: 'family-1',
+          type: 'proposal_response_accept',
+          actorId: 'child-1',
+          actorName: 'Emma',
+          actorType: 'child',
+        })
+      )
+      expect(result).toBe('activity-123')
+    })
+
+    it('should include response metadata', async () => {
+      await logProposalResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        responderId: 'child-1',
+        responderName: 'Emma',
+        responderType: 'child',
+        action: 'decline',
+        proposerName: 'Mom',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            proposalId: 'proposal-123',
+            action: 'decline',
+          }),
+        })
+      )
+    })
+
+    it('should generate readable description for counter', async () => {
+      await logProposalResponse({
+        familyId: 'family-1',
+        proposalId: 'proposal-123',
+        responderId: 'child-1',
+        responderName: 'Emma',
+        responderType: 'child',
+        action: 'counter',
+        proposerName: 'Mom',
+      })
+
+      expect(mockAddDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          description: expect.stringContaining('counter'),
+        })
+      )
     })
   })
 })

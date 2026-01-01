@@ -392,6 +392,7 @@ service cloud.firestore {
       // EPIC 34: AGREEMENT CHANGES & PROPOSALS
       // Story 34.1: Parent-Initiated Agreement Change
       // Story 34.2: Child-Initiated Agreement Change
+      // Story 34.3: Change Review and Negotiation
       // =========================================================================
       //
       // Agreement proposals allow parents/children to propose changes to agreements.
@@ -465,9 +466,92 @@ service cloud.firestore {
           request.resource.data.childId == resource.data.childId &&
           request.resource.data.agreementId == resource.data.agreementId;
 
+        // Update: Child can respond to parent's proposal
+        // Story 34.3 AC2: Accept, Decline, Counter-propose
+        // Only the non-proposer can change status to accepted/declined/counter-proposed
+        allow update: if isChildInProposalFamily() &&
+          resource.data.proposedBy == 'parent' &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status in ['accepted', 'declined', 'counter-proposed'] &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId &&
+          request.resource.data.proposedBy == resource.data.proposedBy &&
+          request.resource.data.proposerId == resource.data.proposerId;
+
+        // Update: Parent can respond to child's proposal
+        // Story 34.3 AC2: Accept, Decline, Counter-propose
+        allow update: if isProposalGuardian() &&
+          resource.data.proposedBy == 'child' &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status in ['accepted', 'declined', 'counter-proposed'] &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId &&
+          request.resource.data.proposedBy == resource.data.proposedBy &&
+          request.resource.data.proposerId == resource.data.proposerId;
+
         // Delete: Not allowed - keep audit trail
         // Story 34.1: Proposals are versioned for history tracking
         allow delete: if false;
+
+        // =============================================================
+        // RESPONSES SUBCOLLECTION - Story 34.3: Change Review and Negotiation
+        // =============================================================
+        //
+        // Responses are stored as a subcollection under each proposal.
+        // Both parties can read responses for transparency.
+        // Only the non-proposer can create responses:
+        // - Parent proposal → Child responds
+        // - Child proposal → Parent responds
+        //
+        match /responses/{responseId} {
+          // Helper: Get the parent proposal document
+          function getProposal() {
+            return get(/databases/$(database)/documents/families/$(familyId)/agreementProposals/$(proposalId));
+          }
+
+          // Helper: Check if user is guardian of the family
+          function isResponseGuardian() {
+            let family = get(/databases/$(database)/documents/families/$(familyId));
+            return request.auth != null &&
+              request.auth.uid in family.data.guardianUids;
+          }
+
+          // Helper: Check if user is child in the family (via custom token)
+          function isResponseChildInFamily() {
+            return request.auth != null &&
+              request.auth.token.familyId == familyId;
+          }
+
+          // Read: Both parties can read responses
+          // Story 34.3 AC5: Negotiation history visible to both parties
+          allow read: if isResponseGuardian() || isResponseChildInFamily();
+
+          // Create: Only non-proposer can respond
+          // Story 34.3 AC2: Accept, Decline, Counter-propose
+          // Parent proposal → Child responds
+          allow create: if isResponseChildInFamily() &&
+            getProposal().data.proposedBy == 'parent' &&
+            request.resource.data.responderId == request.auth.uid &&
+            request.resource.data.proposalId == proposalId &&
+            request.resource.data.action in ['accept', 'decline', 'counter'];
+
+          // Create: Child proposal → Parent responds
+          allow create: if isResponseGuardian() &&
+            getProposal().data.proposedBy == 'child' &&
+            request.resource.data.responderId == request.auth.uid &&
+            request.resource.data.proposalId == proposalId &&
+            request.resource.data.action in ['accept', 'decline', 'counter'];
+
+          // Update: Not allowed - responses are immutable
+          allow update: if false;
+
+          // Delete: Not allowed - keep audit trail
+          allow delete: if false;
+        }
       }
     }
 

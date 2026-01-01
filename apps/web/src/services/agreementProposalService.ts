@@ -1,5 +1,5 @@
 /**
- * Agreement Proposal Service - Story 34.1, 34.2
+ * Agreement Proposal Service - Story 34.1, 34.2, 34.3
  *
  * Handles proposal notifications and activity logging.
  * Follows patterns from agreementChangeService.ts.
@@ -154,4 +154,106 @@ export async function createParentNotifications(input: ParentNotificationInput):
   }
 
   return notificationIds
+}
+
+/**
+ * Input for notifying proposer of a response
+ *
+ * Story 34.3: Proposal response notifications
+ */
+export interface ProposerNotificationInput {
+  familyId: string
+  proposalId: string
+  proposerId: string
+  responderName: string
+  action: 'accept' | 'decline' | 'counter'
+}
+
+/**
+ * Notify the original proposer when someone responds to their proposal.
+ *
+ * Story 34.3 AC2: Notification on response
+ *
+ * @param input - Notification input data
+ * @returns The notification ID
+ */
+export async function notifyProposerOfResponse(input: ProposerNotificationInput): Promise<string> {
+  const db = getFirestoreDb()
+
+  const actionMessages: Record<string, string> = {
+    accept: `${input.responderName} accepted your proposal! Changes are now active.`,
+    decline: `${input.responderName} declined your proposal.`,
+    counter: `${input.responderName} made a counter-proposal. Please review.`,
+  }
+
+  const notificationData = {
+    familyId: input.familyId,
+    recipientId: input.proposerId,
+    type: 'proposal_response',
+    title: 'Proposal Response',
+    body: actionMessages[input.action],
+    data: {
+      proposalId: input.proposalId,
+      action: `view_${input.action}`,
+    },
+    read: false,
+    createdAt: serverTimestamp(),
+  }
+
+  const notificationsRef = collection(db, 'notifications')
+  const notificationDoc = await addDoc(notificationsRef, notificationData)
+
+  return notificationDoc.id
+}
+
+/**
+ * Input for logging proposal response activity
+ *
+ * Story 34.3: Response activity logging
+ */
+export interface ProposalResponseActivityInput {
+  familyId: string
+  proposalId: string
+  responderId: string
+  responderName: string
+  responderType: 'parent' | 'child'
+  action: 'accept' | 'decline' | 'counter'
+  proposerName: string
+}
+
+/**
+ * Log proposal response activity to the family activity feed.
+ *
+ * Story 34.3: Activity logging for responses
+ *
+ * @param input - Activity input data
+ * @returns The activity log ID
+ */
+export async function logProposalResponse(input: ProposalResponseActivityInput): Promise<string> {
+  const db = getFirestoreDb()
+
+  const actionDescriptions: Record<string, string> = {
+    accept: `${input.responderName} accepted ${input.proposerName}'s proposal`,
+    decline: `${input.responderName} declined ${input.proposerName}'s proposal`,
+    counter: `${input.responderName} made a counter-proposal to ${input.proposerName}`,
+  }
+
+  const activityData = {
+    familyId: input.familyId,
+    type: `proposal_response_${input.action}`,
+    actorId: input.responderId,
+    actorName: input.responderName,
+    actorType: input.responderType,
+    description: actionDescriptions[input.action],
+    metadata: {
+      proposalId: input.proposalId,
+      action: input.action,
+    },
+    createdAt: serverTimestamp(),
+  }
+
+  const activityRef = collection(db, 'familyActivity')
+  const activityDoc = await addDoc(activityRef, activityData)
+
+  return activityDoc.id
 }
