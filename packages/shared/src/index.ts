@@ -806,3 +806,46 @@ export {
   type AgreementForAnnualReview,
   type AgeSuggestionThreshold,
 } from './contracts'
+
+// Trust Milestone exports (Story 37.1)
+export {
+  MILESTONE_DURATION_DAYS,
+  MILESTONE_THRESHOLDS,
+  TRUST_MILESTONES,
+  trustMilestoneLevelSchema,
+  trustMilestoneSchema,
+  milestoneHistoryEntrySchema,
+  childMilestoneStatusSchema,
+  getMilestoneByLevel,
+  getMilestonesSortedByThreshold,
+  getNextMilestone,
+  type TrustMilestoneLevel,
+  type TrustMilestone,
+  type MilestoneHistoryEntry,
+  type ChildMilestoneStatus,
+} from './contracts/trustMilestone'
+
+// Milestone Service exports (Story 37.1)
+export {
+  getMilestoneForScore,
+  checkMilestoneEligibility,
+  calculateConsecutiveDays,
+  transitionMilestone,
+  type ScoreHistoryEntry,
+  type MilestoneEligibility,
+  type MilestoneTransition,
+} from './services/milestoneService'
+
+// Milestone Regression Service exports (Story 37.1)
+export {
+  MILESTONE_GRACE_PERIOD_DAYS,
+  checkForRegressionRisk,
+  applyGracePeriod,
+  isMilestoneInGracePeriod,
+  shouldTriggerRegression,
+  getRegressionMessage,
+  createRegressionNotification,
+  type RegressionRiskStatus,
+  type GracePeriodState,
+  type RegressionNotification,
+} from './services/milestoneRegressionService'
