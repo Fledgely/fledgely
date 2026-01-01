@@ -849,3 +849,27 @@ export {
   type GracePeriodState,
   type RegressionNotification,
 } from './services/milestoneRegressionService'
+
+// Milestone Frequency exports (Story 37.2)
+export {
+  DEFAULT_FREQUENCY_MINUTES,
+  MILESTONE_FREQUENCIES,
+  milestoneFrequencyConfigSchema,
+  frequencyChangeRecordSchema,
+  getFrequencyForMilestone,
+  getFrequencyDescription,
+  getFrequencyReductionRatio,
+  getAllFrequencyConfigs,
+  type MilestoneFrequencyConfig,
+  type FrequencyChangeRecord,
+} from './contracts/milestoneFrequency'
+
+// Frequency Reduction Service exports (Story 37.2)
+export {
+  calculateFrequencyChange,
+  applyFrequencyReduction,
+  getFrequencyChangeMessage,
+  createFrequencyUpdate,
+  type FrequencyChange,
+  type FrequencyUpdate,
+} from './services/frequencyReductionService'
