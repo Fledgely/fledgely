@@ -405,3 +405,15 @@ export {
   MAX_CUSTOM_CATEGORIES_PER_FAMILY,
   type CustomCategory,
 } from './contracts'
+
+// Family offline schedule exports (Story 32.1)
+export {
+  offlineSchedulePresetSchema,
+  offlineTimeWindowSchema,
+  familyOfflineScheduleSchema,
+  OFFLINE_SCHEDULE_PRESETS,
+  OFFLINE_PRESET_LABELS,
+  type OfflineSchedulePreset,
+  type OfflineTimeWindow,
+  type FamilyOfflineSchedule,
+} from './contracts'

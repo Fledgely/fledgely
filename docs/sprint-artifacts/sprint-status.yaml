@@ -466,8 +466,8 @@ development_status:
   epic-31-retrospective: done
 
   # Epic 32: Family Offline Time
-  epic-32: backlog
-  32-1-family-offline-schedule-configuration: backlog
+  epic-32: in-progress
+  32-1-family-offline-schedule-configuration: done
   32-2-parent-device-enrollment-for-offline-time: backlog
   32-3-family-offline-time-enforcement: backlog
   32-4-parent-compliance-tracking: backlog

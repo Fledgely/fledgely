@@ -4656,3 +4656,84 @@ export const TIME_EXTENSION_REASON_LABELS: Record<TimeExtensionReason, string> =
   five_more_minutes: '5 more minutes',
   important_project: 'Important project',
 }
+
+// =============================================================================
+// Family Offline Schedule Schemas
+// Story 32.1: Family Offline Schedule Configuration
+// =============================================================================
+
+/**
+ * Preset options for family offline schedules.
+ * Story 32.1 AC3: Quick presets available
+ */
+export const offlineSchedulePresetSchema = z.enum([
+  'custom', // User-configured schedule
+  'dinner_time', // 6pm-7pm daily
+  'bedtime', // 9pm-7am
+])
+export type OfflineSchedulePreset = z.infer<typeof offlineSchedulePresetSchema>
+
+/**
+ * Time window for offline schedule.
+ * Story 32.1 AC1: Daily schedule with start and end time
+ */
+export const offlineTimeWindowSchema = z.object({
+  /** Start time in HH:MM format (24-hour) */
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  /** End time in HH:MM format (24-hour) */
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  /** IANA timezone (e.g., 'America/New_York') */
+  timezone: z.string(),
+})
+export type OfflineTimeWindow = z.infer<typeof offlineTimeWindowSchema>
+
+/**
+ * Family offline schedule configuration.
+ * Story 32.1: Family Offline Schedule Configuration
+ *
+ * Stored at: /families/{familyId}/settings/offlineSchedule
+ */
+export const familyOfflineScheduleSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Whether offline schedule is enabled */
+  enabled: z.boolean().default(false),
+  /** Selected preset (or 'custom') - AC3 */
+  preset: offlineSchedulePresetSchema.default('custom'),
+  /** Weekday schedule (Mon-Fri) - AC2 */
+  weekdaySchedule: offlineTimeWindowSchema.optional(),
+  /** Weekend schedule (Sat-Sun) - AC2 */
+  weekendSchedule: offlineTimeWindowSchema.optional(),
+  /** Applies to all family members including parents - AC4 */
+  appliesToParents: z.boolean().default(true),
+  /** Created timestamp (epoch ms) */
+  createdAt: z.number(),
+  /** Last updated timestamp (epoch ms) */
+  updatedAt: z.number(),
+})
+export type FamilyOfflineSchedule = z.infer<typeof familyOfflineScheduleSchema>
+
+/**
+ * Preset configurations for quick setup.
+ * Story 32.1 AC3: "Dinner time" (6pm-7pm) and "Bedtime" (9pm-7am)
+ */
+export const OFFLINE_SCHEDULE_PRESETS: Record<
+  Exclude<OfflineSchedulePreset, 'custom'>,
+  { weekday: Omit<OfflineTimeWindow, 'timezone'>; weekend: Omit<OfflineTimeWindow, 'timezone'> }
+> = {
+  dinner_time: {
+    weekday: { startTime: '18:00', endTime: '19:00' },
+    weekend: { startTime: '18:00', endTime: '19:00' },
+  },
+  bedtime: {
+    weekday: { startTime: '21:00', endTime: '07:00' },
+    weekend: { startTime: '22:00', endTime: '08:00' }, // Later on weekends
+  },
+}
+
+/** Human-readable preset labels */
+export const OFFLINE_PRESET_LABELS: Record<OfflineSchedulePreset, string> = {
+  custom: 'Custom',
+  dinner_time: 'Dinner Time',
+  bedtime: 'Bedtime',
+}

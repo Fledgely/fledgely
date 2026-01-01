@@ -30,6 +30,7 @@ import { ChildScreenshotGallery } from '../../../components/child/ChildScreensho
 import { ChildScreenshotDetail } from '../../../components/child/ChildScreenshotDetail'
 import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlagNotificationBanner'
 import { ChildScreenTimeCard } from '../../../components/child/ChildScreenTimeCard'
+import { ChildOfflineScheduleCard } from '../../../components/child/ChildOfflineScheduleCard'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
@@ -43,6 +44,7 @@ import {
 import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
 import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndicators'
 import { useChildResolutions } from '../../../hooks/useChildResolutions'
+import { useFamilyOfflineSchedule } from '../../../hooks/useFamilyOfflineSchedule'
 
 /**
  * Styles using sky blue theme for child dashboard
@@ -236,6 +238,12 @@ function DashboardContent() {
     createResolution,
   } = useChildResolutions(childSession?.familyId || null)
 
+  // Story 32.1 - Family offline schedule
+  const { schedule: offlineSchedule, loading: offlineLoading } = useFamilyOfflineSchedule({
+    familyId: childSession?.familyId,
+    enabled: !!childSession?.familyId,
+  })
+
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
     (flagId: string) => {
@@ -347,6 +355,9 @@ function DashboardContent() {
             sees the same things you do!
           </p>
         </div>
+
+        {/* Story 32.1 - Family Offline Schedule Card (AC5) */}
+        <ChildOfflineScheduleCard schedule={offlineSchedule} loading={offlineLoading} />
 
         {/* Story 27.5.2: Health Check-In Prompt Banner */}
         {pendingCheckIns.length > 0 && <CheckInPromptBanner checkIn={pendingCheckIns[0]} isChild />}

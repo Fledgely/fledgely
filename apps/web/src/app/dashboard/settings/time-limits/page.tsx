@@ -39,6 +39,8 @@ import {
   type DeviceLimitConfig as DeviceLimitCardConfig,
 } from '../../../../components/settings/DeviceLimitCard'
 import { CustomCategoryModal } from '../../../../components/settings/CustomCategoryModal'
+import { OfflineScheduleCard } from '../../../../components/settings/OfflineScheduleCard'
+import { useFamilyOfflineSchedule } from '../../../../hooks/useFamilyOfflineSchedule'
 import type { CustomCategory } from '@fledgely/shared'
 
 const styles = {
@@ -580,6 +582,29 @@ export default function TimeLimitsSettingsPage() {
     enabled: !!family?.id,
   })
 
+  // Story 32.1: Family offline schedule
+  const {
+    schedule: offlineSchedule,
+    loading: offlineLoading,
+    error: offlineError,
+    saveSchedule: saveOfflineSchedule,
+    applyPreset: applyOfflinePreset,
+    hasChanges: hasOfflineChanges,
+  } = useFamilyOfflineSchedule({
+    familyId: family?.id,
+    enabled: !!family?.id,
+  })
+
+  // Local offline schedule state for UI changes before save
+  const [localOfflineSchedule, setLocalOfflineSchedule] = useState(offlineSchedule)
+
+  // Sync local offline schedule with hook state
+  useEffect(() => {
+    if (offlineSchedule) {
+      setLocalOfflineSchedule(offlineSchedule)
+    }
+  }, [offlineSchedule])
+
   // Compute hasChanges locally by comparing localLimits with limits from hook
   const hasLocalChanges =
     limits !== null &&
@@ -877,6 +902,7 @@ export default function TimeLimitsSettingsPage() {
     devicesLoading ||
     familyLoading ||
     customCategoriesLoading ||
+    offlineLoading ||
     (selectedChildId ? limitsLoading : false)
 
   if (isLoading) {
@@ -1339,6 +1365,17 @@ export default function TimeLimitsSettingsPage() {
                     )}
                   </div>
                 )}
+
+                {/* Story 32.1: Family Offline Schedule */}
+                <OfflineScheduleCard
+                  schedule={localOfflineSchedule}
+                  onScheduleChange={setLocalOfflineSchedule}
+                  onApplyPreset={applyOfflinePreset}
+                  onSave={saveOfflineSchedule}
+                  hasChanges={hasOfflineChanges}
+                  loading={offlineLoading}
+                  error={offlineError}
+                />
 
                 {/* Story 30.6: Conflict Warnings */}
                 {hasConflicts && (
