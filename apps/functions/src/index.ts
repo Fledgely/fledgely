@@ -107,6 +107,9 @@ export {
 // Time limits HTTP handlers (Story 31.1)
 export { getTimeLimitConfig } from './http/timeLimits'
 
+// Offline schedule HTTP handlers (Story 32.3, 32.4)
+export { getOfflineSchedule, logParentCompliance } from './http/offline'
+
 // Time extension callable and HTTP handlers (Story 31.6)
 export {
   requestTimeExtension,
