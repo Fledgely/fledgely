@@ -520,7 +520,7 @@ development_status:
   36-1-trust-score-data-model: done
   36-2-trust-score-calculation: done
   36-3-trust-score-display-to-child: done
-  36-4-trust-score-display-to-parent: backlog
+  36-4-trust-score-display-to-parent: done
   36-5-bypass-attempt-logging: backlog
   36-6-trust-score-privacy: backlog
   epic-36-retrospective: optional
