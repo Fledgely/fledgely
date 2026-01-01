@@ -457,10 +457,10 @@ development_status:
   # Epic 31: Time Limit Enforcement & Warnings
   epic-31: in-progress
   31-1-countdown-warning-system: done
-  31-2-neurodivergent-transition-accommodations: backlog
-  31-3-education-content-exemption: backlog
-  31-4-chromebook-time-limit-enforcement: backlog
-  31-5-android-time-limit-enforcement: backlog
+  31-2-neurodivergent-transition-accommodations: done
+  31-3-education-content-exemption: done
+  31-4-chromebook-time-limit-enforcement: done
+  31-5-android-time-limit-enforcement: skipped # No Android app in codebase
   31-6-time-extension-requests: backlog
   31-7-time-limit-override-for-emergencies: backlog
   epic-31-retrospective: optional

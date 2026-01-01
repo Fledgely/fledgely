@@ -48,6 +48,12 @@ import {
   syncTimeLimitConfig,
   clearWarningState,
   getTimeLimitStatus,
+  getTimeLimitConfig,
+  checkEnforcementStatus,
+  enforceOnAllTabs,
+  shouldBlockTab,
+  injectBlockingScript,
+  DEFAULT_EDUCATION_EXEMPTION,
   ALARM_WARNING_CHECK,
 } from './time-limit-warnings'
 import {
@@ -1552,6 +1558,35 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ success: true })
       return true
 
+    case 'CHECK_TIME_LIMIT_STATE':
+      // Story 31.4: Check if enforcement is active for content script
+      checkEnforcementStatus()
+        .then(async (isEnforcing) => {
+          const config = await getTimeLimitConfig()
+          const accommodations = config?.accommodations
+          sendResponse({
+            isBlocked: isEnforcing,
+            accommodations: accommodations
+              ? {
+                  calmingColorsEnabled: accommodations.calmingColorsEnabled,
+                  gradualTransitionEnabled: accommodations.gradualTransitionEnabled,
+                }
+              : undefined,
+          })
+        })
+        .catch(() => {
+          sendResponse({ isBlocked: false })
+        })
+      return true
+
+    case 'REQUEST_TIME_EXTENSION':
+      // Story 31.4 AC4 / Story 31.6: Handle time extension request from blocked page
+      // For now, acknowledge the request. Full implementation in Story 31.6.
+      console.log('[Fledgely] Time extension requested from blocked page')
+      // TODO Story 31.6: Route to parent notification, track request count
+      sendResponse({ success: true, message: 'Request acknowledged' })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
       return false
@@ -1589,10 +1624,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 
   // Story 31.1: Time limit warning check - requires monitoring and consent
+  // Story 31.4: Also check and enforce time limits
   if (alarm.name === ALARM_WARNING_CHECK) {
     const { state: warningState } = await chrome.storage.local.get('state')
     if (warningState?.monitoringEnabled && warningState?.consentStatus === 'granted') {
       await checkAndTriggerWarnings()
+
+      // Story 31.4: Check and enforce time limits
+      const isEnforcing = await checkEnforcementStatus()
+      if (isEnforcing) {
+        await enforceOnAllTabs()
+      }
     }
     return
   }
@@ -1671,6 +1713,20 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       await updateProtectedBadge(tabId, tab.url)
     } catch {
       // Silently fail - badge updates are non-critical
+    }
+
+    // Story 31.4: Enforce time limits on newly loaded tabs
+    try {
+      const isEnforcing = await checkEnforcementStatus()
+      if (isEnforcing) {
+        const config = await getTimeLimitConfig()
+        const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
+        if (shouldBlockTab(tab.url, true, educationExemption)) {
+          await injectBlockingScript(tabId)
+        }
+      }
+    } catch {
+      // Enforcement failures are non-critical for navigation
     }
   }
 

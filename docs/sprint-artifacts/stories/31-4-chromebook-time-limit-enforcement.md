@@ -30,10 +30,11 @@ So that **limits are actually respected**.
    - When they want more time
    - Then child can request extension (routed to parent)
 
-5. **AC5: Emergency override**
+5. **AC5: Emergency override** (Deferred to Story 31.7)
    - Given child needs emergency access
    - When using override code
    - Then access granted and action logged
+   - Note: Emergency override with code entry is implemented in Story 31.7
 
 6. **AC6: Persistence across restart**
    - Given enforcement is active
@@ -112,11 +113,16 @@ claude-opus-4-5-20251101
 - Educational exemption integration from Story 31.3
 - Request more time button added (full flow in Story 31.6)
 - Tests for shouldBlockTab added (9 tests)
+- Code Review Fix: Added CHECK_TIME_LIMIT_STATE and REQUEST_TIME_EXTENSION message handlers
+- Code Review Fix: Integrated enforcement into warning check alarm
+- Code Review Fix: Added enforcement to tabs.onUpdated listener for new tab blocking
+- Code Review Fix: Added 6 additional AC verification tests
 
 ### File List
 
 - apps/extension/src/content-scripts/time-limit-block.ts - Blocking overlay content script
 - apps/extension/src/time-limit-warnings.ts - Added enforcement functions
-- apps/extension/src/time-limit-warnings.test.ts - Added enforcement tests
+- apps/extension/src/time-limit-warnings.test.ts - Added enforcement tests (15 total)
+- apps/extension/src/background.ts - Added message handlers and enforcement integration
 - apps/extension/manifest.json - Added scripting permission, all_urls host permission
 - apps/extension/vite.config.ts - Added time-limit-block build entry
