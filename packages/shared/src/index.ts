@@ -668,3 +668,21 @@ export {
   type GracePeriodStatusConfig,
   type AgreementForGracePeriod,
 } from './contracts'
+
+// Post-grace period exports (Story 35.5)
+export {
+  postGraceStatusSchema,
+  POST_GRACE_STATUS,
+  POST_GRACE_BEHAVIOR,
+  POST_GRACE_MESSAGES,
+  isMonitoringPaused,
+  getPostGraceStatus,
+  canResumeMonitoring,
+  shouldCaptureScreenshots,
+  shouldEnforceTimeLimits,
+  getPostGraceMessage,
+  getMonitoringPauseReason,
+  getResumeRequirements,
+  type PostGraceStatus,
+  type AgreementForPostGrace,
+} from './contracts'

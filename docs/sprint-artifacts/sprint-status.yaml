@@ -501,7 +501,7 @@ development_status:
   35-2-renewal-reminder-system: done
   35-3-agreement-renewal-flow: done
   35-4-expired-agreement-grace-period: done
-  35-5-post-grace-period-handling: backlog
+  35-5-post-grace-period-handling: done
   35-6-annual-review-prompts: backlog
   epic-35-retrospective: optional
 
