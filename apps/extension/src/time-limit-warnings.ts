@@ -1027,6 +1027,12 @@ const FIREBASE_PROJECT_ID = 'fledgely-cns-me'
 const FIREBASE_REGION = 'us-central1'
 const API_BASE_URL = `https://${FIREBASE_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net`
 
+/** Storage key for cached override state */
+const STORAGE_KEY_LAST_OVERRIDE = 'lastKnownOverride'
+
+/** Maximum age for cached override (5 minutes) */
+const CACHE_MAX_AGE_MS = 5 * 60 * 1000
+
 /** Active override info returned to UI - Story 31.7 AC4 */
 export interface ActiveOverrideInfo {
   hasActiveOverride: boolean
@@ -1036,9 +1042,61 @@ export interface ActiveOverrideInfo {
   reason?: string
 }
 
+/** Cached override state */
+interface CachedOverrideState {
+  childId: string
+  overrideInfo: ActiveOverrideInfo
+  cachedAt: number
+}
+
+/**
+ * Cache override state for network failure scenarios
+ */
+async function cacheOverrideState(
+  childId: string,
+  overrideInfo: ActiveOverrideInfo
+): Promise<void> {
+  const cacheEntry: CachedOverrideState = {
+    childId,
+    overrideInfo,
+    cachedAt: Date.now(),
+  }
+  await chrome.storage.local.set({ [STORAGE_KEY_LAST_OVERRIDE]: cacheEntry })
+}
+
+/**
+ * Get cached override state if available and valid
+ */
+async function getLastKnownOverride(childId: string): Promise<ActiveOverrideInfo> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_LAST_OVERRIDE)
+    const cached = result[STORAGE_KEY_LAST_OVERRIDE] as CachedOverrideState | undefined
+
+    if (!cached || cached.childId !== childId) {
+      return { hasActiveOverride: false }
+    }
+
+    // Check if cached override has expired
+    if (cached.overrideInfo.expiresAt && cached.overrideInfo.expiresAt < Date.now()) {
+      return { hasActiveOverride: false }
+    }
+
+    // Check if cache is too old
+    if (Date.now() - cached.cachedAt > CACHE_MAX_AGE_MS) {
+      return { hasActiveOverride: false }
+    }
+
+    console.log('[Fledgely] Using cached override state due to network error')
+    return cached.overrideInfo
+  } catch {
+    return { hasActiveOverride: false }
+  }
+}
+
 /**
  * Check for active time override from cloud function
  * Story 31.7 AC1: Parent can grant temporary unlimited access
+ * Includes caching for network failure scenarios
  */
 export async function checkForActiveOverride(
   childId: string,
@@ -1046,26 +1104,43 @@ export async function checkForActiveOverride(
   deviceId: string
 ): Promise<ActiveOverrideInfo> {
   try {
+    // Use AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
     const response = await fetch(
-      `${API_BASE_URL}/checkTimeOverride?childId=${encodeURIComponent(childId)}&familyId=${encodeURIComponent(familyId)}&deviceId=${encodeURIComponent(deviceId)}`
+      `${API_BASE_URL}/checkTimeOverride?childId=${encodeURIComponent(childId)}&familyId=${encodeURIComponent(familyId)}&deviceId=${encodeURIComponent(deviceId)}`,
+      { signal: controller.signal }
     )
+
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       console.error('[Fledgely] Override check failed:', response.status)
+      // On server error (5xx), use cached state
+      if (response.status >= 500) {
+        return await getLastKnownOverride(childId)
+      }
       return { hasActiveOverride: false }
     }
 
     const result = await response.json()
-    return {
+    const overrideInfo: ActiveOverrideInfo = {
       hasActiveOverride: result.hasActiveOverride || false,
       overrideId: result.overrideId,
       grantedByName: result.grantedByName,
       expiresAt: result.expiresAt,
       reason: result.reason,
     }
+
+    // Cache the result for network failure scenarios
+    await cacheOverrideState(childId, overrideInfo)
+
+    return overrideInfo
   } catch (error) {
     console.error('[Fledgely] Error checking for override:', error)
-    return { hasActiveOverride: false }
+    // Network error - use cached state if available
+    return await getLastKnownOverride(childId)
   }
 }
 

@@ -49,6 +49,15 @@ const OVERRIDE_DURATION_LABELS: Record<OverrideDuration, string> = {
 /** Batch size for expiry processing */
 const EXPIRY_BATCH_SIZE = 100
 
+/** Maximum override duration (24 hours) */
+const MAX_OVERRIDE_DURATION_MS = 24 * 60 * 60 * 1000
+
+/** Rate limit: maximum overrides per child per day */
+const MAX_OVERRIDES_PER_DAY = 10
+
+/** Validation buffer for race conditions (30 seconds) */
+const VALIDATION_BUFFER_MS = 30000
+
 // =============================================================================
 // Grant Time Override (from parent)
 // =============================================================================
@@ -100,33 +109,91 @@ export const grantTimeOverride = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'Only family guardians can grant overrides')
   }
 
+  // SECURITY: Verify child belongs to this family
+  const childDoc = await db.collection('children').doc(childId).get()
+  if (!childDoc.exists) {
+    throw new HttpsError('not-found', 'Child not found')
+  }
+  const childData = childDoc.data()
+  if (childData?.familyId !== familyId) {
+    throw new HttpsError('permission-denied', 'Child does not belong to this family')
+  }
+
   // 4. BUSINESS LOGIC
+  const now = Date.now()
+  const todayStart = new Date(now).setHours(0, 0, 0, 0)
+
+  // Check daily override limit
+  const todayOverrides = await db
+    .collection('families')
+    .doc(familyId)
+    .collection('timeOverrides')
+    .where('childId', '==', childId)
+    .where('grantedAt', '>=', todayStart)
+    .get()
+
+  if (todayOverrides.size >= MAX_OVERRIDES_PER_DAY) {
+    throw new HttpsError(
+      'resource-exhausted',
+      `Maximum ${MAX_OVERRIDES_PER_DAY} overrides per day reached`
+    )
+  }
 
   // Get parent display name for the message
   const userDoc = await db.collection('users').doc(parentUid).get()
   const userData = userDoc.exists ? userDoc.data() : null
   const parentName = userData?.displayName || guardian.displayName || 'Your parent'
 
-  // Calculate expiry time
-  const now = Date.now()
+  // Calculate expiry time with validation
   const expiresAt = calculateExpiryTime(now, duration)
+  const durationMs = expiresAt - now
+  if (durationMs > MAX_OVERRIDE_DURATION_MS) {
+    throw new HttpsError('invalid-argument', 'Override duration exceeds maximum allowed')
+  }
+  if (expiresAt <= now) {
+    throw new HttpsError('invalid-argument', 'Override expiry must be in the future')
+  }
 
-  // Create the override
-  const overrideRef = db.collection('families').doc(familyId).collection('timeOverrides').doc()
-  const overrideId = overrideRef.id
+  // Use transaction to prevent concurrent overrides
+  const overrideId = await db.runTransaction(async (transaction) => {
+    // Check for existing active overrides and revoke them
+    const existingOverridesSnapshot = await transaction.get(
+      db
+        .collection('families')
+        .doc(familyId)
+        .collection('timeOverrides')
+        .where('childId', '==', childId)
+        .where('active', '==', true)
+        .where('expiresAt', '>', now)
+    )
 
-  await overrideRef.set({
-    id: overrideId,
-    childId,
-    familyId,
-    grantedBy: parentUid,
-    grantedByName: parentName,
-    reason,
-    reasonNote: reasonNote || null,
-    duration,
-    grantedAt: now,
-    expiresAt,
-    active: true,
+    // Revoke existing overrides
+    for (const doc of existingOverridesSnapshot.docs) {
+      transaction.update(doc.ref, {
+        active: false,
+        supersededAt: now,
+      })
+    }
+
+    // Create the new override
+    const overrideRef = db.collection('families').doc(familyId).collection('timeOverrides').doc()
+    const newOverrideId = overrideRef.id
+
+    transaction.set(overrideRef, {
+      id: newOverrideId,
+      childId,
+      familyId,
+      grantedBy: parentUid,
+      grantedByName: parentName,
+      reason,
+      reasonNote: reasonNote || null,
+      duration,
+      grantedAt: now,
+      expiresAt,
+      active: true,
+    })
+
+    return newOverrideId
   })
 
   // AC5: Log to audit trail
@@ -234,14 +301,14 @@ export const checkTimeOverride = onRequest({ cors: true }, async (req, res) => {
       return
     }
 
-    // Check for active override
+    // Check for active override with validation buffer to prevent race conditions
     const overridesSnapshot = await db
       .collection('families')
       .doc(String(familyId))
       .collection('timeOverrides')
       .where('childId', '==', String(childId))
       .where('active', '==', true)
-      .where('expiresAt', '>', now)
+      .where('expiresAt', '>', now + VALIDATION_BUFFER_MS)
       .limit(1)
       .get()
 
@@ -254,6 +321,15 @@ export const checkTimeOverride = onRequest({ cors: true }, async (req, res) => {
     }
 
     const override = overridesSnapshot.docs[0].data()
+
+    // Double-check expiry with current time (defense in depth)
+    if (override.expiresAt <= now + VALIDATION_BUFFER_MS) {
+      res.status(200).json({
+        success: true,
+        hasActiveOverride: false,
+      })
+      return
+    }
 
     res.status(200).json({
       success: true,
@@ -330,7 +406,11 @@ export const revokeTimeOverride = onCall(async (request) => {
   const overrideData = overrideDoc.data()!
 
   if (!overrideData.active) {
-    throw new HttpsError('failed-precondition', 'Override already inactive')
+    // Already revoked - return success for idempotency
+    return {
+      success: true,
+      alreadyRevoked: true,
+    }
   }
 
   const now = Date.now()
