@@ -466,3 +466,18 @@ export {
   type OfflineStreak,
   type LeaderboardEntry,
 } from './contracts'
+
+// Focus mode exports (Story 33.1)
+export {
+  FOCUS_MODE_DURATIONS,
+  focusModeDurationSchema,
+  focusModeStatusSchema,
+  focusModeSessionSchema,
+  focusModeStateSchema,
+  FOCUS_MODE_DEFAULT_CATEGORIES,
+  FOCUS_MODE_MESSAGES,
+  type FocusModeDuration,
+  type FocusModeStatus,
+  type FocusModeSession,
+  type FocusModeState,
+} from './contracts'

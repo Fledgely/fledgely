@@ -5090,3 +5090,103 @@ export const leaderboardEntrySchema = z.object({
 })
 
 export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>
+
+// ============================================================================
+// Story 33.1: Focus Mode Schemas
+// ============================================================================
+
+/**
+ * Focus mode duration options
+ */
+export const FOCUS_MODE_DURATIONS = {
+  pomodoro: 25 * 60 * 1000, // 25 minutes in ms
+  oneHour: 60 * 60 * 1000, // 1 hour in ms
+  twoHours: 2 * 60 * 60 * 1000, // 2 hours in ms
+  untilOff: null, // No time limit
+} as const
+
+export type FocusModeDuration = keyof typeof FOCUS_MODE_DURATIONS
+
+export const focusModeDurationSchema = z.enum(['pomodoro', 'oneHour', 'twoHours', 'untilOff'])
+
+/**
+ * Focus mode status
+ */
+export const focusModeStatusSchema = z.enum(['inactive', 'active', 'paused'])
+export type FocusModeStatus = z.infer<typeof focusModeStatusSchema>
+
+/**
+ * Focus mode session - tracks individual focus sessions
+ */
+export const focusModeSessionSchema = z.object({
+  id: z.string(),
+  childId: z.string(),
+  familyId: z.string(),
+  status: focusModeStatusSchema,
+  durationType: focusModeDurationSchema,
+  durationMs: z.number().nullable(), // null for "untilOff"
+  startedAt: z.number(), // epoch ms
+  endedAt: z.number().nullable(), // null if still active
+  completedFully: z.boolean().default(false), // true if reached duration
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type FocusModeSession = z.infer<typeof focusModeSessionSchema>
+
+/**
+ * Focus mode state for a child
+ */
+export const focusModeStateSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  isActive: z.boolean().default(false),
+  currentSession: focusModeSessionSchema.nullable(),
+  totalSessionsToday: z.number().default(0),
+  totalFocusTimeToday: z.number().default(0), // ms
+  updatedAt: z.number(),
+})
+
+export type FocusModeState = z.infer<typeof focusModeStateSchema>
+
+/**
+ * Default app categories for focus mode
+ */
+export const FOCUS_MODE_DEFAULT_CATEGORIES = {
+  allowed: [
+    'education',
+    'productivity',
+    'reference',
+    'news', // for research
+  ],
+  blocked: ['social_media', 'games', 'entertainment', 'streaming', 'shopping'],
+} as const
+
+/**
+ * Focus mode messages (child-friendly, encouraging)
+ */
+export const FOCUS_MODE_MESSAGES = {
+  // Starting focus mode
+  startPrompt: 'Ready to focus? Choose how long:',
+  starting: (duration: string) => `Focus mode starting! ${duration}`,
+
+  // During focus mode
+  active: 'Focus mode active',
+  timeRemaining: (minutes: number) => (minutes === 1 ? '1 minute left' : `${minutes} minutes left`),
+  keepGoing: "You're doing great! Stay focused.",
+
+  // Ending focus mode
+  completed: 'Great job! Focus session complete!',
+  endedEarly: 'Focus session ended. You can start another anytime.',
+
+  // App blocking
+  appBlocked: 'This app is blocked during focus mode.',
+
+  // Duration labels
+  durationLabels: {
+    pomodoro: '25 min (Pomodoro)',
+    oneHour: '1 hour',
+    twoHours: '2 hours',
+    untilOff: 'Until I turn off',
+  } as const,
+}

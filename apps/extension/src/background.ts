@@ -79,6 +79,18 @@ import {
   syncQueuedComplianceRecords,
   ALARM_OFFLINE_CHECK,
 } from './offline-schedule-enforcement'
+// Story 33.1: Focus Mode App Blocking
+import {
+  getFocusModeState,
+  setFocusModeState,
+  syncFocusModeState,
+  setupFocusModeCheckAlarm,
+  handleFocusModeCheckAlarm,
+  shouldBlockUrl,
+  injectFocusModeBlockingScript,
+  clearFocusModeBlockingFromAllTabs,
+  FOCUS_MODE_CHECK_ALARM,
+} from './focus-mode'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -916,6 +928,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Story 32.3: Initialize offline schedule check (1 min interval)
   setupOfflineCheckAlarm()
 
+  // Story 33.1: Initialize focus mode check alarm (1 min interval)
+  setupFocusModeCheckAlarm()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -965,6 +980,9 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Story 32.3: Initialize offline schedule check (1 min interval)
   setupOfflineCheckAlarm()
+
+  // Story 33.1: Initialize focus mode check alarm (1 min interval)
+  setupFocusModeCheckAlarm()
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {
@@ -1123,6 +1141,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           await syncTimeLimitConfig(message.childId, currentState.familyId)
         }
 
+        // Story 33.1: Sync focus mode state
+        if (currentState.familyId) {
+          await syncFocusModeState(message.childId, currentState.familyId)
+        }
+
         console.log('[Fledgely] Connected to child:', message.childName)
         sendResponse({ success: true })
       })
@@ -1161,6 +1184,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Story 32.3: Clear offline enforcement
         await clearOfflineEnforcementFromAllTabs()
+
+        // Story 33.1: Clear focus mode blocking
+        await clearFocusModeBlockingFromAllTabs()
+        await setFocusModeState({
+          isActive: false,
+          durationType: null,
+          startedAt: null,
+          durationMs: null,
+          childId: null,
+          familyId: null,
+          lastSyncedAt: 0,
+        })
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
@@ -1639,6 +1674,42 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    case 'GET_FOCUS_MODE_STATE':
+      // Story 33.1: Get focus mode state for content script
+      getFocusModeState()
+        .then((focusModeState) => {
+          sendResponse({
+            isActive: focusModeState.isActive,
+            durationType: focusModeState.durationType,
+            startedAt: focusModeState.startedAt,
+            durationMs: focusModeState.durationMs,
+          })
+        })
+        .catch(() => {
+          sendResponse({ isActive: false })
+        })
+      return true
+
+    case 'SYNC_FOCUS_MODE':
+      // Story 33.1: Sync focus mode state from Firestore
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.childId || !currentState.familyId) {
+          sendResponse({ success: false, error: 'No child connected' })
+          return
+        }
+        try {
+          const focusModeState = await syncFocusModeState(
+            currentState.childId,
+            currentState.familyId
+          )
+          sendResponse({ success: true, state: focusModeState })
+        } catch (error) {
+          sendResponse({ success: false, error: String(error) })
+        }
+      })
+      return true
+
     case 'CHECK_TIME_LIMIT_STATE':
       // Story 31.4: Check if enforcement is active for content script
       // Story 31.7: Also check for active override
@@ -1876,6 +1947,17 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return
   }
 
+  // Story 33.1: Focus mode check - enforces app blocking during focus mode
+  if (alarm.name === FOCUS_MODE_CHECK_ALARM) {
+    console.log('[Fledgely] Focus mode check alarm triggered')
+    const { state: focusState } = await chrome.storage.local.get('state')
+    // Only check if enrolled with a child and consent is granted
+    if (focusState?.enrollmentState === 'enrolled' && focusState?.childId && focusState?.familyId) {
+      await handleFocusModeCheckAlarm()
+    }
+    return
+  }
+
   // Check if monitoring is still enabled before processing capture/upload alarms
   const { state } = await chrome.storage.local.get('state')
   if (!state?.monitoringEnabled) {
@@ -1999,6 +2081,18 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       await onParentTabNavigation(tabId, tab.url || '')
     } catch {
       // Parent activity tracking failures are non-critical
+    }
+  }
+
+  // Story 33.1: Enforce focus mode blocking on tab load
+  if (changeInfo.status === 'complete' && tab.url) {
+    try {
+      const focusModeState = await getFocusModeState()
+      if (focusModeState.isActive && shouldBlockUrl(tab.url)) {
+        await injectFocusModeBlockingScript(tabId)
+      }
+    } catch {
+      // Focus mode blocking failures are non-critical
     }
   }
 })

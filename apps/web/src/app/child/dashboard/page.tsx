@@ -34,10 +34,14 @@ import { ChildOfflineScheduleCard } from '../../../components/child/ChildOffline
 import { ChildEnrolledDevicesCard } from '../../../components/child/ChildEnrolledDevicesCard'
 import { ParentComplianceCard } from '../../../components/child/ParentComplianceCard'
 import { HomeworkExceptionRequest } from '../../../components/child/HomeworkExceptionRequest'
+import { FocusModeButton } from '../../../components/child/FocusModeButton'
+import { FocusModeModal } from '../../../components/child/FocusModeModal'
+import { FocusModeActiveCard } from '../../../components/child/FocusModeActiveCard'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
 import { useChildAuditLog } from '../../../hooks/useChildAuditLog'
+import { useFocusMode } from '../../../hooks/useFocusMode'
 import { ChildAuditSection } from '../../../components/child/ChildAuditSection'
 import {
   CheckInPromptBanner,
@@ -205,6 +209,7 @@ function DashboardContent() {
   const router = useRouter()
   const { childSession, signOutChild } = useChildAuth()
   const [selectedScreenshot, setSelectedScreenshot] = useState<ChildScreenshot | null>(null)
+  const [showFocusModeModal, setShowFocusModeModal] = useState(false)
 
   // Fetch screenshots for this child
   const { screenshots, loading, loadingMore, error, hasMore, loadMore } = useChildScreenshots({
@@ -270,6 +275,20 @@ function DashboardContent() {
     celebrationMilestone,
     dismissCelebration,
   } = useOfflineTimeStreak({ familyId: childSession?.familyId ?? null })
+
+  // Story 33.1 - Focus mode
+  const {
+    isActive: focusModeActive,
+    currentSession: focusSession,
+    timeRemainingMs,
+    timeRemainingFormatted,
+    startFocusMode,
+    stopFocusMode,
+    loading: focusModeLoading,
+  } = useFocusMode({
+    childId: childSession?.childId ?? null,
+    familyId: childSession?.familyId ?? null,
+  })
 
   // Story 23.1/23.2 - Handle navigation to annotation screen
   const handleAddContext = useCallback(
@@ -381,6 +400,25 @@ function DashboardContent() {
             This is your dashboard. You can see the pictures from your devices here. Your parent
             sees the same things you do!
           </p>
+        </div>
+
+        {/* Story 33.1 - Focus Mode (AC1, AC3, AC4) */}
+        <div style={{ marginBottom: '16px' }}>
+          {focusModeActive && focusSession ? (
+            <FocusModeActiveCard
+              session={focusSession}
+              timeRemainingMs={timeRemainingMs}
+              timeRemainingFormatted={timeRemainingFormatted}
+              onStop={stopFocusMode}
+              loading={focusModeLoading}
+            />
+          ) : (
+            <FocusModeButton
+              onClick={() => setShowFocusModeModal(true)}
+              disabled={focusModeLoading}
+              isActive={focusModeActive}
+            />
+          )}
         </div>
 
         {/* Story 32.1 - Family Offline Schedule Card (AC5) */}
@@ -500,6 +538,17 @@ function DashboardContent() {
           onNavigate={handleNavigateScreenshot}
         />
       )}
+
+      {/* Story 33.1 - Focus Mode Modal (AC3) */}
+      <FocusModeModal
+        isOpen={showFocusModeModal}
+        onClose={() => setShowFocusModeModal(false)}
+        onSelectDuration={async (duration) => {
+          await startFocusMode(duration)
+          setShowFocusModeModal(false)
+        }}
+        loading={focusModeLoading}
+      />
     </div>
   )
 }
