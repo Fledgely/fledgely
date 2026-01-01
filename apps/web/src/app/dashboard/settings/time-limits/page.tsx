@@ -20,7 +20,7 @@
  * - Story 30.5: Per-device limits
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamily } from '../../../../contexts/FamilyContext'
@@ -420,6 +420,82 @@ const styles = {
     color: '#6b7280',
     transition: 'background-color 0.2s, color 0.2s',
   },
+  // Story 30.6: Validation warning styles
+  warningBox: {
+    backgroundColor: '#fffbeb',
+    border: '1px solid #fcd34d',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '16px',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+  },
+  warningIcon: {
+    color: '#d97706',
+    flexShrink: 0,
+    marginTop: '2px',
+  },
+  warningContent: {
+    flex: 1,
+  },
+  warningTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#92400e',
+    marginBottom: '4px',
+  },
+  warningText: {
+    fontSize: '13px',
+    color: '#a16207',
+    lineHeight: 1.5,
+  },
+  summaryCard: {
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #86efac',
+    borderRadius: '12px',
+    padding: '20px',
+    marginBottom: '16px',
+  },
+  summaryTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#166534',
+    marginBottom: '12px',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  },
+  summarySection: {
+    marginBottom: '12px',
+  },
+  summarySectionTitle: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#166534',
+    marginBottom: '4px',
+  },
+  summarySectionContent: {
+    fontSize: '15px',
+    color: '#15803d',
+    lineHeight: 1.6,
+  },
+  scenarioBox: {
+    backgroundColor: '#ecfdf5',
+    borderRadius: '8px',
+    padding: '12px',
+    marginTop: '12px',
+  },
+  scenarioTitle: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#166534',
+    marginBottom: '6px',
+  },
+  scenarioText: {
+    fontSize: '14px',
+    color: '#15803d',
+    lineHeight: 1.5,
+  },
 }
 
 // Time limit range: 30 minutes to 8 hours (480 minutes)
@@ -541,6 +617,53 @@ export default function TimeLimitsSettingsPage() {
       local.unlimited !== original.unlimited
     )
   })
+
+  // Story 30.6: Conflict detection
+  interface ConflictWarning {
+    type: 'category_exceeds_daily' | 'device_exceeds_daily'
+    name: string
+    limitMinutes: number
+    dailyMinutes: number
+  }
+
+  const conflicts = useMemo((): ConflictWarning[] => {
+    if (!localLimits || localLimits.unlimited) return []
+
+    const warnings: ConflictWarning[] = []
+    const dailyTotal = localLimits.weekdayMinutes
+
+    // Check category limits against daily total
+    localCategoryLimits
+      .filter((cat) => cat.enabled && !cat.unlimited)
+      .forEach((cat) => {
+        if (cat.weekdayMinutes > dailyTotal) {
+          warnings.push({
+            type: 'category_exceeds_daily',
+            name: cat.categoryName,
+            limitMinutes: cat.weekdayMinutes,
+            dailyMinutes: dailyTotal,
+          })
+        }
+      })
+
+    // Check device limits against daily total
+    localDeviceLimits
+      .filter((dev) => dev.enabled && !dev.unlimited)
+      .forEach((dev) => {
+        if (dev.weekdayMinutes > dailyTotal) {
+          warnings.push({
+            type: 'device_exceeds_daily',
+            name: dev.deviceName,
+            limitMinutes: dev.weekdayMinutes,
+            dailyMinutes: dailyTotal,
+          })
+        }
+      })
+
+    return warnings
+  }, [localLimits, localCategoryLimits, localDeviceLimits])
+
+  const hasConflicts = conflicts.length > 0
 
   // Auto-select first child
   useEffect(() => {
@@ -1217,6 +1340,121 @@ export default function TimeLimitsSettingsPage() {
                   </div>
                 )}
 
+                {/* Story 30.6: Conflict Warnings */}
+                {hasConflicts && (
+                  <div style={styles.warningBox}>
+                    <svg
+                      style={styles.warningIcon}
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                    <div style={styles.warningContent}>
+                      <div style={styles.warningTitle}>Configuration Warning</div>
+                      <div style={styles.warningText}>
+                        {conflicts.map((conflict, idx) => (
+                          <div key={idx}>
+                            {conflict.type === 'category_exceeds_daily'
+                              ? `${conflict.name} limit (${formatMinutes(conflict.limitMinutes)}) exceeds daily total (${formatMinutes(conflict.dailyMinutes)})`
+                              : `${conflict.name} device limit (${formatMinutes(conflict.limitMinutes)}) exceeds daily total (${formatMinutes(conflict.dailyMinutes)})`}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Story 30.6: Combined Summary with Scenario */}
+                {selectedChild &&
+                  localLimits &&
+                  (hasLocalChanges || hasCategoryChanges || hasDeviceChanges) && (
+                    <div style={styles.summaryCard}>
+                      <div style={styles.summaryTitle}>
+                        {selectedChild.name}&apos;s Limits Summary
+                      </div>
+
+                      {/* Daily Total */}
+                      <div style={styles.summarySection}>
+                        <div style={styles.summarySectionTitle}>Daily Total</div>
+                        <div style={styles.summarySectionContent}>
+                          {localLimits.unlimited
+                            ? 'Unlimited screen time'
+                            : `${formatMinutes(localLimits.weekdayMinutes)} on ${localLimits.scheduleType === 'school_days' ? 'school days' : 'weekdays'}, ${formatMinutes(localLimits.weekendMinutes)} on ${localLimits.scheduleType === 'school_days' ? 'non-school days' : 'weekends'}`}
+                        </div>
+                      </div>
+
+                      {/* Category Limits Summary */}
+                      {localCategoryLimits.some((c) => c.enabled) && (
+                        <div style={styles.summarySection}>
+                          <div style={styles.summarySectionTitle}>Category Limits</div>
+                          <div style={styles.summarySectionContent}>
+                            {localCategoryLimits
+                              .filter((c) => c.enabled)
+                              .map((c) => (
+                                <span key={c.categoryId}>
+                                  {c.categoryName}:{' '}
+                                  {c.unlimited ? 'Unlimited' : formatMinutes(c.weekdayMinutes)}
+                                  {localCategoryLimits.filter((x) => x.enabled).indexOf(c) <
+                                  localCategoryLimits.filter((x) => x.enabled).length - 1
+                                    ? ', '
+                                    : ''}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Device Limits Summary */}
+                      {localDeviceLimits.some((d) => d.enabled) && (
+                        <div style={styles.summarySection}>
+                          <div style={styles.summarySectionTitle}>Device Limits</div>
+                          <div style={styles.summarySectionContent}>
+                            {localDeviceLimits
+                              .filter((d) => d.enabled)
+                              .map((d) => (
+                                <span key={d.deviceId}>
+                                  {d.deviceName}:{' '}
+                                  {d.unlimited ? 'Unlimited' : formatMinutes(d.weekdayMinutes)}
+                                  {localDeviceLimits.filter((x) => x.enabled).indexOf(d) <
+                                  localDeviceLimits.filter((x) => x.enabled).length - 1
+                                    ? ', '
+                                    : ''}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Scenario Preview */}
+                      {!localLimits.unlimited &&
+                        localCategoryLimits.some((c) => c.enabled && !c.unlimited) && (
+                          <div style={styles.scenarioBox}>
+                            <div style={styles.scenarioTitle}>Example Scenario</div>
+                            <div style={styles.scenarioText}>
+                              {(() => {
+                                const enabledCat = localCategoryLimits.find(
+                                  (c) => c.enabled && !c.unlimited
+                                )
+                                if (!enabledCat) return null
+                                const remaining = Math.max(
+                                  0,
+                                  localLimits.weekdayMinutes - enabledCat.weekdayMinutes
+                                )
+                                return `If ${selectedChild.name} uses ${formatMinutes(enabledCat.weekdayMinutes)} on ${enabledCat.categoryName}, they have ${formatMinutes(remaining)} left for other apps.`
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  )}
+
                 {/* Save Button */}
                 <button
                   style={{
@@ -1233,7 +1471,7 @@ export default function TimeLimitsSettingsPage() {
                   {isSaving
                     ? 'Saving...'
                     : hasLocalChanges || hasCategoryChanges || hasDeviceChanges
-                      ? 'Save Changes'
+                      ? 'Save and Notify Child'
                       : 'No Changes'}
                 </button>
               </>
