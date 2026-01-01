@@ -503,7 +503,7 @@ development_status:
   35-4-expired-agreement-grace-period: done
   35-5-post-grace-period-handling: done
   35-6-annual-review-prompts: done
-  epic-35-retrospective: optional
+  epic-35-retrospective: done
 
   # Epic 34.5: Child Voice Escalation (Child Rights Advocate)
   epic-34-5: backlog
