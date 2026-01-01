@@ -23,6 +23,13 @@ vi.mock('../lib/firebase', () => ({
   getFirestoreDb: vi.fn(() => ({})),
 }))
 
+// Mock workModeService (Story 33.6)
+vi.mock('../services/workModeService', () => ({
+  saveSessionToHistory: vi.fn().mockResolvedValue(undefined),
+  isOutsideScheduledHours: vi.fn().mockReturnValue(false),
+  createOutsideScheduleNotification: vi.fn().mockResolvedValue(undefined),
+}))
+
 describe('useWorkMode - Story 33.3', () => {
   const mockChildId = 'child-1'
   const mockFamilyId = 'family-1'

@@ -550,3 +550,19 @@ export {
   type FocusModeDailySummary,
   type FocusModeAnalytics,
 } from './contracts'
+
+// Work mode analytics exports (Story 33.6)
+export {
+  workModeSessionSummarySchema,
+  workModeDailySummarySchema,
+  workModeWeeklyAnalyticsSchema,
+  workModeCheckInSchema,
+  WORK_MODE_ANALYTICS_MESSAGES,
+  calculateWorkHoursDeviation,
+  formatWorkDuration,
+  minutesToHours,
+  type WorkModeSessionSummary,
+  type WorkModeDailySummary,
+  type WorkModeWeeklyAnalytics,
+  type WorkModeCheckIn,
+} from './contracts'

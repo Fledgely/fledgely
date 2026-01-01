@@ -9,6 +9,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import type { WorkModeState, WorkModeSession, WorkSchedule } from '@fledgely/shared'
+import {
+  saveSessionToHistory,
+  isOutsideScheduledHours,
+  createOutsideScheduleNotification,
+} from '../services/workModeService'
 
 interface UseWorkModeOptions {
   childId: string | null
@@ -17,6 +22,8 @@ interface UseWorkModeOptions {
   schedules?: WorkSchedule[]
   /** Whether manual activation is allowed */
   allowManualActivation?: boolean
+  /** Child's display name for notifications (Story 33.6) */
+  childName?: string
 }
 
 interface UseWorkModeReturn {
@@ -205,6 +212,7 @@ export function useWorkMode({
   familyId,
   schedules = [],
   allowManualActivation = true,
+  childName = 'Child',
 }: UseWorkModeOptions): UseWorkModeReturn {
   const [workState, setWorkState] = useState<WorkModeState | null>(null)
   const [loading, setLoading] = useState(true)
@@ -361,6 +369,15 @@ export function useWorkMode({
             totalWorkTimeToday: (workState.totalWorkTimeToday ?? 0) + sessionDuration,
             updatedAt: now,
           })
+
+          // Save completed session to history (Story 33.6)
+          const completedSession: WorkModeSession = {
+            ...session,
+            status: 'inactive',
+            endedAt: now,
+            updatedAt: now,
+          }
+          await saveSessionToHistory(completedSession, false)
         } finally {
           isProcessingRef.current = false
         }
@@ -377,6 +394,7 @@ export function useWorkMode({
         scheduleCheckRef.current = null
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only need specific properties, not entire currentSession
   }, [
     childId,
     familyId,
@@ -433,6 +451,9 @@ export function useWorkMode({
     const stateRef = doc(getFirestoreDb(), 'families', familyId, 'workMode', childId)
     const now = Date.now()
 
+    // Check if this manual activation is outside scheduled hours (Story 33.6)
+    const outsideSchedule = isOutsideScheduledHours(schedules)
+
     const newSession: WorkModeSession = {
       id: generateSessionId(),
       childId,
@@ -465,7 +486,12 @@ export function useWorkMode({
         updatedAt: now,
       })
     })
-  }, [childId, familyId, allowManualActivation, workState])
+
+    // Create outside-schedule notification if applicable (Story 33.6)
+    if (outsideSchedule && schedules.length > 0) {
+      await createOutsideScheduleNotification(familyId, childId, childName, newSession.id)
+    }
+  }, [childId, familyId, allowManualActivation, workState, schedules, childName])
 
   // Stop work mode manually
   const stopWorkMode = useCallback(async () => {
@@ -476,6 +502,10 @@ export function useWorkMode({
     const session = workState.currentSession
     const sessionDuration = now - session.startedAt
 
+    // Check if this was a manual session outside scheduled hours
+    const wasOutsideSchedule =
+      session.activationType === 'manual' && isOutsideScheduledHours(schedules)
+
     await updateDoc(stateRef, {
       isActive: false,
       'currentSession.status': 'inactive',
@@ -484,7 +514,16 @@ export function useWorkMode({
       totalWorkTimeToday: (workState.totalWorkTimeToday ?? 0) + sessionDuration,
       updatedAt: now,
     })
-  }, [childId, familyId, workState])
+
+    // Save completed session to history (Story 33.6)
+    const completedSession: WorkModeSession = {
+      ...session,
+      status: 'inactive',
+      endedAt: now,
+      updatedAt: now,
+    }
+    await saveSessionToHistory(completedSession, wasOutsideSchedule)
+  }, [childId, familyId, workState, schedules])
 
   // Derived values
   const isActive = workState?.isActive ?? false

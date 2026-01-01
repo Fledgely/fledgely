@@ -5977,3 +5977,235 @@ export function getDayOfWeek(date: Date): DayOfWeek {
   ]
   return days[date.getDay()]
 }
+
+// ============================================================================
+// Work Mode Analytics Schemas - Story 33.6
+// ============================================================================
+
+/**
+ * Work mode session summary for analytics
+ * Captures completed session data for reporting
+ */
+export const workModeSessionSummarySchema = z.object({
+  sessionId: z.string(),
+  startedAt: z.number(),
+  endedAt: z.number().nullable(),
+  durationMinutes: z.number().default(0),
+  activationType: workModeActivationTypeSchema,
+  scheduleId: z.string().nullable(),
+  scheduleName: z.string().nullable(),
+  wasOutsideSchedule: z.boolean().default(false),
+})
+
+export type WorkModeSessionSummary = z.infer<typeof workModeSessionSummarySchema>
+
+/**
+ * Work mode daily summary - aggregates sessions per day
+ * Stored at families/{familyId}/workModeDailySummary/{childId}/days/{date}
+ */
+export const workModeDailySummarySchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  date: z.string(), // YYYY-MM-DD
+  sessionCount: z.number().default(0),
+  totalMinutes: z.number().default(0),
+  scheduledMinutes: z.number().default(0),
+  manualMinutes: z.number().default(0),
+  outsideScheduleCount: z.number().default(0), // Manual sessions outside scheduled hours
+  sessions: z.array(workModeSessionSummarySchema).default([]),
+  updatedAt: z.number(),
+})
+
+export type WorkModeDailySummary = z.infer<typeof workModeDailySummarySchema>
+
+/**
+ * Work mode weekly analytics - computed summary for dashboard
+ * Used for anomaly detection and parent reporting
+ */
+export const workModeWeeklyAnalyticsSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+
+  // Weekly summary
+  weeklySessionCount: z.number().default(0),
+  weeklyTotalHours: z.number().default(0), // Total work hours this week
+  weeklyAverageSessionHours: z.number().default(0),
+
+  // Comparison to previous week
+  hoursChange: z.number().default(0), // positive = more, negative = less
+  sessionCountChange: z.number().default(0),
+
+  // Comparison to baseline (for anomaly detection)
+  typicalWeeklyHours: z.number().default(0), // 3-week rolling average
+  deviationFromTypical: z.number().default(0), // percentage
+  isAnomalous: z.boolean().default(false), // true if deviation > 50%
+
+  // Session breakdown
+  scheduledSessions: z.number().default(0),
+  manualSessions: z.number().default(0),
+  outsideScheduleCount: z.number().default(0), // count of manual sessions outside schedule
+
+  // Daily distribution
+  dailyDistribution: z.record(dayOfWeekSchema, z.number()).default({} as Record<DayOfWeek, number>),
+
+  // Metadata
+  weekStartDate: z.string(), // YYYY-MM-DD (Monday)
+  weekEndDate: z.string(), // YYYY-MM-DD (Sunday)
+  computedAt: z.number(),
+})
+
+export type WorkModeWeeklyAnalytics = z.infer<typeof workModeWeeklyAnalyticsSchema>
+
+/**
+ * Parent check-in request for work mode
+ * Stored at families/{familyId}/workModeCheckIns/{childId}/{checkInId}
+ */
+export const workModeCheckInSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  childId: z.string(),
+  parentId: z.string(),
+  parentName: z.string(),
+  message: z.string().min(1).max(500),
+  sentAt: z.number(),
+  readAt: z.number().nullable().default(null),
+  response: z.string().max(1000).nullable().default(null),
+  respondedAt: z.number().nullable().default(null),
+})
+
+export type WorkModeCheckIn = z.infer<typeof workModeCheckInSchema>
+
+/**
+ * Work mode analytics messages - trust-based framing (Story 33.6 AC5)
+ * All messages are supportive, not punitive or accusatory
+ */
+export const WORK_MODE_ANALYTICS_MESSAGES = {
+  // Weekly hours summary (AC1)
+  weeklyHours: (hours: number, childName: string) => {
+    if (hours === 0) return `${childName} hasn't logged work time yet this week`
+    if (hours < 5) return `${childName} worked ${hours.toFixed(1)} hours this week`
+    if (hours < 15) return `${childName} worked ${hours.toFixed(1)} hours this week - nice job!`
+    if (hours < 25) return `${childName} worked ${hours.toFixed(1)} hours this week - busy week!`
+    return `${childName} worked ${hours.toFixed(1)} hours this week - that's a lot!`
+  },
+
+  // Trend indicator (AC1)
+  hoursTrend: (change: number) => {
+    if (change === 0) return 'Same as last week'
+    if (change > 0) return `${change.toFixed(1)} more hours than last week`
+    return `${Math.abs(change).toFixed(1)} fewer hours than last week`
+  },
+
+  // Anomaly detection (AC2) - trust-based framing
+  anomalyAlert: (currentHours: number, typicalHours: number, deviation: number) => {
+    const deviationPercent = Math.round(deviation * 100)
+    return `Work hours are ${deviationPercent}% higher than usual this week (${currentHours.toFixed(1)}h vs typical ${typicalHours.toFixed(1)}h). Just checking in!`
+  },
+
+  // Outside schedule notification (AC3) - informational only
+  outsideSchedule: (childName: string) => {
+    return `${childName} started work mode outside scheduled hours`
+  },
+
+  // Check-in templates (AC4) - friendly, non-interrogative
+  checkInTemplates: [
+    'How was work today?',
+    'Hope your shift went well!',
+    'Anything interesting at work?',
+    'How are things going at your job?',
+  ] as const,
+
+  // Session type breakdown
+  sessionBreakdown: (scheduled: number, manual: number) => {
+    const total = scheduled + manual
+    if (total === 0) return 'No work sessions yet'
+    if (manual === 0) return `${scheduled} scheduled sessions`
+    if (scheduled === 0) return `${manual} manually started sessions`
+    return `${scheduled} scheduled, ${manual} manual sessions`
+  },
+
+  // Outside schedule count - informational
+  outsideScheduleInfo: (count: number) => {
+    if (count === 0) return 'All sessions within scheduled hours'
+    if (count === 1) return '1 session started outside scheduled hours'
+    return `${count} sessions started outside scheduled hours`
+  },
+
+  // Empty state
+  emptyState: {
+    title: 'Work Mode Analytics',
+    message: 'Work sessions will appear here as they occur.',
+    cta: 'Configure Work Schedule',
+  },
+
+  // Trust-based labels
+  labels: {
+    thisWeek: 'This Week',
+    totalHours: 'Total Hours',
+    sessions: 'Sessions',
+    avgSession: 'Avg. Session',
+    vsLastWeek: 'vs. Last Week',
+    scheduled: 'Scheduled',
+    manual: 'Manual',
+    outsideSchedule: 'Outside Schedule',
+    checkIn: 'Check In',
+  },
+
+  // Parent notification messages (AC3)
+  parentNotifications: {
+    outsideSchedule: (childName: string, time: string) =>
+      `${childName} started work mode outside scheduled hours at ${time}`,
+    anomalyDetected: (childName: string, hours: number, typical: number) =>
+      `${childName}'s work hours (${hours.toFixed(1)}h) are higher than typical (${typical.toFixed(1)}h) this week`,
+  },
+
+  // Child transparency messages (AC6)
+  childTransparency: {
+    outsideScheduleInfo:
+      'Your parents will be notified when you start work mode outside scheduled hours',
+    anomalyInfo:
+      'Your parents can see if your work hours are higher than usual (not a problem, just transparency)',
+    checkInInfo: 'Your parents may send friendly check-ins about your work',
+  },
+} as const
+
+/**
+ * Check if work hours are anomalous (50%+ above typical)
+ * Returns deviation percentage (0.5 = 50% above typical)
+ */
+export function calculateWorkHoursDeviation(
+  currentHours: number,
+  typicalHours: number
+): { isAnomalous: boolean; deviation: number } {
+  if (typicalHours === 0) {
+    return { isAnomalous: false, deviation: 0 }
+  }
+
+  const deviation = (currentHours - typicalHours) / typicalHours
+  return {
+    isAnomalous: deviation > 0.5, // 50%+ above typical
+    deviation,
+  }
+}
+
+/**
+ * Format work duration as hours and minutes
+ * Example: 90 minutes -> "1h 30m", 45 minutes -> "45m"
+ */
+export function formatWorkDuration(minutes: number): string {
+  if (minutes === 0) return '0m'
+
+  const hours = Math.floor(minutes / 60)
+  const mins = Math.round(minutes % 60)
+
+  if (hours === 0) return `${mins}m`
+  if (mins === 0) return `${hours}h`
+  return `${hours}h ${mins}m`
+}
+
+/**
+ * Convert minutes to hours with one decimal place
+ */
+export function minutesToHours(minutes: number): number {
+  return Math.round((minutes / 60) * 10) / 10
+}
