@@ -171,3 +171,47 @@ claude-opus-4-5-20251101
 ### Completion Notes List
 
 ### File List
+
+**Shared Package (Data Models)**
+
+- `packages/shared/src/contracts/offlineException.ts` - Exception type schemas
+- `packages/shared/src/contracts/offlineException.test.ts` - Schema tests
+- `packages/shared/src/contracts/index.ts` - Export barrel
+- `packages/shared/src/index.ts` - Package export
+
+**Web App (Parent/Child UI)**
+
+- `apps/web/src/hooks/useOfflineExceptions.ts` - Exception management hook
+- `apps/web/src/hooks/useOfflineExceptions.test.ts` - Hook tests
+- `apps/web/src/hooks/useHomeworkException.ts` - Homework exception hook
+- `apps/web/src/hooks/useHomeworkException.test.ts` - Homework hook tests
+- `apps/web/src/components/dashboard/OfflineExceptionQuickActions.tsx` - Pause/skip buttons
+- `apps/web/src/components/dashboard/HomeworkApprovalCard.tsx` - Parent approval UI
+- `apps/web/src/components/dashboard/HomeworkApprovalCard.test.tsx` - Approval tests
+- `apps/web/src/components/dashboard/index.ts` - Export barrel
+- `apps/web/src/components/child/HomeworkExceptionRequest.tsx` - Child request UI
+- `apps/web/src/components/child/HomeworkExceptionRequest.test.tsx` - Request tests
+- `apps/web/src/components/settings/OfflineExceptionCard.tsx` - Work exception config
+- `apps/web/src/components/settings/OfflineExceptionCard.test.tsx` - Config tests
+- `apps/web/src/components/settings/ExceptionHistoryCard.tsx` - Audit trail display
+- `apps/web/src/components/settings/ExceptionHistoryCard.test.tsx` - History tests
+- `apps/web/src/components/settings/index.ts` - Export barrel
+- `apps/web/src/app/dashboard/page.tsx` - Parent dashboard integration
+- `apps/web/src/app/dashboard/settings/time-limits/page.tsx` - Settings integration
+- `apps/web/src/app/child/dashboard/page.tsx` - Child dashboard integration
+
+**Extension (Enforcement)**
+
+- `apps/extension/src/offline-schedule-enforcement.ts` - Exception checking logic
+- `apps/extension/src/content-scripts/family-offline-block.ts` - Overlay updates
+
+**Cloud Functions (API)**
+
+- `apps/functions/src/http/offline/getActiveOfflineException.ts` - Get active exception endpoint
+- `apps/functions/src/http/offline/getActiveOfflineException.test.ts` - Endpoint tests
+- `apps/functions/src/http/offline/index.ts` - Export barrel
+- `apps/functions/src/index.ts` - Function exports
+
+**Security Rules**
+
+- `packages/firebase-rules/firestore.rules` - Exception collection rules
