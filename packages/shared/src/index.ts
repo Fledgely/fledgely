@@ -765,6 +765,21 @@ export {
   generateEncouragement,
 } from './contracts'
 
+// Bypass Attempt exports (Story 36.5)
+export {
+  BYPASS_EXPIRY_DAYS_DEFAULT,
+  createBypassAttempt,
+  isExpired as isBypassExpired,
+  getActiveBypassAttempts,
+  getBypassAttempts,
+  markAsUnintentional,
+  calculateBypassImpact,
+  type BypassAttemptType,
+  type BypassAttempt,
+  type CreateBypassAttemptInput,
+  type GetBypassAttemptsOptions,
+} from './services/bypassAttemptService'
+
 // Annual Review exports (Story 35.6)
 export {
   ANNUAL_REVIEW_INTERVAL_DAYS,
