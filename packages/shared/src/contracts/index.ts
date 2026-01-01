@@ -6692,3 +6692,45 @@ export {
   isScoreUpdateDue,
   type ValidationResult,
 } from './trustScoreValidation'
+
+// Trust Score Calculation (Story 36.2)
+export {
+  RECENCY_WEIGHT_LAST_7_DAYS,
+  RECENCY_WEIGHT_LAST_14_DAYS,
+  RECENCY_WEIGHT_LAST_30_DAYS,
+  RECENCY_WEIGHT_OLDER,
+  RECENCY_DAYS_7,
+  RECENCY_DAYS_14,
+  RECENCY_DAYS_30,
+  MAX_DAILY_INCREASE,
+  MAX_DAILY_DECREASE,
+  scoreBreakdownSchema,
+  scoreCalculationResultSchema,
+  getRecencyWeight,
+  applyRecencyWeight,
+  getPositiveContribution,
+  getNeutralContribution,
+  getConcerningContribution,
+  calculateWeightedFactorContribution,
+  generateScoreBreakdown,
+  clampDailyDelta,
+  calculateNewScore,
+  type ScoreBreakdown,
+  type ScoreCalculationResult,
+} from './trustScoreCalculation'
+
+// Trust Score Breakdown Display (Story 36.2)
+export {
+  formatFactorContribution,
+  formatFactorWithRecency,
+  formatFactorList,
+  formatScoreChange,
+  formatScoreChangeWithPeriod,
+  getCategoryContributionText,
+  getCategoryLabel,
+  generateBreakdownText,
+  generateBreakdownSummary,
+  getFactorTypeLabel,
+  generateImprovementTips,
+  generateEncouragement,
+} from './trustScoreBreakdown'
