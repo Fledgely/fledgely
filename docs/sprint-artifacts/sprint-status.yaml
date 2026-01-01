@@ -473,7 +473,7 @@ development_status:
   32-4-parent-compliance-tracking: done
   32-5-offline-time-exceptions: done
   32-6-offline-time-celebration: done
-  epic-32-retrospective: optional
+  epic-32-retrospective: done
 
   # Epic 33: Focus Mode & Work Mode
   epic-33: backlog
