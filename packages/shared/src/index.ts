@@ -417,3 +417,15 @@ export {
   type OfflineTimeWindow,
   type FamilyOfflineSchedule,
 } from './contracts'
+
+// Parent device enrollment exports (Story 32.2)
+export {
+  parentDeviceTypeSchema,
+  parentEnrolledDeviceSchema,
+  parentDeviceEnrollmentSchema,
+  PARENT_DEVICE_TYPE_LABELS,
+  PARENT_ENROLLMENT_MESSAGES,
+  type ParentDeviceType,
+  type ParentEnrolledDevice,
+  type ParentDeviceEnrollment,
+} from './contracts'

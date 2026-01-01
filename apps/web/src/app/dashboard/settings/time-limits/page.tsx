@@ -40,6 +40,7 @@ import {
 } from '../../../../components/settings/DeviceLimitCard'
 import { CustomCategoryModal } from '../../../../components/settings/CustomCategoryModal'
 import { OfflineScheduleCard } from '../../../../components/settings/OfflineScheduleCard'
+import { ParentDeviceEnrollmentCard } from '../../../../components/settings/ParentDeviceEnrollmentCard'
 import { useFamilyOfflineSchedule } from '../../../../hooks/useFamilyOfflineSchedule'
 import type { CustomCategory } from '@fledgely/shared'
 
@@ -1375,6 +1376,11 @@ export default function TimeLimitsSettingsPage() {
                   hasChanges={hasOfflineChanges}
                   loading={offlineLoading}
                   error={offlineError}
+                />
+
+                {/* Story 32.2: Parent Device Enrollment for Offline Time */}
+                <ParentDeviceEnrollmentCard
+                  offlineScheduleEnabled={localOfflineSchedule?.enabled ?? false}
                 />
 
                 {/* Story 30.6: Conflict Warnings */}

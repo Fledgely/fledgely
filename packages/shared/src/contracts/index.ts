@@ -4737,3 +4737,82 @@ export const OFFLINE_PRESET_LABELS: Record<OfflineSchedulePreset, string> = {
   dinner_time: 'Dinner Time',
   bedtime: 'Bedtime',
 }
+
+// =============================================================================
+// Parent Device Enrollment Schemas
+// Story 32.2: Parent Device Enrollment for Offline Time
+// =============================================================================
+
+/**
+ * Parent device type for offline time enrollment.
+ * Story 32.2 AC1: Parent can add their phone/tablet to offline enforcement
+ */
+export const parentDeviceTypeSchema = z.enum([
+  'phone', // Mobile phone
+  'tablet', // Tablet device
+  'laptop', // Laptop computer
+  'desktop', // Desktop computer
+  'other', // Other device type
+])
+export type ParentDeviceType = z.infer<typeof parentDeviceTypeSchema>
+
+/**
+ * Enrolled parent device for offline time.
+ * Story 32.2 AC3: "Mom's phone is enrolled" shown in device list
+ */
+export const parentEnrolledDeviceSchema = z.object({
+  /** Unique device identifier (UUID) */
+  deviceId: z.string(),
+  /** Parent user ID who owns this device */
+  parentUid: z.string(),
+  /** Human-readable device name (e.g., "Mom's iPhone") */
+  deviceName: z.string(),
+  /** Type of device */
+  deviceType: parentDeviceTypeSchema,
+  /** When device was enrolled (epoch ms) */
+  enrolledAt: z.number(),
+  /** Whether device is actively enrolled */
+  active: z.boolean().default(true),
+})
+export type ParentEnrolledDevice = z.infer<typeof parentEnrolledDeviceSchema>
+
+/**
+ * Parent device enrollment settings for a family.
+ * Story 32.2: Parent Device Enrollment for Offline Time
+ *
+ * Stored at: /families/{familyId}/settings/parentDeviceEnrollment
+ *
+ * AC2: Enrollment is voluntary but visible to children
+ * AC4: Parent compliance is tracked (FR60)
+ * AC5: Non-enrolled parent devices noted
+ */
+export const parentDeviceEnrollmentSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Array of enrolled parent devices */
+  devices: z.array(parentEnrolledDeviceSchema).default([]),
+  /** Created timestamp (epoch ms) */
+  createdAt: z.number(),
+  /** Last updated timestamp (epoch ms) */
+  updatedAt: z.number(),
+})
+export type ParentDeviceEnrollment = z.infer<typeof parentDeviceEnrollmentSchema>
+
+/** Human-readable device type labels */
+export const PARENT_DEVICE_TYPE_LABELS: Record<ParentDeviceType, string> = {
+  phone: 'Phone',
+  tablet: 'Tablet',
+  laptop: 'Laptop',
+  desktop: 'Desktop',
+  other: 'Other',
+}
+
+/** Messages for enrollment UI - AC5, AC6: Non-shaming, encouraging */
+export const PARENT_ENROLLMENT_MESSAGES = {
+  header: 'Enroll Your Devices',
+  description:
+    'Lead by example! When your devices are enrolled, your children can see you follow family offline time too.',
+  notEnrolledYet: (name: string) => `${name} hasn't enrolled yet`,
+  enrolled: (name: string) => `${name}'s device is enrolled`,
+  allEnrolled: 'Great! All parents have devices enrolled',
+}
