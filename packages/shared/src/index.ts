@@ -941,3 +941,51 @@ export {
   type UsageData,
   type PatternConfig,
 } from './services/dailySummaryService'
+
+// Automatic Reduction exports (Story 37.4)
+export {
+  AUTOMATIC_REDUCTION_TRUST_THRESHOLD,
+  AUTOMATIC_REDUCTION_DURATION_MONTHS,
+  AUTOMATIC_REDUCTION_DURATION_DAYS,
+  automaticReductionConfigSchema,
+  overrideRequestSchema,
+  reductionResultSchema,
+  graduationPathSchema,
+  createDefaultAutomaticReductionConfig,
+  createOverrideRequest,
+  createReductionResult,
+  createGraduationPath,
+  daysToMonths,
+  isOverrideActive,
+  getParentNotificationMessage,
+  getCelebrationMessage,
+  getGraduationPathMessage,
+  getOverrideExplanation,
+  type AutomaticReductionConfig,
+  type OverrideRequest,
+  type ReductionResult,
+  type GraduationPath,
+  type OverrideStatus,
+  type ReductionType,
+  type GraduationStatus,
+} from './contracts/automaticReduction'
+
+// Automatic Reduction Service exports (Story 37.4)
+export {
+  isEligibleForAutomaticReduction,
+  getMonthsUntilEligible,
+  getEligibilityProgress,
+  applyAutomaticReduction,
+  shouldApplyReduction,
+  requestOverride,
+  respondToOverride,
+  withdrawOverride,
+  isOverrideInEffect,
+  updateGraduationProgress,
+  pauseGraduationPath,
+  resumeGraduationPath,
+  regressGraduationPath,
+  getReductionStatusMessage,
+  getOverrideStatusMessage,
+  getEligibilityMessage,
+} from './services/automaticReductionService'
