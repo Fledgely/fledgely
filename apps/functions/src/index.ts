@@ -104,6 +104,9 @@ export {
   cancelConsentWithdrawal,
 } from './http/consent'
 
+// Time limits HTTP handlers (Story 31.1)
+export { getTimeLimitConfig } from './http/timeLimits'
+
 // Classification HTTP handlers (Story 20.1)
 export { processClassification } from './http/classification'
 

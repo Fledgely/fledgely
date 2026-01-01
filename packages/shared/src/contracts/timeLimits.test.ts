@@ -1,5 +1,5 @@
 /**
- * Time Limit Data Model Tests - Story 30.1
+ * Time Limit Data Model Tests - Story 30.1 & Story 31.1
  *
  * Tests for time limit schemas and type validations.
  */
@@ -14,6 +14,8 @@ import {
   deviceLimitSchema,
   timeLimitSchema,
   childTimeLimitsSchema,
+  warningThresholdsSchema,
+  DEFAULT_WARNING_THRESHOLDS,
   MAX_SCREEN_TIME_MINUTES_PER_DAY,
 } from './index'
 
@@ -803,6 +805,112 @@ describe('Time Limit Data Model - Story 30.1', () => {
       }
       const result = timeLimitSchema.parse(limitWithoutActive)
       expect(result.isActive).toBe(true)
+    })
+  })
+})
+
+describe('Warning Thresholds - Story 31.1', () => {
+  describe('warningThresholdsSchema', () => {
+    it('accepts valid warning thresholds', () => {
+      const thresholds = {
+        firstWarningMinutes: 15,
+        secondWarningMinutes: 5,
+        finalWarningMinutes: 1,
+        showCountdownBadge: true,
+        showToastNotifications: true,
+      }
+      expect(() => warningThresholdsSchema.parse(thresholds)).not.toThrow()
+    })
+
+    it('applies default values for all fields', () => {
+      const result = warningThresholdsSchema.parse({})
+      expect(result.firstWarningMinutes).toBe(15)
+      expect(result.secondWarningMinutes).toBe(5)
+      expect(result.finalWarningMinutes).toBe(1)
+      expect(result.showCountdownBadge).toBe(true)
+      expect(result.showToastNotifications).toBe(true)
+    })
+
+    it('validates firstWarningMinutes range (1-60)', () => {
+      expect(() => warningThresholdsSchema.parse({ firstWarningMinutes: 0 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ firstWarningMinutes: 61 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ firstWarningMinutes: 1 })).not.toThrow()
+      expect(() => warningThresholdsSchema.parse({ firstWarningMinutes: 60 })).not.toThrow()
+    })
+
+    it('validates secondWarningMinutes range (1-30)', () => {
+      expect(() => warningThresholdsSchema.parse({ secondWarningMinutes: 0 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ secondWarningMinutes: 31 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ secondWarningMinutes: 1 })).not.toThrow()
+      expect(() => warningThresholdsSchema.parse({ secondWarningMinutes: 30 })).not.toThrow()
+    })
+
+    it('validates finalWarningMinutes range (1-10)', () => {
+      expect(() => warningThresholdsSchema.parse({ finalWarningMinutes: 0 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ finalWarningMinutes: 11 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ finalWarningMinutes: 1 })).not.toThrow()
+      expect(() => warningThresholdsSchema.parse({ finalWarningMinutes: 10 })).not.toThrow()
+    })
+
+    it('requires integer values for warning minutes', () => {
+      expect(() => warningThresholdsSchema.parse({ firstWarningMinutes: 15.5 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ secondWarningMinutes: 5.5 })).toThrow()
+      expect(() => warningThresholdsSchema.parse({ finalWarningMinutes: 1.5 })).toThrow()
+    })
+  })
+
+  describe('DEFAULT_WARNING_THRESHOLDS', () => {
+    it('has correct default values', () => {
+      expect(DEFAULT_WARNING_THRESHOLDS.firstWarningMinutes).toBe(15)
+      expect(DEFAULT_WARNING_THRESHOLDS.secondWarningMinutes).toBe(5)
+      expect(DEFAULT_WARNING_THRESHOLDS.finalWarningMinutes).toBe(1)
+      expect(DEFAULT_WARNING_THRESHOLDS.showCountdownBadge).toBe(true)
+      expect(DEFAULT_WARNING_THRESHOLDS.showToastNotifications).toBe(true)
+    })
+
+    it('passes schema validation', () => {
+      expect(() => warningThresholdsSchema.parse(DEFAULT_WARNING_THRESHOLDS)).not.toThrow()
+    })
+  })
+
+  describe('childTimeLimitsSchema with warningThresholds', () => {
+    const now = Date.now()
+    const validChildTimeLimits = {
+      childId: 'child-123',
+      familyId: 'family-456',
+      updatedAt: now,
+    }
+
+    it('accepts warningThresholds field', () => {
+      const config = {
+        ...validChildTimeLimits,
+        warningThresholds: {
+          firstWarningMinutes: 20,
+          secondWarningMinutes: 10,
+          finalWarningMinutes: 2,
+          showCountdownBadge: true,
+          showToastNotifications: true,
+        },
+      }
+      const result = childTimeLimitsSchema.parse(config)
+      expect(result.warningThresholds?.firstWarningMinutes).toBe(20)
+      expect(result.warningThresholds?.secondWarningMinutes).toBe(10)
+      expect(result.warningThresholds?.finalWarningMinutes).toBe(2)
+    })
+
+    it('allows config without warningThresholds', () => {
+      const result = childTimeLimitsSchema.parse(validChildTimeLimits)
+      expect(result.warningThresholds).toBeUndefined()
+    })
+
+    it('validates warningThresholds when provided', () => {
+      const invalidConfig = {
+        ...validChildTimeLimits,
+        warningThresholds: {
+          firstWarningMinutes: 100, // Out of range
+        },
+      }
+      expect(() => childTimeLimitsSchema.parse(invalidConfig)).toThrow()
     })
   })
 })

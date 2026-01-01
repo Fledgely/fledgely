@@ -445,18 +445,18 @@ development_status:
   epic-29-retrospective: completed
 
   # Epic 30: Time Limits Configuration
-  epic-30: in-progress
+  epic-30: done
   30-1-time-limit-data-model: done
   30-2-daily-total-limit-configuration: done
   30-3-per-category-limit-configuration: done
-  30-4-custom-category-creation: backlog
-  30-5-per-device-limit-configuration: backlog
-  30-6-limit-preview-and-validation: backlog
-  epic-30-retrospective: optional
+  30-4-custom-category-creation: done
+  30-5-per-device-limit-configuration: done
+  30-6-limit-preview-and-validation: done
+  epic-30-retrospective: done
 
   # Epic 31: Time Limit Enforcement & Warnings
-  epic-31: backlog
-  31-1-countdown-warning-system: backlog
+  epic-31: in-progress
+  31-1-countdown-warning-system: done
   31-2-neurodivergent-transition-accommodations: backlog
   31-3-education-content-exemption: backlog
   31-4-chromebook-time-limit-enforcement: backlog

@@ -4385,10 +4385,40 @@ export const timeLimitSchema = z
 export type TimeLimit = z.infer<typeof timeLimitSchema>
 
 /**
+ * Warning thresholds for time limit notifications.
+ * Story 31.1: Countdown Warning System - AC6 (FR143)
+ *
+ * Configurable warning thresholds before time limits are reached.
+ */
+export const warningThresholdsSchema = z.object({
+  /** Minutes before limit for first (gentle) warning. Default: 15 */
+  firstWarningMinutes: z.number().int().min(1).max(60).default(15),
+  /** Minutes before limit for second (prominent) warning. Default: 5 */
+  secondWarningMinutes: z.number().int().min(1).max(30).default(5),
+  /** Minutes before limit for final (urgent) warning. Default: 1 */
+  finalWarningMinutes: z.number().int().min(1).max(10).default(1),
+  /** Whether to show countdown timer in extension badge. Default: true */
+  showCountdownBadge: z.boolean().default(true),
+  /** Whether to show non-intrusive toast notifications. Default: true */
+  showToastNotifications: z.boolean().default(true),
+})
+export type WarningThresholds = z.infer<typeof warningThresholdsSchema>
+
+/** Default warning thresholds for new configurations */
+export const DEFAULT_WARNING_THRESHOLDS: WarningThresholds = {
+  firstWarningMinutes: 15,
+  secondWarningMinutes: 5,
+  finalWarningMinutes: 1,
+  showCountdownBadge: true,
+  showToastNotifications: true,
+}
+
+/**
  * Complete time limits configuration for a child.
  * Stored at: /families/{familyId}/children/{childId}/timeLimits/config
  *
  * Story 30.1: Time Limit Data Model - AC1, AC3, AC5, AC6
+ * Story 31.1: Countdown Warning System - AC6 warning thresholds
  */
 export const childTimeLimitsSchema = z.object({
   /** Child this configuration belongs to */
@@ -4403,6 +4433,8 @@ export const childTimeLimitsSchema = z.object({
   categoryLimits: z.array(categoryLimitSchema).optional(),
   /** Per-device limits */
   deviceLimits: z.array(deviceLimitSchema).optional(),
+  /** Warning thresholds for notifications - Story 31.1 AC6 */
+  warningThresholds: warningThresholdsSchema.optional(),
   /** When this configuration becomes effective (epoch ms) - AC6 */
   effectiveFrom: z.number().optional(),
   /** Last updated timestamp (epoch ms) */

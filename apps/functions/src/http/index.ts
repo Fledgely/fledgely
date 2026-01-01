@@ -9,3 +9,6 @@ export { uploadScreenshot } from './sync'
 
 // Screenshot view with watermarking
 export { viewScreenshot } from './screenshots'
+
+// Time limits (Story 31.1)
+export { getTimeLimitConfig } from './timeLimits'

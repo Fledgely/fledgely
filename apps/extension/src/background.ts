@@ -43,6 +43,14 @@ import {
   ALARM_SCREEN_TIME_SYNC,
 } from './screen-time'
 import {
+  setupWarningCheckAlarm,
+  checkAndTriggerWarnings,
+  syncTimeLimitConfig,
+  clearWarningState,
+  getTimeLimitStatus,
+  ALARM_WARNING_CHECK,
+} from './time-limit-warnings'
+import {
   checkConsentStatusWithCache,
   clearConsentCache,
   shouldEnableMonitoring,
@@ -876,6 +884,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Story 29.2: Initialize screen time tracking (15 min sync interval)
   await initScreenTimeTracking()
 
+  // Story 31.1: Initialize time limit warning check (1 min interval)
+  setupWarningCheckAlarm()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -919,6 +930,9 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Story 29.2: Initialize screen time tracking (15 min sync interval)
   await initScreenTimeTracking()
+
+  // Story 31.1: Initialize time limit warning check (1 min interval)
+  setupWarningCheckAlarm()
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {
@@ -1072,6 +1086,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // Force refresh to get latest consent status
         await checkAndUpdateConsentStatus(true)
 
+        // Story 31.1: Sync time limit configuration
+        if (currentState.familyId) {
+          await syncTimeLimitConfig(message.childId, currentState.familyId)
+        }
+
         console.log('[Fledgely] Connected to child:', message.childName)
         sendResponse({ success: true })
       })
@@ -1104,6 +1123,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Story 8.7: Clear VPN detection state
         await clearVpnState()
+
+        // Story 31.1: Clear warning state
+        await clearWarningState()
 
         console.log('[Fledgely] Disconnected from child')
         sendResponse({ success: true })
@@ -1341,6 +1363,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         })
       return true
 
+    case 'GET_TIME_LIMIT_STATUS':
+      // Get current time limit status for popup display
+      // Story 31.1: Countdown Warning System - AC4
+      getTimeLimitStatus()
+        .then((status) => {
+          sendResponse({ success: true, status })
+        })
+        .catch((error) => {
+          sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
+    case 'SYNC_TIME_LIMITS':
+      // Sync time limit configuration from Firestore
+      // Story 31.1: Countdown Warning System
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.childId || !currentState.familyId) {
+          sendResponse({ success: false, error: 'No child connected' })
+          return
+        }
+        try {
+          const config = await syncTimeLimitConfig(currentState.childId, currentState.familyId)
+          sendResponse({ success: true, config })
+        } catch (error) {
+          sendResponse({ success: false, error: String(error) })
+        }
+      })
+      return true
+
     case 'UPDATE_ENROLLMENT_REQUEST':
       // Update pending enrollment with request ID after submission
       // Story 12.3: Device-to-Device Enrollment Approval - AC1 request tracking
@@ -1532,6 +1584,15 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
       await syncScreenTime()
     } else {
       console.log('[Fledgely] Screen time sync skipped - not enrolled or no consent')
+    }
+    return
+  }
+
+  // Story 31.1: Time limit warning check - requires monitoring and consent
+  if (alarm.name === ALARM_WARNING_CHECK) {
+    const { state: warningState } = await chrome.storage.local.get('state')
+    if (warningState?.monitoringEnabled && warningState?.consentStatus === 'granted') {
+      await checkAndTriggerWarnings()
     }
     return
   }
