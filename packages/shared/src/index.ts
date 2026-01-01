@@ -780,6 +780,16 @@ export {
   type GetBypassAttemptsOptions,
 } from './services/bypassAttemptService'
 
+// Trust Score Privacy exports (Story 36.6)
+export {
+  canViewTrustScore,
+  getViewableTrustScores,
+  isParentViewer,
+  type FamilyMember,
+  type ViewerRole,
+  type TrustScoreAccessResult,
+} from './services/trustScorePrivacyService'
+
 // Annual Review exports (Story 35.6)
 export {
   ANNUAL_REVIEW_INTERVAL_DAYS,
