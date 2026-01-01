@@ -6225,6 +6225,7 @@ export const proposalStatusSchema = z.enum([
   'declined', // Declined by recipient
   'withdrawn', // Withdrawn by proposer
   'counter-proposed', // Counter-proposal made
+  'activated', // Both parties confirmed, changes applied (Story 34.4)
 ])
 export type ProposalStatus = z.infer<typeof proposalStatusSchema>
 
@@ -6316,6 +6317,86 @@ export const proposalResponseSchema = z.object({
   createdAt: z.number(),
 })
 export type ProposalResponse = z.infer<typeof proposalResponseSchema>
+
+// =============================================================================
+// STORY 34.4: DUAL-SIGNATURE CHANGE ACTIVATION
+// =============================================================================
+
+/**
+ * Signature action types for dual-signature workflow.
+ *
+ * Story 34.4: Dual-Signature Change Activation - AC2
+ */
+export const signatureActionSchema = z.enum([
+  'proposed', // Initial proposal creation
+  'accepted', // Recipient accepted the proposal
+  'confirmed', // Proposer confirmed after acceptance
+])
+export type SignatureAction = z.infer<typeof signatureActionSchema>
+
+/**
+ * Role in signature (parent or child).
+ *
+ * Story 34.4: Dual-Signature Change Activation - AC2
+ */
+export const signatureRoleSchema = z.enum(['parent', 'child'])
+export type SignatureRole = z.infer<typeof signatureRoleSchema>
+
+/**
+ * Digital signature record for agreement changes.
+ *
+ * Story 34.4: Dual-Signature Change Activation - AC2
+ * Records who signed, when, and what action they took.
+ */
+export const signatureRecordSchema = z.object({
+  userId: z.string(),
+  userName: z.string(),
+  role: signatureRoleSchema,
+  signedAt: z.number(), // Unix timestamp
+  action: signatureActionSchema,
+})
+export type SignatureRecord = z.infer<typeof signatureRecordSchema>
+
+/**
+ * Dual signature container for both parties.
+ *
+ * Story 34.4: Dual-Signature Change Activation - AC2
+ */
+export const dualSignaturesSchema = z.object({
+  proposer: signatureRecordSchema,
+  recipient: signatureRecordSchema,
+})
+export type DualSignatures = z.infer<typeof dualSignaturesSchema>
+
+/**
+ * Activated agreement version for history tracking.
+ *
+ * Story 34.4: Dual-Signature Change Activation - AC3, AC6
+ * Represents an activated version of an agreement with dual signatures.
+ * Stored in agreements/{agreementId}/versions subcollection.
+ */
+export const activatedAgreementVersionSchema = z.object({
+  id: z.string(),
+  agreementId: z.string(),
+  familyId: z.string(),
+  childId: z.string(),
+  versionNumber: z.number().int().positive(),
+
+  // Content at this version
+  content: z.record(z.unknown()), // Flexible content structure
+
+  // Change tracking
+  changedFromVersion: z.number().nullable(), // null for initial version
+  proposalId: z.string().nullable(), // null for initial version
+
+  // Dual signatures
+  signatures: dualSignaturesSchema,
+
+  // Timestamps
+  createdAt: z.number(),
+  activatedAt: z.number(),
+})
+export type ActivatedAgreementVersion = z.infer<typeof activatedAgreementVersionSchema>
 
 /**
  * Agreement proposal messages with positive framing.

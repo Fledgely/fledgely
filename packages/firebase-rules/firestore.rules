@@ -493,6 +493,20 @@ service cloud.firestore {
           request.resource.data.proposedBy == resource.data.proposedBy &&
           request.resource.data.proposerId == resource.data.proposerId;
 
+        // Update: Proposer can activate their accepted proposal
+        // Story 34.4 AC1, AC2: Dual-signature activation
+        // Only the original proposer can activate after acceptance
+        allow update: if isProposalGuardian() &&
+          resource.data.proposerId == request.auth.uid &&
+          resource.data.status == 'accepted' &&
+          request.resource.data.status == 'activated' &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId &&
+          request.resource.data.proposedBy == resource.data.proposedBy &&
+          request.resource.data.proposerId == resource.data.proposerId;
+
         // Delete: Not allowed - keep audit trail
         // Story 34.1: Proposals are versioned for history tracking
         allow delete: if false;
@@ -690,9 +704,15 @@ service cloud.firestore {
             request.auth.uid in child.data.guardianUids;
         }
 
+        // Helper: Check if user is the child themselves (via custom token)
+        function isChildAgreementOwner() {
+          return request.auth != null &&
+            request.auth.token.childId == childId;
+        }
+
         // Read: Guardians and the child themselves can read
         // Note: Child auth is implemented in later epics
-        allow read: if isAgreementChildGuardian();
+        allow read: if isAgreementChildGuardian() || isChildAgreementOwner();
 
         // Create: Guardians can create agreements
         allow create: if isAgreementChildGuardian();
@@ -702,6 +722,36 @@ service cloud.firestore {
 
         // Delete: Not allowed - agreements have history
         allow delete: if false;
+
+        // =============================================================
+        // VERSIONS SUBCOLLECTION - Story 34.4: Dual-Signature Activation
+        // =============================================================
+        //
+        // Stores immutable snapshots of agreement versions with dual signatures.
+        // Created when both parties confirm changes via proposal workflow.
+        //
+        // SECURITY:
+        // - Guardians and children can read version history
+        // - Creation is done via Cloud Functions (or transaction in hook)
+        // - Versions are IMMUTABLE after creation (audit trail)
+        //
+        match /versions/{versionId} {
+          // Read: Both parties can read version history
+          // Story 34.4 AC6: History visible to both parties
+          allow read: if isAgreementChildGuardian() || isChildAgreementOwner();
+
+          // Create: Guardians can create versions (via activation transaction)
+          // Story 34.4 AC3: New version created on activation
+          allow create: if isAgreementChildGuardian();
+
+          // Update: NEVER allowed - versions are immutable for audit
+          // Story 34.4 AC2: Signatures cannot be altered after recording
+          allow update: if false;
+
+          // Delete: NEVER allowed - keep audit trail
+          // Story 34.4 AC6: History preserved
+          allow delete: if false;
+        }
       }
 
       // Flags subcollection: AI-generated flags for concerning content
