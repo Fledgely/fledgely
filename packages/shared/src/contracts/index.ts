@@ -5353,3 +5353,203 @@ export const FOCUS_MODE_DEFAULT_APPS = {
     ],
   },
 } as const
+
+// ============================================================================
+// Work Mode Schemas - Story 33.3
+// ============================================================================
+
+// Note: Reuses existing dayOfWeekSchema and DayOfWeek type from above
+
+/**
+ * Work schedule - defines when work mode activates
+ * Stored in Firestore at families/{familyId}/workModeConfig/{childId}
+ */
+export const workScheduleSchema = z.object({
+  id: z.string(),
+  /** Name of the job/workplace for display */
+  name: z.string().min(1).max(100),
+  /** Days of the week this schedule applies */
+  days: z.array(dayOfWeekSchema).min(1),
+  /** Start time in 24h format "HH:mm" (e.g., "09:00") */
+  startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+  /** End time in 24h format "HH:mm" (e.g., "17:00") */
+  endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+  /** Whether this schedule is currently enabled */
+  isEnabled: z.boolean().default(true),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type WorkSchedule = z.infer<typeof workScheduleSchema>
+
+/**
+ * Work mode session status
+ */
+export const workModeStatusSchema = z.enum(['inactive', 'active'])
+export type WorkModeStatus = z.infer<typeof workModeStatusSchema>
+
+/**
+ * Work mode activation type
+ */
+export const workModeActivationTypeSchema = z.enum(['scheduled', 'manual'])
+export type WorkModeActivationType = z.infer<typeof workModeActivationTypeSchema>
+
+/**
+ * Work mode session - tracks active work mode sessions
+ */
+export const workModeSessionSchema = z.object({
+  id: z.string(),
+  childId: z.string(),
+  familyId: z.string(),
+  status: workModeStatusSchema,
+  /** How this session was activated */
+  activationType: workModeActivationTypeSchema,
+  /** Reference to schedule if activated automatically */
+  scheduleId: z.string().nullable(),
+  /** Schedule name for display */
+  scheduleName: z.string().nullable(),
+  startedAt: z.number(), // epoch ms
+  /** Expected end time based on schedule (null for manual sessions without defined end) */
+  scheduledEndAt: z.number().nullable(),
+  endedAt: z.number().nullable(), // null if still active
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type WorkModeSession = z.infer<typeof workModeSessionSchema>
+
+/**
+ * Work mode state for a child
+ * Stored in Firestore at families/{familyId}/workMode/{childId}
+ */
+export const workModeStateSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  isActive: z.boolean().default(false),
+  currentSession: workModeSessionSchema.nullable(),
+  totalSessionsThisWeek: z.number().default(0),
+  totalWorkTimeThisWeek: z.number().default(0), // ms
+  weekStartDate: z.number(), // epoch ms of week start (Sunday)
+  updatedAt: z.number(),
+})
+
+export type WorkModeState = z.infer<typeof workModeStateSchema>
+
+/**
+ * Work app entry for whitelist during work mode
+ */
+export const workModeAppEntrySchema = z.object({
+  /** Domain or app identifier (e.g., "slack.com", "teams.microsoft.com") */
+  pattern: z.string().min(1).max(255),
+  /** Human-readable name for display */
+  name: z.string().min(1).max(100),
+  /** True if pattern uses wildcard (e.g., "*.slack.com") */
+  isWildcard: z.boolean().default(false),
+  /** When this app was added */
+  addedAt: z.number(),
+  /** Who added this app (parent UID) */
+  addedByUid: z.string(),
+})
+
+export type WorkModeAppEntry = z.infer<typeof workModeAppEntrySchema>
+
+/**
+ * Work mode configuration per child
+ * Stored in Firestore at families/{familyId}/workModeConfig/{childId}
+ */
+export const workModeConfigSchema = z.object({
+  childId: z.string(),
+  familyId: z.string(),
+  /** Work schedules for this child */
+  schedules: z.array(workScheduleSchema).default([]),
+  /** Use default work apps whitelist */
+  useDefaultWorkApps: z.boolean().default(true),
+  /** Custom work apps whitelist */
+  customWorkApps: z.array(workModeAppEntrySchema).default([]),
+  /** Whether to pause screenshot capture during work mode */
+  pauseScreenshots: z.boolean().default(true),
+  /** Whether to suspend time limits during work mode */
+  suspendTimeLimits: z.boolean().default(true),
+  /** Allow teen to manually start/stop work mode */
+  allowManualActivation: z.boolean().default(true),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+
+export type WorkModeConfig = z.infer<typeof workModeConfigSchema>
+
+/**
+ * Default work apps for employed teens
+ */
+export const WORK_MODE_DEFAULT_APPS = {
+  scheduling: [
+    { pattern: 'when2work.com', name: 'When2Work' },
+    { pattern: 'wheniwork.com', name: 'When I Work' },
+    { pattern: 'hotschedules.com', name: 'HotSchedules' },
+    { pattern: 'deputy.com', name: 'Deputy' },
+    { pattern: 'homebase.com', name: 'Homebase' },
+    { pattern: 'sling.com', name: 'Sling' },
+    { pattern: 'shiftboard.com', name: 'Shiftboard' },
+  ],
+  communication: [
+    { pattern: 'slack.com', name: 'Slack' },
+    { pattern: 'teams.microsoft.com', name: 'Microsoft Teams' },
+    { pattern: 'zoom.us', name: 'Zoom' },
+    { pattern: 'meet.google.com', name: 'Google Meet' },
+    { pattern: 'webex.com', name: 'Cisco Webex' },
+  ],
+  business: [
+    { pattern: 'square.com', name: 'Square' },
+    { pattern: 'toast.com', name: 'Toast POS' },
+    { pattern: 'lightspeedhq.com', name: 'Lightspeed' },
+    { pattern: 'shopify.com', name: 'Shopify' },
+    { pattern: 'clover.com', name: 'Clover' },
+  ],
+  productivity: [
+    { pattern: 'docs.google.com', name: 'Google Docs' },
+    { pattern: 'sheets.google.com', name: 'Google Sheets' },
+    { pattern: 'drive.google.com', name: 'Google Drive' },
+    { pattern: 'office.com', name: 'Microsoft Office' },
+    { pattern: 'mail.google.com', name: 'Gmail' },
+    { pattern: 'outlook.com', name: 'Outlook' },
+    { pattern: 'calendar.google.com', name: 'Google Calendar' },
+  ],
+} as const
+
+/**
+ * Work mode messages (teen-friendly, respectful of autonomy)
+ */
+export const WORK_MODE_MESSAGES = {
+  // Starting work mode
+  scheduledStart: (scheduleName: string) =>
+    `Work mode starting for "${scheduleName}". Monitoring paused.`,
+  manualStart: 'Work mode started. Monitoring paused until you end it.',
+
+  // Ending work mode
+  scheduledEnd: (scheduleName: string) =>
+    `Work mode ended for "${scheduleName}". Normal monitoring resumed.`,
+  manualEnd: 'Work mode ended. Normal monitoring resumed.',
+
+  // Status messages
+  active: (scheduleName: string | null) =>
+    scheduleName ? `Work mode active: ${scheduleName}` : 'Work mode active (manual)',
+  timeRemaining: (minutes: number) =>
+    minutes === 1 ? '1 minute until work ends' : `${minutes} minutes until work ends`,
+
+  // Parent transparency
+  parentNotification: (childName: string, isManual: boolean) =>
+    isManual
+      ? `${childName} started work mode manually`
+      : `${childName}'s scheduled work mode is now active`,
+
+  // Schedule labels
+  scheduleLabels: {
+    sunday: 'Sunday',
+    monday: 'Monday',
+    tuesday: 'Tuesday',
+    wednesday: 'Wednesday',
+    thursday: 'Thursday',
+    friday: 'Friday',
+    saturday: 'Saturday',
+  } as const,
+} as const

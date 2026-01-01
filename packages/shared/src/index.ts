@@ -491,3 +491,23 @@ export {
   type AppSuggestionStatus,
   type FocusModeAppSuggestion,
 } from './contracts'
+
+// Work mode exports (Story 33.3)
+export {
+  workScheduleSchema,
+  workModeStatusSchema,
+  workModeActivationTypeSchema,
+  workModeSessionSchema,
+  workModeStateSchema,
+  workModeAppEntrySchema,
+  workModeConfigSchema,
+  WORK_MODE_DEFAULT_APPS,
+  WORK_MODE_MESSAGES,
+  type WorkSchedule,
+  type WorkModeStatus,
+  type WorkModeActivationType,
+  type WorkModeSession,
+  type WorkModeState,
+  type WorkModeAppEntry,
+  type WorkModeConfig,
+} from './contracts'

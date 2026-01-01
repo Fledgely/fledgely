@@ -151,3 +151,6 @@ export {
 
 // Focus mode HTTP handlers (Story 33.1, 33.2)
 export { getFocusModeState, getFocusModeConfig } from './http/focus'
+
+// Work mode HTTP handlers (Story 33.3)
+export { getWorkModeState, getWorkModeConfig } from './http/work'
