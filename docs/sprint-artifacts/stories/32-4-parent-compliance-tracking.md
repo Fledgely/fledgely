@@ -207,3 +207,10 @@ claude-opus-4-5-20251101
 - apps/web/src/components/icons/UsersIcon.tsx - New icon component
 - apps/web/src/app/child/dashboard/page.tsx - Integrated ParentComplianceCard
 - apps/web/src/app/dashboard/settings/time-limits/page.tsx - Integrated MyComplianceStats
+- apps/functions/src/http/offline/getOfflineSchedule.ts - New cloud function
+- apps/functions/src/http/offline/getOfflineSchedule.test.ts - New test file (5 tests)
+- apps/functions/src/http/offline/logParentCompliance.ts - New cloud function
+- apps/functions/src/http/offline/logParentCompliance.test.ts - New test file (6 tests)
+- apps/functions/src/http/offline/index.ts - Offline endpoints barrel
+- apps/functions/src/http/index.ts - Added offline exports
+- apps/functions/src/index.ts - Added offline endpoint exports
