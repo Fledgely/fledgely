@@ -516,8 +516,8 @@ development_status:
   epic-34-5-retrospective: optional
 
   # Epic 36: Trust Score Foundation
-  epic-36: backlog
-  36-1-trust-score-data-model: backlog
+  epic-36: in-progress
+  36-1-trust-score-data-model: done
   36-2-trust-score-calculation: backlog
   36-3-trust-score-display-to-child: backlog
   36-4-trust-score-display-to-parent: backlog

@@ -687,6 +687,42 @@ export {
   type AgreementForPostGrace,
 } from './contracts'
 
+// Trust Score exports (Story 36.1)
+export {
+  TRUST_SCORE_MIN,
+  TRUST_SCORE_MAX,
+  TRUST_SCORE_DEFAULT,
+  trustFactorTypeSchema,
+  trustFactorCategorySchema,
+  trustFactorSchema,
+  trustScoreHistoryEntrySchema,
+  trustScoreSchema,
+  type TrustFactorType,
+  type TrustFactorCategory,
+  type TrustFactor,
+  type TrustScoreHistoryEntry,
+  type TrustScore,
+} from './contracts'
+
+// Trust Factor Definitions exports (Story 36.1)
+export {
+  TRUST_FACTOR_DEFINITIONS,
+  getFactorDefinition,
+  getFactorsByCategory,
+  calculateFactorPoints,
+  type TrustFactorDefinition,
+} from './contracts'
+
+// Trust Score Validation exports (Story 36.1)
+export {
+  isValidScore,
+  clampScore,
+  validateTrustScore,
+  validateFactor,
+  isScoreUpdateDue,
+  type ValidationResult,
+} from './contracts'
+
 // Annual Review exports (Story 35.6)
 export {
   ANNUAL_REVIEW_INTERVAL_DAYS,

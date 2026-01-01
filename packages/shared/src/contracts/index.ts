@@ -6656,3 +6656,39 @@ export {
   type AgreementForAnnualReview,
   type AgeSuggestionThreshold,
 } from './annualReview'
+
+// Trust Score (Story 36.1)
+export {
+  TRUST_SCORE_MIN,
+  TRUST_SCORE_MAX,
+  TRUST_SCORE_DEFAULT,
+  trustFactorTypeSchema,
+  trustFactorCategorySchema,
+  trustFactorSchema,
+  trustScoreHistoryEntrySchema,
+  trustScoreSchema,
+  type TrustFactorType,
+  type TrustFactorCategory,
+  type TrustFactor,
+  type TrustScoreHistoryEntry,
+  type TrustScore,
+} from './trustScore'
+
+// Trust Factor Definitions (Story 36.1)
+export {
+  TRUST_FACTOR_DEFINITIONS,
+  getFactorDefinition,
+  getFactorsByCategory,
+  calculateFactorPoints,
+  type TrustFactorDefinition,
+} from './trustFactorDefinitions'
+
+// Trust Score Validation (Story 36.1)
+export {
+  isValidScore,
+  clampScore,
+  validateTrustScore,
+  validateFactor,
+  isScoreUpdateDue,
+  type ValidationResult,
+} from './trustScoreValidation'
