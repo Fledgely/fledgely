@@ -499,7 +499,7 @@ development_status:
   epic-35: in-progress
   35-1-agreement-expiry-configuration: done
   35-2-renewal-reminder-system: done
-  35-3-agreement-renewal-flow: backlog
+  35-3-agreement-renewal-flow: done
   35-4-expired-agreement-grace-period: backlog
   35-5-post-grace-period-handling: backlog
   35-6-annual-review-prompts: backlog

@@ -6573,3 +6573,28 @@ export {
   type SnoozeInfo,
   type ReminderConfig,
 } from './renewalReminder'
+
+// Re-export agreement renewal types and constants (Story 35.3)
+export {
+  renewalModeSchema,
+  renewalStatusSchema,
+  renewalInitiatorSchema,
+  renewalRequestSchema,
+  renewalConsentSchema,
+  consentRoleSchema,
+  RENEWAL_MODES,
+  RENEWAL_STATUS,
+  RENEWAL_MESSAGES as AGREEMENT_RENEWAL_MESSAGES,
+  calculateRenewalExpiryDate,
+  isEligibleForRenewal,
+  canRenewAsIs,
+  getRenewalModeConfig,
+  isRenewalComplete,
+  type RenewalMode,
+  type RenewalStatus,
+  type RenewalInitiator,
+  type RenewalRequest,
+  type RenewalConsent,
+  type ConsentRole,
+  type RenewalModeConfig,
+} from './agreementRenewal'
