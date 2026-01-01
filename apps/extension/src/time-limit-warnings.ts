@@ -1022,9 +1022,57 @@ export async function stopEnforcement(): Promise<void> {
   }
 }
 
+// Story 31.7: Cloud Functions API endpoint for override check
+const FIREBASE_PROJECT_ID = 'fledgely-cns-me'
+const FIREBASE_REGION = 'us-central1'
+const API_BASE_URL = `https://${FIREBASE_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net`
+
+/** Active override info returned to UI - Story 31.7 AC4 */
+export interface ActiveOverrideInfo {
+  hasActiveOverride: boolean
+  overrideId?: string
+  grantedByName?: string
+  expiresAt?: number
+  reason?: string
+}
+
+/**
+ * Check for active time override from cloud function
+ * Story 31.7 AC1: Parent can grant temporary unlimited access
+ */
+export async function checkForActiveOverride(
+  childId: string,
+  familyId: string,
+  deviceId: string
+): Promise<ActiveOverrideInfo> {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/checkTimeOverride?childId=${encodeURIComponent(childId)}&familyId=${encodeURIComponent(familyId)}&deviceId=${encodeURIComponent(deviceId)}`
+    )
+
+    if (!response.ok) {
+      console.error('[Fledgely] Override check failed:', response.status)
+      return { hasActiveOverride: false }
+    }
+
+    const result = await response.json()
+    return {
+      hasActiveOverride: result.hasActiveOverride || false,
+      overrideId: result.overrideId,
+      grantedByName: result.grantedByName,
+      expiresAt: result.expiresAt,
+      reason: result.reason,
+    }
+  } catch (error) {
+    console.error('[Fledgely] Error checking for override:', error)
+    return { hasActiveOverride: false }
+  }
+}
+
 /**
  * Check and update enforcement based on current time limit status
  * Returns true if enforcement is active (time exceeded and past grace period)
+ * Story 31.7: Checks for active override before enforcing
  */
 export async function checkEnforcementStatus(): Promise<boolean> {
   const config = await getTimeLimitConfig()
@@ -1056,6 +1104,29 @@ export async function checkEnforcementStatus(): Promise<boolean> {
   // Check current enforcement state
   const enforcementState = await getEnforcementState()
   return enforcementState.isEnforcing
+}
+
+/**
+ * Check if there's an active override that should skip enforcement
+ * Story 31.7 AC1, AC4: Checks for override and returns info for display
+ */
+export async function checkEnforcementWithOverride(
+  childId: string,
+  familyId: string,
+  deviceId: string
+): Promise<{ isEnforcing: boolean; overrideInfo?: ActiveOverrideInfo }> {
+  // First check if there's an active override
+  const overrideInfo = await checkForActiveOverride(childId, familyId, deviceId)
+
+  if (overrideInfo.hasActiveOverride) {
+    // Story 31.7 AC1: Override is active - don't enforce
+    await stopEnforcement()
+    return { isEnforcing: false, overrideInfo }
+  }
+
+  // No override - use normal enforcement logic
+  const isEnforcing = await checkEnforcementStatus()
+  return { isEnforcing }
 }
 
 /**

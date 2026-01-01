@@ -50,6 +50,8 @@ import {
   getTimeLimitStatus,
   getTimeLimitConfig,
   checkEnforcementStatus,
+  checkEnforcementWithOverride,
+  checkForActiveOverride,
   enforceOnAllTabs,
   shouldBlockTab,
   injectBlockingScript,
@@ -1566,23 +1568,62 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'CHECK_TIME_LIMIT_STATE':
       // Story 31.4: Check if enforcement is active for content script
-      checkEnforcementStatus()
-        .then(async (isEnforcing) => {
+      // Story 31.7: Also check for active override
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.childId || !currentState.familyId || !currentState.deviceId) {
+          sendResponse({ isBlocked: false })
+          return
+        }
+
+        try {
+          // Use override-aware enforcement check
+          const result = await checkEnforcementWithOverride(
+            currentState.childId,
+            currentState.familyId,
+            currentState.deviceId
+          )
+
           const config = await getTimeLimitConfig()
           const accommodations = config?.accommodations
+
           sendResponse({
-            isBlocked: isEnforcing,
+            isBlocked: result.isEnforcing,
             accommodations: accommodations
               ? {
                   calmingColorsEnabled: accommodations.calmingColorsEnabled,
                   gradualTransitionEnabled: accommodations.gradualTransitionEnabled,
                 }
               : undefined,
+            // Story 31.7 AC4: Include override info for display
+            overrideInfo: result.overrideInfo,
           })
-        })
-        .catch(() => {
+        } catch {
           sendResponse({ isBlocked: false })
-        })
+        }
+      })
+      return true
+
+    case 'CHECK_ACTIVE_OVERRIDE':
+      // Story 31.7: Check for active override for content script
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        const currentState = state || DEFAULT_STATE
+        if (!currentState.childId || !currentState.familyId || !currentState.deviceId) {
+          sendResponse({ hasActiveOverride: false })
+          return
+        }
+
+        try {
+          const overrideInfo = await checkForActiveOverride(
+            currentState.childId,
+            currentState.familyId,
+            currentState.deviceId
+          )
+          sendResponse(overrideInfo)
+        } catch {
+          sendResponse({ hasActiveOverride: false })
+        }
+      })
       return true
 
     case 'REQUEST_TIME_EXTENSION':
@@ -1721,15 +1762,28 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
   // Story 31.1: Time limit warning check - requires monitoring and consent
   // Story 31.4: Also check and enforce time limits
+  // Story 31.7: Check for override before enforcing
   if (alarm.name === ALARM_WARNING_CHECK) {
     const { state: warningState } = await chrome.storage.local.get('state')
     if (warningState?.monitoringEnabled && warningState?.consentStatus === 'granted') {
       await checkAndTriggerWarnings()
 
-      // Story 31.4: Check and enforce time limits
-      const isEnforcing = await checkEnforcementStatus()
-      if (isEnforcing) {
-        await enforceOnAllTabs()
+      // Story 31.4/31.7: Check enforcement with override awareness
+      if (warningState.childId && warningState.familyId && warningState.deviceId) {
+        const result = await checkEnforcementWithOverride(
+          warningState.childId,
+          warningState.familyId,
+          warningState.deviceId
+        )
+        if (result.isEnforcing) {
+          await enforceOnAllTabs()
+        }
+      } else {
+        // Fall back to simple enforcement check if IDs not available
+        const isEnforcing = await checkEnforcementStatus()
+        if (isEnforcing) {
+          await enforceOnAllTabs()
+        }
       }
     }
     return
@@ -1811,14 +1865,31 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       // Silently fail - badge updates are non-critical
     }
 
-    // Story 31.4: Enforce time limits on newly loaded tabs
+    // Story 31.4/31.7: Enforce time limits on newly loaded tabs (with override check)
     try {
-      const isEnforcing = await checkEnforcementStatus()
-      if (isEnforcing) {
-        const config = await getTimeLimitConfig()
-        const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
-        if (shouldBlockTab(tab.url, true, educationExemption)) {
-          await injectBlockingScript(tabId)
+      const { state: tabState } = await chrome.storage.local.get('state')
+      if (tabState?.childId && tabState?.familyId && tabState?.deviceId) {
+        const result = await checkEnforcementWithOverride(
+          tabState.childId,
+          tabState.familyId,
+          tabState.deviceId
+        )
+        if (result.isEnforcing) {
+          const config = await getTimeLimitConfig()
+          const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
+          if (shouldBlockTab(tab.url, true, educationExemption)) {
+            await injectBlockingScript(tabId)
+          }
+        }
+      } else {
+        // Fall back to simple check
+        const isEnforcing = await checkEnforcementStatus()
+        if (isEnforcing) {
+          const config = await getTimeLimitConfig()
+          const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
+          if (shouldBlockTab(tab.url, true, educationExemption)) {
+            await injectBlockingScript(tabId)
+          }
         }
       }
     } catch {

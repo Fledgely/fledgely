@@ -261,6 +261,51 @@ service cloud.firestore {
         // Only Cloud Functions can access daily counters
         allow read, write: if false;
       }
+
+      // Time Overrides subcollection: parent-granted emergency overrides
+      //
+      // Story 31.7: Time Limit Override for Emergencies
+      // Guardians can grant and revoke overrides.
+      // Extension checks for active overrides via Cloud Function.
+      //
+      // SECURITY:
+      // - Only guardians can create/read overrides
+      // - Only guardians can revoke (set active: false)
+      // - Cannot delete (keep audit trail)
+      //
+      match /timeOverrides/{overrideId} {
+        function isTimeOverrideGuardian() {
+          let family = get(/databases/$(database)/documents/families/$(familyId));
+          return request.auth != null &&
+            request.auth.uid in family.data.guardianUids;
+        }
+
+        // Read: Guardians can view override history
+        allow read: if isTimeOverrideGuardian();
+
+        // Create: Guardians can grant overrides
+        // Must set themselves as grantedBy
+        allow create: if isTimeOverrideGuardian() &&
+          request.resource.data.grantedBy == request.auth.uid &&
+          request.resource.data.active == true;
+
+        // Update: Guardians can revoke overrides
+        // Can only change active, revokedAt, revokedBy fields
+        allow update: if isTimeOverrideGuardian() &&
+          resource.data.active == true &&
+          request.resource.data.active == false &&
+          // Preserve immutable fields
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.grantedBy == resource.data.grantedBy &&
+          request.resource.data.reason == resource.data.reason &&
+          request.resource.data.duration == resource.data.duration &&
+          request.resource.data.grantedAt == resource.data.grantedAt &&
+          request.resource.data.expiresAt == resource.data.expiresAt;
+
+        // Delete: Not allowed - keep audit trail
+        allow delete: if false;
+      }
     }
 
     // Child documents: guardians can access children in their family

@@ -26,8 +26,17 @@ interface TimeLimitUnblockMessage {
   type: 'HIDE_TIME_LIMIT_BLOCK'
 }
 
+// Story 31.7: Override notification message
+interface OverrideNotificationMessage {
+  type: 'SHOW_OVERRIDE_NOTIFICATION'
+  grantedByName: string
+  expiresAt: number
+}
+
 // State for blocking overlay
 let isBlockingVisible = false
+// Story 31.7: State for override notification
+let isOverrideNotificationVisible = false
 
 /**
  * Create the blocking overlay element
@@ -465,7 +474,139 @@ function showRequestMessage(message: string): void {
 }
 
 /**
+ * Create and show the override notification - Story 31.7 AC4
+ * Shows "[Parent] gave you extra time today"
+ */
+function createOverrideNotification(grantedByName: string, expiresAt: number): HTMLDivElement {
+  const notification = document.createElement('div')
+  notification.id = 'fledgely-override-notification'
+
+  // Calculate time remaining
+  const now = Date.now()
+  const remainingMs = Math.max(0, expiresAt - now)
+  const remainingMinutes = Math.ceil(remainingMs / 60000)
+  const remainingText =
+    remainingMinutes > 60
+      ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m`
+      : `${remainingMinutes}m`
+
+  notification.innerHTML = `
+    <style>
+      #fledgely-override-notification {
+        position: fixed !important;
+        top: 16px !important;
+        right: 16px !important;
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+        color: white !important;
+        padding: 16px 20px !important;
+        border-radius: 12px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        font-size: 14px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        z-index: 2147483646 !important;
+        animation: fledgely-slide-in 0.3s ease-out !important;
+        max-width: 320px !important;
+      }
+
+      @keyframes fledgely-slide-in {
+        from {
+          opacity: 0;
+          transform: translateX(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .fledgely-override-title {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        margin-bottom: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+      }
+
+      .fledgely-override-message {
+        opacity: 0.9 !important;
+        font-size: 13px !important;
+      }
+
+      .fledgely-override-close {
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
+        background: transparent !important;
+        border: none !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 18px !important;
+        cursor: pointer !important;
+        padding: 4px !important;
+        line-height: 1 !important;
+      }
+
+      .fledgely-override-close:hover {
+        color: white !important;
+      }
+    </style>
+
+    <button class="fledgely-override-close" aria-label="Close">&times;</button>
+    <div class="fledgely-override-title">
+      <span>✨</span>
+      <span>${grantedByName} gave you extra time!</span>
+    </div>
+    <div class="fledgely-override-message">
+      Enjoy your extra ${remainingText} of screen time today.
+    </div>
+  `
+
+  return notification
+}
+
+/**
+ * Show the override notification - Story 31.7 AC4
+ */
+function showOverrideNotification(grantedByName: string, expiresAt: number): void {
+  if (isOverrideNotificationVisible) return
+
+  // Remove any existing notification
+  const existing = document.getElementById('fledgely-override-notification')
+  if (existing) {
+    existing.remove()
+  }
+
+  const notification = createOverrideNotification(grantedByName, expiresAt)
+  document.body.appendChild(notification)
+  isOverrideNotificationVisible = true
+
+  // Add close button handler
+  const closeBtn = notification.querySelector('.fledgely-override-close')
+  if (closeBtn) {
+    closeBtn.addEventListener('click', hideOverrideNotification)
+  }
+
+  // Auto-hide after 10 seconds
+  setTimeout(hideOverrideNotification, 10000)
+
+  console.log('[Fledgely] Override notification shown')
+}
+
+/**
+ * Hide the override notification
+ */
+function hideOverrideNotification(): void {
+  const notification = document.getElementById('fledgely-override-notification')
+  if (notification) {
+    notification.remove()
+    isOverrideNotificationVisible = false
+    console.log('[Fledgely] Override notification hidden')
+  }
+}
+
+/**
  * Check with background script if we should be blocking
+ * Story 31.7: Also shows override notification if override is active
  */
 async function checkBlockingState(): Promise<void> {
   try {
@@ -476,6 +617,14 @@ async function checkBlockingState(): Promise<void> {
       showBlockingOverlay(useCalmingColors)
     } else {
       hideBlockingOverlay()
+
+      // Story 31.7 AC4: Show override notification if override is active
+      if (response?.overrideInfo?.hasActiveOverride && response.overrideInfo.grantedByName) {
+        showOverrideNotification(
+          response.overrideInfo.grantedByName,
+          response.overrideInfo.expiresAt || Date.now() + 3600000
+        )
+      }
     }
   } catch (error) {
     // Extension context invalidated, ignore
@@ -487,13 +636,21 @@ async function checkBlockingState(): Promise<void> {
  * Listen for messages from background script
  */
 chrome.runtime.onMessage.addListener(
-  (message: TimeLimitBlockMessage | TimeLimitUnblockMessage, _sender, sendResponse) => {
+  (
+    message: TimeLimitBlockMessage | TimeLimitUnblockMessage | OverrideNotificationMessage,
+    _sender,
+    sendResponse
+  ) => {
     if (message.type === 'SHOW_TIME_LIMIT_BLOCK') {
       const useCalmingColors = message.accommodations?.calmingColorsEnabled ?? true
       showBlockingOverlay(useCalmingColors)
       sendResponse({ success: true })
     } else if (message.type === 'HIDE_TIME_LIMIT_BLOCK') {
       hideBlockingOverlay()
+      sendResponse({ success: true })
+    } else if (message.type === 'SHOW_OVERRIDE_NOTIFICATION') {
+      // Story 31.7 AC4: Show notification that parent granted extra time
+      showOverrideNotification(message.grantedByName, message.expiresAt)
       sendResponse({ success: true })
     }
     return true

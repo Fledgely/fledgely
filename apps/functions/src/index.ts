@@ -115,6 +115,14 @@ export {
   expireTimeExtensionRequests,
 } from './callable/timeExtension'
 
+// Time override callable and HTTP handlers (Story 31.7)
+export {
+  grantTimeOverride,
+  checkTimeOverride,
+  revokeTimeOverride,
+  expireTimeOverrides,
+} from './callable/timeOverride'
+
 // Classification HTTP handlers (Story 20.1)
 export { processClassification } from './http/classification'
 
