@@ -486,14 +486,14 @@ development_status:
   epic-33-retrospective: completed
 
   # Epic 34: Agreement Changes & Proposals
-  epic-34: in-progress
+  epic-34: done
   34-1-parent-initiated-agreement-change: done
   34-2-child-initiated-agreement-change: done
   34-3-change-review-and-negotiation: done
   34-4-dual-signature-change-activation: done
   34-5-change-decline-handling: done
   34-6-agreement-change-history: done
-  epic-34-retrospective: optional
+  epic-34-retrospective: completed
 
   # Epic 35: Agreement Renewal & Expiry
   epic-35: backlog
