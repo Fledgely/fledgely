@@ -897,3 +897,256 @@ export async function getTimeLimitStatus(): Promise<TimeLimitStatus> {
     educationMinutes,
   }
 }
+
+// =============================================================================
+// Story 31.4: Time Limit Enforcement
+// =============================================================================
+
+const STORAGE_KEY_ENFORCEMENT = 'timeLimitEnforcement'
+
+/**
+ * Enforcement state for tracking blocking status
+ */
+export interface EnforcementState {
+  isEnforcing: boolean
+  enforcementStartedAt: number | null
+  lastEnforcementDate: string // YYYY-MM-DD
+  blockedTabIds: number[]
+}
+
+/**
+ * Get enforcement state from storage
+ */
+export async function getEnforcementState(): Promise<EnforcementState> {
+  const defaultState = (): EnforcementState => ({
+    isEnforcing: false,
+    enforcementStartedAt: null,
+    lastEnforcementDate: getCurrentDateString(),
+    blockedTabIds: [],
+  })
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEY_ENFORCEMENT)
+    const state = result[STORAGE_KEY_ENFORCEMENT]
+    const today = getCurrentDateString()
+
+    // Reset enforcement if it's a new day (time limits reset daily)
+    if (state && state.lastEnforcementDate !== today) {
+      const newState = defaultState()
+      await saveEnforcementState(newState)
+      return newState
+    }
+
+    if (state) {
+      return {
+        isEnforcing: state.isEnforcing ?? false,
+        enforcementStartedAt: state.enforcementStartedAt ?? null,
+        lastEnforcementDate: state.lastEnforcementDate || today,
+        blockedTabIds: state.blockedTabIds || [],
+      }
+    }
+
+    return defaultState()
+  } catch {
+    return defaultState()
+  }
+}
+
+/**
+ * Save enforcement state to storage
+ */
+export async function saveEnforcementState(state: EnforcementState): Promise<void> {
+  await chrome.storage.local.set({ [STORAGE_KEY_ENFORCEMENT]: state })
+}
+
+/**
+ * Check if a tab URL should be blocked based on enforcement and exemptions
+ * Returns true if the tab should be blocked
+ */
+export function shouldBlockTab(
+  tabUrl: string,
+  isEnforcing: boolean,
+  educationExemption?: EducationExemption
+): boolean {
+  if (!isEnforcing) return false
+
+  try {
+    const url = new URL(tabUrl)
+    const domain = url.hostname
+
+    // Skip blocking for chrome:// and extension pages
+    if (url.protocol === 'chrome:' || url.protocol === 'chrome-extension:') {
+      return false
+    }
+
+    // Check if this is an educational domain (Story 31.3 integration)
+    if (educationExemption && isEducationDomain(domain, educationExemption)) {
+      return false
+    }
+
+    // Block all other sites when enforcing
+    return true
+  } catch {
+    // Invalid URL - don't block
+    return false
+  }
+}
+
+/**
+ * Start enforcement - called when time limit is exceeded
+ */
+export async function startEnforcement(): Promise<void> {
+  const state = await getEnforcementState()
+
+  if (!state.isEnforcing) {
+    state.isEnforcing = true
+    state.enforcementStartedAt = Date.now()
+    state.lastEnforcementDate = getCurrentDateString()
+    await saveEnforcementState(state)
+    console.log('[Fledgely] Time limit enforcement started')
+  }
+}
+
+/**
+ * Stop enforcement - called when time is added or new day starts
+ */
+export async function stopEnforcement(): Promise<void> {
+  const state = await getEnforcementState()
+
+  if (state.isEnforcing) {
+    state.isEnforcing = false
+    state.enforcementStartedAt = null
+    state.blockedTabIds = []
+    await saveEnforcementState(state)
+    console.log('[Fledgely] Time limit enforcement stopped')
+  }
+}
+
+/**
+ * Check and update enforcement based on current time limit status
+ * Returns true if enforcement is active (time exceeded and past grace period)
+ */
+export async function checkEnforcementStatus(): Promise<boolean> {
+  const config = await getTimeLimitConfig()
+  if (!config || config.dailyTotalMinutes === null) {
+    // No limit - ensure enforcement is off
+    await stopEnforcement()
+    return false
+  }
+
+  const status = await getTimeLimitStatus()
+
+  // Start enforcement when limit is exceeded (not in grace period)
+  if (status.warningLevel === 'exceeded') {
+    await startEnforcement()
+    return true
+  }
+
+  // Stop enforcement if somehow we have remaining time
+  if (status.remainingMinutes !== null && status.remainingMinutes > 0) {
+    await stopEnforcement()
+    return false
+  }
+
+  // If in grace period, don't enforce yet
+  if (status.inGracePeriod) {
+    return false
+  }
+
+  // Check current enforcement state
+  const enforcementState = await getEnforcementState()
+  return enforcementState.isEnforcing
+}
+
+/**
+ * Inject blocking script into a tab
+ */
+export async function injectBlockingScript(tabId: number): Promise<boolean> {
+  try {
+    const config = await getTimeLimitConfig()
+    const accommodations = config?.accommodations || DEFAULT_ACCOMMODATIONS
+
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content-scripts/time-limit-block.js'],
+    })
+
+    // Send message to show the blocking overlay
+    await chrome.tabs.sendMessage(tabId, {
+      type: 'SHOW_TIME_LIMIT_BLOCK',
+      accommodations: {
+        calmingColorsEnabled: accommodations.calmingColorsEnabled,
+        gradualTransitionEnabled: accommodations.gradualTransitionEnabled,
+      },
+    })
+
+    console.log(`[Fledgely] Blocking script injected into tab ${tabId}`)
+    return true
+  } catch (error) {
+    // Tab may be a special page that can't be scripted
+    console.log(`[Fledgely] Could not inject blocking script into tab ${tabId}:`, error)
+    return false
+  }
+}
+
+/**
+ * Remove blocking overlay from a tab
+ */
+export async function removeBlockingFromTab(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'HIDE_TIME_LIMIT_BLOCK' })
+  } catch {
+    // Tab may not have the content script, ignore
+  }
+}
+
+/**
+ * Enforce time limits on all open tabs
+ * Called when enforcement starts or when tabs are opened
+ */
+export async function enforceOnAllTabs(): Promise<void> {
+  const config = await getTimeLimitConfig()
+  const educationExemption = config?.educationExemption || DEFAULT_EDUCATION_EXEMPTION
+  const enforcementState = await getEnforcementState()
+
+  if (!enforcementState.isEnforcing) return
+
+  try {
+    const tabs = await chrome.tabs.query({})
+    const blockedTabIds: number[] = []
+
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url) continue
+
+      if (shouldBlockTab(tab.url, true, educationExemption)) {
+        const success = await injectBlockingScript(tab.id)
+        if (success) {
+          blockedTabIds.push(tab.id)
+        }
+      }
+    }
+
+    // Update blocked tab IDs
+    enforcementState.blockedTabIds = blockedTabIds
+    await saveEnforcementState(enforcementState)
+  } catch (error) {
+    console.error('[Fledgely] Error enforcing on tabs:', error)
+  }
+}
+
+/**
+ * Clear enforcement from all tabs
+ */
+export async function clearEnforcementFromAllTabs(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({})
+
+    for (const tab of tabs) {
+      if (tab.id) {
+        await removeBlockingFromTab(tab.id)
+      }
+    }
+  } catch (error) {
+    console.error('[Fledgely] Error clearing enforcement:', error)
+  }
+}

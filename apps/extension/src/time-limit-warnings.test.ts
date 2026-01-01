@@ -15,6 +15,7 @@ import {
   getWarningTitle,
   isEducationDomain,
   isEducationCategory,
+  shouldBlockTab,
   type WarningLevel,
   type WarningThresholds,
   type EducationExemption,
@@ -387,6 +388,83 @@ describe('Education Content Exemption - Story 31.3', () => {
 
     it('Education category is always matched even when includeHomework is false', () => {
       expect(isEducationCategory('Education', noHomeworkExemption)).toBe(true)
+    })
+  })
+})
+
+describe('Time Limit Enforcement - Story 31.4', () => {
+  const enabledExemption: EducationExemption = {
+    enabled: true,
+    customDomains: [],
+    includeHomework: true,
+    showExemptNotification: true,
+  }
+
+  const disabledExemption: EducationExemption = {
+    enabled: false,
+    customDomains: [],
+    includeHomework: true,
+    showExemptNotification: true,
+  }
+
+  describe('shouldBlockTab', () => {
+    it('returns false when not enforcing', () => {
+      expect(shouldBlockTab('https://youtube.com', false)).toBe(false)
+      expect(shouldBlockTab('https://google.com', false, enabledExemption)).toBe(false)
+    })
+
+    it('blocks regular sites when enforcing', () => {
+      expect(shouldBlockTab('https://youtube.com', true)).toBe(true)
+      expect(shouldBlockTab('https://reddit.com', true)).toBe(true)
+      expect(shouldBlockTab('https://google.com', true)).toBe(true)
+    })
+
+    it('does not block chrome:// pages', () => {
+      expect(shouldBlockTab('chrome://settings', true)).toBe(false)
+      expect(shouldBlockTab('chrome://extensions', true)).toBe(false)
+      expect(shouldBlockTab('chrome://newtab', true)).toBe(false)
+    })
+
+    it('does not block chrome-extension:// pages', () => {
+      expect(shouldBlockTab('chrome-extension://abc123/popup.html', true)).toBe(false)
+    })
+
+    it('does not block educational sites when exemption enabled (AC3)', () => {
+      expect(shouldBlockTab('https://khanacademy.org', true, enabledExemption)).toBe(false)
+      expect(shouldBlockTab('https://www.wikipedia.org', true, enabledExemption)).toBe(false)
+      expect(shouldBlockTab('https://coursera.org/learn/python', true, enabledExemption)).toBe(
+        false
+      )
+      expect(shouldBlockTab('https://stanford.edu', true, enabledExemption)).toBe(false)
+    })
+
+    it('blocks educational sites when exemption disabled', () => {
+      expect(shouldBlockTab('https://khanacademy.org', true, disabledExemption)).toBe(true)
+      expect(shouldBlockTab('https://wikipedia.org', true, disabledExemption)).toBe(true)
+    })
+
+    it('blocks non-educational sites even when exemption enabled', () => {
+      expect(shouldBlockTab('https://youtube.com', true, enabledExemption)).toBe(true)
+      expect(shouldBlockTab('https://netflix.com', true, enabledExemption)).toBe(true)
+      expect(shouldBlockTab('https://reddit.com', true, enabledExemption)).toBe(true)
+    })
+
+    it('handles invalid URLs gracefully', () => {
+      expect(shouldBlockTab('not-a-url', true)).toBe(false)
+      expect(shouldBlockTab('', true)).toBe(false)
+    })
+
+    it('respects custom domains in exemption (AC3)', () => {
+      const exemptionWithCustom: EducationExemption = {
+        enabled: true,
+        customDomains: ['myschool.edu', 'homework.example.com'],
+        includeHomework: true,
+        showExemptNotification: true,
+      }
+
+      expect(shouldBlockTab('https://myschool.edu', true, exemptionWithCustom)).toBe(false)
+      expect(shouldBlockTab('https://homework.example.com', true, exemptionWithCustom)).toBe(false)
+      expect(shouldBlockTab('https://youtube.com', true, exemptionWithCustom)).toBe(true)
     })
   })
 })

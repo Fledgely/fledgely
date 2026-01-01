@@ -147,6 +147,10 @@ export default defineConfig({
           __dirname,
           'src/content-scripts/crisis-redirect.ts'
         ),
+        'content-scripts/time-limit-block': path.resolve(
+          __dirname,
+          'src/content-scripts/time-limit-block.ts'
+        ),
       },
       output: {
         entryFileNames: '[name].js',
