@@ -1035,3 +1035,62 @@ export {
   getChildDevelopmentalContext,
   getParentEducationContext,
 } from './services/developmentalMessagingService'
+
+// Trust Regression Contracts exports (Story 37.6)
+export {
+  RegressionStatusSchema,
+  TrustRegressionConfigSchema,
+  RegressionEventSchema,
+  RegressionNotificationSchema as TrustRegressionNotificationSchema,
+  ChildExplanationInputSchema,
+  ConversationRecordSchema,
+  DEFAULT_REGRESSION_CONFIG,
+  REGRESSION_MESSAGES,
+  createDefaultRegressionConfig,
+  createRegressionEvent as createRegressionEventContract,
+  validateRegression,
+  calculateGraceDaysRemaining,
+  isInGracePeriod as isTrustInGracePeriod,
+  isConversationRequired as isTrustConversationRequired,
+  type RegressionStatus,
+  type TrustRegressionConfig,
+  type RegressionEvent,
+  type RegressionNotification as TrustRegressionNotification,
+  type ChildExplanationInput,
+  type ConversationRecord,
+} from './contracts/trustRegression'
+
+// Trust Regression Service exports (Story 37.6)
+export {
+  createRegressionEvent as createTrustRegressionEvent,
+  getRegressionEventById as getTrustRegressionEventById,
+  getRegressionStatus as getTrustRegressionStatus,
+  isInGracePeriod as isTrustRegressionInGracePeriod,
+  isConversationRequired as isTrustRegressionConversationRequired,
+  getGraceDaysRemaining as getTrustGraceDaysRemaining,
+  recordChildExplanation,
+  markConversationHeld,
+  resolveRegression,
+  revertMonitoring,
+  updateEventStatus as updateTrustEventStatus,
+  canChangeMonitoring,
+  getRegressionSummary as getTrustRegressionSummary,
+  clearAllEvents as clearTrustRegressionEvents,
+  getAllEventsForChild as getAllTrustEventsForChild,
+} from './services/trustRegressionService'
+
+// Regression Notification Service exports (Story 37.6)
+export {
+  getChildRegressionNotification,
+  getParentRegressionNotification,
+  getRegressionNotification,
+  getGracePeriodReminder,
+  getConversationPrompt,
+  getSupportiveFraming,
+  getGracePeriodExplanation,
+  getExplanationAcknowledgment,
+  getConversationCompleteMessage,
+  getResolutionOptions,
+  validateSupportiveFraming,
+  getAllRegressionMessages,
+} from './services/regressionNotificationService'
