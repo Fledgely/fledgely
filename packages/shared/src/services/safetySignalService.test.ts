@@ -71,6 +71,49 @@ vi.mock('./signalRetentionService', () => ({
   }),
 }))
 
+// Story 7.5.7: Blackout and suppression mocks
+vi.mock('./signalBlackoutService', () => ({
+  createBlackout: vi.fn().mockResolvedValue({
+    id: 'mock-blackout-id',
+    signalId: 'mock-signal-id',
+    childId: 'mock-child-id',
+    startedAt: new Date(),
+    expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    extendedBy: null,
+    extendedAt: null,
+    extensions: [],
+    status: 'active',
+  }),
+}))
+
+vi.mock('./notificationSuppressionService', () => ({
+  createSuppression: vi.fn().mockResolvedValue({
+    id: 'mock-supp-id',
+    signalId: 'mock-signal-id',
+    childId: 'mock-child-id',
+    suppressionType: 'all',
+    startedAt: new Date(),
+    expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    active: true,
+  }),
+}))
+
+vi.mock('./activityGapFillerService', () => ({
+  fillActivityGap: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('./privacyGapService', () => ({
+  createSignalPrivacyGap: vi.fn().mockResolvedValue({
+    id: 'mock-gap-id',
+    signalId: 'mock-signal-id',
+    childId: 'mock-child-id',
+    startTime: new Date(),
+    endTime: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    applied: false,
+    appliedAt: null,
+  }),
+}))
+
 describe('Safety Signal Service', () => {
   beforeEach(() => {
     clearAllSignalData()
@@ -539,6 +582,106 @@ describe('Safety Signal Service', () => {
       )
 
       expect(result.signal.deviceId).toBe('device_123')
+    })
+  })
+
+  // ============================================
+  // Story 7.5.7 Task 6: 48-Hour Blackout Integration Tests
+  // ============================================
+
+  describe('createIsolatedSafetySignal - Story 7.5.7 Blackout Integration', () => {
+    it('should create 48-hour blackout after signal creation (AC1)', async () => {
+      const { createBlackout } = await import('./signalBlackoutService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createBlackout).toHaveBeenCalled()
+    })
+
+    it('should create notification suppression for blackout period (AC1)', async () => {
+      const { createSuppression } = await import('./notificationSuppressionService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createSuppression).toHaveBeenCalled()
+    })
+
+    it('should start activity gap filling (AC2, AC3)', async () => {
+      const { fillActivityGap } = await import('./activityGapFillerService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(fillActivityGap).toHaveBeenCalled()
+    })
+
+    it('should create privacy gap for post-blackout masking (AC5)', async () => {
+      const { createSignalPrivacyGap } = await import('./privacyGapService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createSignalPrivacyGap).toHaveBeenCalled()
+    })
+
+    it('should return blackout ID in result', async () => {
+      const result = await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(result.blackoutId).toBeDefined()
+      expect(result.blackoutId).toBe('mock-blackout-id')
+    })
+
+    it('should return suppression ID in result', async () => {
+      const result = await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(result.suppressionId).toBeDefined()
+      expect(result.suppressionId).toBe('mock-supp-id')
+    })
+
+    it('should return privacy gap ID in result', async () => {
+      const result = await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(result.privacyGapId).toBeDefined()
+      expect(result.privacyGapId).toBe('mock-gap-id')
+    })
+
+    it('should pass child ID to blackout creation', async () => {
+      const { createBlackout } = await import('./signalBlackoutService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createBlackout).toHaveBeenCalledWith(expect.any(String), 'child_123')
+    })
+
+    it('should pass blackout expiry to suppression creation', async () => {
+      const { createSuppression } = await import('./notificationSuppressionService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createSuppression).toHaveBeenCalledWith(
+        expect.any(String),
+        'child_123',
+        expect.any(Date)
+      )
+    })
+
+    it('should pass blackout period to activity gap filler', async () => {
+      const { fillActivityGap } = await import('./activityGapFillerService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(fillActivityGap).toHaveBeenCalledWith('child_123', expect.any(Date), expect.any(Date))
+    })
+
+    it('should create privacy gap with blackout period', async () => {
+      const { createSignalPrivacyGap } = await import('./privacyGapService')
+
+      await createIsolatedSafetySignal('child_123', 'web', 'logo_tap', 'US')
+
+      expect(createSignalPrivacyGap).toHaveBeenCalledWith(
+        expect.any(String),
+        'child_123',
+        expect.any(Date),
+        expect.any(Date)
+      )
     })
   })
 })

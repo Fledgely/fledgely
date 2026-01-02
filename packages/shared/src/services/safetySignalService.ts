@@ -30,6 +30,12 @@ import { generateSignalEncryptionKey, encryptSignalData } from './signalEncrypti
 import { storeIsolatedSignal, type IsolatedSignal } from './isolatedSignalStorageService'
 import { createRetentionStatus } from './signalRetentionService'
 
+// Story 7.5.7: 48-Hour Blackout imports
+import { createBlackout } from './signalBlackoutService'
+import { createSuppression } from './notificationSuppressionService'
+import { fillActivityGap } from './activityGapFillerService'
+import { createSignalPrivacyGap } from './privacyGapService'
+
 // ============================================
 // In-Memory Storage (would be Firestore in production)
 // ============================================
@@ -328,6 +334,12 @@ export interface IsolatedSafetySignalResult {
   isolatedSignal: IsolatedSignal
   /** The encryption key ID used */
   encryptionKeyId: string
+  /** Story 7.5.7: Blackout ID for 48-hour family notification blackout */
+  blackoutId: string
+  /** Story 7.5.7: Suppression ID for notification suppression */
+  suppressionId: string
+  /** Story 7.5.7: Privacy gap ID for post-blackout data masking */
+  privacyGapId: string
 }
 
 /**
@@ -414,10 +426,34 @@ export async function createIsolatedSafetySignal(
   // AC4: Signal excluded from family audit trail
   // (No audit logging to family collections)
 
+  // ============================================
+  // Story 7.5.7: 48-Hour Blackout Integration
+  // ============================================
+
+  // 7. Create 48-hour blackout
+  // AC1: No family notifications during blackout
+  const blackout = await createBlackout(signal.id, childId)
+
+  // 8. Create notification suppression for blackout period
+  // AC1: All notification channels are blocked
+  const suppression = await createSuppression(signal.id, childId, blackout.expiresAt)
+
+  // 9. Start gap filling for activity
+  // AC2, AC3: Fill monitoring gaps with synthetic normal activity
+  const now = new Date()
+  await fillActivityGap(childId, now, blackout.expiresAt)
+
+  // 10. Create privacy gap for post-blackout masking
+  // AC5: Privacy gaps applied after blackout ends
+  const privacyGap = await createSignalPrivacyGap(signal.id, childId, now, blackout.expiresAt)
+
   return {
     signal,
     isolatedSignal,
     encryptionKeyId: keyId,
+    blackoutId: blackout.id,
+    suppressionId: suppression.id,
+    privacyGapId: privacyGap.id,
   }
 }
 

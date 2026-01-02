@@ -1,624 +1,612 @@
 /**
- * Signal Blackout Service Tests - Story 7.5.2 Task 6
+ * SignalBlackoutService Tests - Story 7.5.7 Task 1
  *
- * TDD tests for family notification blackout period management.
- * AC5: No family notification for 48 hours.
+ * TDD tests for 48-hour family notification blackout.
+ * AC1: No family notifications during blackout
+ * AC4: External partner can extend blackout
  *
- * CRITICAL: Blackout prevents families from seeing signal-related activity
- * during initial crisis response period.
+ * CRITICAL SAFETY:
+ * - Blackout is 48-hour MINIMUM
+ * - Partners can extend in 24-hour increments
+ * - All operations logged to admin audit
+ * - Family cannot access blackout data
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as firestore from 'firebase/firestore'
 import {
-  isSignalInBlackout,
-  startBlackoutPeriod,
-  extendBlackoutPeriod,
+  createBlackout,
+  isBlackoutActive,
+  extendBlackout,
+  getBlackoutTimeRemaining,
+  releaseBlackoutEarly,
   getBlackoutStatus,
-  cancelBlackout,
-  getActiveBlackouts,
-  cleanupExpiredBlackouts,
-  DEFAULT_BLACKOUT_HOURS,
-  MAX_EXTENSION_HOURS,
-  type BlackoutStatus as _BlackoutStatus,
-  type BlackoutStore,
+  SIGNAL_BLACKOUTS_COLLECTION,
+  type SignalBlackout,
+  type BlackoutExtension,
 } from './signalBlackoutService'
-import type { BlackoutRecord } from '../contracts/crisisPartner'
 
-describe('Signal Blackout Service', () => {
-  let mockStore: BlackoutStore
+// Mock Firebase
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(),
+  collection: vi.fn(),
+  doc: vi.fn(),
+  getDoc: vi.fn(),
+  setDoc: vi.fn(),
+  updateDoc: vi.fn(),
+  query: vi.fn(),
+  where: vi.fn(),
+  getDocs: vi.fn(),
+}))
 
+describe('SignalBlackoutService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Create mock store for testing
-    mockStore = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-      getAll: vi.fn(),
-      getBySignalId: vi.fn(),
-    }
   })
 
-  // ============================================
-  // Constants Tests
-  // ============================================
-
-  describe('Constants', () => {
-    it('should have default blackout of 48 hours', () => {
-      expect(DEFAULT_BLACKOUT_HOURS).toBe(48)
+  describe('SIGNAL_BLACKOUTS_COLLECTION', () => {
+    it('should be named signalBlackouts', () => {
+      expect(SIGNAL_BLACKOUTS_COLLECTION).toBe('signalBlackouts')
     })
 
-    it('should have maximum extension of 72 hours', () => {
-      expect(MAX_EXTENSION_HOURS).toBe(72)
+    it('should be a root-level collection (not under families)', () => {
+      expect(SIGNAL_BLACKOUTS_COLLECTION).not.toContain('/')
+      expect(SIGNAL_BLACKOUTS_COLLECTION).not.toContain('families')
     })
   })
 
-  // ============================================
-  // startBlackoutPeriod Tests
-  // ============================================
+  describe('createBlackout', () => {
+    it('should create a 48-hour blackout for signal', async () => {
+      const mockDocRef = {}
+      vi.mocked(firestore.doc).mockReturnValue(mockDocRef as any)
+      vi.mocked(firestore.setDoc).mockResolvedValue(undefined)
 
-  describe('startBlackoutPeriod', () => {
-    it('should create a blackout record with default 48 hours', async () => {
-      const signalId = 'sig_123'
+      const result = await createBlackout('signal-123', 'child-456')
 
-      mockStore.getBySignalId.mockResolvedValue(null)
-      mockStore.set.mockResolvedValue(undefined)
-
-      const record = await startBlackoutPeriod(signalId, mockStore)
-
-      expect(record.signalId).toBe(signalId)
-      expect(record.active).toBe(true)
-      expect(mockStore.set).toHaveBeenCalledWith(record.id, record)
+      expect(result.signalId).toBe('signal-123')
+      expect(result.childId).toBe('child-456')
+      expect(result.status).toBe('active')
     })
 
-    it('should create blackout with custom duration', async () => {
-      const signalId = 'sig_123'
-      const durationHours = 24
+    it('should set expiresAt to 48 hours from now', async () => {
+      const mockDocRef = {}
+      vi.mocked(firestore.doc).mockReturnValue(mockDocRef as any)
+      vi.mocked(firestore.setDoc).mockResolvedValue(undefined)
 
-      mockStore.getBySignalId.mockResolvedValue(null)
-      mockStore.set.mockResolvedValue(undefined)
+      const result = await createBlackout('signal-123', 'child-456')
 
-      const record = await startBlackoutPeriod(signalId, mockStore, durationHours)
+      const expectedExpiry = 48 * 60 * 60 * 1000 // 48 hours in ms
+      const expiresTime = result.expiresAt.getTime()
+      const startedTime = result.startedAt.getTime()
 
-      const durationMs = record.expiresAt.getTime() - record.startedAt.getTime()
-      const durationInHours = durationMs / (1000 * 60 * 60)
-
-      expect(durationInHours).toBeCloseTo(24, 1)
+      expect(expiresTime - startedTime).toBeCloseTo(expectedExpiry, -10)
     })
 
-    it('should reject if blackout already exists', async () => {
-      const signalId = 'sig_123'
-      const existingRecord: BlackoutRecord = {
-        id: 'blackout_existing',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(existingRecord)
-
-      await expect(startBlackoutPeriod(signalId, mockStore)).rejects.toThrow(
-        'Active blackout already exists'
-      )
+    it('should require signalId', async () => {
+      await expect(createBlackout('', 'child-456')).rejects.toThrow('signalId is required')
     })
 
-    it('should allow new blackout if previous expired', async () => {
-      const signalId = 'sig_123'
-      const expiredRecord: BlackoutRecord = {
-        id: 'blackout_old',
-        signalId,
-        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: false,
-      }
+    it('should require childId', async () => {
+      await expect(createBlackout('signal-123', '')).rejects.toThrow('childId is required')
+    })
 
-      mockStore.getBySignalId.mockResolvedValue(expiredRecord)
-      mockStore.set.mockResolvedValue(undefined)
+    it('should initialize with no extensions', async () => {
+      const mockDocRef = {}
+      vi.mocked(firestore.doc).mockReturnValue(mockDocRef as any)
+      vi.mocked(firestore.setDoc).mockResolvedValue(undefined)
 
-      const record = await startBlackoutPeriod(signalId, mockStore)
+      const result = await createBlackout('signal-123', 'child-456')
 
-      expect(record.signalId).toBe(signalId)
-      expect(record.active).toBe(true)
+      expect(result.extensions).toEqual([])
+      expect(result.extendedBy).toBeNull()
+      expect(result.extendedAt).toBeNull()
+    })
+
+    it('should store blackout in isolated collection', async () => {
+      const mockDocRef = {}
+      vi.mocked(firestore.doc).mockReturnValue(mockDocRef as any)
+      vi.mocked(firestore.setDoc).mockResolvedValue(undefined)
+
+      await createBlackout('signal-123', 'child-456')
+
+      expect(firestore.doc).toHaveBeenCalledWith(undefined, 'signalBlackouts', expect.any(String))
     })
 
     it('should generate unique blackout ID', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-      mockStore.set.mockResolvedValue(undefined)
+      const mockDocRef = {}
+      vi.mocked(firestore.doc).mockReturnValue(mockDocRef as any)
+      vi.mocked(firestore.setDoc).mockResolvedValue(undefined)
 
-      const record1 = await startBlackoutPeriod('sig_1', mockStore)
-      const record2 = await startBlackoutPeriod('sig_2', mockStore)
+      const result1 = await createBlackout('signal-1', 'child-1')
+      const result2 = await createBlackout('signal-2', 'child-2')
 
-      expect(record1.id).not.toBe(record2.id)
-    })
-
-    it('should reject negative duration', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      await expect(startBlackoutPeriod('sig_123', mockStore, -1)).rejects.toThrow(
-        'Duration must be positive'
-      )
-    })
-
-    it('should reject zero duration', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      await expect(startBlackoutPeriod('sig_123', mockStore, 0)).rejects.toThrow(
-        'Duration must be positive'
-      )
+      expect(result1.id).toBeDefined()
+      expect(result2.id).toBeDefined()
+      expect(result1.id).not.toBe(result2.id)
     })
   })
 
-  // ============================================
-  // isSignalInBlackout Tests
-  // ============================================
-
-  describe('isSignalInBlackout', () => {
-    it('should return true for active blackout', async () => {
-      const signalId = 'sig_123'
-      const activeRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
+  describe('isBlackoutActive', () => {
+    it('should return true for active blackout within 48 hours', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
         startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         extendedBy: null,
-        active: true,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(activeRecord)
+      vi.mocked(firestore.doc).mockReturnValue({} as any)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
 
-      const result = await isSignalInBlackout(signalId, mockStore)
+      const result = await isBlackoutActive('signal-123')
 
       expect(result).toBe(true)
     })
 
     it('should return false for expired blackout', async () => {
-      const signalId = 'sig_123'
-      const expiredRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000), // 72 hours ago
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 24 hours ago
         extendedBy: null,
-        active: true, // Still marked active but time expired
+        extendedAt: null,
+        extensions: [],
+        status: 'expired',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(expiredRecord)
+      vi.mocked(firestore.doc).mockReturnValue({} as any)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
 
-      const result = await isSignalInBlackout(signalId, mockStore)
+      const result = await isBlackoutActive('signal-123')
 
       expect(result).toBe(false)
     })
 
-    it('should return false for inactive blackout', async () => {
-      const signalId = 'sig_123'
-      const inactiveRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
+    it('should return false when no blackout exists', async () => {
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: true,
+        docs: [],
+      } as any)
+
+      const result = await isBlackoutActive('signal-123')
+
+      expect(result).toBe(false)
+    })
+
+    it('should return false for released blackout', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
         startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         extendedBy: null,
-        active: false,
+        extendedAt: null,
+        extensions: [],
+        status: 'released',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(inactiveRecord)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
 
-      const result = await isSignalInBlackout(signalId, mockStore)
+      const result = await isBlackoutActive('signal-123')
 
       expect(result).toBe(false)
     })
 
-    it('should return false for no blackout', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      const result = await isSignalInBlackout('sig_123', mockStore)
-
-      expect(result).toBe(false)
+    it('should require signalId', async () => {
+      await expect(isBlackoutActive('')).rejects.toThrow('signalId is required')
     })
   })
 
-  // ============================================
-  // extendBlackoutPeriod Tests
-  // ============================================
-
-  describe('extendBlackoutPeriod', () => {
-    it('should extend an active blackout', async () => {
-      const signalId = 'sig_123'
-      const partnerId = 'partner_456'
-      const additionalHours = 24
+  describe('extendBlackout', () => {
+    it('should extend blackout by 24 hours', async () => {
       const originalExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000)
-
-      const existingRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
         expiresAt: originalExpiry,
         extendedBy: null,
-        active: true,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(existingRecord)
-      mockStore.set.mockResolvedValue(undefined)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
+      vi.mocked(firestore.updateDoc).mockResolvedValue(undefined)
 
-      const extended = await extendBlackoutPeriod(signalId, additionalHours, partnerId, mockStore)
+      const result = await extendBlackout('signal-123', 'partner-001', 24, 'Child needs more time')
 
-      expect(extended.extendedBy).toBe(partnerId)
-      expect(extended.expiresAt.getTime()).toBeGreaterThan(originalExpiry.getTime())
+      expect(result.extendedBy).toBe('partner-001')
+      expect(result.extensions.length).toBe(1)
+      expect(result.extensions[0].additionalHours).toBe(24)
     })
 
-    it('should reject extension without partner authorization', async () => {
-      await expect(extendBlackoutPeriod('sig_123', 24, '', mockStore)).rejects.toThrow(
-        'Partner authorization required'
+    it('should extend blackout by 48 hours', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        extendedBy: null,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
+      }
+
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
+      vi.mocked(firestore.updateDoc).mockResolvedValue(undefined)
+
+      const result = await extendBlackout(
+        'signal-123',
+        'partner-001',
+        48,
+        'Safety plan in progress'
+      )
+
+      expect(result.extensions[0].additionalHours).toBe(48)
+    })
+
+    it('should require signalId', async () => {
+      await expect(extendBlackout('', 'partner-001', 24, 'reason')).rejects.toThrow(
+        'signalId is required'
       )
     })
 
-    it('should reject extension for non-existent blackout', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      await expect(extendBlackoutPeriod('sig_123', 24, 'partner_456', mockStore)).rejects.toThrow(
-        'No active blackout found'
+    it('should require partnerId', async () => {
+      await expect(extendBlackout('signal-123', '', 24, 'reason')).rejects.toThrow(
+        'partnerId is required'
       )
     })
 
-    it('should reject extension for expired blackout', async () => {
-      const expiredRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId: 'sig_123',
+    it('should require reason', async () => {
+      await expect(extendBlackout('signal-123', 'partner-001', 24, '')).rejects.toThrow(
+        'reason is required'
+      )
+    })
+
+    it('should only allow 24, 48, or 72 hour extensions', async () => {
+      await expect(
+        extendBlackout('signal-123', 'partner-001', 12 as any, 'reason')
+      ).rejects.toThrow('Extension must be 24, 48, or 72 hours')
+    })
+
+    it('should throw when blackout not found', async () => {
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: true,
+        docs: [],
+      } as any)
+
+      await expect(extendBlackout('nonexistent', 'partner-001', 24, 'reason')).rejects.toThrow(
+        'Blackout not found'
+      )
+    })
+
+    it('should throw when blackout is not active', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
         startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
         expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
         extendedBy: null,
-        active: true,
+        extendedAt: null,
+        extensions: [],
+        status: 'expired',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(expiredRecord)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
 
-      await expect(extendBlackoutPeriod('sig_123', 24, 'partner_456', mockStore)).rejects.toThrow(
-        'Blackout has expired'
+      await expect(extendBlackout('signal-123', 'partner-001', 24, 'reason')).rejects.toThrow(
+        'Blackout is not active'
       )
     })
 
-    it('should reject extension exceeding maximum', async () => {
-      const existingRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId: 'sig_123',
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: true,
+    it('should support multiple extensions', async () => {
+      const existingExtension: BlackoutExtension = {
+        extendedBy: 'partner-001',
+        extendedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        additionalHours: 24,
+        reason: 'First extension',
+      }
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        extendedBy: 'partner-001',
+        extendedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        extensions: [existingExtension],
+        status: 'active',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(existingRecord)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
+      vi.mocked(firestore.updateDoc).mockResolvedValue(undefined)
 
-      await expect(
-        extendBlackoutPeriod('sig_123', MAX_EXTENSION_HOURS + 1, 'partner_456', mockStore)
-      ).rejects.toThrow('Extension exceeds maximum')
-    })
+      const result = await extendBlackout('signal-123', 'partner-002', 24, 'Second extension')
 
-    it('should allow multiple extensions up to max', async () => {
-      const signalId = 'sig_123'
-      const partnerA = 'partner_A'
-      const partnerB = 'partner_B'
-
-      const existingRecord: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(existingRecord)
-      mockStore.set.mockImplementation(async (_, record) => {
-        mockStore.getBySignalId.mockResolvedValue(record as BlackoutRecord)
-      })
-
-      const first = await extendBlackoutPeriod(signalId, 24, partnerA, mockStore)
-      expect(first.extendedBy).toBe(partnerA)
-
-      const second = await extendBlackoutPeriod(signalId, 24, partnerB, mockStore)
-      expect(second.extendedBy).toBe(partnerB)
+      expect(result.extensions.length).toBe(2)
     })
   })
 
-  // ============================================
-  // getBlackoutStatus Tests
-  // ============================================
+  describe('getBlackoutTimeRemaining', () => {
+    it('should return time remaining in milliseconds', async () => {
+      const expiresIn = 12 * 60 * 60 * 1000 // 12 hours
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(),
+        expiresAt: new Date(Date.now() + expiresIn),
+        extendedBy: null,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
+      }
+
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
+
+      const result = await getBlackoutTimeRemaining('signal-123')
+
+      expect(result).toBeGreaterThan(expiresIn - 1000) // Allow 1 second tolerance
+      expect(result).toBeLessThanOrEqual(expiresIn)
+    })
+
+    it('should return 0 for expired blackout', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        extendedBy: null,
+        extendedAt: null,
+        extensions: [],
+        status: 'expired',
+      }
+
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
+
+      const result = await getBlackoutTimeRemaining('signal-123')
+
+      expect(result).toBe(0)
+    })
+
+    it('should return 0 when no blackout exists', async () => {
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: true,
+        docs: [],
+      } as any)
+
+      const result = await getBlackoutTimeRemaining('signal-123')
+
+      expect(result).toBe(0)
+    })
+
+    it('should require signalId', async () => {
+      await expect(getBlackoutTimeRemaining('')).rejects.toThrow('signalId is required')
+    })
+  })
+
+  describe('releaseBlackoutEarly', () => {
+    it('should release blackout and set status to released', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        extendedBy: null,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
+      }
+
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
+      vi.mocked(firestore.updateDoc).mockResolvedValue(undefined)
+
+      await releaseBlackoutEarly('signal-123', 'partner-001', 'Safety plan completed')
+
+      expect(firestore.updateDoc).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          status: 'released',
+        })
+      )
+    })
+
+    it('should require signalId', async () => {
+      await expect(releaseBlackoutEarly('', 'partner-001', 'reason')).rejects.toThrow(
+        'signalId is required'
+      )
+    })
+
+    it('should require partnerId', async () => {
+      await expect(releaseBlackoutEarly('signal-123', '', 'reason')).rejects.toThrow(
+        'partnerId is required'
+      )
+    })
+
+    it('should require reason', async () => {
+      await expect(releaseBlackoutEarly('signal-123', 'partner-001', '')).rejects.toThrow(
+        'reason is required'
+      )
+    })
+
+    it('should throw when blackout not found', async () => {
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: true,
+        docs: [],
+      } as any)
+
+      await expect(releaseBlackoutEarly('nonexistent', 'partner-001', 'reason')).rejects.toThrow(
+        'Blackout not found'
+      )
+    })
+
+    it('should throw when blackout is not active', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        extendedBy: null,
+        extendedAt: null,
+        extensions: [],
+        status: 'expired',
+      }
+
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ id: 'blackout-123', data: () => mockBlackout, ref: {} }],
+      } as any)
+
+      await expect(releaseBlackoutEarly('signal-123', 'partner-001', 'reason')).rejects.toThrow(
+        'Blackout is not active'
+      )
+    })
+  })
 
   describe('getBlackoutStatus', () => {
-    it('should return active status for ongoing blackout', async () => {
-      const signalId = 'sig_123'
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
-
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
+    it('should return blackout status for signal', async () => {
+      const mockBlackout: SignalBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
         startedAt: new Date(),
-        expiresAt,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         extendedBy: null,
-        active: true,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(record)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
 
-      const status = await getBlackoutStatus(signalId, mockStore)
+      const result = await getBlackoutStatus('signal-123')
 
-      expect(status.inBlackout).toBe(true)
-      expect(status.expiresAt).toEqual(expiresAt)
-      expect(status.remainingHours).toBeGreaterThan(0)
+      expect(result).not.toBeNull()
+      expect(result?.signalId).toBe('signal-123')
+      expect(result?.status).toBe('active')
     })
 
-    it('should return inactive status for expired blackout', async () => {
-      const signalId = 'sig_123'
+    it('should return null when no blackout exists', async () => {
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: true,
+        docs: [],
+      } as any)
 
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-        expiresAt: new Date(Date.now() - 1000),
+      const result = await getBlackoutStatus('nonexistent')
+
+      expect(result).toBeNull()
+    })
+
+    it('should require signalId', async () => {
+      await expect(getBlackoutStatus('')).rejects.toThrow('signalId is required')
+    })
+
+    it('should convert Firestore timestamps to Dates', async () => {
+      const mockBlackout = {
+        id: 'blackout-123',
+        signalId: 'signal-123',
+        childId: 'child-456',
+        startedAt: { toDate: () => new Date() },
+        expiresAt: { toDate: () => new Date(Date.now() + 24 * 60 * 60 * 1000) },
         extendedBy: null,
-        active: true,
+        extendedAt: null,
+        extensions: [],
+        status: 'active',
       }
 
-      mockStore.getBySignalId.mockResolvedValue(record)
+      vi.mocked(firestore.query).mockReturnValue({} as any)
+      vi.mocked(firestore.where).mockReturnValue({} as any)
+      vi.mocked(firestore.getDocs).mockResolvedValue({
+        empty: false,
+        docs: [{ data: () => mockBlackout }],
+      } as any)
 
-      const status = await getBlackoutStatus(signalId, mockStore)
+      const result = await getBlackoutStatus('signal-123')
 
-      expect(status.inBlackout).toBe(false)
-      expect(status.remainingHours).toBe(0)
-    })
-
-    it('should return not-found status for no blackout', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      const status = await getBlackoutStatus('sig_123', mockStore)
-
-      expect(status.inBlackout).toBe(false)
-      expect(status.blackoutId).toBeNull()
-    })
-
-    it('should include extension info', async () => {
-      const signalId = 'sig_123'
-      const partnerId = 'partner_456'
-
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000),
-        extendedBy: partnerId,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(record)
-
-      const status = await getBlackoutStatus(signalId, mockStore)
-
-      expect(status.extendedBy).toBe(partnerId)
-    })
-  })
-
-  // ============================================
-  // cancelBlackout Tests
-  // ============================================
-
-  describe('cancelBlackout', () => {
-    it('should cancel an active blackout', async () => {
-      const signalId = 'sig_123'
-      const partnerId = 'partner_456'
-
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(record)
-      mockStore.set.mockResolvedValue(undefined)
-
-      const cancelled = await cancelBlackout(signalId, partnerId, mockStore)
-
-      expect(cancelled.active).toBe(false)
-      expect(mockStore.set).toHaveBeenCalled()
-    })
-
-    it('should reject cancellation without partner authorization', async () => {
-      await expect(cancelBlackout('sig_123', '', mockStore)).rejects.toThrow(
-        'Partner authorization required'
-      )
-    })
-
-    it('should reject cancellation for non-existent blackout', async () => {
-      mockStore.getBySignalId.mockResolvedValue(null)
-
-      await expect(cancelBlackout('sig_123', 'partner_456', mockStore)).rejects.toThrow(
-        'No blackout found'
-      )
-    })
-  })
-
-  // ============================================
-  // getActiveBlackouts Tests
-  // ============================================
-
-  describe('getActiveBlackouts', () => {
-    it('should return all active blackouts', async () => {
-      const records: BlackoutRecord[] = [
-        {
-          id: 'blackout_1',
-          signalId: 'sig_1',
-          startedAt: new Date(),
-          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: true,
-        },
-        {
-          id: 'blackout_2',
-          signalId: 'sig_2',
-          startedAt: new Date(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: true,
-        },
-        {
-          id: 'blackout_3',
-          signalId: 'sig_3',
-          startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-          expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: false,
-        },
-      ]
-
-      mockStore.getAll.mockResolvedValue(records)
-
-      const active = await getActiveBlackouts(mockStore)
-
-      expect(active).toHaveLength(2)
-      expect(active.map((r) => r.id)).toContain('blackout_1')
-      expect(active.map((r) => r.id)).toContain('blackout_2')
-    })
-
-    it('should return empty array if no active blackouts', async () => {
-      mockStore.getAll.mockResolvedValue([])
-
-      const active = await getActiveBlackouts(mockStore)
-
-      expect(active).toHaveLength(0)
-    })
-
-    it('should filter out expired but still marked active', async () => {
-      const records: BlackoutRecord[] = [
-        {
-          id: 'blackout_1',
-          signalId: 'sig_1',
-          startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-          expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // Expired
-          extendedBy: null,
-          active: true, // Still marked active
-        },
-      ]
-
-      mockStore.getAll.mockResolvedValue(records)
-
-      const active = await getActiveBlackouts(mockStore)
-
-      expect(active).toHaveLength(0)
-    })
-  })
-
-  // ============================================
-  // cleanupExpiredBlackouts Tests
-  // ============================================
-
-  describe('cleanupExpiredBlackouts', () => {
-    it('should mark expired blackouts as inactive', async () => {
-      const records: BlackoutRecord[] = [
-        {
-          id: 'blackout_1',
-          signalId: 'sig_1',
-          startedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
-          expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: true,
-        },
-        {
-          id: 'blackout_2',
-          signalId: 'sig_2',
-          startedAt: new Date(),
-          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: true,
-        },
-      ]
-
-      mockStore.getAll.mockResolvedValue(records)
-      mockStore.set.mockResolvedValue(undefined)
-
-      const cleaned = await cleanupExpiredBlackouts(mockStore)
-
-      expect(cleaned).toBe(1)
-      expect(mockStore.set).toHaveBeenCalledTimes(1)
-    })
-
-    it('should return 0 if no expired blackouts', async () => {
-      const records: BlackoutRecord[] = [
-        {
-          id: 'blackout_1',
-          signalId: 'sig_1',
-          startedAt: new Date(),
-          expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-          extendedBy: null,
-          active: true,
-        },
-      ]
-
-      mockStore.getAll.mockResolvedValue(records)
-
-      const cleaned = await cleanupExpiredBlackouts(mockStore)
-
-      expect(cleaned).toBe(0)
-    })
-  })
-
-  // ============================================
-  // Edge Cases
-  // ============================================
-
-  describe('Edge Cases', () => {
-    it('should handle blackout expiring during check', async () => {
-      const signalId = 'sig_123'
-
-      // Blackout expires in 1ms
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 1),
-        extendedBy: null,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(record)
-
-      // Wait for expiry
-      await new Promise((resolve) => setTimeout(resolve, 10))
-
-      const result = await isSignalInBlackout(signalId, mockStore)
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle concurrent extensions', async () => {
-      const signalId = 'sig_123'
-
-      const record: BlackoutRecord = {
-        id: 'blackout_1',
-        signalId,
-        startedAt: new Date(),
-        expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-        extendedBy: null,
-        active: true,
-      }
-
-      mockStore.getBySignalId.mockResolvedValue(record)
-      mockStore.set.mockResolvedValue(undefined)
-
-      // Simulate concurrent extensions
-      const [result1, result2] = await Promise.all([
-        extendBlackoutPeriod(signalId, 12, 'partner_A', mockStore),
-        extendBlackoutPeriod(signalId, 12, 'partner_B', mockStore),
-      ])
-
-      // Both should succeed (last write wins in mock)
-      expect(result1).toBeDefined()
-      expect(result2).toBeDefined()
+      expect(result?.startedAt).toBeInstanceOf(Date)
+      expect(result?.expiresAt).toBeInstanceOf(Date)
     })
   })
 })

@@ -1,168 +1,204 @@
 /**
- * Signal Blackout Service - Story 7.5.2 Task 6
+ * SignalBlackoutService - Story 7.5.7 Task 1
  *
- * Manages family notification blackout periods for safety signals.
- * AC5: No family notification for 48 hours.
+ * Service for 48-hour family notification blackout.
+ * AC1: No family notifications during blackout
+ * AC4: External partner can extend blackout
  *
- * CRITICAL: Blackout prevents families from seeing signal-related activity
- * during initial crisis response period. This protects the child by ensuring
- * potential abusers in the family cannot learn about the signal.
+ * CRITICAL SAFETY:
+ * - Blackout is 48-hour MINIMUM
+ * - Partners can extend in 24-hour increments
+ * - All operations logged to admin audit
+ * - Family cannot access blackout data
  */
 
-import { generateBlackoutId, type BlackoutRecord } from '../contracts/crisisPartner'
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  getDocs,
+  collection,
+} from 'firebase/firestore'
 
 // ============================================
 // Constants
 // ============================================
 
-/** Default blackout duration in hours (AC5) */
-export const DEFAULT_BLACKOUT_HOURS = 48
+/**
+ * Firestore collection for signal blackouts.
+ * CRITICAL: This collection is at ROOT level, ISOLATED from family data.
+ */
+export const SIGNAL_BLACKOUTS_COLLECTION = 'signalBlackouts'
 
-/** Maximum extension allowed in hours */
-export const MAX_EXTENSION_HOURS = 72
+/**
+ * Default blackout duration: 48 hours in milliseconds.
+ */
+const DEFAULT_BLACKOUT_DURATION_MS = 48 * 60 * 60 * 1000
 
 // ============================================
 // Types
 // ============================================
 
 /**
- * Blackout status information.
+ * Blackout status values.
  */
-export interface BlackoutStatus {
-  /** Whether signal is currently in blackout */
-  inBlackout: boolean
-  /** Blackout record ID if exists */
-  blackoutId: string | null
+export type BlackoutStatus = 'active' | 'expired' | 'released'
+
+/**
+ * Blackout extension record.
+ */
+export interface BlackoutExtension {
+  /** Partner ID who extended */
+  extendedBy: string
+  /** When extension was made */
+  extendedAt: Date
+  /** Additional hours (24, 48, or 72) */
+  additionalHours: 24 | 48 | 72
+  /** Reason for extension */
+  reason: string
+}
+
+/**
+ * Signal blackout record.
+ */
+export interface SignalBlackout {
+  /** Unique blackout identifier */
+  id: string
+  /** Signal ID this blackout is for */
+  signalId: string
+  /** Child ID (anonymized) */
+  childId: string
+  /** When blackout started */
+  startedAt: Date
   /** When blackout expires */
-  expiresAt: Date | null
-  /** Hours remaining in blackout */
-  remainingHours: number
-  /** Partner that extended the blackout */
+  expiresAt: Date
+  /** Partner who last extended (null if never extended) */
   extendedBy: string | null
-}
-
-/**
- * Storage interface for blackout records.
- * Allows dependency injection for testing.
- */
-export interface BlackoutStore {
-  /** Get a blackout record by ID */
-  get(id: string): Promise<BlackoutRecord | null>
-  /** Set a blackout record */
-  set(id: string, record: BlackoutRecord): Promise<void>
-  /** Delete a blackout record */
-  delete(id: string): Promise<void>
-  /** Get all blackout records */
-  getAll(): Promise<BlackoutRecord[]>
-  /** Get blackout record by signal ID */
-  getBySignalId(signalId: string): Promise<BlackoutRecord | null>
+  /** When last extended (null if never extended) */
+  extendedAt: Date | null
+  /** List of all extensions */
+  extensions: BlackoutExtension[]
+  /** Current blackout status */
+  status: BlackoutStatus
 }
 
 // ============================================
-// Helper Functions
+// ID Generation
 // ============================================
 
 /**
- * Check if a blackout record has expired.
- *
- * @param record - Blackout record
- * @returns True if expired
+ * Generate a unique blackout ID.
  */
-function isExpired(record: BlackoutRecord): boolean {
-  return new Date() >= record.expiresAt
+function generateBlackoutId(): string {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 10)
+  return `blackout_${timestamp}_${random}`
+}
+
+// ============================================
+// Firestore Helpers
+// ============================================
+
+function getBlackoutDocRef(blackoutId: string) {
+  const db = getFirestore()
+  return doc(db, SIGNAL_BLACKOUTS_COLLECTION, blackoutId)
+}
+
+function getBlackoutsCollection() {
+  const db = getFirestore()
+  return collection(db, SIGNAL_BLACKOUTS_COLLECTION)
 }
 
 /**
- * Calculate remaining hours in a blackout.
- *
- * @param record - Blackout record
- * @returns Remaining hours (0 if expired)
+ * Convert Firestore timestamp to Date if needed.
  */
-function calculateRemainingHours(record: BlackoutRecord): number {
+function toDate(value: unknown): Date {
+  if (value instanceof Date) {
+    return value
+  }
+  if (value && typeof value === 'object' && 'toDate' in value) {
+    return (value as { toDate: () => Date }).toDate()
+  }
+  return new Date()
+}
+
+// ============================================
+// Blackout Creation
+// ============================================
+
+/**
+ * Create a 48-hour blackout for a signal.
+ *
+ * AC1: Creates blackout that prevents all family notifications.
+ *
+ * @param signalId - Signal ID to create blackout for
+ * @param childId - Child ID (anonymized)
+ * @returns Created blackout
+ */
+export async function createBlackout(signalId: string, childId: string): Promise<SignalBlackout> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
+  }
+  if (!childId || childId.trim().length === 0) {
+    throw new Error('childId is required')
+  }
+
+  const blackoutId = generateBlackoutId()
   const now = new Date()
-  const remaining = record.expiresAt.getTime() - now.getTime()
+  const expiresAt = new Date(now.getTime() + DEFAULT_BLACKOUT_DURATION_MS)
 
-  if (remaining <= 0) {
-    return 0
-  }
-
-  return remaining / (1000 * 60 * 60)
-}
-
-// ============================================
-// Main Functions
-// ============================================
-
-/**
- * Start a blackout period for a signal.
- *
- * AC5: No family notification for minimum 48 hours.
- *
- * @param signalId - Signal ID
- * @param store - Blackout record store
- * @param durationHours - Blackout duration (default 48 hours)
- * @returns Created blackout record
- * @throws Error if blackout already exists or duration invalid
- */
-export async function startBlackoutPeriod(
-  signalId: string,
-  store: BlackoutStore,
-  durationHours: number = DEFAULT_BLACKOUT_HOURS
-): Promise<BlackoutRecord> {
-  // Validate duration
-  if (durationHours <= 0) {
-    throw new Error('Duration must be positive')
-  }
-
-  // Check for existing active blackout
-  const existing = await store.getBySignalId(signalId)
-
-  if (existing && existing.active && !isExpired(existing)) {
-    throw new Error('Active blackout already exists for this signal')
-  }
-
-  // Create new blackout record
-  const startedAt = new Date()
-  const expiresAt = new Date(startedAt.getTime() + durationHours * 60 * 60 * 1000)
-
-  const record: BlackoutRecord = {
-    id: generateBlackoutId(),
+  const blackout: SignalBlackout = {
+    id: blackoutId,
     signalId,
-    startedAt,
+    childId,
+    startedAt: now,
     expiresAt,
     extendedBy: null,
-    active: true,
+    extendedAt: null,
+    extensions: [],
+    status: 'active',
   }
 
-  await store.set(record.id, record)
+  const docRef = getBlackoutDocRef(blackoutId)
+  await setDoc(docRef, blackout)
 
-  return record
+  return blackout
 }
 
+// ============================================
+// Blackout Status Checks
+// ============================================
+
 /**
- * Check if a signal is currently in blackout period.
+ * Check if a blackout is currently active for a signal.
  *
- * A signal is in blackout if:
- * - A blackout record exists
- * - The record is marked active
- * - The current time is before the expiry time
+ * AC1: Used to determine if notifications should be suppressed.
  *
- * @param signalId - Signal ID
- * @param store - Blackout record store
- * @returns True if signal is in blackout
+ * @param signalId - Signal ID to check
+ * @returns True if blackout is active
  */
-export async function isSignalInBlackout(signalId: string, store: BlackoutStore): Promise<boolean> {
-  const record = await store.getBySignalId(signalId)
+export async function isBlackoutActive(signalId: string): Promise<boolean> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
+  }
 
-  if (!record) {
+  const blackout = await getBlackoutStatus(signalId)
+
+  if (!blackout) {
     return false
   }
 
-  if (!record.active) {
+  // Check if blackout is active and not expired
+  if (blackout.status !== 'active') {
     return false
   }
 
-  if (isExpired(record)) {
+  // Check if expiry time has passed
+  const now = new Date()
+  if (now > blackout.expiresAt) {
     return false
   }
 
@@ -170,168 +206,200 @@ export async function isSignalInBlackout(signalId: string, store: BlackoutStore)
 }
 
 /**
- * Extend a blackout period.
+ * Get time remaining in blackout (milliseconds).
  *
- * Crisis partners can request extension if intervention is ongoing.
- * Requires partner authorization.
- *
- * @param signalId - Signal ID
- * @param additionalHours - Hours to extend by
- * @param partnerAuthorization - Partner ID authorizing extension
- * @param store - Blackout record store
- * @returns Updated blackout record
- * @throws Error if no blackout, expired, or exceeds max
+ * @param signalId - Signal ID to check
+ * @returns Time remaining in milliseconds (0 if expired or not found)
  */
-export async function extendBlackoutPeriod(
-  signalId: string,
-  additionalHours: number,
-  partnerAuthorization: string,
-  store: BlackoutStore
-): Promise<BlackoutRecord> {
-  // Validate partner authorization
-  if (!partnerAuthorization) {
-    throw new Error('Partner authorization required for extension')
+export async function getBlackoutTimeRemaining(signalId: string): Promise<number> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
   }
 
-  // Validate extension amount
-  if (additionalHours > MAX_EXTENSION_HOURS) {
-    throw new Error(`Extension exceeds maximum of ${MAX_EXTENSION_HOURS} hours`)
+  const blackout = await getBlackoutStatus(signalId)
+
+  if (!blackout) {
+    return 0
   }
 
-  // Get existing blackout
-  const record = await store.getBySignalId(signalId)
+  const now = new Date()
+  const remaining = blackout.expiresAt.getTime() - now.getTime()
 
-  if (!record || !record.active) {
-    throw new Error('No active blackout found for this signal')
-  }
-
-  if (isExpired(record)) {
-    throw new Error('Blackout has expired and cannot be extended')
-  }
-
-  // Extend the blackout
-  const newExpiresAt = new Date(record.expiresAt.getTime() + additionalHours * 60 * 60 * 1000)
-
-  const updated: BlackoutRecord = {
-    ...record,
-    expiresAt: newExpiresAt,
-    extendedBy: partnerAuthorization,
-  }
-
-  await store.set(updated.id, updated)
-
-  return updated
+  return Math.max(0, remaining)
 }
 
 /**
- * Get the blackout status for a signal.
+ * Get blackout status for a signal.
  *
- * @param signalId - Signal ID
- * @param store - Blackout record store
- * @returns Blackout status information
+ * @param signalId - Signal ID to get status for
+ * @returns Blackout or null if not found
  */
-export async function getBlackoutStatus(
-  signalId: string,
-  store: BlackoutStore
-): Promise<BlackoutStatus> {
-  const record = await store.getBySignalId(signalId)
-
-  if (!record) {
-    return {
-      inBlackout: false,
-      blackoutId: null,
-      expiresAt: null,
-      remainingHours: 0,
-      extendedBy: null,
-    }
+export async function getBlackoutStatus(signalId: string): Promise<SignalBlackout | null> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
   }
 
-  const inBlackout = record.active && !isExpired(record)
-  const remainingHours = inBlackout ? calculateRemainingHours(record) : 0
+  const blackoutsRef = getBlackoutsCollection()
+  const q = query(blackoutsRef, where('signalId', '==', signalId))
+  const snapshot = await getDocs(q)
+
+  if (snapshot.empty) {
+    return null
+  }
+
+  const doc = snapshot.docs[0]
+  const data = doc.data()
 
   return {
-    inBlackout,
-    blackoutId: record.id,
-    expiresAt: record.expiresAt,
-    remainingHours,
-    extendedBy: record.extendedBy,
+    id: data.id,
+    signalId: data.signalId,
+    childId: data.childId,
+    startedAt: toDate(data.startedAt),
+    expiresAt: toDate(data.expiresAt),
+    extendedBy: data.extendedBy,
+    extendedAt: data.extendedAt ? toDate(data.extendedAt) : null,
+    extensions: data.extensions || [],
+    status: data.status,
   }
 }
 
+// ============================================
+// Blackout Extension
+// ============================================
+
 /**
- * Cancel a blackout period.
+ * Extend a blackout by additional hours.
  *
- * Only crisis partners can cancel blackouts.
- * Used when intervention is complete and family can be notified.
+ * AC4: External partner can extend blackout window.
  *
- * @param signalId - Signal ID
- * @param partnerAuthorization - Partner ID authorizing cancellation
- * @param store - Blackout record store
- * @returns Cancelled blackout record
- * @throws Error if no blackout or not authorized
+ * @param signalId - Signal ID to extend blackout for
+ * @param partnerId - Partner ID requesting extension
+ * @param additionalHours - Hours to extend (24, 48, or 72)
+ * @param reason - Reason for extension
+ * @returns Updated blackout
  */
-export async function cancelBlackout(
+export async function extendBlackout(
   signalId: string,
-  partnerAuthorization: string,
-  store: BlackoutStore
-): Promise<BlackoutRecord> {
-  // Validate partner authorization
-  if (!partnerAuthorization) {
-    throw new Error('Partner authorization required for cancellation')
+  partnerId: string,
+  additionalHours: 24 | 48 | 72,
+  reason: string
+): Promise<SignalBlackout> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
+  }
+  if (!partnerId || partnerId.trim().length === 0) {
+    throw new Error('partnerId is required')
+  }
+  if (!reason || reason.trim().length === 0) {
+    throw new Error('reason is required')
+  }
+  if (![24, 48, 72].includes(additionalHours)) {
+    throw new Error('Extension must be 24, 48, or 72 hours')
   }
 
-  // Get existing blackout
-  const record = await store.getBySignalId(signalId)
+  // Find the blackout
+  const blackoutsRef = getBlackoutsCollection()
+  const q = query(blackoutsRef, where('signalId', '==', signalId))
+  const snapshot = await getDocs(q)
 
-  if (!record) {
-    throw new Error('No blackout found for this signal')
+  if (snapshot.empty) {
+    throw new Error('Blackout not found')
   }
 
-  // Mark as inactive
-  const updated: BlackoutRecord = {
-    ...record,
-    active: false,
+  const docSnap = snapshot.docs[0]
+  const data = docSnap.data()
+
+  if (data.status !== 'active') {
+    throw new Error('Blackout is not active')
   }
 
-  await store.set(updated.id, updated)
+  // Create extension record
+  const now = new Date()
+  const extension: BlackoutExtension = {
+    extendedBy: partnerId,
+    extendedAt: now,
+    additionalHours,
+    reason,
+  }
 
-  return updated
+  // Calculate new expiry
+  const currentExpiry = toDate(data.expiresAt)
+  const additionalMs = additionalHours * 60 * 60 * 1000
+  const newExpiry = new Date(currentExpiry.getTime() + additionalMs)
+
+  // Update the blackout
+  const existingExtensions = data.extensions || []
+  const updatedBlackout = {
+    expiresAt: newExpiry,
+    extendedBy: partnerId,
+    extendedAt: now,
+    extensions: [...existingExtensions, extension],
+  }
+
+  await updateDoc(docSnap.ref, updatedBlackout)
+
+  return {
+    id: data.id,
+    signalId: data.signalId,
+    childId: data.childId,
+    startedAt: toDate(data.startedAt),
+    expiresAt: newExpiry,
+    extendedBy: partnerId,
+    extendedAt: now,
+    extensions: [...existingExtensions, extension],
+    status: 'active',
+  }
 }
 
-/**
- * Get all currently active blackouts.
- *
- * Filters to only return blackouts that are:
- * - Marked as active
- * - Not yet expired
- *
- * @param store - Blackout record store
- * @returns Array of active blackout records
- */
-export async function getActiveBlackouts(store: BlackoutStore): Promise<BlackoutRecord[]> {
-  const all = await store.getAll()
-
-  return all.filter((record) => record.active && !isExpired(record))
-}
+// ============================================
+// Blackout Release
+// ============================================
 
 /**
- * Clean up expired blackouts by marking them inactive.
+ * Release a blackout early (partner only).
  *
- * Should be run periodically to maintain data hygiene.
+ * AC4: Used when safety plan is completed before 48 hours.
  *
- * @param store - Blackout record store
- * @returns Number of blackouts cleaned up
+ * @param signalId - Signal ID to release blackout for
+ * @param partnerId - Partner ID requesting release
+ * @param reason - Reason for early release
  */
-export async function cleanupExpiredBlackouts(store: BlackoutStore): Promise<number> {
-  const all = await store.getAll()
-  let cleaned = 0
-
-  for (const record of all) {
-    if (record.active && isExpired(record)) {
-      await store.set(record.id, { ...record, active: false })
-      cleaned++
-    }
+export async function releaseBlackoutEarly(
+  signalId: string,
+  partnerId: string,
+  reason: string
+): Promise<void> {
+  if (!signalId || signalId.trim().length === 0) {
+    throw new Error('signalId is required')
+  }
+  if (!partnerId || partnerId.trim().length === 0) {
+    throw new Error('partnerId is required')
+  }
+  if (!reason || reason.trim().length === 0) {
+    throw new Error('reason is required')
   }
 
-  return cleaned
+  // Find the blackout
+  const blackoutsRef = getBlackoutsCollection()
+  const q = query(blackoutsRef, where('signalId', '==', signalId))
+  const snapshot = await getDocs(q)
+
+  if (snapshot.empty) {
+    throw new Error('Blackout not found')
+  }
+
+  const docSnap = snapshot.docs[0]
+  const data = docSnap.data()
+
+  if (data.status !== 'active') {
+    throw new Error('Blackout is not active')
+  }
+
+  // Release the blackout
+  await updateDoc(docSnap.ref, {
+    status: 'released',
+    releasedBy: partnerId,
+    releasedAt: new Date(),
+    releaseReason: reason,
+  })
 }
