@@ -11,6 +11,72 @@ import { CrisisAllowlistView } from '../CrisisAllowlistView'
 import { CRISIS_RESOURCES } from '@fledgely/shared'
 
 describe('CrisisAllowlistView', () => {
+  // ============================================
+  // Secret Help Button Tests - Story 7.5.1 AC1
+  // ============================================
+
+  describe('secret help button documentation (Story 7.5.1 AC1)', () => {
+    it('displays Secret Help Button section', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(screen.getByRole('heading', { name: 'Secret Help Button' })).toBeInTheDocument()
+    })
+
+    it('displays logo tap instructions', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(
+        screen.getByText(/tap the fledgely logo 5 times quickly to send a silent help signal/i)
+      ).toBeInTheDocument()
+    })
+
+    it('displays keyboard shortcut instructions', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(screen.getByText(/press ctrl\+shift\+h on your keyboard/i)).toBeInTheDocument()
+    })
+
+    it('displays reassurance message', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(
+        screen.getByText(/no one will see that you did this\. help will reach out to you\./i)
+      ).toBeInTheDocument()
+    })
+
+    it('displays SOS icon', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(screen.getByText('🆘')).toBeInTheDocument()
+    })
+
+    it('secret help section has accessible region role', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(screen.getByRole('region', { name: /secret help button/i })).toBeInTheDocument()
+    })
+
+    it('displays context instruction about being watched', () => {
+      render(<CrisisAllowlistView />)
+
+      expect(
+        screen.getByText(/if you need help but someone is watching your screen/i)
+      ).toBeInTheDocument()
+    })
+
+    it('displays section at top of view (before privacy banner)', () => {
+      render(<CrisisAllowlistView />)
+
+      const secretSection = screen.getByTestId('secret-help-section')
+      const privacyRegion = screen.getByRole('region', { name: /always private/i })
+
+      // Secret help section should appear before privacy banner in DOM
+      expect(
+        secretSection.compareDocumentPosition(privacyRegion) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBeTruthy()
+    })
+  })
+
   describe('organized display (AC1)', () => {
     it('displays resources organized by category', () => {
       render(<CrisisAllowlistView />)
@@ -76,8 +142,9 @@ describe('CrisisAllowlistView', () => {
     it('displays prominent privacy message header', () => {
       render(<CrisisAllowlistView />)
 
+      // Privacy banner is now h2 (Secret Help section is above it)
       expect(
-        screen.getByRole('heading', { name: 'These sites are ALWAYS private' })
+        screen.getByRole('heading', { name: 'These sites are ALWAYS private', level: 2 })
       ).toBeInTheDocument()
     })
 

@@ -1739,3 +1739,24 @@ export {
   clearAllResourceData,
   getResourceCount,
 } from './services/parentResourceService'
+
+// Safety Signal Service exports (Story 7.5.1)
+export {
+  createSafetySignal as createSafetySignalWithQueue,
+  queueOfflineSignal,
+  processOfflineQueue,
+  getOfflineQueueCount,
+  getOfflineQueueEntries,
+  getPendingSignals,
+  getSignalById,
+  getSignalsByChildId,
+  getSignalsByStatus,
+  updateSignalStatus,
+  markSignalDelivered,
+  markSignalAcknowledged,
+  incrementRetryCount,
+  getFailedOfflineEntries,
+  clearAllSignalData,
+  getSignalCount,
+  getOfflineQueueSize,
+} from './services/safetySignalService'

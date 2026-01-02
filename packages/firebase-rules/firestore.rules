@@ -1288,6 +1288,56 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // EPIC 7.5: CHILD SAFETY SIGNAL
+    // Story 7.5.1: Hidden Safety Signal Access (AC6: Signal Isolation)
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Safety signals are COMPLETELY ISOLATED from all family data.
+    // These signals NEVER appear in any family-visible query or audit.
+    //
+    // Key protections:
+    // - NO read access for family members (only crisis partners via Admin SDK)
+    // - Only children can create their own signals (authenticated child)
+    // - Only Cloud Functions can update status (for delivery tracking)
+    // - NEVER delete (audit trail preservation for crisis response)
+    //
+    // Signal flow:
+    // 1. Child triggers signal via hidden gesture (web/extension)
+    // 2. Signal stored in isolated collection
+    // 3. Cloud Functions route to external crisis partners (Story 7.5.2)
+    // 4. Family NEVER notified for 48 hours (Story 7.5.7)
+    //
+    match /safetySignals/{signalId} {
+      // CRITICAL: Regular users (parents/guardians) CANNOT read safety signals
+      // Crisis partners access via Admin SDK (bypasses security rules)
+      // This protects children from abuser discovering signal was sent
+      allow read: if false;
+
+      // Create: Only authenticated users can create their own signal
+      // Child authentication uses custom token with childId claim
+      // Web app users have request.auth.uid available
+      // The childId in the signal must match the authenticated user
+      allow create: if request.auth != null &&
+        request.resource.data.childId == request.auth.uid;
+
+      // Update: Only Cloud Functions can update (via Admin SDK)
+      // Status changes (queued -> pending -> sent -> delivered) are controlled
+      allow update: if false;
+
+      // Delete: NEVER allowed (critical audit trail for crisis response)
+      // Signals are preserved for crisis partner documentation
+      allow delete: if false;
+    }
+
+    // Signal trigger events for analytics (admin only)
+    // Story 7.5.1 AC6: Trigger event logging
+    match /safetySignalTriggerEvents/{eventId} {
+      // CRITICAL: No user access - admin analytics only
+      allow read, write: if false;
+    }
+
+    // =========================================================================
     // EPIC 21: AI CLASSIFICATION - CONCERNING CONTENT DETECTION
     // Story 21.2: Distress Detection Suppression
     // =========================================================================

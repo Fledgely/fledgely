@@ -1868,6 +1868,52 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       })
       return true
 
+    // Story 7.5.1: Safety Signal Triggered from content script
+    case 'SAFETY_SIGNAL_TRIGGERED':
+      // Queue safety signal for delivery
+      // CRITICAL: No visible feedback, all errors silently caught
+      chrome.storage.local.get('state').then(async ({ state }) => {
+        try {
+          const currentState = state || DEFAULT_STATE
+          const childId = currentState.childId
+          const familyId = currentState.familyId
+
+          if (!childId || !familyId) {
+            // Child not connected, silently ignore
+            console.debug('[Fledgely] Safety signal ignored - no child connected')
+            sendResponse({ success: false, reason: 'no_child' })
+            return
+          }
+
+          // Queue signal in extension storage
+          const signalQueue =
+            (await chrome.storage.local.get('safetySignalQueue')).safetySignalQueue || []
+
+          const signal = {
+            id: `sig_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+            childId,
+            familyId,
+            triggerMethod: message.triggerMethod || 'keyboard_shortcut',
+            platform: message.platform || 'chrome_extension',
+            timestamp: message.timestamp || Date.now(),
+            url: message.url,
+            status: navigator.onLine ? 'pending' : 'queued',
+            offlineQueued: !navigator.onLine,
+          }
+
+          signalQueue.push(signal)
+          await chrome.storage.local.set({ safetySignalQueue: signalQueue })
+
+          console.debug('[Fledgely] Safety signal queued (silent)', signal.id)
+          sendResponse({ success: true, signalId: signal.id })
+        } catch (error) {
+          // CRITICAL: Silently catch all errors
+          console.debug('[Fledgely] Safety signal error (silent)', error)
+          sendResponse({ success: false, error: 'internal_error' })
+        }
+      })
+      return true
+
     default:
       sendResponse({ error: 'Unknown message type' })
       return false

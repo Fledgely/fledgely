@@ -2,10 +2,12 @@
  * CrisisAllowlistView Component
  *
  * Story 7.3: Child Allowlist Visibility - AC1, AC5, AC6, AC7
+ * Story 7.5.1: Hidden Safety Signal Access - AC1 (signal documentation)
  *
  * Main view displaying all crisis resources organized by category for children.
  *
  * Features:
+ * - Secret Help Button instructions (Story 7.5.1)
  * - Prominent privacy message header
  * - Resources grouped by category
  * - Category headers with icons
@@ -121,6 +123,76 @@ const styles = {
     borderRadius: '8px',
     display: 'inline-block',
     marginBottom: '16px',
+  },
+  // Secret Help Button Section - Story 7.5.1
+  secretHelpBanner: {
+    backgroundColor: '#fce7f3', // Light pink - reassuring
+    border: '2px solid #ec4899',
+    borderRadius: '16px',
+    padding: '24px',
+    marginBottom: '24px',
+    textAlign: 'center' as const,
+  },
+  secretHelpIcon: {
+    fontSize: '48px',
+    marginBottom: '12px',
+  },
+  secretHelpTitle: {
+    fontSize: '22px',
+    fontWeight: 700,
+    color: '#9d174d', // Dark pink for WCAG 2.1 AA contrast
+    margin: '0 0 12px 0',
+  },
+  secretHelpInstructions: {
+    fontSize: '16px',
+    color: '#831843', // Dark pink for WCAG 2.1 AA contrast
+    margin: '0 0 16px 0',
+    lineHeight: 1.6,
+  },
+  secretHelpStep: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    padding: '12px 16px',
+    backgroundColor: '#fdf2f8',
+    borderRadius: '8px',
+    marginBottom: '12px',
+  },
+  secretHelpStepNumber: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    backgroundColor: '#ec4899',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    fontSize: '14px',
+    flexShrink: 0,
+  },
+  secretHelpStepText: {
+    fontSize: '15px',
+    color: '#831843',
+    fontWeight: 500,
+    textAlign: 'left' as const,
+  },
+  secretHelpOr: {
+    fontSize: '14px',
+    color: '#9d174d',
+    margin: '8px 0',
+    fontStyle: 'italic' as const,
+  },
+  secretHelpReassurance: {
+    fontSize: '15px',
+    color: '#831843',
+    fontWeight: 600,
+    margin: '16px 0 0 0',
+    padding: '12px',
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    border: '1px solid #f9a8d4',
   },
   privacyBanner: {
     backgroundColor: '#dcfce7',
@@ -275,14 +347,54 @@ export function CrisisAllowlistView({ className }: CrisisAllowlistViewProps) {
         Skip to resources
       </a>
 
+      {/* Secret Help Button Section - Story 7.5.1 AC1 */}
+      <div
+        style={styles.secretHelpBanner}
+        role="region"
+        aria-labelledby="secret-help-title"
+        data-testid="secret-help-section"
+      >
+        <div style={styles.secretHelpIcon} aria-hidden="true">
+          🆘
+        </div>
+        <h2 id="secret-help-title" style={styles.secretHelpTitle}>
+          Secret Help Button
+        </h2>
+        <p style={styles.secretHelpInstructions}>
+          If you need help but someone is watching your screen, use this secret way to ask for help:
+        </p>
+
+        <div style={styles.secretHelpStep}>
+          <span style={styles.secretHelpStepNumber} aria-hidden="true">
+            1
+          </span>
+          <span style={styles.secretHelpStepText}>
+            Tap the Fledgely logo 5 times quickly to send a silent help signal
+          </span>
+        </div>
+
+        <p style={styles.secretHelpOr}>— or —</p>
+
+        <div style={styles.secretHelpStep}>
+          <span style={styles.secretHelpStepNumber} aria-hidden="true">
+            2
+          </span>
+          <span style={styles.secretHelpStepText}>Press Ctrl+Shift+H on your keyboard</span>
+        </div>
+
+        <p style={styles.secretHelpReassurance}>
+          No one will see that you did this. Help will reach out to you.
+        </p>
+      </div>
+
       {/* Privacy Banner - AC6 */}
       <div style={styles.privacyBanner} role="region" aria-labelledby="privacy-banner-title">
         <div style={styles.privacyIcon} aria-hidden="true">
           🔒
         </div>
-        <h1 id="privacy-banner-title" style={styles.privacyTitle}>
+        <h2 id="privacy-banner-title" style={styles.privacyTitle}>
           These sites are ALWAYS private
-        </h1>
+        </h2>
         <p style={styles.privacyMessage}>
           Your parents will NEVER see that you visited these websites.
           <br />

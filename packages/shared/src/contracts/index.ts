@@ -6763,3 +6763,43 @@ export {
   type WellnessTipCategory,
   type ParentResourceCategory,
 } from './postGraduation'
+
+// Child Safety Signal (Story 7.5.1)
+export {
+  // Constants
+  LOGO_TAP_COUNT,
+  LOGO_TAP_WINDOW_MS,
+  KEYBOARD_SHORTCUT,
+  SIGNAL_STATUS,
+  TRIGGER_METHOD,
+  SIGNAL_PLATFORM,
+  VALID_STATUS_TRANSITIONS,
+  // Schemas
+  signalStatusSchema,
+  triggerMethodSchema,
+  signalPlatformSchema,
+  safetySignalSchema,
+  safetySignalTriggerEventSchema,
+  offlineSignalQueueEntrySchema,
+  // Factory functions
+  generateSignalId,
+  generateTriggerEventId,
+  createSafetySignal,
+  createTriggerEvent,
+  createOfflineQueueEntry,
+  // Validation functions
+  validateSafetySignal,
+  isSafetySignal,
+  validateTriggerEvent,
+  isTriggerEvent,
+  // Status helpers
+  isValidStatusTransition,
+  getNextStatus,
+  // Types
+  type SignalStatus,
+  type TriggerMethod,
+  type SignalPlatform,
+  type SafetySignal,
+  type SafetySignalTriggerEvent,
+  type OfflineSignalQueueEntry,
+} from './safetySignal'

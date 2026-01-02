@@ -13,3 +13,7 @@ export type { SafetyContactFormProps } from './SafetyContactForm'
 
 export { SafetyDocumentUpload } from './SafetyDocumentUpload'
 export type { SafetyDocumentUploadProps } from './SafetyDocumentUpload'
+
+// Child Safety Signal (Story 7.5.1)
+export { default as SafetySignalGestureDetector } from './SafetySignalGestureDetector'
+export type { SafetySignalGestureDetectorProps, TriggerMethod } from './SafetySignalGestureDetector'
