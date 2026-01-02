@@ -1565,3 +1565,92 @@ export {
   type SchedulerStats,
   type LastRunInfo,
 } from './services/age18DeletionScheduler'
+
+// Pre-18 Data Export contracts (Story 38.6)
+export {
+  pre18ExportRequestSchema,
+  pre18ExportContentSchema,
+  sanitizedActivitySummarySchema,
+  screenTimeSummarySchema,
+  agreementSummarySchema,
+  exportWatermarkSchema,
+  exportRequestStatusSchema,
+  EXPORT_REQUEST_VALID_DAYS,
+  EXPORT_URL_VALID_HOURS,
+  PRE18_EXPORT_PURPOSE,
+  createExportRequest as createExportRequestBase,
+  createExportWatermark,
+  isValidExportRequest,
+  canProcessExport,
+  isValidExportContent,
+  type Pre18ExportRequest,
+  type Pre18ExportContent,
+  type SanitizedActivitySummary,
+  type ScreenTimeSummary,
+  type AgreementSummary,
+  type ExportWatermark,
+  type ExportRequestStatus,
+} from './contracts/pre18DataExport'
+
+// Pre18 Export Consent Service exports (Story 38.6)
+export {
+  requestExportConsent,
+  getConsentRequest,
+  grantExportConsent,
+  denyExportConsent,
+  hasChildConsented,
+  isConsentPending,
+  getConsentRequestsForChild,
+  isConsentExpired,
+  cleanupExpiredConsents,
+  clearAllConsentData,
+  getConsentStoreSize,
+} from './services/pre18ExportConsentService'
+
+// Pre18 Data Export Service exports (Story 38.6)
+export {
+  createExportRequest,
+  getExportStatus,
+  generateExport,
+  sanitizeActivityLogs,
+  sanitizeScreenTime,
+  sanitizeAgreements,
+  filterConcerningContent,
+  addExportWatermark,
+  validateWatermark,
+  getExportUrl,
+  isExportAvailable,
+  markExportComplete,
+  clearAllExportData,
+  getExportContent,
+} from './services/pre18DataExportService'
+
+// Pre18 Export Notification Service exports (Story 38.6)
+export {
+  sendPre18ExportAvailableNotification,
+  sendExportConsentRequestNotification,
+  sendExportReadyNotification,
+  sendConsentRequestToChild,
+  sendExportCompletedToChild,
+  getPre18ExportMessage,
+  getConsentRequestMessage,
+  getNotificationsForParent,
+  getNotificationsForChild,
+  clearAllNotificationData as clearAllPre18NotificationData,
+  getNotificationCount as getPre18NotificationCount,
+  type Pre18ExportNotification,
+} from './services/pre18ExportNotificationService'
+
+// Pre18 Export Eligibility Service exports (Story 38.6)
+export {
+  isEligibleForPre18Export,
+  getExportEligibilityWindow,
+  getChildrenEligibleForExport,
+  getDaysUntilDataDeletion,
+  isInExportWindow,
+  setChildBirthdateForTest,
+  clearEligibilityTestData,
+  getTestStoreSize,
+  type ChildEligibility,
+  type ExportEligibilityWindow,
+} from './services/pre18ExportEligibilityService'
