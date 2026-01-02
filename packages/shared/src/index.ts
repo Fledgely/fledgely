@@ -1268,3 +1268,122 @@ export {
   formatAsChecklist,
   getPrintableTemplate,
 } from './services/graduationConversationTemplateService'
+
+// Graduation Process exports (Story 38.3)
+export {
+  GRADUATION_RETENTION_DAYS,
+  MIN_SCHEDULE_DAYS,
+  MAX_SCHEDULE_DAYS,
+  DECISION_EXPIRY_DAYS,
+  graduationTypeSchema,
+  accountStatusSchema,
+  dataTypeSchema,
+  deletionStatusSchema,
+  confirmationRecordSchema,
+  graduationDecisionSchema,
+  graduationCertificateSchema,
+  previousAccountDataSchema,
+  alumniRecordSchema,
+  deletionQueueEntrySchema,
+  alumniPreferencesSchema,
+  createInitialGraduationDecision,
+  hasAllConfirmations,
+  resolveGraduationType,
+  isValidScheduledDate,
+  calculateDeletionDate as calculateGraduationDeletionDate,
+  getDecisionDaysUntilExpiry,
+  isDecisionExpired,
+  type GraduationType,
+  type AccountStatus,
+  type DataType,
+  type DeletionStatus,
+  type ConfirmationRecord,
+  type GraduationDecision,
+  type GraduationCertificate,
+  type PreviousAccountData,
+  type AlumniRecord,
+  type DeletionQueueEntry,
+  type AlumniPreferences,
+} from './contracts/graduationProcess'
+
+// Graduation Process Service exports (Story 38.3)
+export {
+  initiateGraduationDecision,
+  recordGraduationConfirmation,
+  checkAllConfirmations,
+  scheduleGraduation,
+  executeGraduation,
+  getGraduationDecision,
+  getPendingDecisions as getPendingGraduationDecisions,
+  getDecisionsForChild,
+  getDecisionsForFamily,
+  getExpiredDecisions,
+  markDecisionProcessing,
+  markDecisionCompleted,
+  expireDecision,
+  clearAllDecisionData as clearAllGraduationData,
+  getDecisionStats,
+  type InitiateDecisionInput,
+  type RecordConfirmationInput,
+  type ScheduleGraduationInput,
+  type GraduationResult,
+} from './services/graduationProcessService'
+
+// Alumni Transition Service exports (Story 38.3)
+export {
+  transitionToAlumni,
+  getAlumniRecord,
+  isAlumni,
+  getAlumniStatusInfo,
+  updateAlumniPreferences,
+  getDefaultAlumniPreferences,
+  getAllAlumni,
+  clearAllAlumniData,
+  type TransitionData,
+  type AlumniStatusInfo,
+} from './services/alumniTransitionService'
+
+// Data Deletion Queue Service exports (Story 38.3)
+export {
+  DELETION_DATA_TYPES,
+  queueDataForDeletion,
+  getDeletionQueueStatus,
+  getPendingDeletionTypes,
+  calculateDeletionDate as calculateDataDeletionDate,
+  getDeletionConfirmationMessage,
+  processReadyDeletions,
+  cancelPendingDeletion,
+  markDeletionComplete,
+  markDeletionFailed,
+  getReadyForDeletion,
+  clearAllDeletionData,
+  getDeletionStats,
+  type ProcessingResult,
+} from './services/dataDeletionQueueService'
+
+// Graduation Certificate Service exports (Story 38.3)
+export {
+  generateCertificate,
+  getCertificate,
+  getCertificateDisplayData,
+  getCertificateForChild,
+  validateCertificate,
+  getAllCertificates,
+  clearAllCertificateData,
+  type GenerateCertificateData,
+  type CertificateDisplayData,
+} from './services/graduationCertificateService'
+
+// Graduation Celebration Service exports (Story 38.3)
+export {
+  CELEBRATION_MESSAGES,
+  getCelebrationMessage as getGraduationCelebrationMessage,
+  getAchievementSummary,
+  getTransitionMessage as getGraduationTransitionMessage,
+  getNextStepsMessage,
+  getCertificateCongratulations,
+  getFullCelebrationContent,
+  type CertificateContent,
+  type FullCelebrationContent,
+  type FullCelebrationInput,
+} from './services/graduationCelebrationService'
