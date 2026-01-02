@@ -384,4 +384,214 @@ describe('rejectionPatternRules - Story 34.5.1', () => {
       })
     })
   })
+
+  // ============================================
+  // Story 34.5.2: Mediation Resources & Acknowledgments
+  // ============================================
+
+  describe('mediationResources collection', () => {
+    describe('read access', () => {
+      it('should allow authenticated users to read mediation resources', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('mediationResources/resource-1').set({
+            id: 'resource-1',
+            type: 'negotiation-tips',
+            title: 'How to Talk to Parents',
+            ageTier: 'tween-12-14',
+          })
+        })
+
+        const guardianContext = testEnv.authenticatedContext('guardian-1', {
+          familyId: testFamilyId,
+        })
+        const db = guardianContext.firestore()
+
+        await assertSucceeds(db.doc('mediationResources/resource-1').get())
+      })
+
+      it('should deny unauthenticated users from reading resources', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('mediationResources/resource-1').set({
+            id: 'resource-1',
+            type: 'negotiation-tips',
+            title: 'How to Talk to Parents',
+            ageTier: 'tween-12-14',
+          })
+        })
+
+        const unauthContext = testEnv.unauthenticatedContext()
+        const db = unauthContext.firestore()
+
+        await assertFails(db.doc('mediationResources/resource-1').get())
+      })
+    })
+
+    describe('write access (all denied)', () => {
+      it('should deny creating mediation resources', async () => {
+        const guardianContext = testEnv.authenticatedContext('guardian-1', {
+          familyId: testFamilyId,
+        })
+        const db = guardianContext.firestore()
+
+        await assertFails(
+          db.doc('mediationResources/resource-new').set({
+            id: 'resource-new',
+            type: 'negotiation-tips',
+            title: 'New Resource',
+            ageTier: 'teen-15-17',
+          })
+        )
+      })
+    })
+  })
+
+  describe('escalationAcknowledgments collection', () => {
+    describe('read access', () => {
+      it('should allow guardian to read acknowledgments for their family', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('escalationAcknowledgments/ack-1').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        })
+
+        const guardianContext = testEnv.authenticatedContext('guardian-1', {
+          familyId: testFamilyId,
+        })
+        const db = guardianContext.firestore()
+
+        await assertSucceeds(db.doc('escalationAcknowledgments/ack-1').get())
+      })
+
+      it('should allow child to read their acknowledgments', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('escalationAcknowledgments/ack-1').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        })
+
+        const childContext = testEnv.authenticatedContext(testChildId, {
+          childId: testChildId,
+        })
+        const db = childContext.firestore()
+
+        await assertSucceeds(db.doc('escalationAcknowledgments/ack-1').get())
+      })
+
+      it('should deny other family from reading acknowledgments', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('escalationAcknowledgments/ack-1').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        })
+
+        const otherGuardianContext = testEnv.authenticatedContext('other-guardian', {
+          familyId: otherFamilyId,
+        })
+        const db = otherGuardianContext.firestore()
+
+        await assertFails(db.doc('escalationAcknowledgments/ack-1').get())
+      })
+    })
+
+    describe('create access', () => {
+      it('should allow child to create their own acknowledgment', async () => {
+        const childContext = testEnv.authenticatedContext(testChildId, {
+          childId: testChildId,
+        })
+        const db = childContext.firestore()
+
+        await assertSucceeds(
+          db.doc('escalationAcknowledgments/ack-new').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        )
+      })
+
+      it('should deny child from creating acknowledgment for another child', async () => {
+        const childContext = testEnv.authenticatedContext(testChildId, {
+          childId: testChildId,
+        })
+        const db = childContext.firestore()
+
+        await assertFails(
+          db.doc('escalationAcknowledgments/ack-other').set({
+            familyId: testFamilyId,
+            childId: 'other-child-id',
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        )
+      })
+
+      it('should deny guardian from creating acknowledgments', async () => {
+        const guardianContext = testEnv.authenticatedContext('guardian-1', {
+          familyId: testFamilyId,
+        })
+        const db = guardianContext.firestore()
+
+        await assertFails(
+          db.doc('escalationAcknowledgments/ack-guardian').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        )
+      })
+    })
+
+    describe('update/delete access (all denied)', () => {
+      it('should deny updating acknowledgments', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('escalationAcknowledgments/ack-1').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        })
+
+        const childContext = testEnv.authenticatedContext(testChildId, {
+          childId: testChildId,
+        })
+        const db = childContext.firestore()
+
+        await assertFails(
+          db.doc('escalationAcknowledgments/ack-1').update({
+            viewedResources: true,
+          })
+        )
+      })
+
+      it('should deny deleting acknowledgments', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+          await context.firestore().doc('escalationAcknowledgments/ack-1').set({
+            familyId: testFamilyId,
+            childId: testChildId,
+            escalationEventId: 'esc-1',
+            acknowledgedAt: new Date(),
+          })
+        })
+
+        const childContext = testEnv.authenticatedContext(testChildId, {
+          childId: testChildId,
+        })
+        const db = childContext.firestore()
+
+        await assertFails(db.doc('escalationAcknowledgments/ack-1').delete())
+      })
+    })
+  })
 })

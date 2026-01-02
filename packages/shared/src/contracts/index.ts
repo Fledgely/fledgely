@@ -6904,3 +6904,19 @@ export {
   type RejectionEvent,
   type EscalationEvent,
 } from './rejectionPattern'
+
+// Story 34.5.2: Mediation Resources
+export {
+  ageTierSchema,
+  resourceTypeSchema,
+  mediationResourceSchema,
+  familyMeetingTemplateSchema,
+  negotiationTipSchema,
+  escalationAcknowledgmentSchema,
+  type AgeTier,
+  type ResourceType,
+  type MediationResource,
+  type FamilyMeetingTemplate,
+  type NegotiationTip,
+  type EscalationAcknowledgment,
+} from './mediationResources'

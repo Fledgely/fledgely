@@ -15,6 +15,20 @@ vi.mock('../../services/agreementChangeService', () => ({
   createParentNotification: vi.fn(),
 }))
 
+// Mock the escalation status hook for Story 34.5.2
+const mockAcknowledgeEscalation = vi.fn()
+vi.mock('../../hooks/useEscalationStatus', () => ({
+  useEscalationStatus: vi.fn(() => ({
+    status: null,
+    loading: false,
+    error: null,
+    acknowledgeEscalation: mockAcknowledgeEscalation,
+  })),
+}))
+
+import { useEscalationStatus } from '../../hooks/useEscalationStatus'
+const mockUseEscalationStatus = useEscalationStatus as ReturnType<typeof vi.fn>
+
 import {
   submitChangeRequest,
   createParentNotification,
@@ -66,6 +80,18 @@ describe('ChildAgreementContainer', () => {
     vi.clearAllMocks()
     mockSubmitChangeRequest.mockResolvedValue({ requestId: 'request-123', parentNotified: false })
     mockCreateParentNotification.mockResolvedValue('notification-123')
+    mockAcknowledgeEscalation.mockResolvedValue(undefined)
+    // Reset escalation mock to default (no escalation)
+    mockUseEscalationStatus.mockReturnValue({
+      status: {
+        hasActiveEscalation: false,
+        escalationEvent: null,
+        isAcknowledged: false,
+      },
+      loading: false,
+      error: null,
+      acknowledgeEscalation: mockAcknowledgeEscalation,
+    })
   })
 
   describe('Task 6.1: Connect onRequestChange to open modal', () => {
@@ -317,6 +343,116 @@ describe('ChildAgreementContainer', () => {
       render(<ChildAgreementContainer {...defaultProps} childName="Emma" />)
       // Child name badge should be visible on terms
       expect(screen.getByText('Emma')).toBeInTheDocument()
+    })
+  })
+
+  // ============================================
+  // Story 34.5.2: Escalation Integration Tests
+  // ============================================
+
+  describe('Story 34.5.2 Task 7: Escalation Prompt Integration', () => {
+    it('should not show escalation prompt when no active escalation', () => {
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      expect(screen.queryByTestId('escalation-prompt-container')).not.toBeInTheDocument()
+    })
+
+    it('should show escalation prompt when there is active escalation', () => {
+      mockUseEscalationStatus.mockReturnValue({
+        status: {
+          hasActiveEscalation: true,
+          escalationEvent: { id: 'escalation-1' },
+          isAcknowledged: false,
+        },
+        loading: false,
+        error: null,
+        acknowledgeEscalation: mockAcknowledgeEscalation,
+      })
+
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      expect(screen.getByTestId('escalation-prompt-container')).toBeInTheDocument()
+      expect(screen.getByTestId('escalation-prompt')).toBeInTheDocument()
+    })
+
+    it('should hide escalation prompt when already acknowledged', () => {
+      mockUseEscalationStatus.mockReturnValue({
+        status: {
+          hasActiveEscalation: true,
+          escalationEvent: { id: 'escalation-1' },
+          isAcknowledged: true,
+        },
+        loading: false,
+        error: null,
+        acknowledgeEscalation: mockAcknowledgeEscalation,
+      })
+
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      expect(screen.queryByTestId('escalation-prompt-container')).not.toBeInTheDocument()
+    })
+
+    it('should call acknowledgeEscalation when acknowledge button is clicked', async () => {
+      mockUseEscalationStatus.mockReturnValue({
+        status: {
+          hasActiveEscalation: true,
+          escalationEvent: { id: 'escalation-1' },
+          isAcknowledged: false,
+        },
+        loading: false,
+        error: null,
+        acknowledgeEscalation: mockAcknowledgeEscalation,
+      })
+
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('escalation-acknowledge'))
+
+      await waitFor(() => {
+        expect(mockAcknowledgeEscalation).toHaveBeenCalled()
+      })
+    })
+
+    it('should open resources modal when CTA is clicked', () => {
+      mockUseEscalationStatus.mockReturnValue({
+        status: {
+          hasActiveEscalation: true,
+          escalationEvent: { id: 'escalation-1' },
+          isAcknowledged: false,
+        },
+        loading: false,
+        error: null,
+        acknowledgeEscalation: mockAcknowledgeEscalation,
+      })
+
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('escalation-cta'))
+
+      expect(screen.getByTestId('mediation-resources-modal')).toBeInTheDocument()
+    })
+
+    it('should close resources modal when close button is clicked', () => {
+      mockUseEscalationStatus.mockReturnValue({
+        status: {
+          hasActiveEscalation: true,
+          escalationEvent: { id: 'escalation-1' },
+          isAcknowledged: false,
+        },
+        loading: false,
+        error: null,
+        acknowledgeEscalation: mockAcknowledgeEscalation,
+      })
+
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      // Open modal
+      fireEvent.click(screen.getByTestId('escalation-cta'))
+      expect(screen.getByTestId('mediation-resources-modal')).toBeInTheDocument()
+
+      // Close modal
+      fireEvent.click(screen.getByTestId('modal-close-button'))
+      expect(screen.queryByTestId('mediation-resources-modal')).not.toBeInTheDocument()
     })
   })
 })

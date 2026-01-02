@@ -1582,6 +1582,46 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ============================================
+    // Story 34.5.2: Mediation Resources
+    // ============================================
+
+    // Mediation Resources: Static content for helping families communicate
+    // AC2: Family Communication Resources
+    // AC3: Family Meeting Template Access
+    // AC4: Age-Appropriate Negotiation Tips
+    match /mediationResources/{resourceId} {
+      // Read: Any authenticated user (public resource)
+      allow read: if request.auth != null;
+
+      // Write: Admin only (Cloud Functions)
+      allow create, update, delete: if false;
+    }
+
+    // Escalation Acknowledgments: Track when child acknowledges escalation
+    // Story 34.5.2 AC1: Escalation prompt persists until acknowledged
+    match /escalationAcknowledgments/{ackId} {
+      // Read: Family members or the acknowledging child
+      allow read: if request.auth != null
+                  && (
+                    // Guardian with matching familyId claim
+                    request.auth.token.familyId == resource.data.familyId ||
+                    // Child who made the acknowledgment
+                    request.auth.token.childId == resource.data.childId
+                  );
+
+      // Create: Only the child who is acknowledging
+      // CRITICAL: Child can only acknowledge their own escalations
+      allow create: if request.auth != null
+                    && request.auth.token.childId == request.resource.data.childId
+                    && request.resource.data.familyId is string
+                    && request.resource.data.escalationEventId is string
+                    && request.resource.data.acknowledgedAt is timestamp;
+
+      // Update/Delete: NEVER allowed (immutable record)
+      allow update, delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;
