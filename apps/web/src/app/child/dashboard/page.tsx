@@ -38,6 +38,7 @@ import { HomeworkExceptionRequest } from '../../../components/child/HomeworkExce
 import { FocusModeButton } from '../../../components/child/FocusModeButton'
 import { FocusModeModal } from '../../../components/child/FocusModeModal'
 import { FocusModeActiveCard } from '../../../components/child/FocusModeActiveCard'
+import { NegotiationResourcesPanel } from '../../../components/child/NegotiationResourcesPanel'
 import { useChildAuth } from '../../../contexts/ChildAuthContext'
 import { useChildScreenshots, type ChildScreenshot } from '../../../hooks/useChildScreenshots'
 import { useChildPendingFlags } from '../../../hooks/useChildPendingFlags'
@@ -487,6 +488,13 @@ function DashboardContent() {
             isChild={true}
           />
         )}
+
+        {/* Story 34.5.6: Age-Appropriate Negotiation Resources - proactive access */}
+        <NegotiationResourcesPanel
+          ageTier="tween-12-14"
+          childName={childSession?.childName || undefined}
+          defaultExpanded={false}
+        />
 
         {/* Story 27.5.5: Repair Resources - shown when friction detected */}
         {frictionIndicators?.hasEnoughData &&
