@@ -344,6 +344,7 @@ export default function DissolveFamilyModal({
 
         {isMultiGuardian ? (
           // Multi-guardian family - show info about contacting support
+          // Story 3A.6: Enhanced messaging about alternatives
           <>
             <p style={styles.description}>
               Your family has multiple guardians. To protect all family members, dissolving a shared
@@ -358,6 +359,22 @@ export default function DissolveFamilyModal({
                 <br />
                 <br />
                 Please contact support for assistance with this process.
+              </p>
+            </div>
+            <div
+              style={{
+                backgroundColor: '#f0fdf4',
+                border: '1px solid #86efac',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '16px',
+              }}
+            >
+              <p style={{ ...styles.infoText, color: '#166534' }}>
+                <strong>Alternative: Self-Removal</strong>
+                <br />
+                If you wish to leave this family without dissolving it, you can remove yourself from
+                your profile settings. The family and other guardian will remain.
               </p>
             </div>
             <div style={styles.buttonGroup}>

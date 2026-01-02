@@ -23,3 +23,6 @@ export { CalendarIntegrationSettings } from './CalendarIntegrationSettings'
 
 // Notification Components
 export { ReviewRequestNotification } from './ReviewRequestNotification'
+
+// Guardian Management Components (Story 3A.6)
+export { GuardianRemovalBlockedModal } from './GuardianRemovalBlockedModal'

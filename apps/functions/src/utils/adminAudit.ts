@@ -57,6 +57,7 @@ export type AdminAuditAction =
   | 'self_remove_from_family' // Story 2.8
   | 'process_sensitive_hold_flags' // Story 21.2
   | 'release_sensitive_hold_flag' // Story 21.2
+  | 'guardian_removal_attempt' // Story 3A.6
 
 /**
  * Resource types for admin audit logging.
@@ -84,6 +85,7 @@ export type AdminAuditResourceType =
   | 'legal_parent_petition' // Story 3.6
   | 'self_removal' // Story 2.8
   | 'sensitive_hold_flag' // Story 21.2
+  | 'guardian_removal_attempt' // Story 3A.6
 
 /**
  * Admin audit log entry structure.

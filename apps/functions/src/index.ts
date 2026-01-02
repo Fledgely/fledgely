@@ -60,6 +60,9 @@ export { denyLegalParentPetition } from './callable/admin/denyLegalParentPetitio
 // User callable functions (Story 2.8)
 export { selfRemoveFromFamily } from './callable/selfRemoveFromFamily'
 
+// Guardian removal prevention (Story 3A.6)
+export { logGuardianRemovalAttempt } from './callable/logGuardianRemovalAttempt'
+
 // Caregiver callable functions (Story 19D.1, 19D.4, 19D.5)
 export { sendCaregiverInvitation } from './callable/sendCaregiverInvitation'
 export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
