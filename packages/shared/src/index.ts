@@ -1654,3 +1654,88 @@ export {
   type ChildEligibility,
   type ExportEligibilityWindow,
 } from './services/pre18ExportEligibilityService'
+
+// Post-Graduation Support Contracts exports (Story 38.7)
+export {
+  ALUMNI_STATUS,
+  WELLNESS_TIP_CATEGORIES,
+  PARENT_RESOURCE_CATEGORIES,
+  alumniStatusSchema,
+  alumniProfileSchema,
+  digitalWellnessTipSchema,
+  selfTrackingPreferencesSchema,
+  parentResourceSchema,
+  graduationCelebrationSchema,
+  createAlumniProfileContract,
+  createWellnessTip,
+  createParentResource,
+  createSelfTrackingPreferences,
+  createGraduationCelebration,
+  isAlumniEligibleForRejoin,
+  validateSelfTrackingPrivacy,
+  isValidAlumniProfile,
+  type AlumniStatus,
+  type AlumniProfile,
+  type DigitalWellnessTip,
+  type SelfTrackingPreferences,
+  type ParentResource,
+  type GraduationCelebration,
+  type WellnessTipCategory,
+  type ParentResourceCategory,
+} from './contracts'
+
+// Alumni Profile Service exports (Story 38.7)
+export {
+  createAlumniProfile as createAlumniProfileService,
+  getAlumniProfile as getAlumniProfileService,
+  getAlumniByFamily,
+  updateAlumniPreferences as updateAlumniPreferencesService,
+  preserveAlumniStatus,
+  checkRejoinEligibility,
+  processRejoin,
+  verifyNoDataCollection,
+  deactivateAlumniProfile,
+  clearAllAlumniData as clearAllAlumniServiceData,
+  getAlumniCount,
+} from './services/alumniProfileService'
+
+// Digital Wellness Tip Service exports (Story 38.7)
+export {
+  getWellnessTips,
+  getTipsByCategory,
+  getTipOfTheDay,
+  getActiveTips,
+  saveTipPreference,
+  getDismissedTips,
+  dismissTip,
+  initializeDefaultTips,
+  clearAllTipData,
+  getTipCount,
+} from './services/digitalWellnessTipService'
+
+// Self-Tracking Service exports (Story 38.7)
+export {
+  createSelfTrackingSession,
+  getSelfTrackingSession,
+  logPersonalGoal,
+  getGoals,
+  updateGoalProgress,
+  getProgressSummary,
+  verifyLocalDataOnly,
+  deleteSelfTrackingData,
+  clearAllSelfTrackingData,
+  type PersonalGoal,
+  type ProgressSummary,
+} from './services/selfTrackingService'
+
+// Parent Resource Service exports (Story 38.7)
+export {
+  getParentResources,
+  getResourcesByCategory as getParentResourcesByCategory,
+  getResourceById,
+  markResourceRead,
+  getReadResources,
+  initializeDefaultResources,
+  clearAllResourceData,
+  getResourceCount,
+} from './services/parentResourceService'

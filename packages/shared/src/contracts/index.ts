@@ -6734,3 +6734,32 @@ export {
   generateImprovementTips,
   generateEncouragement,
 } from './trustScoreBreakdown'
+
+// Post-Graduation Support (Story 38.7)
+export {
+  ALUMNI_STATUS,
+  WELLNESS_TIP_CATEGORIES,
+  PARENT_RESOURCE_CATEGORIES,
+  alumniStatusSchema,
+  alumniProfileSchema,
+  digitalWellnessTipSchema,
+  selfTrackingPreferencesSchema,
+  parentResourceSchema,
+  graduationCelebrationSchema,
+  createAlumniProfile as createAlumniProfileContract,
+  createWellnessTip,
+  createParentResource,
+  createSelfTrackingPreferences,
+  createGraduationCelebration,
+  isAlumniEligibleForRejoin,
+  validateSelfTrackingPrivacy,
+  isValidAlumniProfile,
+  type AlumniStatus,
+  type AlumniProfile,
+  type DigitalWellnessTip,
+  type SelfTrackingPreferences,
+  type ParentResource,
+  type GraduationCelebration,
+  type WellnessTipCategory,
+  type ParentResourceCategory,
+} from './postGraduation'
