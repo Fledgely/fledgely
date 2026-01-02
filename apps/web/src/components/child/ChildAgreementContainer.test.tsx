@@ -26,6 +26,25 @@ vi.mock('../../hooks/useEscalationStatus', () => ({
   })),
 }))
 
+// Mock the review request cooldown hook for Story 34.5.3
+const mockSubmitRequest = vi.fn()
+vi.mock('../../hooks/useReviewRequestCooldown', () => ({
+  useReviewRequestCooldown: vi.fn(() => ({
+    cooldownStatus: {
+      canRequest: true,
+      daysRemaining: 0,
+      lastRequestAt: null,
+      nextAvailableAt: null,
+    },
+    loading: false,
+    error: null,
+    canRequest: true,
+    daysRemaining: 0,
+    submitRequest: mockSubmitRequest,
+    isSubmitting: false,
+  })),
+}))
+
 import { useEscalationStatus } from '../../hooks/useEscalationStatus'
 const mockUseEscalationStatus = useEscalationStatus as ReturnType<typeof vi.fn>
 
@@ -453,6 +472,49 @@ describe('ChildAgreementContainer', () => {
       // Close modal
       fireEvent.click(screen.getByTestId('modal-close-button'))
       expect(screen.queryByTestId('mediation-resources-modal')).not.toBeInTheDocument()
+    })
+  })
+
+  // ============================================
+  // Story 34.5.3: Agreement Review Request Integration Tests
+  // ============================================
+
+  describe('Story 34.5.3 Task 7: Review Request Button Integration', () => {
+    beforeEach(() => {
+      mockSubmitRequest.mockResolvedValue({
+        id: 'request-123',
+        familyId: 'family-456',
+        childId: 'child-123',
+        childName: 'Alex',
+        agreementId: 'agreement-123',
+        requestedAt: new Date(),
+        status: 'pending',
+        acknowledgedAt: null,
+        reviewedAt: null,
+        suggestedAreas: [],
+        parentNotificationSent: true,
+        expiresAt: new Date(),
+      })
+    })
+
+    it('should show review request button when agreement exists', () => {
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      expect(screen.getByTestId('review-request-button-container')).toBeInTheDocument()
+      expect(screen.getByTestId('request-review-button')).toBeInTheDocument()
+    })
+
+    it('should not show review request button when no agreement', () => {
+      render(<ChildAgreementContainer {...defaultProps} agreement={null} />)
+
+      expect(screen.queryByTestId('review-request-button-container')).not.toBeInTheDocument()
+    })
+
+    it('should display invitation-style text on button (AC5)', () => {
+      render(<ChildAgreementContainer {...defaultProps} />)
+
+      const buttonText = screen.getByTestId('request-review-button').textContent
+      expect(buttonText?.toLowerCase()).toContain('request')
     })
   })
 })

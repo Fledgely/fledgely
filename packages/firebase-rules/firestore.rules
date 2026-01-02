@@ -1622,6 +1622,63 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ============================================
+    // Story 34.5.3: Agreement Review Requests
+    // ============================================
+    //
+    // CRITICAL DESIGN PRINCIPLE: Invitation, not demand
+    // Review requests empower child voice while respecting parent authority.
+    // All messaging is framed as invitation to dialogue, not confrontation.
+    //
+    // AC4: 60-day cooldown prevents request spam
+    // AC6: Request history visible to both parties (transparency)
+    //
+
+    // Agreement Review Requests: Child-initiated review invitations
+    match /agreementReviewRequests/{requestId} {
+      // Read: Family members can read their family's requests (transparency)
+      // AC6: Request history visible to both parties
+      allow read: if request.auth != null
+                  && (
+                    // Guardian with matching familyId claim
+                    request.auth.token.familyId == resource.data.familyId ||
+                    // Or child with matching childId
+                    (request.auth.token.childId != null &&
+                     request.auth.token.childId == resource.data.childId)
+                  );
+
+      // Create: Child can create review requests for their own family
+      // AC1: Child initiates the request
+      // CRITICAL: Child can only create requests for themselves
+      allow create: if request.auth != null
+                    && request.auth.token.childId == request.resource.data.childId
+                    && request.resource.data.familyId is string
+                    && request.resource.data.agreementId is string
+                    && request.resource.data.requestedAt is timestamp
+                    && request.resource.data.status == 'pending';
+
+      // Update: Only parent can acknowledge/update
+      // AC2: Parent receives notification and can acknowledge
+      allow update: if request.auth != null
+                    && request.auth.token.familyId == resource.data.familyId
+                    && request.auth.token.role == 'parent';
+
+      // Delete: NEVER allowed (keep audit trail)
+      // AC6: History preserved for transparency
+      allow delete: if false;
+    }
+
+    // Review Request Notifications: Parent notification queue (system-only)
+    // AC2: Non-confrontational notification to parent
+    match /reviewRequestNotifications/{notificationId} {
+      // Read: Family guardians can read their notifications
+      allow read: if request.auth != null
+                  && request.auth.token.familyId == resource.data.familyId;
+
+      // Write: Only Cloud Functions (system-generated)
+      allow create, update, delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

@@ -1,16 +1,19 @@
 /**
- * ChildAgreementContainer Component - Story 19C.5 + Story 34.5.2 Task 7
+ * ChildAgreementContainer Component - Story 19C.5 + Story 34.5.2 Task 7 + Story 34.5.3 Task 7
  *
  * Integration container that connects ChildAgreementView with
- * the ChangeRequestModal, submission logic, and escalation prompts.
+ * the ChangeRequestModal, submission logic, escalation prompts,
+ * and agreement review request button.
  *
  * Task 6: Integrate with ChildAgreementView (AC: #1)
  * Story 34.5.2 Task 7: Add escalation prompt integration
+ * Story 34.5.3 Task 7: Add agreement review request button
  */
 
 import React, { useState, useCallback } from 'react'
 import { ChildAgreementView } from './ChildAgreementView'
 import { ChangeRequestModal } from './ChangeRequestModal'
+import { RequestAgreementReviewButton } from './RequestAgreementReviewButton'
 import { useChangeRequest } from '../../hooks/useChangeRequest'
 import { useEscalationStatus } from '../../hooks/useEscalationStatus'
 import { EscalationPrompt, MediationResourcesModal } from '../escalation'
@@ -104,6 +107,12 @@ export function ChildAgreementContainer({
     setIsResourcesModalOpen(false)
   }, [])
 
+  // Story 34.5.3: Handle review request submission success
+  const handleReviewRequestSubmitted = useCallback(() => {
+    // Success message is shown by the button component itself
+    // Could add additional handling here if needed (e.g., analytics)
+  }, [])
+
   // Story 34.5.2: Show escalation prompt if active and not acknowledged
   const showEscalationPrompt =
     escalationStatus?.hasActiveEscalation && !escalationStatus?.isAcknowledged
@@ -130,6 +139,19 @@ export function ChildAgreementContainer({
         onRequestChange={handleRequestChange}
         childName={childName}
       />
+
+      {/* Story 34.5.3: Agreement review request button */}
+      {agreement && (
+        <div data-testid="review-request-button-container" style={{ marginTop: '16px' }}>
+          <RequestAgreementReviewButton
+            familyId={familyId}
+            childId={childId}
+            childName={childName}
+            agreementId={agreement.id}
+            onRequestSubmitted={handleReviewRequestSubmitted}
+          />
+        </div>
+      )}
 
       <ChangeRequestModal
         isOpen={isModalOpen}
