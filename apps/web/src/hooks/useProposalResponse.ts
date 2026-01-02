@@ -1,20 +1,27 @@
 /**
- * useProposalResponse Hook - Story 34.3
+ * useProposalResponse Hook - Story 34.3, 34.5.1
  *
  * Hook for responding to agreement change proposals.
  * Supports accept, decline, and counter-propose actions.
+ *
+ * Story 34.5.1: Integrates with rejection pattern tracking for child proposals.
  */
 
 import { useState, useCallback } from 'react'
 import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import type { ProposalChange } from '@fledgely/shared'
+import { handleChildProposalRejection } from '../services/agreementProposalService'
 
 export interface UseProposalResponseProps {
   familyId: string
   proposalId: string
   responderId: string
   responderName: string
+  /** Story 34.5.1: Child ID if this is a child's proposal */
+  childId?: string
+  /** Story 34.5.1: Whether this proposal was made by a child */
+  isChildProposal?: boolean
 }
 
 export interface UseProposalResponseReturn {
@@ -26,7 +33,7 @@ export interface UseProposalResponseReturn {
 }
 
 export function useProposalResponse(props: UseProposalResponseProps): UseProposalResponseReturn {
-  const { familyId, proposalId, responderId, responderName } = props
+  const { familyId, proposalId, responderId, responderName, childId, isChildProposal } = props
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -115,6 +122,8 @@ export function useProposalResponse(props: UseProposalResponseProps): UseProposa
    * Decline the proposal
    * AC2: Decline option
    * AC4: Comment required for decline
+   *
+   * Story 34.5.1: Track rejection pattern when declining child's proposal
    */
   const declineProposal = useCallback(
     async (comment: string): Promise<string> => {
@@ -128,6 +137,15 @@ export function useProposalResponse(props: UseProposalResponseProps): UseProposa
         // Save response to subcollection
         const responseId = await saveResponse('decline', comment)
 
+        // Story 34.5.1: Track rejection pattern for child proposals
+        if (isChildProposal && childId) {
+          await handleChildProposalRejection({
+            familyId,
+            childId,
+            proposalId,
+          })
+        }
+
         return responseId
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to decline proposal'
@@ -137,7 +155,7 @@ export function useProposalResponse(props: UseProposalResponseProps): UseProposa
         setIsSubmitting(false)
       }
     },
-    [updateProposalStatus, saveResponse]
+    [updateProposalStatus, saveResponse, isChildProposal, childId, familyId, proposalId]
   )
 
   /**

@@ -11,7 +11,15 @@ import {
   createParentNotifications,
   notifyProposerOfResponse,
   logProposalResponse,
+  handleChildProposalRejection,
+  handleChildProposalSubmission,
 } from './agreementProposalService'
+
+// Mock rejection pattern service functions
+const mockRecordRejection = vi.fn()
+const mockCheckEscalationThreshold = vi.fn()
+const mockTriggerEscalation = vi.fn()
+const mockIncrementProposalCount = vi.fn()
 
 // Mock @fledgely/shared
 vi.mock('@fledgely/shared', () => ({
@@ -29,6 +37,10 @@ vi.mock('@fledgely/shared', () => ({
     successMessage: 'Great job speaking up!',
     confirmationMessage: 'Your request has been sent!',
   },
+  recordRejection: (...args: unknown[]) => mockRecordRejection(...args),
+  checkEscalationThreshold: (...args: unknown[]) => mockCheckEscalationThreshold(...args),
+  triggerEscalation: (...args: unknown[]) => mockTriggerEscalation(...args),
+  incrementProposalCount: (...args: unknown[]) => mockIncrementProposalCount(...args),
 }))
 
 // Mock Firestore
@@ -473,6 +485,117 @@ describe('agreementProposalService - Story 34.1', () => {
           description: expect.stringContaining('counter'),
         })
       )
+    })
+  })
+
+  // ============================================
+  // Story 34.5.1: Child Proposal Rejection Tracking
+  // ============================================
+
+  describe('handleChildProposalRejection - Story 34.5.1 (AC1, AC2, AC3)', () => {
+    beforeEach(() => {
+      mockRecordRejection.mockReset()
+      mockCheckEscalationThreshold.mockReset()
+      mockTriggerEscalation.mockReset()
+      mockRecordRejection.mockResolvedValue({
+        id: 'pattern-123',
+        totalRejections: 1,
+      })
+      mockCheckEscalationThreshold.mockResolvedValue(false)
+    })
+
+    it('should record rejection when child proposal is declined (AC1)', async () => {
+      await handleChildProposalRejection({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(mockRecordRejection).toHaveBeenCalledWith('family-1', 'child-1', 'proposal-123')
+    })
+
+    it('should check escalation threshold after recording (AC3)', async () => {
+      await handleChildProposalRejection({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(mockCheckEscalationThreshold).toHaveBeenCalledWith('child-1')
+    })
+
+    it('should trigger escalation when threshold reached (AC3)', async () => {
+      mockCheckEscalationThreshold.mockResolvedValue(true)
+
+      await handleChildProposalRejection({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(mockTriggerEscalation).toHaveBeenCalledWith('family-1', 'child-1')
+    })
+
+    it('should not trigger escalation when threshold not reached', async () => {
+      mockCheckEscalationThreshold.mockResolvedValue(false)
+
+      await handleChildProposalRejection({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(mockTriggerEscalation).not.toHaveBeenCalled()
+    })
+
+    it('should process rejection flow in correct order', async () => {
+      const callOrder: string[] = []
+      mockRecordRejection.mockImplementation(async () => {
+        callOrder.push('recordRejection')
+        return { id: 'pattern-123' }
+      })
+      mockCheckEscalationThreshold.mockImplementation(async () => {
+        callOrder.push('checkThreshold')
+        return true
+      })
+      mockTriggerEscalation.mockImplementation(async () => {
+        callOrder.push('triggerEscalation')
+      })
+
+      await handleChildProposalRejection({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(callOrder).toEqual(['recordRejection', 'checkThreshold', 'triggerEscalation'])
+    })
+  })
+
+  describe('handleChildProposalSubmission - Story 34.5.1 (AC5)', () => {
+    beforeEach(() => {
+      mockIncrementProposalCount.mockReset()
+      mockIncrementProposalCount.mockResolvedValue(undefined)
+    })
+
+    it('should increment proposal count for metrics (AC5)', async () => {
+      await handleChildProposalSubmission({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'proposal-123',
+      })
+
+      expect(mockIncrementProposalCount).toHaveBeenCalledWith('family-1', 'child-1')
+    })
+
+    it('should track submission by family and child', async () => {
+      await handleChildProposalSubmission({
+        familyId: 'family-2',
+        childId: 'child-2',
+        proposalId: 'proposal-456',
+      })
+
+      expect(mockIncrementProposalCount).toHaveBeenCalledWith('family-2', 'child-2')
     })
   })
 })

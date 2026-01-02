@@ -1,13 +1,21 @@
 /**
- * Agreement Proposal Service - Story 34.1, 34.2, 34.3
+ * Agreement Proposal Service - Story 34.1, 34.2, 34.3, 34.5.1
  *
- * Handles proposal notifications and activity logging.
+ * Handles proposal notifications, activity logging, and rejection pattern tracking.
  * Follows patterns from agreementChangeService.ts.
+ *
+ * Story 34.5.1: Child proposal rejection tracking integration.
  */
 
 import { collection, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import { AGREEMENT_PROPOSAL_MESSAGES, CHILD_PROPOSAL_MESSAGES } from '@fledgely/shared'
+import {
+  recordRejection,
+  checkEscalationThreshold,
+  triggerEscalation,
+  incrementProposalCount,
+} from '@fledgely/shared'
 
 /**
  * Input for creating a proposal notification
@@ -256,4 +264,74 @@ export async function logProposalResponse(input: ProposalResponseActivityInput):
   const activityDoc = await addDoc(activityRef, activityData)
 
   return activityDoc.id
+}
+
+// ============================================
+// Story 34.5.1: Child Proposal Rejection Tracking
+// ============================================
+
+/**
+ * Input for handling child proposal rejection
+ *
+ * Story 34.5.1 AC1: Track proposal rejections
+ */
+export interface ChildProposalRejectionInput {
+  familyId: string
+  childId: string
+  proposalId: string
+}
+
+/**
+ * Handle a child's proposal being rejected by a parent.
+ *
+ * Story 34.5.1 AC1: Track proposal rejections with dates
+ * Story 34.5.1 AC2: 90-day rolling window updates automatically
+ * Story 34.5.1 AC3: Trigger escalation when threshold reached
+ *
+ * CRITICAL: This is privacy-preserving - only aggregate patterns tracked,
+ * not proposal content.
+ *
+ * @param input - Rejection input data
+ */
+export async function handleChildProposalRejection(
+  input: ChildProposalRejectionInput
+): Promise<void> {
+  const { familyId, childId, proposalId } = input
+
+  // Record rejection in pattern tracking (AC1, AC2)
+  await recordRejection(familyId, childId, proposalId)
+
+  // Check if escalation threshold reached (AC3)
+  const thresholdReached = await checkEscalationThreshold(childId)
+
+  if (thresholdReached) {
+    await triggerEscalation(familyId, childId)
+  }
+}
+
+/**
+ * Input for handling child proposal submission
+ *
+ * Story 34.5.1 AC5: Track total proposals for metrics
+ */
+export interface ChildProposalSubmissionInput {
+  familyId: string
+  childId: string
+  proposalId: string
+}
+
+/**
+ * Handle a child submitting a new proposal.
+ *
+ * Story 34.5.1 AC5: Track total proposals for metrics
+ *
+ * @param input - Submission input data
+ */
+export async function handleChildProposalSubmission(
+  input: ChildProposalSubmissionInput
+): Promise<void> {
+  const { familyId, childId } = input
+
+  // Increment proposal count for metrics
+  await incrementProposalCount(familyId, childId)
 }

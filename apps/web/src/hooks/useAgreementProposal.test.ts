@@ -1,12 +1,19 @@
 /**
- * useAgreementProposal Hook Tests - Story 34.1
+ * useAgreementProposal Hook Tests - Story 34.1, 34.5.1
  *
  * Tests for creating and managing agreement change proposals.
+ * Story 34.5.1: Tests for child proposal submission tracking.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useAgreementProposal } from './useAgreementProposal'
+
+// Mock child proposal submission tracking
+const mockHandleChildProposalSubmission = vi.fn()
+vi.mock('../services/agreementProposalService', () => ({
+  handleChildProposalSubmission: (...args: unknown[]) => mockHandleChildProposalSubmission(...args),
+}))
 
 // Mock Firestore
 const mockAddDoc = vi.fn()
@@ -59,6 +66,8 @@ describe('useAgreementProposal - Story 34.1', () => {
       callback({ docs: [] })
       return vi.fn() // unsubscribe
     })
+    // Mock child proposal submission tracking
+    mockHandleChildProposalSubmission.mockResolvedValue(undefined)
   })
 
   describe('createProposal', () => {
@@ -272,6 +281,101 @@ describe('useAgreementProposal - Story 34.1', () => {
 
       await waitFor(() => {
         expect(result.current.error).toBe('Snapshot error')
+      })
+    })
+  })
+
+  // ============================================
+  // Story 34.5.1: Child Proposal Submission Tracking
+  // ============================================
+
+  describe('child proposal submission tracking - Story 34.5.1 (AC5)', () => {
+    const childProposalProps = {
+      ...defaultProps,
+      proposerId: 'child-1',
+      proposerName: 'Emma',
+      proposedBy: 'child' as const,
+    }
+
+    it('should track submission when child creates proposal', async () => {
+      mockAddDoc.mockResolvedValue({ id: 'child-proposal-123' })
+
+      const { result } = renderHook(() => useAgreementProposal(childProposalProps))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      const changes = [
+        {
+          sectionId: 'time-limits',
+          sectionName: 'Time Limits',
+          fieldPath: 'timeLimits.weekday.gaming',
+          oldValue: 60,
+          newValue: 90,
+          changeType: 'modify' as const,
+        },
+      ]
+
+      await result.current.createProposal(changes, 'I have been responsible')
+
+      expect(mockHandleChildProposalSubmission).toHaveBeenCalledWith({
+        familyId: 'family-1',
+        childId: 'child-1',
+        proposalId: 'child-proposal-123',
+      })
+    })
+
+    it('should not track submission when parent creates proposal', async () => {
+      const { result } = renderHook(() => useAgreementProposal(defaultProps))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      await result.current.createProposal([], null)
+
+      expect(mockHandleChildProposalSubmission).not.toHaveBeenCalled()
+    })
+
+    it('should still create proposal even if tracking fails', async () => {
+      mockAddDoc.mockResolvedValue({ id: 'child-proposal-123' })
+      mockHandleChildProposalSubmission.mockRejectedValue(new Error('Tracking failed'))
+
+      const { result } = renderHook(() => useAgreementProposal(childProposalProps))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      // The proposal creation should propagate the tracking error
+      await expect(result.current.createProposal([], null)).rejects.toThrow('Tracking failed')
+    })
+
+    it('should use correct familyId and childId for tracking', async () => {
+      mockAddDoc.mockResolvedValue({ id: 'proposal-abc' })
+
+      const customProps = {
+        familyId: 'family-xyz',
+        childId: 'child-xyz',
+        agreementId: 'agreement-1',
+        proposerId: 'child-xyz',
+        proposerName: 'Alex',
+        proposedBy: 'child' as const,
+      }
+
+      const { result } = renderHook(() => useAgreementProposal(customProps))
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false)
+      })
+
+      await result.current.createProposal([], null)
+
+      expect(mockHandleChildProposalSubmission).toHaveBeenCalledWith({
+        familyId: 'family-xyz',
+        childId: 'child-xyz',
+        proposalId: 'proposal-abc',
       })
     })
   })

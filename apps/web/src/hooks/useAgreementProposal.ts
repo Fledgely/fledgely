@@ -1,8 +1,10 @@
 /**
- * useAgreementProposal Hook - Story 34.1
+ * useAgreementProposal Hook - Story 34.1, 34.5.1
  *
  * Hook for creating and managing agreement change proposals.
  * Supports parent-initiated proposals with real-time status sync.
+ *
+ * Story 34.5.1: Tracks child proposal submissions for communication metrics.
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -21,6 +23,7 @@ import {
 } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import type { ProposalChange, AgreementProposal } from '@fledgely/shared'
+import { handleChildProposalSubmission } from '../services/agreementProposalService'
 
 export interface UseAgreementProposalProps {
   familyId: string
@@ -112,6 +115,16 @@ export function useAgreementProposal(props: UseAgreementProposalProps): UseAgree
       }
 
       const docRef = await addDoc(proposalsRef, proposalData)
+
+      // Story 34.5.1: Track child proposal submissions for communication metrics
+      if (proposedBy === 'child') {
+        await handleChildProposalSubmission({
+          familyId,
+          childId,
+          proposalId: docRef.id,
+        })
+      }
+
       return docRef.id
     },
     [familyId, childId, agreementId, proposedBy, proposerId, proposerName]

@@ -6892,3 +6892,15 @@ export {
   type ConfirmationContent,
   type ConfirmationDisplayEvent,
 } from './signalConfirmation'
+
+// Story 34.5.1: Rejection Pattern Tracking
+export {
+  REJECTION_WINDOW_DAYS,
+  REJECTION_THRESHOLD,
+  rejectionPatternSchema,
+  rejectionEventSchema,
+  escalationEventSchema,
+  type RejectionPattern,
+  type RejectionEvent,
+  type EscalationEvent,
+} from './rejectionPattern'

@@ -1989,3 +1989,24 @@ export {
   type AnalyticsReport,
   type JurisdictionReport,
 } from './services/confirmationAnalyticsService'
+
+// Rejection Pattern Service exports (Story 34.5.1)
+export {
+  // Constants
+  REJECTION_PATTERNS_COLLECTION,
+  REJECTION_EVENTS_COLLECTION,
+  ESCALATION_EVENTS_COLLECTION,
+  REJECTION_WINDOW_DAYS,
+  REJECTION_THRESHOLD,
+  // Functions
+  recordRejection,
+  calculateRejectionsInWindow,
+  checkEscalationThreshold,
+  getRejectionPattern,
+  triggerEscalation,
+  incrementProposalCount,
+  // Types
+  type RejectionPattern,
+  type RejectionEvent,
+  type EscalationEvent,
+} from './services/rejectionPatternService'
