@@ -1836,3 +1836,156 @@ export {
   type BlackoutStatus,
   type BlackoutStore,
 } from './services/signalBlackoutService'
+
+// Signal Confirmation exports (Story 7.5.3)
+export {
+  // Constants
+  RESOURCE_TYPE,
+  CONFIRMATION_EVENT_TYPE,
+  CONFIRMATION_DEFAULTS,
+  // Schemas (renamed to avoid conflict with crisis-urls exports)
+  resourceTypeSchema,
+  confirmationEventTypeSchema,
+  crisisResourceSchema as signalCrisisResourceSchema,
+  signalConfirmationSchema,
+  confirmationContentSchema,
+  confirmationDisplayEventSchema,
+  // ID Generators
+  generateResourceId,
+  generateConfirmationId,
+  generateDisplayEventId,
+  // Factory Functions
+  createCrisisResource as createSignalCrisisResource,
+  createSignalConfirmation,
+  createConfirmationContent,
+  createConfirmationDisplayEvent,
+  createDefaultUSResources,
+  createDefaultUKResources,
+  createDefaultCAResources,
+  createDefaultAUResources,
+  // Validation Functions
+  validateCrisisResource as validateSignalCrisisResource,
+  validateSignalConfirmation,
+  validateConfirmationContent,
+  isCrisisResource as isSignalCrisisResource,
+  isSignalConfirmation,
+  // Utility Functions
+  validateReadingLevel,
+  getResourcesByType,
+  getResourcesByJurisdiction,
+  sortResourcesByPriority,
+  filterChatResources,
+  // Types (use alias to avoid conflict with crisis-urls CrisisResource)
+  type ResourceType,
+  type ConfirmationEventType,
+  type SignalCrisisResource,
+  type SignalConfirmation,
+  type ConfirmationContent,
+  type ConfirmationDisplayEvent,
+} from './contracts'
+
+// Crisis Resource Service exports (Story 7.5.3 Task 2)
+export {
+  // Resource management
+  getResourcesForJurisdiction,
+  getUniversalResources,
+  getChatResources,
+  isChatAvailable,
+  getEmergencyNumber,
+  getAllCrisisResources,
+  getResourceById as getCrisisResourceById,
+  addResourceToCache,
+  clearResourceCache,
+  // Cache management
+  getCachedResources,
+  setCachedResources,
+  isCacheValid,
+  refreshResourceCache,
+  getCacheExpiryTime,
+  CACHE_EXPIRY_MS,
+  // Prioritization
+  getPrioritizedResources,
+  getTopNResources,
+  // Types
+  type ResourceCache,
+} from './services/crisisResourceService'
+
+// Confirmation Content Service exports (Story 7.5.3 Task 3)
+export {
+  // Content generation
+  getConfirmationContent,
+  getAgeAdjustedContent,
+  getOfflineConfirmationContent,
+  getJurisdictionContent,
+  // Reading level validation
+  validateReadingLevel as validateContentReadingLevel,
+  calculateReadingLevel,
+  isChildAppropriate,
+  containsScaryTerminology,
+  // Language customization
+  getLocalizedEmergencyText,
+  getChildFriendlyText,
+  simplifyText,
+  // Constants
+  DEFAULT_CONTENT,
+  AGE_BRACKETS,
+  SCARY_TERMS,
+  GRADE_LEVEL_THRESHOLDS,
+  // Types
+  type ContentLocale,
+  type AgeAdjustedContent,
+} from './services/confirmationContentService'
+
+// Offline Confirmation Service exports (Story 7.5.3 Task 7)
+export {
+  // Offline confirmation
+  getOfflineConfirmation,
+  shouldShowResourcesOffline,
+  // Resource caching
+  getCachedResourcesOffline,
+  cacheResourcesForOffline,
+  clearOfflineCache,
+  isOfflineCacheValid,
+  getOfflineCacheStatus,
+  // Sync functions
+  syncOfflineConfirmations,
+  getPendingConfirmations,
+  markConfirmationSynced,
+  // Queue management
+  queueConfirmationForSync,
+  getQueuedConfirmationsCount,
+  clearSyncQueue,
+  // Types
+  type OfflineCacheStatus,
+  type PendingConfirmation,
+  type SyncResult,
+  type SyncFunction,
+} from './services/offlineConfirmationService'
+
+// Confirmation Analytics Service exports (Story 7.5.3 Task 8)
+export {
+  // Tracking functions
+  trackConfirmationDisplayed,
+  trackResourceClicked,
+  trackChatInitiated,
+  trackConfirmationDismissed,
+  // Analytics retrieval
+  getAnalyticsData,
+  getResourceClickStats,
+  getDisplayStats,
+  // Reporting
+  generateAnonymousReport,
+  generateJurisdictionReport,
+  // Analytics management
+  clearAnalyticsData,
+  getAnalyticsCount,
+  // Types
+  type AnalyticsEventType,
+  type AgeGroup as AnalyticsAgeGroup,
+  type ResourceType as AnalyticsResourceType,
+  type ConfirmationAnalyticsEvent,
+  type ResourceClickStats,
+  type DisplayStats,
+  type AnalyticsReport,
+  type JurisdictionReport,
+} from './services/confirmationAnalyticsService'

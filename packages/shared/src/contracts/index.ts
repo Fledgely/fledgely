@@ -6845,3 +6845,50 @@ export {
   type SignalRoutingResult,
   type BlackoutRecord,
 } from './crisisPartner'
+
+// Signal Confirmation exports (Story 7.5.3)
+export {
+  // Constants
+  RESOURCE_TYPE,
+  CONFIRMATION_EVENT_TYPE,
+  CONFIRMATION_DEFAULTS,
+  // Schemas (renamed to avoid conflict with crisis-urls exports)
+  resourceTypeSchema,
+  confirmationEventTypeSchema,
+  crisisResourceSchema as signalCrisisResourceSchema,
+  signalConfirmationSchema,
+  confirmationContentSchema,
+  confirmationDisplayEventSchema,
+  // ID Generators
+  generateResourceId,
+  generateConfirmationId,
+  generateDisplayEventId,
+  // Factory Functions
+  createCrisisResource as createSignalCrisisResource,
+  createSignalConfirmation,
+  createConfirmationContent,
+  createConfirmationDisplayEvent,
+  createDefaultUSResources,
+  createDefaultUKResources,
+  createDefaultCAResources,
+  createDefaultAUResources,
+  // Validation Functions
+  validateCrisisResource as validateSignalCrisisResource,
+  validateSignalConfirmation,
+  validateConfirmationContent,
+  isCrisisResource as isSignalCrisisResource,
+  isSignalConfirmation,
+  // Utility Functions
+  validateReadingLevel,
+  getResourcesByType,
+  getResourcesByJurisdiction,
+  sortResourcesByPriority,
+  filterChatResources,
+  // Types (renamed to avoid conflict with crisis-urls CrisisResource type)
+  type ResourceType,
+  type ConfirmationEventType,
+  type CrisisResource as SignalCrisisResource,
+  type SignalConfirmation,
+  type ConfirmationContent,
+  type ConfirmationDisplayEvent,
+} from './signalConfirmation'
