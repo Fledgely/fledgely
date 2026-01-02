@@ -539,8 +539,8 @@ development_status:
   epic-38: in-progress
   38-1-graduation-eligibility-tracking: done
   38-2-graduation-conversation-trigger: done
-  38-3-formal-graduation-process: in-progress
-  38-4-annual-proportionality-check: backlog
+  38-3-formal-graduation-process: done
+  38-4-annual-proportionality-check: done
   38-5-age-18-automatic-deletion: backlog
   38-6-pre-18-data-export-option: backlog
   38-7-post-graduation-support: backlog

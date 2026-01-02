@@ -1387,3 +1387,92 @@ export {
   type FullCelebrationContent,
   type FullCelebrationInput,
 } from './services/graduationCelebrationService'
+
+// Proportionality Check exports (Story 38.4)
+export {
+  PROPORTIONALITY_CHECK_INTERVAL_MONTHS,
+  CHECK_EXPIRY_DAYS,
+  REMINDER_AFTER_DAYS,
+  checkTriggerSchema,
+  checkStatusSchema,
+  responseChoiceSchema,
+  riskChangeSchema,
+  disagreementTypeSchema,
+  suggestionTypeSchema,
+  suggestionPrioritySchema,
+  proportionalityCheckSchema,
+  proportionalityResponseSchema,
+  proportionalitySuggestionSchema,
+  parentResponseRecordSchema,
+  disagreementRecordSchema,
+  calculateCheckExpiryDate,
+  calculateReminderDate,
+  isCheckExpired,
+  isCheckDueForReminder,
+  createInitialCheck,
+  type CheckTrigger,
+  type CheckStatus,
+  type ResponseChoice,
+  type RiskChange,
+  type DisagreementType,
+  type SuggestionType,
+  type SuggestionPriority,
+  type ProportionalityCheck,
+  type ProportionalityResponse,
+  type ProportionalitySuggestion,
+  type ParentResponseRecord,
+  type DisagreementRecord,
+} from './contracts/proportionalityCheck'
+
+// Proportionality Check Service exports (Story 38.4)
+export {
+  isEligibleForProportionalityCheck,
+  getMonitoringDurationMonths,
+  isCheckOverdue,
+  createProportionalityCheck,
+  expireOverdueChecks,
+  getActiveCheckForChild,
+  getPendingChecksForFamily,
+  getCheckHistory,
+  getCheckById,
+  markCheckInProgress,
+  markCheckCompleted,
+  clearAllCheckData,
+  getCheckStats,
+} from './services/proportionalityCheckService'
+
+// Proportionality Response Service exports (Story 38.4)
+export {
+  submitResponse as submitProportionalityResponse,
+  getResponseById as getProportionalityResponseById,
+  getResponsesForCheck,
+  hasRespondedToCheck,
+  hasAllPartiesResponded,
+  getResponseSummary,
+  canViewResponse,
+  clearAllResponseData,
+  type SubmitResponseInput,
+  type ResponseSummary,
+} from './services/proportionalityResponseService'
+
+// Proportionality Suggestion Service exports (Story 38.4)
+export {
+  SUGGESTION_TEMPLATES,
+  calculateSuggestionPriority,
+  generateSuggestions,
+  getPrimarySuggestion,
+  getSuggestionDisplayText,
+  type GenerateSuggestionsInput,
+} from './services/proportionalitySuggestionService'
+
+// Proportionality Disagreement Service exports (Story 38.4)
+export {
+  categorizeDisagreement,
+  detectDisagreement,
+  createDisagreementRecord,
+  getUnresolvedDisagreements,
+  markDisagreementResolved,
+  getDisagreementById,
+  getDisagreementsForCheck,
+  clearAllDisagreementData,
+} from './services/proportionalityDisagreementService'
