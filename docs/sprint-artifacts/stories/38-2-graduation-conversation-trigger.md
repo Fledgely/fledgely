@@ -6,17 +6,17 @@ As **a child who has maintained perfect trust**,
 I want **the system to initiate a graduation conversation**,
 So that **I don't stay monitored indefinitely despite compliance**.
 
-## Status: In Progress
+## Status: done
 
 ## Acceptance Criteria
 
-- [ ] AC1: System detects when child reaches 12 consecutive months at 100% trust
-- [ ] AC2: Notification sent to BOTH child AND parent about eligibility
-- [ ] AC3: Both parties must acknowledge readiness for graduation conversation
-- [ ] AC4: System suggests: "Your child has shown consistent responsibility"
-- [ ] AC5: Conversation template provided with discussion points
-- [ ] AC6: Prevents indefinite monitoring of compliant teens
-- [ ] AC7: Respects child's demonstrated readiness for independence
+- [x] AC1: System detects when child reaches 12 consecutive months at 100% trust
+- [x] AC2: Notification sent to BOTH child AND parent about eligibility
+- [x] AC3: Both parties must acknowledge readiness for graduation conversation
+- [x] AC4: System suggests: "Your child has shown consistent responsibility"
+- [x] AC5: Conversation template provided with discussion points
+- [x] AC6: Prevents indefinite monitoring of compliant teens
+- [x] AC7: Respects child's demonstrated readiness for independence
 
 ## Technical Tasks
 
