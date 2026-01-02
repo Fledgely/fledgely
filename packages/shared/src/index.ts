@@ -1476,3 +1476,92 @@ export {
   getDisagreementsForCheck,
   clearAllDisagreementData,
 } from './services/proportionalityDisagreementService'
+
+// Age 18 Deletion Contracts exports (Story 38.5)
+export {
+  AGE_18_IN_YEARS,
+  DELETION_CHECK_INTERVAL,
+  PRE_DELETION_NOTICE_DAYS,
+  MIN_CHILD_AGE_YEARS,
+  MAX_BIRTHDATE_AGE_YEARS,
+  ALL_DELETION_DATA_TYPES,
+  deletionDataTypeSchema,
+  deletionStatusSchema as age18DeletionStatusSchema,
+  notificationTypeSchema as age18NotificationTypeSchema,
+  childBirthdateSchema,
+  age18DeletionRecordSchema,
+  age18DeletionNotificationSchema,
+  createChildBirthdate,
+  createAge18DeletionRecord,
+  isValidBirthdateForStorage,
+  type DeletionDataType,
+  type DeletionStatus as Age18DeletionStatus,
+  type NotificationType as Age18NotificationType,
+  type ChildBirthdate,
+  type Age18DeletionRecord,
+  type Age18DeletionNotification,
+} from './contracts/age18Deletion'
+
+// Birthdate Service exports (Story 38.5)
+export {
+  setBirthdate,
+  getBirthdate,
+  updateBirthdate,
+  calculateAge,
+  getAgeInYearsAndMonths,
+  is18OrOlder,
+  getDaysUntil18,
+  get18thBirthdayDate,
+  isValidBirthdate,
+  getAllBirthdates,
+  clearAllBirthdateData,
+} from './services/birthdateService'
+
+// Age 18 Deletion Service exports (Story 38.5)
+export {
+  getChildrenTurning18Today,
+  getChildrenTurning18InDays,
+  getChildrenWithBirthdateToday,
+  executeAge18Deletion,
+  deleteAllChildData,
+  markDeletionComplete as markAge18DeletionComplete,
+  markDeletionFailed as markAge18DeletionFailed,
+  markDeletionProcessing as markAge18DeletionProcessing,
+  getDeletionRecord as getAge18DeletionRecord,
+  getAge18DeletionHistory,
+  getPendingDeletions as getPendingAge18Deletions,
+  getFailedDeletions as getFailedAge18Deletions,
+  clearAllAge18DeletionData,
+  type ChildTurning18,
+  type DeletionResult,
+} from './services/age18DeletionService'
+
+// Age 18 Notification Service exports (Story 38.5)
+export {
+  getAge18DeletionMessage,
+  getPreDeletionMessage,
+  getAge18DeletionMessageForViewer,
+  getPreDeletionMessageForViewer,
+  sendDeletionCompleteNotification,
+  sendPreDeletionNotification,
+  getNotificationsForChild as getAge18NotificationsForChild,
+  getNotificationById as getAge18NotificationById,
+  getUnacknowledgedNotifications as getUnacknowledgedAge18Notifications,
+  markNotificationAcknowledged as markAge18NotificationAcknowledged,
+  clearAllNotificationData as clearAllAge18NotificationData,
+  type ViewerType as Age18ViewerType,
+} from './services/age18NotificationService'
+
+// Age 18 Deletion Scheduler exports (Story 38.5)
+export {
+  executeDailyAge18Check,
+  sendPreDeletionNotifications,
+  retryFailedDeletions,
+  getLastSchedulerRun,
+  getSchedulerStats,
+  clearSchedulerData,
+  type DailyCheckResult,
+  type RetryResult,
+  type SchedulerStats,
+  type LastRunInfo,
+} from './services/age18DeletionScheduler'
