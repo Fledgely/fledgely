@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   // Service functions
   buildRoutingPayload,
+  buildEnhancedRoutingPayload,
   selectPartnerForJurisdiction,
   routeSignalToPartner,
   getPartnerById,
@@ -594,6 +595,185 @@ describe('Signal Routing Service', () => {
 
       expect(getRoutingResultCount()).toBe(0)
       expect(getPartnerCount()).toBe(0)
+    })
+  })
+
+  // ============================================
+  // buildEnhancedRoutingPayload Tests (Story 7.5.5 Task 6)
+  // ============================================
+
+  describe('buildEnhancedRoutingPayload', () => {
+    it('should build enhanced payload with jurisdiction details', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 12)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        ['crisis_counseling', 'mandatory_reporting']
+      )
+
+      expect(payload.signalId).toBe(testSignal.id)
+      expect(payload.jurisdictionDetails).toBeDefined()
+      expect(payload.jurisdictionDetails.code).toBe('US-CA')
+      expect(payload.jurisdictionDetails.country).toBe('US')
+      expect(payload.jurisdictionDetails.stateProvince).toBe('CA')
+    })
+
+    it('should include mandatory reporting flag', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        ['mandatory_reporting']
+      )
+
+      expect(payload.jurisdictionDetails.hasMandatoryReporting).toBe(true)
+    })
+
+    it('should set hasMandatoryReporting false for non-reporting jurisdictions', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'XX', // Unknown jurisdiction
+        ['crisis_counseling']
+      )
+
+      expect(payload.jurisdictionDetails.hasMandatoryReporting).toBe(false)
+    })
+
+    it('should include requested capabilities', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        ['crisis_counseling', 'mandatory_reporting', 'safe_adult_notification']
+      )
+
+      expect(payload.requestedCapabilities).toContain('crisis_counseling')
+      expect(payload.requestedCapabilities).toContain('mandatory_reporting')
+      expect(payload.requestedCapabilities).toContain('safe_adult_notification')
+    })
+
+    it('should handle country-only jurisdiction', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'UK',
+        ['crisis_counseling']
+      )
+
+      expect(payload.jurisdictionDetails.code).toBe('UK')
+      expect(payload.jurisdictionDetails.country).toBe('UK')
+      expect(payload.jurisdictionDetails.stateProvince).toBeNull()
+    })
+
+    it('should include mandatory reporter categories', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        ['mandatory_reporting']
+      )
+
+      expect(payload.jurisdictionDetails.mandatoryReporterCategories).toBeDefined()
+      expect(Array.isArray(payload.jurisdictionDetails.mandatoryReporterCategories)).toBe(true)
+    })
+
+    it('should NOT include sensitive data in enhanced payload', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        ['crisis_counseling']
+      )
+
+      // Same safety checks as basic payload
+      expect((payload as Record<string, unknown>).parentInfo).toBeUndefined()
+      expect((payload as Record<string, unknown>).screenshots).toBeUndefined()
+      expect((payload as Record<string, unknown>).activityData).toBeUndefined()
+      expect((payload as Record<string, unknown>).browsingHistory).toBeUndefined()
+    })
+
+    it('should preserve all base payload fields', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.SHARED_CUSTODY,
+        'US-NY',
+        ['crisis_counseling']
+      )
+
+      // All base fields should be present
+      expect(payload.signalId).toBe(testSignal.id)
+      expect(payload.childAge).toBe(10)
+      expect(payload.familyStructure).toBe('shared_custody')
+      expect(payload.jurisdiction).toBe('US-NY')
+      expect(payload.platform).toBe(testSignal.platform)
+      expect(payload.triggerMethod).toBe(testSignal.triggerMethod)
+      expect(payload.signalTimestamp).toBeInstanceOf(Date)
+    })
+
+    it('should handle empty capabilities list', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'US-CA',
+        []
+      )
+
+      expect(payload.requestedCapabilities).toEqual([])
+    })
+
+    it('should handle Australian state jurisdiction', () => {
+      const birthDate = new Date()
+      birthDate.setFullYear(birthDate.getFullYear() - 10)
+
+      const payload = buildEnhancedRoutingPayload(
+        testSignal,
+        birthDate,
+        FAMILY_STRUCTURE.TWO_PARENT,
+        'AU-NSW',
+        ['crisis_counseling']
+      )
+
+      expect(payload.jurisdictionDetails.code).toBe('AU-NSW')
+      expect(payload.jurisdictionDetails.country).toBe('AU')
+      expect(payload.jurisdictionDetails.stateProvince).toBe('NSW')
+      expect(payload.jurisdictionDetails.hasMandatoryReporting).toBe(true)
     })
   })
 

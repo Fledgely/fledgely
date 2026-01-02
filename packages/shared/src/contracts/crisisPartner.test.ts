@@ -12,11 +12,20 @@ import {
   PARTNER_CAPABILITY,
   FAMILY_STRUCTURE,
   ROUTING_STATUS,
+  ESCALATION_TYPE,
+  REPORTING_PROTOCOL,
+  LEGAL_REQUEST_TYPE,
+  LEGAL_REQUEST_STATUS,
   // Schemas
   crisisPartnerSchema,
   signalRoutingPayloadSchema,
   signalRoutingResultSchema,
   blackoutRecordSchema,
+  jurisdictionCoverageSchema,
+  mandatoryReportingCapabilitySchema,
+  signalEscalationSchema,
+  legalRequestSchema,
+  enhancedSignalRoutingPayloadSchema,
   // Types
   type CrisisPartner,
   type SignalRoutingPayload,
@@ -30,16 +39,29 @@ import {
   generatePartnerId,
   generateRoutingResultId,
   generateBlackoutId,
+  generateEscalationId,
+  generateLegalRequestId,
+  createSignalEscalation,
+  createLegalRequest,
+  createEnhancedSignalRoutingPayload,
+  createJurisdictionCoverage,
+  createMandatoryReportingCapability,
   // Validation functions
   validateCrisisPartner,
   validateSignalRoutingPayload,
   validateSignalRoutingResult,
   isCrisisPartner,
   isSignalRoutingPayload,
+  validateSignalEscalation,
+  validateLegalRequest,
+  isSignalEscalation,
+  isLegalRequest,
   // Utility functions
   calculateChildAge,
   isValidJurisdiction,
   partnerSupportsJurisdiction,
+  partnerSupportsMandatoryReporting,
+  getMandatoryReportingPartners,
 } from './crisisPartner'
 
 describe('Crisis Partner Contracts', () => {
@@ -761,6 +783,727 @@ describe('Crisis Partner Contracts', () => {
       expect(partnerSupportsJurisdiction(partner, 'UK')).toBe(true)
       expect(partnerSupportsJurisdiction(partner, 'AU-NSW')).toBe(true)
       expect(partnerSupportsJurisdiction(partner, 'AU-VIC')).toBe(false)
+    })
+  })
+
+  // ============================================
+  // Story 7.5.5: Mandatory Reporter Pathway Tests
+  // ============================================
+
+  describe('ESCALATION_TYPE (Story 7.5.5)', () => {
+    it('should define assessment type', () => {
+      expect(ESCALATION_TYPE.ASSESSMENT).toBe('assessment')
+    })
+
+    it('should define mandatory_report type', () => {
+      expect(ESCALATION_TYPE.MANDATORY_REPORT).toBe('mandatory_report')
+    })
+
+    it('should define law_enforcement_referral type', () => {
+      expect(ESCALATION_TYPE.LAW_ENFORCEMENT_REFERRAL).toBe('law_enforcement_referral')
+    })
+  })
+
+  describe('REPORTING_PROTOCOL (Story 7.5.5)', () => {
+    it('should define partner_direct protocol', () => {
+      expect(REPORTING_PROTOCOL.PARTNER_DIRECT).toBe('partner_direct')
+    })
+
+    it('should define partner_coordinated protocol', () => {
+      expect(REPORTING_PROTOCOL.PARTNER_COORDINATED).toBe('partner_coordinated')
+    })
+  })
+
+  describe('LEGAL_REQUEST_TYPE (Story 7.5.5)', () => {
+    it('should define subpoena type', () => {
+      expect(LEGAL_REQUEST_TYPE.SUBPOENA).toBe('subpoena')
+    })
+
+    it('should define warrant type', () => {
+      expect(LEGAL_REQUEST_TYPE.WARRANT).toBe('warrant')
+    })
+
+    it('should define court_order type', () => {
+      expect(LEGAL_REQUEST_TYPE.COURT_ORDER).toBe('court_order')
+    })
+
+    it('should define emergency_disclosure type', () => {
+      expect(LEGAL_REQUEST_TYPE.EMERGENCY_DISCLOSURE).toBe('emergency_disclosure')
+    })
+  })
+
+  describe('LEGAL_REQUEST_STATUS (Story 7.5.5)', () => {
+    it('should define pending_legal_review status', () => {
+      expect(LEGAL_REQUEST_STATUS.PENDING_LEGAL_REVIEW).toBe('pending_legal_review')
+    })
+
+    it('should define approved status', () => {
+      expect(LEGAL_REQUEST_STATUS.APPROVED).toBe('approved')
+    })
+
+    it('should define denied status', () => {
+      expect(LEGAL_REQUEST_STATUS.DENIED).toBe('denied')
+    })
+
+    it('should define fulfilled status', () => {
+      expect(LEGAL_REQUEST_STATUS.FULFILLED).toBe('fulfilled')
+    })
+  })
+
+  // ============================================
+  // JurisdictionCoverage Tests (Story 7.5.5 Task 1)
+  // ============================================
+
+  describe('jurisdictionCoverageSchema (Story 7.5.5)', () => {
+    const validCoverage = {
+      jurisdictionCode: 'US-CA',
+      mandatoryReporterCategories: ['healthcare', 'social_work', 'counseling'],
+      reportingAgency: 'DCFS',
+      reportingHotline: '+18005221313',
+    }
+
+    it('should validate a valid jurisdiction coverage', () => {
+      const result = jurisdictionCoverageSchema.safeParse(validCoverage)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require jurisdictionCode', () => {
+      const invalid = { ...validCoverage, jurisdictionCode: '' }
+      const result = jurisdictionCoverageSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require at least one mandatoryReporterCategory', () => {
+      const invalid = { ...validCoverage, mandatoryReporterCategories: [] }
+      const result = jurisdictionCoverageSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require reportingAgency', () => {
+      const invalid = { ...validCoverage, reportingAgency: '' }
+      const result = jurisdictionCoverageSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow null reportingHotline', () => {
+      const valid = { ...validCoverage, reportingHotline: null }
+      const result = jurisdictionCoverageSchema.safeParse(valid)
+      expect(result.success).toBe(true)
+    })
+  })
+
+  // ============================================
+  // MandatoryReportingCapability Tests (Story 7.5.5 Task 1)
+  // ============================================
+
+  describe('mandatoryReportingCapabilitySchema (Story 7.5.5)', () => {
+    const validCapability = {
+      partnerId: 'partner_123',
+      supportedJurisdictions: [
+        {
+          jurisdictionCode: 'US-CA',
+          mandatoryReporterCategories: ['healthcare', 'counseling'],
+          reportingAgency: 'DCFS',
+          reportingHotline: '+18005221313',
+        },
+      ],
+      reportingProtocol: 'partner_direct' as const,
+      requiresExtendedBlackout: false,
+      averageResponseTimeHours: 24,
+    }
+
+    it('should validate a valid mandatory reporting capability', () => {
+      const result = mandatoryReportingCapabilitySchema.safeParse(validCapability)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require partnerId', () => {
+      const invalid = { ...validCapability, partnerId: '' }
+      const result = mandatoryReportingCapabilitySchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require at least one supported jurisdiction', () => {
+      const invalid = { ...validCapability, supportedJurisdictions: [] }
+      const result = mandatoryReportingCapabilitySchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should validate reportingProtocol values', () => {
+      const invalid = { ...validCapability, reportingProtocol: 'invalid_protocol' }
+      const result = mandatoryReportingCapabilitySchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow partner_coordinated protocol', () => {
+      const coordinated = { ...validCapability, reportingProtocol: 'partner_coordinated' as const }
+      const result = mandatoryReportingCapabilitySchema.safeParse(coordinated)
+      expect(result.success).toBe(true)
+    })
+
+    it('should allow null averageResponseTimeHours', () => {
+      const valid = { ...validCapability, averageResponseTimeHours: null }
+      const result = mandatoryReportingCapabilitySchema.safeParse(valid)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require positive averageResponseTimeHours when provided', () => {
+      const invalid = { ...validCapability, averageResponseTimeHours: -5 }
+      const result = mandatoryReportingCapabilitySchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+  })
+
+  // ============================================
+  // SignalEscalation Tests (Story 7.5.5 Task 1)
+  // ============================================
+
+  describe('signalEscalationSchema (Story 7.5.5)', () => {
+    const validEscalation = {
+      id: 'esc_123',
+      signalId: 'sig_456',
+      partnerId: 'partner_789',
+      escalationType: 'assessment' as const,
+      escalatedAt: new Date(),
+      jurisdiction: 'US-CA',
+      sealed: false,
+      sealedAt: null,
+    }
+
+    it('should validate a valid signal escalation', () => {
+      const result = signalEscalationSchema.safeParse(validEscalation)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require signalId', () => {
+      const invalid = { ...validEscalation, signalId: '' }
+      const result = signalEscalationSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require partnerId', () => {
+      const invalid = { ...validEscalation, partnerId: '' }
+      const result = signalEscalationSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should validate escalationType values', () => {
+      const invalid = { ...validEscalation, escalationType: 'invalid_type' }
+      const result = signalEscalationSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow mandatory_report escalationType', () => {
+      const mandatory = { ...validEscalation, escalationType: 'mandatory_report' as const }
+      const result = signalEscalationSchema.safeParse(mandatory)
+      expect(result.success).toBe(true)
+    })
+
+    it('should allow law_enforcement_referral escalationType', () => {
+      const lawEnforcement = {
+        ...validEscalation,
+        escalationType: 'law_enforcement_referral' as const,
+      }
+      const result = signalEscalationSchema.safeParse(lawEnforcement)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require jurisdiction', () => {
+      const invalid = { ...validEscalation, jurisdiction: '' }
+      const result = signalEscalationSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow sealed to be true with sealedAt', () => {
+      const sealed = { ...validEscalation, sealed: true, sealedAt: new Date() }
+      const result = signalEscalationSchema.safeParse(sealed)
+      expect(result.success).toBe(true)
+    })
+  })
+
+  // ============================================
+  // LegalRequest Tests (Story 7.5.5 Task 1)
+  // ============================================
+
+  describe('legalRequestSchema (Story 7.5.5)', () => {
+    const validRequest = {
+      id: 'legal_123',
+      requestType: 'subpoena' as const,
+      requestingAgency: 'County District Attorney',
+      jurisdiction: 'US-CA',
+      documentReference: 'CASE-2024-12345',
+      receivedAt: new Date(),
+      signalIds: ['sig_456', 'sig_789'],
+      status: 'pending_legal_review' as const,
+      fulfilledAt: null,
+      fulfilledBy: null,
+    }
+
+    it('should validate a valid legal request', () => {
+      const result = legalRequestSchema.safeParse(validRequest)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require requestType', () => {
+      const invalid = { ...validRequest, requestType: 'invalid_type' }
+      const result = legalRequestSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow all valid request types', () => {
+      const types = ['subpoena', 'warrant', 'court_order', 'emergency_disclosure'] as const
+      types.forEach((type) => {
+        const valid = { ...validRequest, requestType: type }
+        const result = legalRequestSchema.safeParse(valid)
+        expect(result.success).toBe(true)
+      })
+    })
+
+    it('should require requestingAgency', () => {
+      const invalid = { ...validRequest, requestingAgency: '' }
+      const result = legalRequestSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require documentReference', () => {
+      const invalid = { ...validRequest, documentReference: '' }
+      const result = legalRequestSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require at least one signalId', () => {
+      const invalid = { ...validRequest, signalIds: [] }
+      const result = legalRequestSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should validate status values', () => {
+      const invalid = { ...validRequest, status: 'invalid_status' }
+      const result = legalRequestSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow fulfilled request with fulfilledAt and fulfilledBy', () => {
+      const fulfilled = {
+        ...validRequest,
+        status: 'fulfilled' as const,
+        fulfilledAt: new Date(),
+        fulfilledBy: 'admin_user_123',
+      }
+      const result = legalRequestSchema.safeParse(fulfilled)
+      expect(result.success).toBe(true)
+    })
+  })
+
+  // ============================================
+  // EnhancedSignalRoutingPayload Tests (Story 7.5.5 Task 1)
+  // ============================================
+
+  describe('enhancedSignalRoutingPayloadSchema (Story 7.5.5)', () => {
+    const validEnhancedPayload = {
+      signalId: 'sig_123',
+      childAge: 12,
+      signalTimestamp: new Date(),
+      familyStructure: 'two_parent' as const,
+      jurisdiction: 'US-CA',
+      platform: 'web' as const,
+      triggerMethod: 'logo_tap' as const,
+      deviceId: 'device_abc',
+      jurisdictionDetails: {
+        code: 'US-CA',
+        country: 'US',
+        stateProvince: 'CA',
+        hasMandatoryReporting: true,
+        mandatoryReporterCategories: ['healthcare', 'counseling'],
+      },
+      requestedCapabilities: ['crisis_counseling', 'mandatory_reporting'] as const,
+    }
+
+    it('should validate a valid enhanced routing payload', () => {
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(validEnhancedPayload)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require jurisdictionDetails', () => {
+      const { jurisdictionDetails: _jurisdictionDetails, ...withoutDetails } = validEnhancedPayload
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(withoutDetails)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require jurisdictionDetails.code', () => {
+      const invalid = {
+        ...validEnhancedPayload,
+        jurisdictionDetails: { ...validEnhancedPayload.jurisdictionDetails, code: '' },
+      }
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should require jurisdictionDetails.country', () => {
+      const invalid = {
+        ...validEnhancedPayload,
+        jurisdictionDetails: { ...validEnhancedPayload.jurisdictionDetails, country: '' },
+      }
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(invalid)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow null stateProvince', () => {
+      const valid = {
+        ...validEnhancedPayload,
+        jurisdictionDetails: { ...validEnhancedPayload.jurisdictionDetails, stateProvince: null },
+      }
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(valid)
+      expect(result.success).toBe(true)
+    })
+
+    it('should require requestedCapabilities', () => {
+      const { requestedCapabilities: _requestedCapabilities, ...withoutCapabilities } =
+        validEnhancedPayload
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(withoutCapabilities)
+      expect(result.success).toBe(false)
+    })
+
+    it('should allow empty mandatoryReporterCategories when no mandatory reporting', () => {
+      const valid = {
+        ...validEnhancedPayload,
+        jurisdictionDetails: {
+          ...validEnhancedPayload.jurisdictionDetails,
+          hasMandatoryReporting: false,
+          mandatoryReporterCategories: [],
+        },
+      }
+      const result = enhancedSignalRoutingPayloadSchema.safeParse(valid)
+      expect(result.success).toBe(true)
+    })
+  })
+
+  // ============================================
+  // Factory Function Tests (Story 7.5.5)
+  // ============================================
+
+  describe('generateEscalationId (Story 7.5.5)', () => {
+    it('should generate unique IDs', () => {
+      const id1 = generateEscalationId()
+      const id2 = generateEscalationId()
+      expect(id1).not.toBe(id2)
+    })
+
+    it('should start with esc_ prefix', () => {
+      const id = generateEscalationId()
+      expect(id.startsWith('esc_')).toBe(true)
+    })
+  })
+
+  describe('generateLegalRequestId (Story 7.5.5)', () => {
+    it('should generate unique IDs', () => {
+      const id1 = generateLegalRequestId()
+      const id2 = generateLegalRequestId()
+      expect(id1).not.toBe(id2)
+    })
+
+    it('should start with legal_ prefix', () => {
+      const id = generateLegalRequestId()
+      expect(id.startsWith('legal_')).toBe(true)
+    })
+  })
+
+  describe('createSignalEscalation (Story 7.5.5)', () => {
+    it('should create a valid signal escalation', () => {
+      const escalation = createSignalEscalation('sig_123', 'partner_456', 'assessment', 'US-CA')
+
+      expect(escalation.signalId).toBe('sig_123')
+      expect(escalation.partnerId).toBe('partner_456')
+      expect(escalation.escalationType).toBe('assessment')
+      expect(escalation.jurisdiction).toBe('US-CA')
+      expect(escalation.sealed).toBe(false)
+      expect(escalation.sealedAt).toBeNull()
+    })
+
+    it('should set escalatedAt timestamp', () => {
+      const before = new Date()
+      const escalation = createSignalEscalation('sig_123', 'partner_456', 'mandatory_report', 'UK')
+      const after = new Date()
+
+      expect(escalation.escalatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime())
+      expect(escalation.escalatedAt.getTime()).toBeLessThanOrEqual(after.getTime())
+    })
+
+    it('should generate unique id', () => {
+      const esc1 = createSignalEscalation('sig_123', 'partner_456', 'assessment', 'US-CA')
+      const esc2 = createSignalEscalation('sig_123', 'partner_456', 'assessment', 'US-CA')
+      expect(esc1.id).not.toBe(esc2.id)
+    })
+  })
+
+  describe('createLegalRequest (Story 7.5.5)', () => {
+    it('should create a valid legal request', () => {
+      const request = createLegalRequest('subpoena', 'County DA', 'US-CA', 'CASE-12345', [
+        'sig_123',
+        'sig_456',
+      ])
+
+      expect(request.requestType).toBe('subpoena')
+      expect(request.requestingAgency).toBe('County DA')
+      expect(request.jurisdiction).toBe('US-CA')
+      expect(request.documentReference).toBe('CASE-12345')
+      expect(request.signalIds).toEqual(['sig_123', 'sig_456'])
+      expect(request.status).toBe('pending_legal_review')
+      expect(request.fulfilledAt).toBeNull()
+      expect(request.fulfilledBy).toBeNull()
+    })
+
+    it('should set receivedAt timestamp', () => {
+      const before = new Date()
+      const request = createLegalRequest('warrant', 'FBI', 'US', 'WARRANT-789', ['sig_100'])
+      const after = new Date()
+
+      expect(request.receivedAt.getTime()).toBeGreaterThanOrEqual(before.getTime())
+      expect(request.receivedAt.getTime()).toBeLessThanOrEqual(after.getTime())
+    })
+
+    it('should generate unique id', () => {
+      const req1 = createLegalRequest('subpoena', 'DA', 'US', 'CASE-1', ['sig_1'])
+      const req2 = createLegalRequest('subpoena', 'DA', 'US', 'CASE-1', ['sig_1'])
+      expect(req1.id).not.toBe(req2.id)
+    })
+  })
+
+  describe('createEnhancedSignalRoutingPayload (Story 7.5.5)', () => {
+    it('should create a valid enhanced routing payload', () => {
+      const birthDate = new Date('2012-06-15')
+      const payload = createEnhancedSignalRoutingPayload(
+        'sig_123',
+        birthDate,
+        'two_parent',
+        'US-CA',
+        'web',
+        'logo_tap',
+        'device_abc',
+        {
+          code: 'US-CA',
+          country: 'US',
+          stateProvince: 'CA',
+          hasMandatoryReporting: true,
+          mandatoryReporterCategories: ['healthcare', 'counseling'],
+        },
+        ['crisis_counseling', 'mandatory_reporting']
+      )
+
+      expect(payload.signalId).toBe('sig_123')
+      expect(payload.familyStructure).toBe('two_parent')
+      expect(payload.jurisdictionDetails.code).toBe('US-CA')
+      expect(payload.jurisdictionDetails.hasMandatoryReporting).toBe(true)
+      expect(payload.requestedCapabilities).toEqual(['crisis_counseling', 'mandatory_reporting'])
+    })
+
+    it('should calculate child age correctly', () => {
+      const tenYearsAgo = new Date()
+      tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10)
+
+      const payload = createEnhancedSignalRoutingPayload(
+        'sig_123',
+        tenYearsAgo,
+        'single_parent',
+        'UK',
+        'chrome_extension',
+        'keyboard_shortcut',
+        null,
+        {
+          code: 'UK',
+          country: 'UK',
+          stateProvince: null,
+          hasMandatoryReporting: true,
+          mandatoryReporterCategories: ['healthcare'],
+        },
+        ['crisis_counseling']
+      )
+
+      expect(payload.childAge).toBe(10)
+    })
+  })
+
+  describe('createJurisdictionCoverage (Story 7.5.5)', () => {
+    it('should create valid jurisdiction coverage', () => {
+      const coverage = createJurisdictionCoverage(
+        'US-CA',
+        ['healthcare', 'social_work'],
+        'DCFS',
+        '+18005221313'
+      )
+
+      expect(coverage.jurisdictionCode).toBe('US-CA')
+      expect(coverage.mandatoryReporterCategories).toEqual(['healthcare', 'social_work'])
+      expect(coverage.reportingAgency).toBe('DCFS')
+      expect(coverage.reportingHotline).toBe('+18005221313')
+    })
+
+    it('should allow null hotline', () => {
+      const coverage = createJurisdictionCoverage('UK', ['healthcare'], 'NSPCC', null)
+
+      expect(coverage.reportingHotline).toBeNull()
+    })
+  })
+
+  describe('createMandatoryReportingCapability (Story 7.5.5)', () => {
+    it('should create valid mandatory reporting capability', () => {
+      const coverages = [createJurisdictionCoverage('US-CA', ['healthcare'], 'DCFS', null)]
+      const capability = createMandatoryReportingCapability(
+        'partner_123',
+        coverages,
+        'partner_direct',
+        false,
+        24
+      )
+
+      expect(capability.partnerId).toBe('partner_123')
+      expect(capability.supportedJurisdictions).toEqual(coverages)
+      expect(capability.reportingProtocol).toBe('partner_direct')
+      expect(capability.requiresExtendedBlackout).toBe(false)
+      expect(capability.averageResponseTimeHours).toBe(24)
+    })
+
+    it('should allow null averageResponseTimeHours', () => {
+      const coverages = [createJurisdictionCoverage('UK', ['healthcare'], 'NSPCC', null)]
+      const capability = createMandatoryReportingCapability(
+        'partner_456',
+        coverages,
+        'partner_coordinated',
+        true,
+        null
+      )
+
+      expect(capability.averageResponseTimeHours).toBeNull()
+    })
+  })
+
+  // ============================================
+  // Validation Function Tests (Story 7.5.5)
+  // ============================================
+
+  describe('validateSignalEscalation (Story 7.5.5)', () => {
+    it('should return valid escalation unchanged', () => {
+      const escalation = createSignalEscalation('sig_123', 'partner_456', 'assessment', 'US-CA')
+      const validated = validateSignalEscalation(escalation)
+      expect(validated).toEqual(escalation)
+    })
+
+    it('should throw on invalid escalation', () => {
+      expect(() => validateSignalEscalation({ invalid: true })).toThrow()
+    })
+  })
+
+  describe('validateLegalRequest (Story 7.5.5)', () => {
+    it('should return valid legal request unchanged', () => {
+      const request = createLegalRequest('subpoena', 'DA', 'US', 'CASE-1', ['sig_1'])
+      const validated = validateLegalRequest(request)
+      expect(validated).toEqual(request)
+    })
+
+    it('should throw on invalid legal request', () => {
+      expect(() => validateLegalRequest({ invalid: true })).toThrow()
+    })
+  })
+
+  describe('isSignalEscalation (Story 7.5.5)', () => {
+    it('should return true for valid escalation', () => {
+      const escalation = createSignalEscalation('sig_123', 'partner_456', 'assessment', 'US-CA')
+      expect(isSignalEscalation(escalation)).toBe(true)
+    })
+
+    it('should return false for invalid data', () => {
+      expect(isSignalEscalation({ invalid: true })).toBe(false)
+      expect(isSignalEscalation(null)).toBe(false)
+    })
+  })
+
+  describe('isLegalRequest (Story 7.5.5)', () => {
+    it('should return true for valid legal request', () => {
+      const request = createLegalRequest('subpoena', 'DA', 'US', 'CASE-1', ['sig_1'])
+      expect(isLegalRequest(request)).toBe(true)
+    })
+
+    it('should return false for invalid data', () => {
+      expect(isLegalRequest({ invalid: true })).toBe(false)
+      expect(isLegalRequest(null)).toBe(false)
+    })
+  })
+
+  // ============================================
+  // Utility Function Tests (Story 7.5.5)
+  // ============================================
+
+  describe('partnerSupportsMandatoryReporting (Story 7.5.5)', () => {
+    it('should return true if partner has mandatory_reporting capability', () => {
+      const partner = createCrisisPartner(
+        'Crisis Center',
+        'https://crisis.example.com/webhook',
+        'hashed_key_123',
+        ['US-CA'],
+        ['crisis_counseling', 'mandatory_reporting']
+      )
+
+      expect(partnerSupportsMandatoryReporting(partner)).toBe(true)
+    })
+
+    it('should return false if partner lacks mandatory_reporting capability', () => {
+      const partner = createCrisisPartner(
+        'Crisis Center',
+        'https://crisis.example.com/webhook',
+        'hashed_key_123',
+        ['US-CA'],
+        ['crisis_counseling']
+      )
+
+      expect(partnerSupportsMandatoryReporting(partner)).toBe(false)
+    })
+  })
+
+  describe('getMandatoryReportingPartners (Story 7.5.5)', () => {
+    it('should filter partners with mandatory_reporting capability', () => {
+      const partner1 = createCrisisPartner(
+        'Crisis Center 1',
+        'https://crisis1.example.com/webhook',
+        'key1',
+        ['US'],
+        ['crisis_counseling', 'mandatory_reporting']
+      )
+
+      const partner2 = createCrisisPartner(
+        'Crisis Center 2',
+        'https://crisis2.example.com/webhook',
+        'key2',
+        ['US'],
+        ['crisis_counseling']
+      )
+
+      const partner3 = createCrisisPartner(
+        'Crisis Center 3',
+        'https://crisis3.example.com/webhook',
+        'key3',
+        ['UK'],
+        ['mandatory_reporting']
+      )
+
+      const partners = [partner1, partner2, partner3]
+      const mandatoryPartners = getMandatoryReportingPartners(partners)
+
+      expect(mandatoryPartners).toHaveLength(2)
+      expect(mandatoryPartners.map((p) => p.name)).toContain('Crisis Center 1')
+      expect(mandatoryPartners.map((p) => p.name)).toContain('Crisis Center 3')
+      expect(mandatoryPartners.map((p) => p.name)).not.toContain('Crisis Center 2')
+    })
+
+    it('should return empty array when no partners have mandatory_reporting', () => {
+      const partner = createCrisisPartner(
+        'Crisis Center',
+        'https://crisis.example.com/webhook',
+        'key',
+        ['US'],
+        ['crisis_counseling']
+      )
+
+      expect(getMandatoryReportingPartners([partner])).toEqual([])
     })
   })
 })

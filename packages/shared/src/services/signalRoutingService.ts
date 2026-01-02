@@ -14,14 +14,18 @@
 import {
   type CrisisPartner,
   type FamilyStructure,
+  type PartnerCapability,
   type SignalRoutingPayload,
   type SignalRoutingResult,
+  type EnhancedSignalRoutingPayload,
   createSignalRoutingPayload,
   createSignalRoutingResult,
+  createEnhancedSignalRoutingPayload,
   partnerSupportsJurisdiction,
   ROUTING_STATUS,
 } from '../contracts/crisisPartner'
 import { type SafetySignal } from '../contracts/safetySignal'
+import { jurisdictionHasMandatoryReporting } from './jurisdictionService'
 
 // ============================================
 // In-Memory Storage (would be Firestore in production)
@@ -101,6 +105,63 @@ export function buildRoutingPayload(
     signal.platform,
     signal.triggerMethod,
     signal.deviceId
+  )
+}
+
+/**
+ * Build an enhanced routing payload with jurisdiction details.
+ *
+ * Story 7.5.5 Task 6: Extended routing with jurisdiction info for mandatory reporting.
+ *
+ * AC1: Includes jurisdiction details for mandatory reporting decisions.
+ * AC2: Includes appropriate metadata (age, timestamp, family structure, jurisdiction).
+ * AC3: EXCLUDES sensitive data (NO parent info, screenshots, activity data, browsing history).
+ *
+ * @param signal - The safety signal to route
+ * @param childBirthDate - Child's birth date (used to calculate age, NOT included in payload)
+ * @param familyStructure - Family structure (shared custody flag important for crisis response)
+ * @param jurisdiction - Jurisdiction for routing (e.g., 'US-CA', 'UK')
+ * @param requestedCapabilities - Capabilities the partner should have
+ * @returns EnhancedSignalRoutingPayload with jurisdiction details and capabilities
+ */
+export function buildEnhancedRoutingPayload(
+  signal: SafetySignal,
+  childBirthDate: Date,
+  familyStructure: FamilyStructure,
+  jurisdiction: string,
+  requestedCapabilities: PartnerCapability[]
+): EnhancedSignalRoutingPayload {
+  // Parse jurisdiction into country and state
+  const parts = jurisdiction.split('-')
+  const country = parts[0]
+  const stateProvince = parts.length > 1 ? parts[1] : null
+
+  // Determine mandatory reporting status
+  const hasMandatoryReporting = jurisdictionHasMandatoryReporting(jurisdiction)
+
+  // Get mandatory reporter categories for the jurisdiction
+  // In a real implementation, this would come from a jurisdiction database
+  const mandatoryReporterCategories = hasMandatoryReporting
+    ? ['healthcare', 'social_work', 'counseling', 'education']
+    : []
+
+  // Use the enhanced factory function which enforces strict schema validation
+  return createEnhancedSignalRoutingPayload(
+    signal.id,
+    childBirthDate,
+    familyStructure,
+    jurisdiction,
+    signal.platform,
+    signal.triggerMethod,
+    signal.deviceId,
+    {
+      code: jurisdiction,
+      country,
+      stateProvince,
+      hasMandatoryReporting,
+      mandatoryReporterCategories,
+    },
+    requestedCapabilities
   )
 }
 
