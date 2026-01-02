@@ -1760,3 +1760,79 @@ export {
   getSignalCount,
   getOfflineQueueSize,
 } from './services/safetySignalService'
+
+// Crisis Partner exports (Story 7.5.2)
+export {
+  // Constants
+  PARTNER_CAPABILITY,
+  FAMILY_STRUCTURE,
+  ROUTING_STATUS,
+  // Schemas
+  partnerCapabilitySchema,
+  familyStructureSchema,
+  routingStatusSchema,
+  crisisPartnerSchema,
+  signalRoutingPayloadSchema,
+  signalRoutingResultSchema,
+  blackoutRecordSchema,
+  // Factory functions
+  generatePartnerId,
+  generateRoutingResultId,
+  generateBlackoutId,
+  createCrisisPartner,
+  createSignalRoutingPayload,
+  createSignalRoutingResult,
+  createBlackoutRecord,
+  // Validation functions
+  validateCrisisPartner,
+  validateSignalRoutingPayload,
+  validateSignalRoutingResult,
+  isCrisisPartner,
+  isSignalRoutingPayload,
+  // Utility functions
+  calculateChildAge,
+  isValidJurisdiction,
+  partnerSupportsJurisdiction,
+  // Types
+  type PartnerCapability,
+  type FamilyStructure,
+  type RoutingStatus,
+  type CrisisPartner,
+  type SignalRoutingPayload,
+  type SignalRoutingResult,
+  type BlackoutRecord,
+} from './contracts'
+
+// Signal Routing Service exports (Story 7.5.2)
+export {
+  buildRoutingPayload,
+  selectPartnerForJurisdiction,
+  routeSignalToPartner,
+  getPartnerById,
+  getActivePartners,
+  getPartnersForJurisdiction,
+  getRoutingResult,
+  getRoutingHistory,
+  updateRoutingResult,
+  markRoutingAcknowledged,
+  markRoutingFailed,
+  addPartnerToStore,
+  clearAllRoutingData,
+  getRoutingResultCount,
+  getPartnerCount,
+} from './services/signalRoutingService'
+
+// Signal Blackout Service exports (Story 7.5.2 Task 6)
+export {
+  isSignalInBlackout,
+  startBlackoutPeriod,
+  extendBlackoutPeriod,
+  getBlackoutStatus,
+  cancelBlackout,
+  getActiveBlackouts,
+  cleanupExpiredBlackouts,
+  DEFAULT_BLACKOUT_HOURS,
+  MAX_EXTENSION_HOURS,
+  type BlackoutStatus,
+  type BlackoutStore,
+} from './services/signalBlackoutService'

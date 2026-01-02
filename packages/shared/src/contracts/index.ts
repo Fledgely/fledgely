@@ -6803,3 +6803,45 @@ export {
   type SafetySignalTriggerEvent,
   type OfflineSignalQueueEntry,
 } from './safetySignal'
+
+// Crisis Partner (Story 7.5.2)
+export {
+  // Constants
+  PARTNER_CAPABILITY,
+  FAMILY_STRUCTURE,
+  ROUTING_STATUS,
+  // Schemas
+  partnerCapabilitySchema,
+  familyStructureSchema,
+  routingStatusSchema,
+  crisisPartnerSchema,
+  signalRoutingPayloadSchema,
+  signalRoutingResultSchema,
+  blackoutRecordSchema,
+  // Factory functions
+  generatePartnerId,
+  generateRoutingResultId,
+  generateBlackoutId,
+  createCrisisPartner,
+  createSignalRoutingPayload,
+  createSignalRoutingResult,
+  createBlackoutRecord,
+  // Validation functions
+  validateCrisisPartner,
+  validateSignalRoutingPayload,
+  validateSignalRoutingResult,
+  isCrisisPartner,
+  isSignalRoutingPayload,
+  // Utility functions
+  calculateChildAge,
+  isValidJurisdiction,
+  partnerSupportsJurisdiction,
+  // Types
+  type PartnerCapability,
+  type FamilyStructure,
+  type RoutingStatus,
+  type CrisisPartner,
+  type SignalRoutingPayload,
+  type SignalRoutingResult,
+  type BlackoutRecord,
+} from './crisisPartner'

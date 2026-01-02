@@ -1338,6 +1338,51 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // EPIC 7.5: CHILD SAFETY SIGNAL
+    // Story 7.5.2: External Signal Routing
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // Crisis partner data and routing records are COMPLETELY ISOLATED.
+    // Only Cloud Functions (Admin SDK) can access these collections.
+    //
+    // Collections:
+    // - crisisPartners: External crisis organization webhooks
+    // - signalRoutingResults: Records of signals sent to partners
+    // - blackoutRecords: 48-hour family notification blackout periods
+    //
+    // Key protections:
+    // - NO user access (parents, children, or guardians)
+    // - Only Cloud Functions via Admin SDK
+    // - Webhook URLs and API keys protected
+    // - Routing audit trail preserved
+    //
+
+    // Crisis Partners: External crisis organizations
+    // Only accessible by system administrators via Admin SDK
+    match /crisisPartners/{partnerId} {
+      // CRITICAL: No user access - admin only via Admin SDK
+      // Partner webhook URLs and API keys must be protected
+      allow read, write: if false;
+    }
+
+    // Signal Routing Results: Records of signals sent to partners
+    // Only accessible by Cloud Functions for routing workflow
+    match /signalRoutingResults/{resultId} {
+      // CRITICAL: No user access - Cloud Functions only
+      // Family members must NEVER see routing status
+      allow read, write: if false;
+    }
+
+    // Blackout Records: 48-hour family notification blackout periods
+    // AC5: No family notification for 48 hours
+    match /blackoutRecords/{blackoutId} {
+      // CRITICAL: No user access - Cloud Functions only
+      // Parents must NEVER see blackout records exist
+      allow read, write: if false;
+    }
+
+    // =========================================================================
     // EPIC 21: AI CLASSIFICATION - CONCERNING CONTENT DETECTION
     // Story 21.2: Distress Detection Suppression
     // =========================================================================

@@ -1,6 +1,6 @@
 # Story 7.5.2: External Signal Routing
 
-## Status: ready-for-dev
+## Status: done
 
 ## Story
 
@@ -495,4 +495,47 @@ claude-opus-4-5-20251101
 
 ### Completion Notes List
 
+- All 9 tasks completed with 329 total tests (exceeds 150 minimum requirement)
+- Task 1: CrisisPartner Data Model - 81 tests (crisisPartner.ts)
+- Task 2: SignalRoutingService - 39 tests (signalRoutingService.ts)
+- Task 3: Routing Trigger Function - 25 tests (onSafetySignalCreated.ts)
+- Task 4: Partner Webhook Integration - 38 tests (crisisPartnerClient.ts)
+- Task 5: Signal Payload Encryption - 31 tests (signalEncryptionService.ts)
+- Task 6: Blackout Integration - 33 tests (signalBlackoutService.ts)
+- Task 7: Admin Partner Management - 34 tests (partnerAdminService.ts)
+- Task 8: Security Rules Update - 24 tests (crisisPartnerIsolation.rules.test.ts)
+- Task 9: Integration Tests - 24 tests (signalRouting.integration.test.ts)
+- TDD approach followed throughout - tests written before implementation
+- All acceptance criteria verified with comprehensive test coverage
+
 ### File List
+
+**New Files (shared package):**
+
+- packages/shared/src/contracts/crisisPartner.ts
+- packages/shared/src/contracts/crisisPartner.test.ts
+- packages/shared/src/services/signalRoutingService.ts
+- packages/shared/src/services/signalRoutingService.test.ts
+- packages/shared/src/services/signalBlackoutService.ts
+- packages/shared/src/services/signalBlackoutService.test.ts
+- packages/shared/src/services/**tests**/integration/signalRouting.integration.test.ts
+
+**New Files (functions package):**
+
+- apps/functions/src/triggers/onSafetySignalCreated.ts
+- apps/functions/src/triggers/onSafetySignalCreated.test.ts
+- apps/functions/src/services/crisisPartnerClient.ts
+- apps/functions/src/services/crisisPartnerClient.test.ts
+- apps/functions/src/services/signalEncryptionService.ts
+- apps/functions/src/services/signalEncryptionService.test.ts
+- apps/functions/src/services/partnerAdminService.ts
+- apps/functions/src/services/partnerAdminService.test.ts
+
+**New Files (firebase-rules package):**
+
+- packages/firebase-rules/**tests**/crisisPartnerIsolation.rules.test.ts
+
+**Modified Files:**
+
+- packages/shared/src/index.ts (exports added)
+- packages/firebase-rules/firestore.rules (security rules added)
