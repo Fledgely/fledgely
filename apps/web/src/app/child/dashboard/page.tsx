@@ -48,6 +48,7 @@ import {
   CheckInPromptBanner,
   FrictionIndicatorsDashboard,
   RepairResourcesPanel,
+  CommunicationHealthIndicator,
 } from '../../../components/health'
 import { useChildPendingCheckIns } from '../../../hooks/useChildPendingCheckIns'
 import { useChildFrictionIndicators } from '../../../hooks/useChildFrictionIndicators'
@@ -476,6 +477,16 @@ function DashboardContent() {
           onCreateResolution={createResolution}
           showResolutions={true}
         />
+
+        {/* Story 34.5.5: Communication Health Indicator - bilateral transparency */}
+        {childSession?.familyId && childSession?.childId && (
+          <CommunicationHealthIndicator
+            childId={childSession.childId}
+            familyId={childSession.familyId}
+            childName={childSession.childName || 'You'}
+            isChild={true}
+          />
+        )}
 
         {/* Story 27.5.5: Repair Resources - shown when friction detected */}
         {frictionIndicators?.hasEnoughData &&

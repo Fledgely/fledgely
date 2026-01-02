@@ -48,6 +48,7 @@ import {
   CheckInPromptBanner,
   FrictionIndicatorsDashboard,
   RepairResourcesPanel,
+  CommunicationHealthIndicator,
 } from '../../components/health'
 import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
 import { useFrictionIndicators } from '../../hooks/useFrictionIndicators'
@@ -487,6 +488,18 @@ export default function DashboardPage() {
 
         {/* Story 19A.1: Family Status Summary Card - positioned above all other content */}
         {family && <FamilyStatusCard familyId={family.id} />}
+
+        {/* Story 34.5.5: Communication Health Indicator - shows communication health per child */}
+        {family &&
+          children.map((child) => (
+            <CommunicationHealthIndicator
+              key={`comm-health-${child.id}`}
+              childId={child.id}
+              familyId={family.id}
+              childName={child.name}
+              isChild={false}
+            />
+          ))}
 
         {/* Story 32.5: Offline Exception Quick Actions (AC1, AC5) */}
         {family && <OfflineExceptionQuickActions familyId={family.id} />}
