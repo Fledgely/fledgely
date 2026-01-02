@@ -506,14 +506,14 @@ development_status:
   epic-35-retrospective: done
 
   # Epic 34.5: Child Voice Escalation (Child Rights Advocate)
-  epic-34-5: in-progress
+  epic-34-5: done
   34-5-1-rejection-pattern-tracking: done
   34-5-2-mediation-resource-prompt: done
   34-5-3-agreement-review-request: done
   34-5-4-family-meeting-template: done
   34-5-5-communication-health-indicator: done
   34-5-6-age-appropriate-negotiation-resources: done
-  epic-34-5-retrospective: optional
+  epic-34-5-retrospective: completed
 
   # Epic 36: Trust Score Foundation
   epic-36: done
