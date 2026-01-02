@@ -5,6 +5,11 @@
  * AC3: Works offline (queues signal for delivery)
  * AC6: Signal queuing infrastructure
  *
+ * Story 7.5.6 Task 6: Integration with isolated storage and encryption.
+ * AC1: Signal stored in isolated collection (not under family document)
+ * AC2: Signal uses separate encryption key (not family key)
+ * AC4: Signal excluded from family audit trail
+ *
  * CRITICAL SAFETY: Signals are NEVER visible to family members.
  */
 
@@ -19,6 +24,11 @@ import {
   type SignalPlatform,
   type OfflineSignalQueueEntry,
 } from '../contracts/safetySignal'
+
+// Story 7.5.6: Isolated storage and encryption imports
+import { generateSignalEncryptionKey, encryptSignalData } from './signalEncryptionService'
+import { storeIsolatedSignal, type IsolatedSignal } from './isolatedSignalStorageService'
+import { createRetentionStatus } from './signalRetentionService'
 
 // ============================================
 // In-Memory Storage (would be Firestore in production)
@@ -302,6 +312,113 @@ export function incrementRetryCount(signalId: string): OfflineSignalQueueEntry |
  */
 export function getFailedOfflineEntries(childId: string): OfflineSignalQueueEntry[] {
   return offlineQueue.filter((entry) => entry.signal.childId === childId && entry.retryCount > 0)
+}
+
+// ============================================
+// Story 7.5.6: Isolated Signal Creation (AC1, AC2, AC4)
+// ============================================
+
+/**
+ * Result of creating an isolated safety signal.
+ */
+export interface IsolatedSafetySignalResult {
+  /** The basic signal (in-memory) */
+  signal: SafetySignal
+  /** The isolated signal stored in Firestore */
+  isolatedSignal: IsolatedSignal
+  /** The encryption key ID used */
+  encryptionKeyId: string
+}
+
+/**
+ * Create a safety signal with full isolation and encryption.
+ *
+ * Story 7.5.6 Task 6: Integration with isolated storage and encryption.
+ * AC1: Signal stored in isolated collection (not under family document)
+ * AC2: Signal uses separate encryption key (not family key)
+ * AC4: Signal excluded from family audit trail
+ *
+ * CRITICAL SAFETY:
+ * - Generates isolated encryption key (NOT family key)
+ * - Encrypts signal payload with isolated key
+ * - Stores in ISOLATED collection (NOT family hierarchy)
+ * - Creates retention status per jurisdiction
+ * - Does NOT create any family-visible audit entries
+ *
+ * @param childId - Child triggering the signal
+ * @param platform - Platform where triggered
+ * @param triggerMethod - How the signal was triggered
+ * @param jurisdiction - Jurisdiction code for legal compliance
+ * @param isOffline - Whether currently offline
+ * @param deviceId - Optional device ID
+ * @returns Created signal with isolation data
+ */
+export async function createIsolatedSafetySignal(
+  childId: string,
+  platform: SignalPlatform,
+  triggerMethod: TriggerMethod,
+  jurisdiction: string,
+  isOffline: boolean = false,
+  deviceId: string | null = null
+): Promise<IsolatedSafetySignalResult> {
+  if (!childId || childId.trim().length === 0) {
+    throw new Error('childId is required')
+  }
+  if (!jurisdiction || jurisdiction.trim().length === 0) {
+    throw new Error('jurisdiction is required')
+  }
+
+  // 1. Create the basic signal (uses familyId='ISOLATED' to indicate isolation)
+  // CRITICAL: We use 'ISOLATED' as placeholder - signal is NOT stored under family
+  const signal = createSignal(childId, 'ISOLATED', triggerMethod, platform, isOffline, deviceId)
+
+  // Store in local memory for queue processing
+  signalStore.push(signal)
+
+  // If offline, queue for later delivery
+  if (isOffline) {
+    queueOfflineSignal(signal)
+  }
+
+  // 2. Generate isolated encryption key
+  // AC2: Key is separate from family key
+  const _encryptionKey = await generateSignalEncryptionKey(signal.id)
+
+  // 3. Encrypt signal payload with isolated key
+  // AC2: Family encryption key CANNOT decrypt this data
+  const signalPayload = {
+    childId,
+    platform,
+    triggerMethod,
+    deviceId,
+    triggeredAt: signal.triggeredAt.toISOString(),
+    status: signal.status,
+  }
+  const { encryptedData, keyId } = await encryptSignalData(signal.id, signalPayload)
+
+  // 4. Store in ISOLATED collection (NOT family hierarchy)
+  // AC1: Collection is at ROOT level, NOT under families/
+  const isolatedSignal = await storeIsolatedSignal(
+    signal.id,
+    childId,
+    encryptedData,
+    keyId,
+    jurisdiction
+  )
+
+  // 5. Create retention status for legal compliance
+  // AC6: Signals retained per jurisdiction-specific rules
+  await createRetentionStatus(signal.id, jurisdiction)
+
+  // 6. Do NOT create any family-visible audit entries
+  // AC4: Signal excluded from family audit trail
+  // (No audit logging to family collections)
+
+  return {
+    signal,
+    isolatedSignal,
+    encryptionKeyId: keyId,
+  }
 }
 
 // ============================================

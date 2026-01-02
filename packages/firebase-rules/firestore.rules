@@ -1383,6 +1383,90 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // EPIC 7.5: CHILD SAFETY SIGNAL
+    // Story 7.5.6: Signal Encryption & Isolation
+    // =========================================================================
+    //
+    // CRITICAL SAFETY DESIGN:
+    // These collections are COMPLETELY ISOLATED from family document hierarchy.
+    // Collections are at ROOT level (not under families/) to prevent path traversal.
+    //
+    // Key protections:
+    // - NO read access for any family member (guardians, parents, children)
+    // - Only Admin with specific authorization claims can read
+    // - Only Cloud Functions can write (via Admin SDK)
+    // - Family encryption keys CANNOT decrypt signal data (AC2)
+    // - All access is logged to admin audit trail (AC5)
+    //
+
+    // Isolated Safety Signals: Encrypted signal data stored outside family hierarchy
+    // AC1: Signal stored in isolated collection (not under family document)
+    // AC4: Signal excluded from family audit trail
+    match /isolatedSafetySignals/{signalId} {
+      // CRITICAL: NO READ for any user except admin with specific claim
+      // This ensures complete family isolation
+      allow read: if request.auth != null
+                  && request.auth.token.signalAccessAuthorization != null;
+
+      // WRITE only via Cloud Functions (not client)
+      // All writes must go through validated server-side logic
+      allow write: if false;
+    }
+
+    // Signal Encryption Keys: Isolated key management for safety signals
+    // AC2: Signal uses separate encryption key (not family key)
+    // AC5: Admin access requires authorization
+    match /signalEncryptionKeys/{keyId} {
+      // CRITICAL: NO READ for any user except admin with specific claim
+      // Keys are completely isolated from family encryption
+      allow read: if request.auth != null
+                  && request.auth.token.keyManagementAuthorization != null;
+
+      // WRITE only via Cloud Functions
+      // Key generation and management is server-controlled
+      allow write: if false;
+    }
+
+    // Signal Access Authorizations: Admin authorization for signal access
+    // AC5: Admin access requires authorization with separate approver
+    match /signalAccessAuthorizations/{authorizationId} {
+      // CRITICAL: Only admin users with authorization management claim
+      // This prevents unauthorized access to authorization records
+      allow read: if request.auth != null
+                  && request.auth.token.authorizationManagement == true;
+
+      // Create: Only Cloud Functions (approval workflow)
+      // Authorizations require server-side validation
+      allow create: if false;
+
+      // Update: Only Cloud Functions (for marking as used)
+      allow update: if false;
+
+      // Delete: NEVER allowed (audit trail preservation)
+      allow delete: if false;
+    }
+
+    // Signal Retention Status: Legal retention tracking for signals
+    // AC6: Legal retention requirements per jurisdiction
+    match /signalRetentionStatus/{statusId} {
+      // CRITICAL: Only admin users with retention management claim
+      allow read: if request.auth != null
+                  && request.auth.token.retentionManagement == true;
+
+      // WRITE only via Cloud Functions
+      // Retention status changes require server-side validation
+      allow write: if false;
+    }
+
+    // Signal Blackouts: Family notification suppression during investigation
+    // Used by partnerEscalationService for AC3 blackout extensions
+    match /signalBlackouts/{blackoutId} {
+      // CRITICAL: No user access - Cloud Functions only
+      // Family members must NEVER see blackout records
+      allow read, write: if false;
+    }
+
+    // =========================================================================
     // EPIC 21: AI CLASSIFICATION - CONCERNING CONTENT DETECTION
     // Story 21.2: Distress Detection Suppression
     // =========================================================================
