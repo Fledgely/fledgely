@@ -67,7 +67,8 @@ export function ChildAgreementContainer({
   const { status: escalationStatus, acknowledgeEscalation } = useEscalationStatus(familyId, childId)
 
   // Calculate age tier for content adaptation
-  const ageTier = childBirthDate ? getAgeTier(childBirthDate) : 'tween-12-14' // Default to middle tier if birthdate unknown
+  // Note: Defaults to tween-12-14 if birthdate unknown - may show less-appropriate content
+  const ageTier = childBirthDate ? getAgeTier(childBirthDate) : 'tween-12-14'
 
   // Open the modal when "Request a Change" is clicked (Task 6.1)
   const handleRequestChange = useCallback(() => {

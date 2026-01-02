@@ -91,8 +91,8 @@ describe('mediationResourceService - Story 34.5.2', () => {
   // ============================================
 
   describe('getMediationResources', () => {
-    it('should return resources for child-8-11 tier', async () => {
-      const resources = await getMediationResources('child-8-11')
+    it('should return resources for child-8-11 tier', () => {
+      const resources = getMediationResources('child-8-11')
       expect(Array.isArray(resources)).toBe(true)
       expect(resources.length).toBeGreaterThan(0)
       resources.forEach((resource) => {
@@ -100,8 +100,8 @@ describe('mediationResourceService - Story 34.5.2', () => {
       })
     })
 
-    it('should return resources for tween-12-14 tier', async () => {
-      const resources = await getMediationResources('tween-12-14')
+    it('should return resources for tween-12-14 tier', () => {
+      const resources = getMediationResources('tween-12-14')
       expect(Array.isArray(resources)).toBe(true)
       expect(resources.length).toBeGreaterThan(0)
       resources.forEach((resource) => {
@@ -109,8 +109,8 @@ describe('mediationResourceService - Story 34.5.2', () => {
       })
     })
 
-    it('should return resources for teen-15-17 tier', async () => {
-      const resources = await getMediationResources('teen-15-17')
+    it('should return resources for teen-15-17 tier', () => {
+      const resources = getMediationResources('teen-15-17')
       expect(Array.isArray(resources)).toBe(true)
       expect(resources.length).toBeGreaterThan(0)
       resources.forEach((resource) => {
@@ -118,15 +118,15 @@ describe('mediationResourceService - Story 34.5.2', () => {
       })
     })
 
-    it('should return resources sorted by order', async () => {
-      const resources = await getMediationResources('tween-12-14')
+    it('should return resources sorted by order', () => {
+      const resources = getMediationResources('tween-12-14')
       for (let i = 1; i < resources.length; i++) {
         expect(resources[i].order).toBeGreaterThanOrEqual(resources[i - 1].order)
       }
     })
 
-    it('should include multiple resource types', async () => {
-      const resources = await getMediationResources('teen-15-17')
+    it('should include multiple resource types', () => {
+      const resources = getMediationResources('teen-15-17')
       const types = new Set(resources.map((r) => r.type))
       expect(types.size).toBeGreaterThan(1)
     })

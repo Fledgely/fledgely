@@ -65,10 +65,13 @@ const PROMPT_MESSAGES: Record<AgeTier, { title: string; message: string; cta: st
  * had multiple proposals rejected, guiding them to communication resources.
  */
 export function EscalationPrompt({
+  childId: _childId,
+  familyId: _familyId,
   ageTier,
   onAcknowledge,
   onViewResources,
 }: EscalationPromptProps) {
+  // Note: childId and familyId are available for future analytics/logging
   const content = PROMPT_MESSAGES[ageTier]
 
   return (

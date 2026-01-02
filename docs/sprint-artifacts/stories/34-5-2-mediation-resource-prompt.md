@@ -503,3 +503,5 @@ Following established patterns:
 - `apps/web/src/components/child/ChildAgreementContainer.tsx` - Escalation prompt integration
 - `apps/web/src/components/child/ChildAgreementContainer.test.tsx` - 6 new integration tests
 - `packages/firebase-rules/firestore.rules` - Security rules for mediation resources
+- `packages/firebase-rules/__tests__/rejectionPatternRules.test.ts` - Security rule tests
+- `packages/shared/src/contracts/index.ts` - Barrel export update

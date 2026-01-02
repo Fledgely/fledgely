@@ -156,28 +156,34 @@ export function useEscalationStatus(familyId: string, childId: string): UseEscal
       return
     }
 
-    const db = getFirestore()
-    const ackId = `${childId}_${currentEscalationId}`
-    const ackRef = doc(db, ESCALATION_ACKNOWLEDGMENTS_COLLECTION, ackId)
+    try {
+      const db = getFirestore()
+      const ackId = `${childId}_${currentEscalationId}`
+      const ackRef = doc(db, ESCALATION_ACKNOWLEDGMENTS_COLLECTION, ackId)
 
-    await setDoc(ackRef, {
-      id: ackId,
-      familyId,
-      childId,
-      escalationEventId: currentEscalationId,
-      acknowledgedAt: serverTimestamp(),
-      viewedResources: false,
-    })
+      await setDoc(ackRef, {
+        id: ackId,
+        familyId,
+        childId,
+        escalationEventId: currentEscalationId,
+        acknowledgedAt: serverTimestamp(),
+        viewedResources: false,
+      })
 
-    // Update local state
-    setStatus((prev) =>
-      prev
-        ? {
-            ...prev,
-            isAcknowledged: true,
-          }
-        : null
-    )
+      // Update local state
+      setStatus((prev) =>
+        prev
+          ? {
+              ...prev,
+              isAcknowledged: true,
+            }
+          : null
+      )
+    } catch (err) {
+      // Surface error to caller - they can handle/display as needed
+      setError(err instanceof Error ? err : new Error('Failed to acknowledge escalation'))
+      throw err
+    }
   }, [familyId, childId, currentEscalationId])
 
   return {

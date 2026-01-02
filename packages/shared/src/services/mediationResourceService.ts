@@ -433,7 +433,7 @@ const MEDIATION_RESOURCES: Record<AgeTier, MediationResource[]> = {
  * @param ageTier - The age tier to get resources for
  * @returns Array of mediation resources sorted by order
  */
-export async function getMediationResources(ageTier: AgeTier): Promise<MediationResource[]> {
+export function getMediationResources(ageTier: AgeTier): MediationResource[] {
   const resources = MEDIATION_RESOURCES[ageTier] || []
   return [...resources].sort((a, b) => a.order - b.order)
 }
