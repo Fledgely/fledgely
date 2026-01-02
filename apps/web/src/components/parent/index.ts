@@ -26,3 +26,6 @@ export { ReviewRequestNotification } from './ReviewRequestNotification'
 
 // Guardian Management Components (Story 3A.6)
 export { GuardianRemovalBlockedModal } from './GuardianRemovalBlockedModal'
+
+// Viewing Rate Alert Components (Story 3A.5)
+export { default as ViewingRateAlertBanner } from './ViewingRateAlertBanner'

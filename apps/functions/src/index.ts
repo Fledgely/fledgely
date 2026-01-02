@@ -63,6 +63,9 @@ export { selfRemoveFromFamily } from './callable/selfRemoveFromFamily'
 // Guardian removal prevention (Story 3A.6)
 export { logGuardianRemovalAttempt } from './callable/logGuardianRemovalAttempt'
 
+// Screenshot viewing rate alert (Story 3A.5)
+export { sendViewingRateAlert } from './callable/sendViewingRateAlert'
+
 // Caregiver callable functions (Story 19D.1, 19D.4, 19D.5)
 export { sendCaregiverInvitation } from './callable/sendCaregiverInvitation'
 export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
