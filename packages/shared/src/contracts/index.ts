@@ -6221,13 +6221,27 @@ export function minutesToHours(minutes: number): number {
  */
 export const proposalStatusSchema = z.enum([
   'pending', // Awaiting response
+  'pending_coparent_approval', // Story 3A.3: Awaiting other parent approval in shared custody
   'accepted', // Accepted by recipient
   'declined', // Declined by recipient
   'withdrawn', // Withdrawn by proposer
   'counter-proposed', // Counter-proposal made
   'activated', // Both parties confirmed, changes applied (Story 34.4)
+  'expired', // Story 3A.3: 14-day timeout for co-parent approval
 ])
 export type ProposalStatus = z.infer<typeof proposalStatusSchema>
+
+/**
+ * Co-parent approval status for shared custody proposals.
+ *
+ * Story 3A.3: Agreement Changes Two-Parent Approval - AC1, AC4
+ */
+export const coParentApprovalStatusSchema = z.enum([
+  'pending', // Awaiting other parent approval
+  'approved', // Other parent approved
+  'declined', // Other parent declined
+])
+export type CoParentApprovalStatus = z.infer<typeof coParentApprovalStatusSchema>
 
 /**
  * Type of change being proposed.
@@ -6260,6 +6274,7 @@ export type ProposalChange = z.infer<typeof proposalChangeSchema>
  * Agreement change proposal schema.
  *
  * Story 34.1: Parent-Initiated Agreement Change - All ACs
+ * Story 3A.3: Agreement Changes Two-Parent Approval - Co-parent approval fields
  * Represents a proposed change to an active agreement.
  */
 export const agreementProposalSchema = z.object({
@@ -6286,6 +6301,14 @@ export const agreementProposalSchema = z.object({
   // Versioning for optimistic locking and history
   version: z.number(),
   proposalNumber: z.number(), // Sequential within family
+
+  // Story 3A.3: Co-parent approval for shared custody (AC1, AC2, AC4, AC5)
+  coParentApprovalRequired: z.boolean().default(false),
+  coParentApprovalStatus: coParentApprovalStatusSchema.nullable().default(null),
+  coParentApprovedByUid: z.string().nullable().default(null),
+  coParentApprovedAt: z.number().nullable().default(null),
+  coParentDeclineReason: z.string().nullable().default(null),
+  expiresAt: z.number().nullable().default(null), // 14 days from creation for co-parent approval
 })
 export type AgreementProposal = z.infer<typeof agreementProposalSchema>
 
@@ -6908,13 +6931,13 @@ export {
 // Story 34.5.2: Mediation Resources
 export {
   ageTierSchema,
-  resourceTypeSchema,
+  resourceTypeSchema as mediationResourceTypeSchema,
   mediationResourceSchema,
   familyMeetingTemplateSchema,
   negotiationTipSchema,
   escalationAcknowledgmentSchema,
   type AgeTier,
-  type ResourceType,
+  type ResourceType as MediationResourceType,
   type MediationResource,
   type FamilyMeetingTemplate,
   type NegotiationTip,

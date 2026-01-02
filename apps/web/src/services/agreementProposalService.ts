@@ -1,15 +1,17 @@
 /**
- * Agreement Proposal Service - Story 34.1, 34.2, 34.3, 34.5.1
+ * Agreement Proposal Service - Story 34.1, 34.2, 34.3, 34.5.1, 3A.3
  *
  * Handles proposal notifications, activity logging, and rejection pattern tracking.
  * Follows patterns from agreementChangeService.ts.
  *
  * Story 34.5.1: Child proposal rejection tracking integration.
+ * Story 3A.3: Co-parent approval notifications.
  */
 
 import { collection, addDoc, doc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { getFirestoreDb } from '../lib/firebase'
 import { AGREEMENT_PROPOSAL_MESSAGES, CHILD_PROPOSAL_MESSAGES } from '@fledgely/shared'
+import { CO_PARENT_APPROVAL_MESSAGES } from './coParentProposalApprovalService'
 import {
   recordRejection,
   checkEscalationThreshold,
@@ -334,4 +336,151 @@ export async function handleChildProposalSubmission(
 
   // Increment proposal count for metrics
   await incrementProposalCount(familyId, childId)
+}
+
+// ============================================
+// Story 3A.3: Co-Parent Approval Notifications
+// ============================================
+
+/**
+ * Input for co-parent approval notification
+ *
+ * Story 3A.3 AC1: Notify co-parent when proposal needs approval
+ */
+export interface CoParentApprovalNotificationInput {
+  familyId: string
+  proposalId: string
+  coParentUid: string
+  proposerName: string
+  childName: string
+  changeSummary: string
+}
+
+/**
+ * Create notification for co-parent when a proposal needs their approval.
+ *
+ * Story 3A.3 AC1: Other parent receives notification for approval
+ *
+ * @param input - Notification input data
+ * @returns The notification ID
+ */
+export async function createCoParentApprovalNotification(
+  input: CoParentApprovalNotificationInput
+): Promise<string> {
+  const db = getFirestoreDb()
+
+  const notificationData = {
+    familyId: input.familyId,
+    recipientId: input.coParentUid,
+    type: 'coparent_approval_required',
+    title: 'Agreement Change Needs Your Approval',
+    body: `${input.proposerName} proposed changes to ${input.childName}'s agreement. ${input.changeSummary}`,
+    data: {
+      proposalId: input.proposalId,
+      action: 'review_coparent_proposal',
+    },
+    read: false,
+    createdAt: serverTimestamp(),
+  }
+
+  const notificationsRef = collection(db, 'notifications')
+  const notificationDoc = await addDoc(notificationsRef, notificationData)
+
+  return notificationDoc.id
+}
+
+/**
+ * Input for co-parent response notification
+ *
+ * Story 3A.3 AC4: Notify proposer when co-parent responds
+ */
+export interface CoParentResponseNotificationInput {
+  familyId: string
+  proposalId: string
+  proposerId: string
+  coParentName: string
+  action: 'approved' | 'declined'
+  declineReason?: string | null
+}
+
+/**
+ * Notify the proposer when co-parent approves or declines their proposal.
+ *
+ * Story 3A.3 AC4: Proposer notified of co-parent response
+ *
+ * @param input - Notification input data
+ * @returns The notification ID
+ */
+export async function notifyProposerOfCoParentResponse(
+  input: CoParentResponseNotificationInput
+): Promise<string> {
+  const db = getFirestoreDb()
+
+  const body =
+    input.action === 'approved'
+      ? CO_PARENT_APPROVAL_MESSAGES.approved(input.coParentName)
+      : CO_PARENT_APPROVAL_MESSAGES.declined(input.coParentName, input.declineReason)
+
+  const notificationData = {
+    familyId: input.familyId,
+    recipientId: input.proposerId,
+    type: `coparent_${input.action}`,
+    title: input.action === 'approved' ? 'Proposal Approved!' : 'Proposal Declined',
+    body,
+    data: {
+      proposalId: input.proposalId,
+      action: `coparent_${input.action}`,
+    },
+    read: false,
+    createdAt: serverTimestamp(),
+  }
+
+  const notificationsRef = collection(db, 'notifications')
+  const notificationDoc = await addDoc(notificationsRef, notificationData)
+
+  return notificationDoc.id
+}
+
+/**
+ * Input for proposal expiration notification
+ *
+ * Story 3A.3 AC5: Notify proposer when proposal expires
+ */
+export interface ProposalExpirationNotificationInput {
+  familyId: string
+  proposalId: string
+  proposerId: string
+}
+
+/**
+ * Notify the proposer when their proposal expires due to lack of co-parent approval.
+ *
+ * Story 3A.3 AC5: Proposer notified of expiration
+ *
+ * @param input - Notification input data
+ * @returns The notification ID
+ */
+export async function notifyProposerOfExpiration(
+  input: ProposalExpirationNotificationInput
+): Promise<string> {
+  const db = getFirestoreDb()
+
+  const notificationData = {
+    familyId: input.familyId,
+    recipientId: input.proposerId,
+    type: 'proposal_expired',
+    title: 'Proposal Expired',
+    body: CO_PARENT_APPROVAL_MESSAGES.expired,
+    data: {
+      proposalId: input.proposalId,
+      action: 'proposal_expired',
+    },
+    read: false,
+    createdAt: serverTimestamp(),
+  }
+
+  const notificationsRef = collection(db, 'notifications')
+  const notificationDoc = await addDoc(notificationsRef, notificationData)
+
+  return notificationDoc.id
 }

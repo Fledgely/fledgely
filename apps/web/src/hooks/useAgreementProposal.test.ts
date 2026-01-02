@@ -9,10 +9,21 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useAgreementProposal } from './useAgreementProposal'
 
-// Mock child proposal submission tracking
+// Mock child proposal submission tracking and co-parent notification
 const mockHandleChildProposalSubmission = vi.fn()
+const mockCreateCoParentApprovalNotification = vi.fn()
 vi.mock('../services/agreementProposalService', () => ({
   handleChildProposalSubmission: (...args: unknown[]) => mockHandleChildProposalSubmission(...args),
+  createCoParentApprovalNotification: (...args: unknown[]) =>
+    mockCreateCoParentApprovalNotification(...args),
+}))
+
+// Mock co-parent approval service
+const mockRequiresCoParentApproval = vi.fn()
+const mockCalculateExpirationDate = vi.fn()
+vi.mock('../services/coParentProposalApprovalService', () => ({
+  requiresCoParentApproval: (...args: unknown[]) => mockRequiresCoParentApproval(...args),
+  calculateExpirationDate: (...args: unknown[]) => mockCalculateExpirationDate(...args),
 }))
 
 // Mock Firestore
@@ -45,6 +56,7 @@ describe('useAgreementProposal - Story 34.1', () => {
   const defaultProps = {
     familyId: 'family-1',
     childId: 'child-1',
+    childName: 'Emma',
     agreementId: 'agreement-1',
     proposerId: 'parent-1',
     proposerName: 'Mom',
@@ -68,6 +80,14 @@ describe('useAgreementProposal - Story 34.1', () => {
     })
     // Mock child proposal submission tracking
     mockHandleChildProposalSubmission.mockResolvedValue(undefined)
+    // Mock co-parent approval (default: not required)
+    mockRequiresCoParentApproval.mockResolvedValue({
+      required: false,
+      otherParentUid: null,
+      otherParentName: null,
+    })
+    mockCalculateExpirationDate.mockReturnValue(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    mockCreateCoParentApprovalNotification.mockResolvedValue('notification-123')
   })
 
   describe('createProposal', () => {
@@ -358,6 +378,7 @@ describe('useAgreementProposal - Story 34.1', () => {
       const customProps = {
         familyId: 'family-xyz',
         childId: 'child-xyz',
+        childName: 'Alex',
         agreementId: 'agreement-1',
         proposerId: 'child-xyz',
         proposerName: 'Alex',

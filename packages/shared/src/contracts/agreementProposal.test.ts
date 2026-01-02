@@ -327,3 +327,136 @@ describe('AGREEMENT_PROPOSAL_MESSAGES - Story 34.1', () => {
     expect(AGREEMENT_PROPOSAL_MESSAGES.reasonPrompts[0]).toContain('responsible')
   })
 })
+
+// =============================================================================
+// STORY 3A.3: CO-PARENT APPROVAL TESTS
+// =============================================================================
+
+import { coParentApprovalStatusSchema } from './index'
+
+describe('coParentApprovalStatusSchema - Story 3A.3', () => {
+  it('should accept "pending" status', () => {
+    expect(coParentApprovalStatusSchema.parse('pending')).toBe('pending')
+  })
+
+  it('should accept "approved" status', () => {
+    expect(coParentApprovalStatusSchema.parse('approved')).toBe('approved')
+  })
+
+  it('should accept "declined" status', () => {
+    expect(coParentApprovalStatusSchema.parse('declined')).toBe('declined')
+  })
+
+  it('should reject invalid status', () => {
+    expect(() => coParentApprovalStatusSchema.parse('waiting')).toThrow()
+  })
+})
+
+describe('proposalStatusSchema - Story 3A.3 extensions', () => {
+  it('should accept "pending_coparent_approval" status', () => {
+    expect(proposalStatusSchema.parse('pending_coparent_approval')).toBe(
+      'pending_coparent_approval'
+    )
+  })
+
+  it('should accept "expired" status', () => {
+    expect(proposalStatusSchema.parse('expired')).toBe('expired')
+  })
+})
+
+describe('agreementProposalSchema co-parent fields - Story 3A.3', () => {
+  const baseProposal = {
+    id: 'proposal-123',
+    familyId: 'family-1',
+    childId: 'child-1',
+    agreementId: 'agreement-1',
+    proposedBy: 'parent' as const,
+    proposerId: 'parent-1',
+    proposerName: 'Mom',
+    changes: [],
+    reason: null,
+    status: 'pending' as const,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    respondedAt: null,
+    version: 1,
+    proposalNumber: 1,
+  }
+
+  it('should accept proposal without co-parent fields (defaults applied)', () => {
+    const result = agreementProposalSchema.parse(baseProposal)
+    expect(result.coParentApprovalRequired).toBe(false)
+    expect(result.coParentApprovalStatus).toBeNull()
+    expect(result.coParentApprovedByUid).toBeNull()
+    expect(result.coParentApprovedAt).toBeNull()
+    expect(result.coParentDeclineReason).toBeNull()
+    expect(result.expiresAt).toBeNull()
+  })
+
+  it('should accept proposal with co-parent approval required', () => {
+    const sharedCustodyProposal = {
+      ...baseProposal,
+      status: 'pending_coparent_approval' as const,
+      coParentApprovalRequired: true,
+      coParentApprovalStatus: 'pending' as const,
+      expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000, // 14 days
+    }
+    const result = agreementProposalSchema.parse(sharedCustodyProposal)
+    expect(result.coParentApprovalRequired).toBe(true)
+    expect(result.coParentApprovalStatus).toBe('pending')
+    expect(result.expiresAt).not.toBeNull()
+  })
+
+  it('should accept proposal with co-parent approval granted', () => {
+    const approvedProposal = {
+      ...baseProposal,
+      status: 'pending' as const, // Now awaiting child response
+      coParentApprovalRequired: true,
+      coParentApprovalStatus: 'approved' as const,
+      coParentApprovedByUid: 'parent-2',
+      coParentApprovedAt: Date.now(),
+      expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
+    }
+    const result = agreementProposalSchema.parse(approvedProposal)
+    expect(result.coParentApprovalStatus).toBe('approved')
+    expect(result.coParentApprovedByUid).toBe('parent-2')
+    expect(result.coParentApprovedAt).not.toBeNull()
+  })
+
+  it('should accept proposal with co-parent approval declined', () => {
+    const declinedProposal = {
+      ...baseProposal,
+      status: 'declined' as const,
+      coParentApprovalRequired: true,
+      coParentApprovalStatus: 'declined' as const,
+      coParentApprovedByUid: 'parent-2',
+      coParentApprovedAt: Date.now(),
+      coParentDeclineReason: 'I think we should discuss this first',
+      expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
+    }
+    const result = agreementProposalSchema.parse(declinedProposal)
+    expect(result.coParentApprovalStatus).toBe('declined')
+    expect(result.coParentDeclineReason).toBe('I think we should discuss this first')
+  })
+
+  it('should accept expired proposal', () => {
+    const expiredProposal = {
+      ...baseProposal,
+      status: 'expired' as const,
+      coParentApprovalRequired: true,
+      coParentApprovalStatus: 'pending' as const, // Never responded
+      expiresAt: Date.now() - 1000, // Already expired
+    }
+    const result = agreementProposalSchema.parse(expiredProposal)
+    expect(result.status).toBe('expired')
+  })
+
+  it('should reject invalid coParentApprovalStatus', () => {
+    const invalid = {
+      ...baseProposal,
+      coParentApprovalRequired: true,
+      coParentApprovalStatus: 'waiting', // Invalid
+    }
+    expect(() => agreementProposalSchema.parse(invalid)).toThrow()
+  })
+})

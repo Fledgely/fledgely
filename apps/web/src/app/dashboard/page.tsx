@@ -40,6 +40,9 @@ import {
   declineSafetySettingChange,
 } from '../../services/safetySettingService'
 import SafetySettingProposalCard from '../../components/SafetySettingProposalCard'
+import { getPendingCoParentApprovals } from '../../services/coParentProposalApprovalService'
+import { CoParentProposalApprovalCard } from '../../components/parent/CoParentProposalApprovalCard'
+import type { AgreementProposal } from '@fledgely/shared'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
 import { FlagQueue } from '../../components/flags'
 import { AILearningIndicator } from '../../components/settings/AILearningIndicator'
@@ -175,6 +178,9 @@ export default function DashboardPage() {
   const [invitationRefreshTrigger, setInvitationRefreshTrigger] = useState(0)
   const [pendingSafetyChanges, setPendingSafetyChanges] = useState<SafetySettingChange[]>([])
   const [safetyChangesRefreshTrigger, setSafetyChangesRefreshTrigger] = useState(0)
+  // Story 3A.3: State for pending co-parent proposal approvals
+  const [pendingCoParentApprovals, setPendingCoParentApprovals] = useState<AgreementProposal[]>([])
+  const [coParentApprovalsRefreshTrigger, setCoParentApprovalsRefreshTrigger] = useState(0)
 
   // Push notifications setup (Story 19A.4)
   const { permissionStatus, requestPermission } = usePushNotifications({
@@ -279,6 +285,20 @@ export default function DashboardPage() {
       setPendingSafetyChanges([])
     }
   }, [family?.id, safetyChangesRefreshTrigger])
+
+  // Load pending co-parent approvals (Story 3A.3)
+  // Shows agreement change proposals awaiting this user's approval
+  useEffect(() => {
+    if (family?.id && firebaseUser?.uid) {
+      getPendingCoParentApprovals(family.id, firebaseUser.uid)
+        .then(setPendingCoParentApprovals)
+        .catch((err) => {
+          console.error('Error loading pending co-parent approvals:', err)
+        })
+    } else {
+      setPendingCoParentApprovals([])
+    }
+  }, [family?.id, firebaseUser?.uid, coParentApprovalsRefreshTrigger])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -663,6 +683,36 @@ export default function DashboardPage() {
                         console.log(
                           `[Notification] Safety setting change declined: ${change.settingType}`
                         )
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Pending Co-Parent Approvals (Story 3A.3) */}
+              {firebaseUser && pendingCoParentApprovals.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <h3
+                    style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: '#1f2937',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    Agreement Changes Needing Your Approval
+                  </h3>
+                  {pendingCoParentApprovals.map((proposal) => (
+                    <CoParentProposalApprovalCard
+                      key={proposal.id}
+                      proposal={proposal}
+                      currentUserUid={firebaseUser.uid}
+                      currentUserName={displayName}
+                      onApproved={() => {
+                        setCoParentApprovalsRefreshTrigger((t) => t + 1)
+                      }}
+                      onDeclined={() => {
+                        setCoParentApprovalsRefreshTrigger((t) => t + 1)
                       }}
                     />
                   ))}

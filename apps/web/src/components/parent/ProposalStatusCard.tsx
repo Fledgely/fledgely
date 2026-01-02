@@ -1,19 +1,28 @@
 /**
- * ProposalStatusCard Component - Story 34.1 (AC6)
+ * ProposalStatusCard Component - Story 34.1 (AC6), Story 3A.3 (AC3)
  *
  * Shows pending proposal status to parent.
  * Displays "Waiting for [Child] to review" and allows withdrawal.
+ * Story 3A.3: Shows co-parent approval status for shared custody.
  */
 
 import { AGREEMENT_PROPOSAL_MESSAGES, type AgreementProposal } from '@fledgely/shared'
+import { getCoParentStatusMessage } from '../../services/coParentProposalApprovalService'
 
 interface ProposalStatusCardProps {
   proposal: AgreementProposal
   childName: string
+  /** Name of other parent for co-parent approval display */
+  otherParentName?: string
   onWithdraw: (proposalId: string) => void
 }
 
-export function ProposalStatusCard({ proposal, childName, onWithdraw }: ProposalStatusCardProps) {
+export function ProposalStatusCard({
+  proposal,
+  childName,
+  otherParentName,
+  onWithdraw,
+}: ProposalStatusCardProps) {
   const changeCount = proposal.changes.length
   const changeText = changeCount === 1 ? '1 change' : `${changeCount} changes`
 
@@ -52,6 +61,27 @@ export function ProposalStatusCard({ proposal, childName, onWithdraw }: Proposal
           {AGREEMENT_PROPOSAL_MESSAGES.pendingStatus(childName)}
         </div>
       </div>
+
+      {/* Co-parent approval status - Story 3A.3 AC3 */}
+      {proposal.coParentApprovalRequired && otherParentName && (
+        <div
+          data-testid="coparent-status"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 16,
+            padding: '10px 12px',
+            background: proposal.coParentApprovalStatus === 'approved' ? '#dcfce7' : '#fef9c3',
+            borderRadius: 8,
+            fontSize: 13,
+            color: proposal.coParentApprovalStatus === 'approved' ? '#166534' : '#854d0e',
+          }}
+        >
+          <span>{proposal.coParentApprovalStatus === 'approved' ? '✓' : '⏳'}</span>
+          <span>{getCoParentStatusMessage(proposal, otherParentName)}</span>
+        </div>
+      )}
 
       {/* Proposal summary */}
       <div

@@ -393,6 +393,7 @@ service cloud.firestore {
       // Story 34.1: Parent-Initiated Agreement Change
       // Story 34.2: Child-Initiated Agreement Change
       // Story 34.3: Change Review and Negotiation
+      // Story 3A.3: Agreement Changes Two-Parent Approval
       // =========================================================================
       //
       // Agreement proposals allow parents/children to propose changes to agreements.
@@ -416,6 +417,13 @@ service cloud.firestore {
             request.auth.token.familyId == familyId;
         }
 
+        // Story 3A.3: Helper to check if user is the OTHER guardian (not the proposer)
+        // CRITICAL: This prevents self-approval of co-parent proposals
+        function isOtherProposalGuardian() {
+          return isProposalGuardian() &&
+            request.auth.uid != resource.data.proposerId;
+        }
+
         // Read: Guardians AND children can view proposals for their family
         // Story 34.1 AC5: Child can review proposals
         // Story 34.2 AC5: Child sees proposal status
@@ -423,12 +431,13 @@ service cloud.firestore {
 
         // Create: Guardians can create parent-initiated proposals
         // Story 34.1 AC4: Parent submits proposal
-        // Must set themselves as proposer and start with pending status
+        // Story 3A.3: Shared custody proposals start with 'pending_coparent_approval' status
+        // Must set themselves as proposer
         allow create: if isProposalGuardian() &&
           request.resource.data.familyId == familyId &&
           request.resource.data.proposerId == request.auth.uid &&
           request.resource.data.proposedBy == 'parent' &&
-          request.resource.data.status == 'pending';
+          request.resource.data.status in ['pending', 'pending_coparent_approval'];
 
         // Create: Children can create child-initiated proposals
         // Story 34.2 AC3: Child submits proposal
@@ -466,8 +475,38 @@ service cloud.firestore {
           request.resource.data.childId == resource.data.childId &&
           request.resource.data.agreementId == resource.data.agreementId;
 
+        // Story 3A.3: Co-parent approval/decline
+        // Only the OTHER guardian (not the proposer) can approve/decline
+        // CRITICAL: Prevents self-approval using isOtherProposalGuardian()
+        // On approve: status changes to 'pending' (for child response)
+        // On decline: status changes to 'declined'
+        allow update: if isOtherProposalGuardian() &&
+          resource.data.status == 'pending_coparent_approval' &&
+          request.resource.data.status in ['pending', 'declined'] &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId &&
+          request.resource.data.proposedBy == resource.data.proposedBy &&
+          request.resource.data.proposerId == resource.data.proposerId &&
+          // Co-parent approval fields can be updated
+          request.resource.data.coParentApprovalStatus in ['approved', 'declined'];
+
+        // Update: Proposer can withdraw proposal during co-parent approval
+        // Story 3A.3: Proposer can withdraw before co-parent responds
+        allow update: if isProposalGuardian() &&
+          resource.data.proposerId == request.auth.uid &&
+          resource.data.status == 'pending_coparent_approval' &&
+          request.resource.data.status == 'withdrawn' &&
+          // Preserve immutable fields
+          request.resource.data.familyId == resource.data.familyId &&
+          request.resource.data.childId == resource.data.childId &&
+          request.resource.data.agreementId == resource.data.agreementId;
+
         // Update: Child can respond to parent's proposal
         // Story 34.3 AC2: Accept, Decline, Counter-propose
+        // Story 3A.3 AC2: Child can only respond when status == 'pending'
+        //   (status 'pending_coparent_approval' means co-parent hasn't approved yet)
         // Only the non-proposer can change status to accepted/declined/counter-proposed
         allow update: if isChildInProposalFamily() &&
           resource.data.proposedBy == 'parent' &&

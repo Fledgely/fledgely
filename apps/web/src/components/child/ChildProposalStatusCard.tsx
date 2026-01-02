@@ -7,6 +7,10 @@
  */
 
 import { CHILD_PROPOSAL_MESSAGES, type AgreementProposal } from '@fledgely/shared'
+import {
+  canChildRespond,
+  CO_PARENT_APPROVAL_MESSAGES,
+} from '../../services/coParentProposalApprovalService'
 
 interface ChildProposalStatusCardProps {
   proposal: AgreementProposal
@@ -72,6 +76,27 @@ export function ChildProposalStatusCard({
           {CHILD_PROPOSAL_MESSAGES.pendingStatus(parentName)}
         </div>
       </div>
+
+      {/* Co-parent approval notice - Story 3A.3 AC2 */}
+      {proposal.coParentApprovalRequired && !canChildRespond(proposal) && (
+        <div
+          data-testid="coparent-approval-notice"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 16,
+            padding: '10px 12px',
+            background: '#fef9c3',
+            borderRadius: 8,
+            fontSize: 13,
+            color: '#854d0e',
+          }}
+        >
+          <span>⏳</span>
+          <span>{CO_PARENT_APPROVAL_MESSAGES.childCannotRespond}</span>
+        </div>
+      )}
 
       {/* Proposal summary */}
       <div
