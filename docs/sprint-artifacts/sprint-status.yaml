@@ -96,13 +96,13 @@ development_status:
   epic-3-retrospective: done
 
   # Epic 3A: Shared Custody Safeguards
-  epic-3a: done # 3/6 stories complete, 3 blocked by dependencies (5/6, 10/15)
+  epic-3a: in-progress # 5/6 stories complete, 1 remaining (3a-6)
   3a-1-data-symmetry-enforcement: done
   3a-2-safety-settings-two-parent-approval: done
-  3a-3-agreement-changes-two-parent-approval: blocked # Depends on Epic 5/6 (agreements)
+  3a-3-agreement-changes-two-parent-approval: done # Implemented two-parent approval workflow
   3a-4-safety-rule-48-hour-cooling-period: done
   3a-5-screenshot-viewing-rate-alert: done # Implemented as part of Story 18.6
-  3a-6-co-parent-removal-prevention: blocked # Security rules done in 3.4, UI blocked pending agreements
+  3a-6-co-parent-removal-prevention: backlog # Unblocked: Agreements (Epic 5/6) now done
   epic-3a-retrospective: done
 
   # Epic 4: Agreement Templates & Quick Start
