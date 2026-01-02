@@ -8,9 +8,21 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MediationResourcesModal } from './MediationResourcesModal'
 import type { AgeTier } from '@fledgely/shared/contracts/mediationResources'
+
+// Mock the meeting reminder hook
+vi.mock('../../hooks/useMeetingReminder', () => ({
+  useMeetingReminder: vi.fn(() => ({
+    pendingReminder: null,
+    loading: false,
+    error: null,
+    scheduleReminder: vi.fn().mockResolvedValue(undefined),
+    cancelReminder: vi.fn().mockResolvedValue(undefined),
+    isScheduling: false,
+  })),
+}))
 
 describe('MediationResourcesModal - Story 34.5.2', () => {
   const defaultProps = {
@@ -223,6 +235,186 @@ describe('MediationResourcesModal - Story 34.5.2', () => {
 
       const header = screen.getByTestId('modal-header')
       expect(header.textContent).toContain('Emma')
+    })
+  })
+
+  // ============================================
+  // Story 34.5.4: Share/Copy to Clipboard (AC3)
+  // ============================================
+
+  describe('AC3: Share/Copy to Clipboard - Story 34.5.4', () => {
+    beforeEach(() => {
+      // Mock clipboard API
+      Object.assign(navigator, {
+        clipboard: {
+          writeText: vi.fn().mockResolvedValue(undefined),
+        },
+      })
+    })
+
+    it('should display copy button in family meeting tab', () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      expect(screen.getByTestId('copy-button')).toBeInTheDocument()
+    })
+
+    it('should call clipboard API when copy button is clicked', async () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('copy-button'))
+        await Promise.resolve()
+      })
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalled()
+    })
+
+    it('should show success message after successful copy', async () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      fireEvent.click(screen.getByTestId('copy-button'))
+
+      // Wait for success message to appear
+      await screen.findByText(/copied/i)
+    })
+
+    it('should include template title in copied content', async () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('copy-button'))
+        await Promise.resolve()
+      })
+
+      const copiedText = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock
+        .calls[0][0]
+      expect(copiedText).toContain('Family')
+    })
+
+    it('should include parent section in copied content', async () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('copy-button'))
+        await Promise.resolve()
+      })
+
+      const copiedText = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock
+        .calls[0][0]
+      expect(copiedText).toContain('Parent')
+    })
+
+    it('should include child section in copied content', async () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('copy-button'))
+        await Promise.resolve()
+      })
+
+      const copiedText = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock
+        .calls[0][0]
+      expect(copiedText).toContain('Your') // Child section heading varies by age
+    })
+
+    it('should have accessible aria-label on copy button', () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      const copyButton = screen.getByTestId('copy-button')
+      expect(copyButton.getAttribute('aria-label')).toBeTruthy()
+    })
+
+    it('should reset copy success message after timeout', async () => {
+      vi.useFakeTimers()
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      // Click copy button and wait for the async clipboard operation
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('copy-button'))
+        // Flush microtask queue for the Promise
+        await Promise.resolve()
+      })
+
+      // Success message should appear
+      expect(screen.getByText(/copied/i)).toBeInTheDocument()
+
+      // Fast forward 3 seconds
+      act(() => {
+        vi.advanceTimersByTime(3000)
+      })
+
+      // Button should return to normal state
+      expect(screen.getByTestId('copy-button').textContent).toContain('Copy')
+      expect(screen.queryByText(/copied/i)).not.toBeInTheDocument()
+
+      vi.useRealTimers()
+    })
+  })
+
+  // ============================================
+  // Story 34.5.4: Schedule Meeting Reminder (AC4)
+  // ============================================
+
+  describe('AC4: Schedule Meeting Reminder - Story 34.5.4', () => {
+    const propsWithScheduling = {
+      ...defaultProps,
+      familyId: 'family-123',
+      childId: 'child-456',
+    }
+
+    it('should display schedule button when familyId and childId provided', () => {
+      render(<MediationResourcesModal {...propsWithScheduling} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      expect(screen.getByTestId('schedule-reminder-button')).toBeInTheDocument()
+    })
+
+    it('should not display schedule button when familyId missing', () => {
+      render(<MediationResourcesModal {...defaultProps} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      expect(screen.queryByTestId('schedule-reminder-button')).not.toBeInTheDocument()
+    })
+
+    it('should show supportive text on schedule button', () => {
+      render(<MediationResourcesModal {...propsWithScheduling} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+
+      const button = screen.getByTestId('schedule-reminder-button')
+      expect(button.textContent).toMatch(/schedule|meeting|family/i)
+    })
+
+    it('should open schedule modal when button clicked', () => {
+      render(<MediationResourcesModal {...propsWithScheduling} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      fireEvent.click(screen.getByTestId('schedule-reminder-button'))
+
+      expect(screen.getByTestId('schedule-reminder-modal')).toBeInTheDocument()
+    })
+
+    it('should close schedule modal when cancel clicked', () => {
+      render(<MediationResourcesModal {...propsWithScheduling} />)
+
+      fireEvent.click(screen.getByTestId('tab-family-meeting'))
+      fireEvent.click(screen.getByTestId('schedule-reminder-button'))
+      fireEvent.click(screen.getByTestId('schedule-cancel-button'))
+
+      expect(screen.queryByTestId('schedule-reminder-modal')).not.toBeInTheDocument()
     })
   })
 

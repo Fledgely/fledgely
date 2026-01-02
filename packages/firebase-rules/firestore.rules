@@ -1679,6 +1679,51 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // ============================================
+    // Story 34.5.4: Family Meeting Reminders
+    // ============================================
+    //
+    // DESIGN PRINCIPLE: Optional meeting scheduling
+    // Meeting reminders help families schedule productive conversations.
+    // All reminders are scoped to family for privacy and access control.
+    //
+    // AC4: Meeting Reminder (Optional)
+    // - Read: Family members only (via familyId claim)
+    // - Create: Family members can create for their family
+    // - Update: Creator or family guardian can update (status changes)
+    // - Delete: Not allowed (keep audit trail)
+    //
+
+    // Family Meeting Reminders: Scheduled meeting reminders
+    match /familyMeetingReminders/{reminderId} {
+      // Read: Family members can read their reminders
+      allow read: if request.auth != null
+                  && request.auth.token.familyId == resource.data.familyId;
+
+      // Create: Family members can create reminders for their family
+      // CRITICAL: Must match familyId claim AND set themselves as creator
+      allow create: if request.auth != null
+                    && request.auth.token.familyId == request.resource.data.familyId
+                    && request.auth.uid == request.resource.data.createdBy
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.scheduledAt is timestamp
+                    && request.resource.data.createdAt is timestamp;
+
+      // Update: Creator or family guardian can update status
+      // Only status and acknowledgedAt can change, other fields immutable
+      allow update: if request.auth != null
+                    && request.auth.token.familyId == resource.data.familyId
+                    && request.resource.data.familyId == resource.data.familyId
+                    && request.resource.data.createdBy == resource.data.createdBy
+                    && request.resource.data.templateId == resource.data.templateId
+                    && request.resource.data.ageTier == resource.data.ageTier
+                    && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Delete: NEVER allowed (keep audit trail)
+      // Cancelled reminders should have status: 'cancelled'
+      allow delete: if false;
+    }
+
     // Deny all other access by default
     match /{document=**} {
       allow read, write: if false;

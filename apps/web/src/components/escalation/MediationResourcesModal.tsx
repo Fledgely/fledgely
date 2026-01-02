@@ -1,10 +1,11 @@
 /**
- * MediationResourcesModal Component - Story 34.5.2 Task 4
+ * MediationResourcesModal Component - Story 34.5.2 Task 4 + Story 34.5.4 Task 1
  *
  * Modal displaying mediation resources for children.
  * AC2: Link to Family Communication Resources
  * AC3: Family Meeting Template Access
  * AC4: Age-Appropriate Negotiation Tips
+ * Story 34.5.4 AC3: Shareable Template (Copy to Clipboard)
  */
 
 import { useState } from 'react'
@@ -13,6 +14,8 @@ import {
   getFamilyMeetingTemplate,
   getNegotiationTips,
 } from '@fledgely/shared/services/mediationResourceService'
+import { ScheduleReminderModal } from './ScheduleReminderModal'
+import { useMeetingReminder } from '../../hooks/useMeetingReminder'
 
 // ============================================
 // Types
@@ -27,6 +30,10 @@ export interface MediationResourcesModalProps {
   ageTier: AgeTier
   /** Child's name for personalization */
   childName: string
+  /** Family ID for meeting reminder scheduling (optional) */
+  familyId?: string
+  /** Child ID for meeting reminder scheduling (optional) */
+  childId?: string
 }
 
 type TabId = 'negotiation-tips' | 'family-meeting'
@@ -40,9 +47,33 @@ export function MediationResourcesModal({
   onClose,
   ageTier,
   childName,
+  familyId,
+  childId,
 }: MediationResourcesModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('negotiation-tips')
   const [expandedTip, setExpandedTip] = useState<number | null>(null)
+  const [copySuccess, setCopySuccess] = useState(false)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+
+  // Meeting reminder hook - only used if familyId and childId are provided
+  const canScheduleReminder = Boolean(familyId && childId)
+
+  // Conditionally call hook only when we have valid IDs to avoid unnecessary API calls
+  const meetingReminder = useMeetingReminder(
+    canScheduleReminder
+      ? {
+          familyId: familyId!,
+          createdBy: childId!,
+          templateId: `family-meeting-${ageTier}`,
+          ageTier,
+        }
+      : {
+          familyId: '',
+          createdBy: '',
+          templateId: '',
+          ageTier,
+        }
+  )
 
   if (!isOpen) {
     return null
@@ -53,6 +84,58 @@ export function MediationResourcesModal({
 
   const handlePrint = () => {
     window.print()
+  }
+
+  /**
+   * Format template content for clipboard.
+   * Story 34.5.4 AC3: Shareable Template
+   */
+  const formatTemplateForCopy = (): string => {
+    const lines: string[] = []
+
+    lines.push(`📋 ${template.title}`)
+    lines.push('')
+    lines.push(template.introduction)
+    lines.push('')
+    lines.push(`👨‍👩‍👧 ${template.parentSection.heading}`)
+    template.parentSection.prompts.forEach((prompt) => {
+      lines.push(`  • ${prompt}`)
+    })
+    lines.push('')
+    lines.push(`🧒 ${template.childSection.heading}`)
+    template.childSection.prompts.forEach((prompt) => {
+      lines.push(`  • ${prompt}`)
+    })
+    lines.push('')
+    lines.push(`🤝 ${template.jointSection.heading}`)
+    template.jointSection.prompts.forEach((prompt) => {
+      lines.push(`  • ${prompt}`)
+    })
+    lines.push('')
+    lines.push(`💡 ${template.closingNotes}`)
+
+    return lines.join('\n')
+  }
+
+  /**
+   * Copy template to clipboard.
+   * Story 34.5.4 AC3: Shareable Template
+   */
+  const handleCopy = async () => {
+    const content = formatTemplateForCopy()
+
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopySuccess(true)
+
+      // Reset after 3 seconds
+      setTimeout(() => {
+        setCopySuccess(false)
+      }, 3000)
+    } catch {
+      // Fallback for older browsers - silently fail
+      console.warn('Clipboard API not available')
+    }
   }
 
   const toggleTip = (index: number) => {
@@ -196,21 +279,70 @@ export function MediationResourcesModal({
             <div data-testid="family-meeting-content">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">{template.title}</h3>
-                <button
-                  data-testid="print-button"
-                  onClick={handlePrint}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                    />
-                  </svg>
-                  Print
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Story 34.5.4 AC3: Copy to Clipboard */}
+                  <button
+                    data-testid="copy-button"
+                    onClick={handleCopy}
+                    aria-label="Copy template to clipboard"
+                    className={`flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md transition-colors ${
+                      copySuccess
+                        ? 'text-green-600 border-green-300 bg-green-50'
+                        : 'text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {copySuccess ? (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M5 13l4 4L19 7"
+                          />
+                        </svg>
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                        Copy
+                      </>
+                    )}
+                  </button>
+                  <button
+                    data-testid="print-button"
+                    onClick={handlePrint}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                      />
+                    </svg>
+                    Print
+                  </button>
+                </div>
               </div>
 
               <p className="text-gray-600 mb-6">{template.introduction}</p>
@@ -260,8 +392,40 @@ export function MediationResourcesModal({
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-gray-700 italic">{template.closingNotes}</p>
               </div>
+
+              {/* Schedule Meeting Reminder Button - Story 34.5.4 AC4 */}
+              {canScheduleReminder && (
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <button
+                    data-testid="schedule-reminder-button"
+                    onClick={() => setIsScheduleModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                    Schedule a Family Meeting
+                  </button>
+                </div>
+              )}
             </div>
           )}
+
+          {/* Schedule Reminder Modal - Story 34.5.4 AC4 */}
+          <ScheduleReminderModal
+            isOpen={isScheduleModalOpen}
+            onClose={() => setIsScheduleModalOpen(false)}
+            onSchedule={async (scheduledAt) => {
+              await meetingReminder.scheduleReminder(scheduledAt)
+              setIsScheduleModalOpen(false)
+            }}
+            isScheduling={meetingReminder.isScheduling}
+          />
         </div>
       </div>
     </>
