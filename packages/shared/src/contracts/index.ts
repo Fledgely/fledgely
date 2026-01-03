@@ -7565,3 +7565,27 @@ export {
   type GetLocationTransitionsInput,
   type GetLocationTransitionsResponse,
 } from './locationTransition'
+
+// Story 40.5: Location Privacy Controls
+export {
+  childLocationStatusSchema,
+  locationDisableRequestSchema,
+  locationDisableRequestStatusSchema,
+  requestLocationDisableInputSchema,
+  getChildLocationStatusInputSchema,
+  getChildLocationHistoryInputSchema,
+  childLocationHistoryItemSchema,
+  getChildLocationHistoryResponseSchema,
+  LOCATION_PRIVACY_MESSAGES,
+  LOCATION_DISABLE_REQUEST_MESSAGES,
+  formatTimeDescription,
+  calculateDurationMinutes,
+  type ChildLocationStatus,
+  type LocationDisableRequest,
+  type LocationDisableRequestStatus,
+  type RequestLocationDisableInput,
+  type GetChildLocationStatusInput,
+  type GetChildLocationHistoryInput,
+  type ChildLocationHistoryItem,
+  type GetChildLocationHistoryResponse,
+} from './locationPrivacy'

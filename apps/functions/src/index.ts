@@ -202,3 +202,8 @@ export { locationUpdate } from './http/locationUpdate'
 export { onLocationUpdate } from './triggers/onLocationUpdate'
 export { applyTransitionRules } from './scheduled/applyTransitionRules'
 export { getLocationTransitions } from './callable/getLocationTransitions'
+
+// Location privacy controls (Story 40.5)
+export { getChildLocationStatus } from './callable/getChildLocationStatus'
+export { getChildLocationHistory } from './callable/getChildLocationHistory'
+export { requestLocationDisable } from './callable/requestLocationDisable'

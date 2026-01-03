@@ -564,10 +564,10 @@ development_status:
   # Epic 40: Advanced Shared Custody & Location Features
   epic-40: in-progress
   40-1-location-based-rule-opt-in: done
-  40-2-location-specific-rule-configuration: backlog
-  40-3-fleeing-mode-safe-escape: backlog
-  40-4-location-transition-handling: backlog
-  40-5-location-privacy-controls: backlog
+  40-2-location-specific-rule-configuration: done
+  40-3-fleeing-mode-safe-escape: done
+  40-4-location-transition-handling: done
+  40-5-location-privacy-controls: done
   40-6-location-feature-abuse-prevention: backlog
   epic-40-retrospective: optional
 

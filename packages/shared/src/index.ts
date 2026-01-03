@@ -2115,3 +2115,31 @@ export {
   type GetLocationTransitionsInput,
   type GetLocationTransitionsResponse,
 } from './contracts'
+
+// Location Privacy exports (Story 40.5)
+export {
+  // Schemas
+  childLocationStatusSchema,
+  locationDisableRequestSchema,
+  locationDisableRequestStatusSchema,
+  requestLocationDisableInputSchema,
+  getChildLocationStatusInputSchema,
+  getChildLocationHistoryInputSchema,
+  childLocationHistoryItemSchema,
+  getChildLocationHistoryResponseSchema,
+  // Messages
+  LOCATION_PRIVACY_MESSAGES,
+  LOCATION_DISABLE_REQUEST_MESSAGES,
+  // Utilities
+  formatTimeDescription,
+  calculateDurationMinutes,
+  // Types
+  type ChildLocationStatus,
+  type LocationDisableRequest,
+  type LocationDisableRequestStatus,
+  type RequestLocationDisableInput,
+  type GetChildLocationStatusInput,
+  type GetChildLocationHistoryInput,
+  type ChildLocationHistoryItem,
+  type GetChildLocationHistoryResponse,
+} from './contracts'
