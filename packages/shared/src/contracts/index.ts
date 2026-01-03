@@ -7461,3 +7461,23 @@ export {
   type NegotiationTip,
   type EscalationAcknowledgment,
 } from './mediationResources'
+
+// Story 40.1: Location-Based Rule Opt-In
+export {
+  locationOptInStatusSchema,
+  locationSettingsSchema,
+  locationOptInRequestStatusSchema,
+  locationOptInRequestSchema,
+  requestLocationOptInInputSchema,
+  approveLocationOptInInputSchema,
+  disableLocationFeaturesInputSchema,
+  DEFAULT_LOCATION_SETTINGS,
+  LOCATION_OPT_IN_EXPIRY_MS,
+  type LocationOptInStatus,
+  type LocationSettings,
+  type LocationOptInRequestStatus,
+  type LocationOptInRequest,
+  type RequestLocationOptInInput,
+  type ApproveLocationOptInInput,
+  type DisableLocationFeaturesInput,
+} from './locationSettings'

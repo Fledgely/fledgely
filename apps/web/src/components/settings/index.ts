@@ -23,3 +23,9 @@ export type { RevokeAccessButtonProps } from './RevokeAccessButton'
 // Story 32.5: Offline Time Exceptions
 export { OfflineExceptionCard } from './OfflineExceptionCard'
 export { ExceptionHistoryCard } from './ExceptionHistoryCard'
+
+// Story 40.1: Location-Based Rule Opt-In
+export { LocationOptInCard } from './LocationOptInCard'
+export type { LocationOptInCardProps, LocationStatus } from './LocationOptInCard'
+export { LocationPrivacyModal } from './LocationPrivacyModal'
+export type { LocationPrivacyModalProps } from './LocationPrivacyModal'

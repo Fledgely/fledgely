@@ -80,6 +80,11 @@ export { logCaregiverFlagView } from './callable/logCaregiverFlagView' // Story 
 export { markFlagReviewedByCaregiver } from './callable/markFlagReviewedByCaregiver' // Story 39.5
 export { removeCaregiverWithNotification } from './callable/removeCaregiverWithNotification' // Story 39.7
 
+// Location opt-in callable functions (Story 40.1)
+export { requestLocationOptIn } from './callable/requestLocationOptIn'
+export { approveLocationOptIn } from './callable/approveLocationOptIn'
+export { disableLocationFeatures } from './callable/disableLocationFeatures'
+
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
 

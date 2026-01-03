@@ -559,11 +559,11 @@ development_status:
   39-5-caregiver-flag-viewing: done
   39-6-caregiver-action-logging: done
   39-7-caregiver-removal: done
-  epic-39-retrospective: optional
+  epic-39-retrospective: completed
 
   # Epic 40: Advanced Shared Custody & Location Features
-  epic-40: backlog
-  40-1-location-based-rule-opt-in: backlog
+  epic-40: in-progress
+  40-1-location-based-rule-opt-in: done
   40-2-location-specific-rule-configuration: backlog
   40-3-fleeing-mode-safe-escape: backlog
   40-4-location-transition-handling: backlog

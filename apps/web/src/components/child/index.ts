@@ -12,3 +12,10 @@ export type {
 } from './CaregiverRemovedNotification'
 export { ChildNotificationList } from './ChildNotificationList'
 export type { ChildNotificationListProps, ChildNotification } from './ChildNotificationList'
+
+// Story 40.1: Location-Based Rule Opt-In - Child Notifications
+export { LocationFeaturesNotification } from './LocationFeaturesNotification'
+export type {
+  LocationFeaturesNotificationProps,
+  LocationNotificationType,
+} from './LocationFeaturesNotification'
