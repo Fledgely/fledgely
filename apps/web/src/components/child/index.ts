@@ -19,3 +19,7 @@ export type {
   LocationFeaturesNotificationProps,
   LocationNotificationType,
 } from './LocationFeaturesNotification'
+
+// Story 40.2: Location-Specific Rule Configuration - Child View
+export { ChildLocationStatus } from './ChildLocationStatus'
+export type { ChildLocationStatusProps } from './ChildLocationStatus'

@@ -7481,3 +7481,36 @@ export {
   type ApproveLocationOptInInput,
   type DisableLocationFeaturesInput,
 } from './locationSettings'
+
+// Story 40.2: Location-Specific Rule Configuration - Location Zones
+export {
+  locationZoneTypeSchema,
+  locationZoneSchema,
+  createLocationZoneInputSchema,
+  updateLocationZoneInputSchema,
+  deleteLocationZoneInputSchema,
+  DEFAULT_GEOFENCE_RADIUS_METERS,
+  MIN_GEOFENCE_RADIUS_METERS,
+  MAX_GEOFENCE_RADIUS_METERS,
+  type LocationZoneType,
+  type LocationZone,
+  type CreateLocationZoneInput,
+  type UpdateLocationZoneInput,
+  type DeleteLocationZoneInput,
+} from './locationZones'
+
+// Story 40.2: Location-Specific Rule Configuration - Location Rules
+export {
+  categoryOverrideValueSchema,
+  categoryOverridesSchema,
+  locationRuleSchema,
+  setLocationRuleInputSchema,
+  deleteLocationRuleInputSchema,
+  effectiveLocationRuleSchema,
+  type CategoryOverrideValue,
+  type CategoryOverrides,
+  type LocationRule,
+  type SetLocationRuleInput,
+  type DeleteLocationRuleInput,
+  type EffectiveLocationRule,
+} from './locationRules'

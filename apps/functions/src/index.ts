@@ -85,6 +85,14 @@ export { requestLocationOptIn } from './callable/requestLocationOptIn'
 export { approveLocationOptIn } from './callable/approveLocationOptIn'
 export { disableLocationFeatures } from './callable/disableLocationFeatures'
 
+// Location zone and rule callable functions (Story 40.2)
+export {
+  createLocationZone,
+  updateLocationZone,
+  deleteLocationZone,
+} from './callable/manageLocationZone'
+export { setLocationRule, deleteLocationRule } from './callable/manageLocationRule'
+
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
 

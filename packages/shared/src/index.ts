@@ -2010,3 +2010,49 @@ export {
   type RejectionEvent,
   type EscalationEvent,
 } from './services/rejectionPatternService'
+
+// Location Zone exports (Story 40.2)
+export {
+  // Constants
+  DEFAULT_GEOFENCE_RADIUS_METERS,
+  MIN_GEOFENCE_RADIUS_METERS,
+  MAX_GEOFENCE_RADIUS_METERS,
+  // Schemas
+  locationZoneTypeSchema,
+  locationZoneSchema,
+  createLocationZoneInputSchema,
+  updateLocationZoneInputSchema,
+  deleteLocationZoneInputSchema,
+  createLocationZoneResponseSchema,
+  updateLocationZoneResponseSchema,
+  deleteLocationZoneResponseSchema,
+  // Types
+  type LocationZoneType,
+  type LocationZone,
+  type CreateLocationZoneInput,
+  type UpdateLocationZoneInput,
+  type DeleteLocationZoneInput,
+  type CreateLocationZoneResponse,
+  type UpdateLocationZoneResponse,
+  type DeleteLocationZoneResponse,
+} from './contracts'
+
+// Location Rule exports (Story 40.2)
+export {
+  // Schemas
+  categoryOverrideValueSchema,
+  categoryOverridesSchema,
+  locationRuleSchema,
+  setLocationRuleInputSchema,
+  deleteLocationRuleInputSchema,
+  setLocationRuleResponseSchema,
+  deleteLocationRuleResponseSchema,
+  // Types
+  type CategoryOverrideValue,
+  type CategoryOverrides,
+  type LocationRule,
+  type SetLocationRuleInput,
+  type DeleteLocationRuleInput,
+  type SetLocationRuleResponse,
+  type DeleteLocationRuleResponse,
+} from './contracts'
