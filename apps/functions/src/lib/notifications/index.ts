@@ -52,3 +52,28 @@ export type {
   SendParentFlagNotificationParams,
   SendParentNotificationResult,
 } from './sendParentFlagNotification'
+
+// Story 41.2: Flag notification orchestration
+export {
+  processFlagNotification,
+  isCrisisRelatedFlag,
+  determineNotificationRoute,
+} from './flagNotificationOrchestrator'
+export type { FlagNotificationResult, NotificationRoute } from './flagNotificationOrchestrator'
+
+// Story 41.2: Immediate flag notifications
+export { sendImmediateFlagNotification } from './sendImmediateFlagNotification'
+export type {
+  SendImmediateFlagNotificationParams,
+  SendImmediateFlagNotificationResult,
+} from './sendImmediateFlagNotification'
+
+// Story 41.2: Flag digest service
+export {
+  queueFlagForDigest,
+  processUserDigest,
+  processHourlyDigest,
+  processDailyDigest,
+  getUsersWithPendingDigest,
+} from './flagDigestService'
+export type { DigestType, FlagDigestQueueItem, ProcessDigestResult } from './flagDigestService'

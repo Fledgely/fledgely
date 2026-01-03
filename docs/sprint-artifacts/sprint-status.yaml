@@ -569,16 +569,16 @@ development_status:
   40-4-location-transition-handling: done
   40-5-location-privacy-controls: done
   40-6-location-feature-abuse-prevention: done
-  epic-40-retrospective: optional
+  epic-40-retrospective: completed
 
   # ============================================
   # Phase 5: Platform Expansion (Epics 41-46)
   # ============================================
 
   # Epic 41: Notifications & Alerts
-  epic-41: backlog
-  41-1-notification-preferences-configuration: backlog
-  41-2-flag-notifications: backlog
+  epic-41: in-progress
+  41-1-notification-preferences-configuration: done
+  41-2-flag-notifications: done
   41-3-time-limit-notifications: backlog
   41-4-device-sync-status-notifications: backlog
   41-5-new-login-notifications: backlog

@@ -18,3 +18,5 @@ export { sendCheckInReminders } from './sendCheckInReminders'
 export { syncCalendarEvents } from './syncCalendarEvents'
 export { processTemporaryAccessExpiry } from './processTemporaryAccessExpiry' // Story 39.3
 export { sendSafeEscapeNotifications } from './sendSafeEscapeNotifications' // Story 40.3
+export { hourlyFlagDigest } from './hourlyFlagDigest' // Story 41.2
+export { dailyFlagDigest } from './dailyFlagDigest' // Story 41.2
