@@ -1,12 +1,13 @@
 /**
- * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2
+ * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2, Story 39.3
  *
  * Task 7.1: Test caregiver schemas
  * Story 39.1: Added relationship field tests
  * Story 39.2: Added permission configuration tests
+ * Story 39.3: Added temporary access schema tests
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   caregiverRoleSchema,
   caregiverRelationshipSchema,
@@ -21,6 +22,19 @@ import {
   acceptCaregiverInvitationInputSchema,
   acceptCaregiverInvitationResultSchema,
   familySchema,
+  // Story 39.3: Temporary access schemas
+  temporaryAccessPresetSchema,
+  temporaryAccessStatusSchema,
+  temporaryAccessGrantSchema,
+  grantTemporaryAccessInputSchema,
+  revokeTemporaryAccessInputSchema,
+  MIN_TEMP_ACCESS_DURATION_HOURS,
+  MAX_TEMP_ACCESS_DURATION_DAYS,
+  isTemporaryAccessActive,
+  isTemporaryAccessPending,
+  getTemporaryAccessTimeRemaining,
+  formatTemporaryAccessDuration,
+  type TemporaryAccessGrant,
 } from './index'
 
 describe('Caregiver Schemas - Story 19D.1', () => {
@@ -606,6 +620,437 @@ describe('Caregiver Schemas - Story 19D.1', () => {
       const parsed = familyCaregiverSchema.parse(caregiver)
       expect(parsed.permissions?.canExtendTime).toBe(true)
       expect(parsed.permissions?.canViewFlags).toBe(true)
+    })
+  })
+})
+
+// ============================================
+// Story 39.3: Temporary Caregiver Access Tests
+// ============================================
+
+describe('Temporary Access Schemas - Story 39.3', () => {
+  describe('temporaryAccessPresetSchema', () => {
+    it('should accept today_only preset', () => {
+      expect(temporaryAccessPresetSchema.parse('today_only')).toBe('today_only')
+    })
+
+    it('should accept this_weekend preset', () => {
+      expect(temporaryAccessPresetSchema.parse('this_weekend')).toBe('this_weekend')
+    })
+
+    it('should accept custom preset', () => {
+      expect(temporaryAccessPresetSchema.parse('custom')).toBe('custom')
+    })
+
+    it('should reject invalid preset', () => {
+      expect(() => temporaryAccessPresetSchema.parse('next_week')).toThrow()
+      expect(() => temporaryAccessPresetSchema.parse('')).toThrow()
+    })
+  })
+
+  describe('temporaryAccessStatusSchema', () => {
+    it('should accept all valid statuses', () => {
+      expect(temporaryAccessStatusSchema.parse('pending')).toBe('pending')
+      expect(temporaryAccessStatusSchema.parse('active')).toBe('active')
+      expect(temporaryAccessStatusSchema.parse('expired')).toBe('expired')
+      expect(temporaryAccessStatusSchema.parse('revoked')).toBe('revoked')
+    })
+
+    it('should reject invalid status', () => {
+      expect(() => temporaryAccessStatusSchema.parse('cancelled')).toThrow()
+      expect(() => temporaryAccessStatusSchema.parse('')).toThrow()
+    })
+  })
+
+  describe('temporaryAccessGrantSchema', () => {
+    const validGrant = {
+      id: 'grant-123',
+      familyId: 'family-456',
+      caregiverUid: 'caregiver-789',
+      grantedByUid: 'parent-123',
+      startAt: new Date('2026-01-04T17:00:00Z'),
+      endAt: new Date('2026-01-06T22:00:00Z'),
+      preset: 'this_weekend',
+      timezone: 'America/New_York',
+      status: 'active',
+      createdAt: new Date(),
+    }
+
+    it('should accept valid grant', () => {
+      const parsed = temporaryAccessGrantSchema.parse(validGrant)
+      expect(parsed.id).toBe('grant-123')
+      expect(parsed.status).toBe('active')
+      expect(parsed.preset).toBe('this_weekend')
+    })
+
+    it('should accept grant with revocation details', () => {
+      const revokedGrant = {
+        ...validGrant,
+        status: 'revoked',
+        revokedAt: new Date(),
+        revokedByUid: 'parent-123',
+        revokedReason: 'No longer needed',
+      }
+      const parsed = temporaryAccessGrantSchema.parse(revokedGrant)
+      expect(parsed.status).toBe('revoked')
+      expect(parsed.revokedReason).toBe('No longer needed')
+    })
+
+    it('should accept grant without revocation details', () => {
+      const parsed = temporaryAccessGrantSchema.parse(validGrant)
+      expect(parsed.revokedAt).toBeUndefined()
+      expect(parsed.revokedByUid).toBeUndefined()
+      expect(parsed.revokedReason).toBeUndefined()
+    })
+
+    it('should reject grant with revocation reason too long', () => {
+      const invalidGrant = {
+        ...validGrant,
+        revokedReason: 'A'.repeat(201),
+      }
+      expect(() => temporaryAccessGrantSchema.parse(invalidGrant)).toThrow()
+    })
+
+    it('should accept revocation reason at max length', () => {
+      const grantWithMaxReason = {
+        ...validGrant,
+        status: 'revoked',
+        revokedReason: 'A'.repeat(200),
+      }
+      const parsed = temporaryAccessGrantSchema.parse(grantWithMaxReason)
+      expect(parsed.revokedReason).toHaveLength(200)
+    })
+
+    it('should require all mandatory fields', () => {
+      const incompleteGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        // missing other required fields
+      }
+      expect(() => temporaryAccessGrantSchema.parse(incompleteGrant)).toThrow()
+    })
+  })
+
+  describe('grantTemporaryAccessInputSchema', () => {
+    it('should accept valid input with preset', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        preset: 'today_only',
+        timezone: 'America/New_York',
+      }
+      expect(grantTemporaryAccessInputSchema.parse(input)).toEqual(input)
+    })
+
+    it('should accept input with custom dates', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        preset: 'custom',
+        startAt: new Date('2026-01-04T10:00:00Z'),
+        endAt: new Date('2026-01-04T18:00:00Z'),
+        timezone: 'America/New_York',
+      }
+      const parsed = grantTemporaryAccessInputSchema.parse(input)
+      expect(parsed.preset).toBe('custom')
+      expect(parsed.startAt).toBeDefined()
+      expect(parsed.endAt).toBeDefined()
+    })
+
+    it('should accept input without custom dates for presets', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        preset: 'this_weekend',
+        timezone: 'UTC',
+      }
+      const parsed = grantTemporaryAccessInputSchema.parse(input)
+      expect(parsed.startAt).toBeUndefined()
+      expect(parsed.endAt).toBeUndefined()
+    })
+
+    it('should require timezone', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        preset: 'today_only',
+      }
+      expect(() => grantTemporaryAccessInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('revokeTemporaryAccessInputSchema', () => {
+    it('should accept valid revocation input', () => {
+      const input = {
+        familyId: 'family-123',
+        grantId: 'grant-456',
+      }
+      expect(revokeTemporaryAccessInputSchema.parse(input)).toEqual(input)
+    })
+
+    it('should accept revocation with reason', () => {
+      const input = {
+        familyId: 'family-123',
+        grantId: 'grant-456',
+        reason: 'Changed plans',
+      }
+      const parsed = revokeTemporaryAccessInputSchema.parse(input)
+      expect(parsed.reason).toBe('Changed plans')
+    })
+
+    it('should reject reason too long', () => {
+      const input = {
+        familyId: 'family-123',
+        grantId: 'grant-456',
+        reason: 'A'.repeat(201),
+      }
+      expect(() => revokeTemporaryAccessInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('Duration Constants', () => {
+    it('MIN_TEMP_ACCESS_DURATION_HOURS should be 1', () => {
+      expect(MIN_TEMP_ACCESS_DURATION_HOURS).toBe(1)
+    })
+
+    it('MAX_TEMP_ACCESS_DURATION_DAYS should be 7', () => {
+      expect(MAX_TEMP_ACCESS_DURATION_DAYS).toBe(7)
+    })
+  })
+})
+
+describe('Temporary Access Helper Functions - Story 39.3', () => {
+  describe('isTemporaryAccessActive', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should return true for active grant within time window', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-06T22:00:00Z'),
+        preset: 'this_weekend',
+        timezone: 'America/New_York',
+        status: 'active',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessActive(grant)).toBe(true)
+    })
+
+    it('should return false for expired grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-01T17:00:00Z'),
+        endAt: new Date('2026-01-02T22:00:00Z'),
+        preset: 'custom',
+        timezone: 'America/New_York',
+        status: 'active',
+        createdAt: new Date('2026-01-01T10:00:00Z'),
+      }
+      expect(isTemporaryAccessActive(grant)).toBe(false)
+    })
+
+    it('should return false for pending grant before start', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-10T17:00:00Z'),
+        endAt: new Date('2026-01-10T22:00:00Z'),
+        preset: 'custom',
+        timezone: 'America/New_York',
+        status: 'active',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessActive(grant)).toBe(false)
+    })
+
+    it('should return false for revoked grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-06T22:00:00Z'),
+        preset: 'this_weekend',
+        timezone: 'America/New_York',
+        status: 'revoked',
+        revokedAt: new Date('2026-01-05T10:00:00Z'),
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessActive(grant)).toBe(false)
+    })
+  })
+
+  describe('isTemporaryAccessPending', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should return true for pending grant before start time', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-10T17:00:00Z'),
+        endAt: new Date('2026-01-10T22:00:00Z'),
+        preset: 'custom',
+        timezone: 'America/New_York',
+        status: 'pending',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessPending(grant)).toBe(true)
+    })
+
+    it('should return false for active grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-06T22:00:00Z'),
+        preset: 'this_weekend',
+        timezone: 'America/New_York',
+        status: 'active',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessPending(grant)).toBe(false)
+    })
+
+    it('should return false for pending grant after start time passed', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-06T22:00:00Z'),
+        preset: 'this_weekend',
+        timezone: 'America/New_York',
+        status: 'pending',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(isTemporaryAccessPending(grant)).toBe(false)
+    })
+  })
+
+  describe('getTemporaryAccessTimeRemaining', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-05T12:00:00Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should return time remaining for active grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-05T22:00:00Z'),
+        preset: 'custom',
+        timezone: 'America/New_York',
+        status: 'active',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      const remaining = getTemporaryAccessTimeRemaining(grant)
+      // 10 hours = 36,000,000 ms
+      expect(remaining).toBe(10 * 60 * 60 * 1000)
+    })
+
+    it('should return null for inactive grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-01T17:00:00Z'),
+        endAt: new Date('2026-01-02T22:00:00Z'),
+        preset: 'custom',
+        timezone: 'America/New_York',
+        status: 'expired',
+        createdAt: new Date('2026-01-01T10:00:00Z'),
+      }
+      expect(getTemporaryAccessTimeRemaining(grant)).toBeNull()
+    })
+
+    it('should return null for revoked grant', () => {
+      const grant: TemporaryAccessGrant = {
+        id: 'grant-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        grantedByUid: 'parent-123',
+        startAt: new Date('2026-01-04T17:00:00Z'),
+        endAt: new Date('2026-01-06T22:00:00Z'),
+        preset: 'this_weekend',
+        timezone: 'America/New_York',
+        status: 'revoked',
+        createdAt: new Date('2026-01-04T10:00:00Z'),
+      }
+      expect(getTemporaryAccessTimeRemaining(grant)).toBeNull()
+    })
+  })
+
+  describe('formatTemporaryAccessDuration', () => {
+    it('should format 1 hour', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-05T11:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('1 hour')
+    })
+
+    it('should format multiple hours', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-05T15:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('5 hours')
+    })
+
+    it('should format 1 day', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-06T10:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('1 day')
+    })
+
+    it('should format multiple days', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-08T10:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('3 days')
+    })
+
+    it('should format days with remaining hours', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-06T15:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('1 day 5h')
+    })
+
+    it('should format multiple days with hours', () => {
+      const startAt = new Date('2026-01-05T10:00:00Z')
+      const endAt = new Date('2026-01-07T18:00:00Z')
+      expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('2 days 8h')
     })
   })
 })

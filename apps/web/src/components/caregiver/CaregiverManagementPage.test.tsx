@@ -2,18 +2,41 @@
  * Tests for CaregiverManagementPage component.
  *
  * Story 39.1: Caregiver Account Creation
+ * Story 39.2: Caregiver Permission Configuration
+ * Story 39.3: Temporary Caregiver Access
  *
  * Tests cover:
  * - AC5: Caregiver List Display
  *   - Shows list of all caregivers with name, relationship, status
  *   - Shows pending invitations separately
  *   - Shows count: "3 of 5 caregivers"
+ * - Story 39.3: Temporary Access
+ *   - Grant Access button on each caregiver card
+ *   - TemporaryAccessGrantForm modal
+ *   - TemporaryAccessList section
+ *   - Active temporary access indicators
  */
 
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import CaregiverManagementPage from './CaregiverManagementPage'
+
+// Mock Firestore
+const mockOnSnapshot = vi.fn()
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn(),
+  query: vi.fn(),
+  onSnapshot: (...args: unknown[]) => {
+    mockOnSnapshot(...args)
+    return vi.fn() // unsubscribe function
+  },
+  orderBy: vi.fn(),
+}))
+
+vi.mock('../../lib/firebase', () => ({
+  db: {},
+}))
 
 // Mock the hooks and services
 vi.mock('../../hooks/useCaregiverLimit', () => ({
@@ -28,11 +51,36 @@ vi.mock('../../services/caregiverInvitationService', () => ({
   getCaregiverInvitationsByFamily: vi.fn(),
 }))
 
-// Mock child component
+// Mock child components
 vi.mock('./CaregiverInviteForm', () => ({
   default: ({ onCancel }: { onCancel: () => void }) => (
     <div data-testid="mock-invite-form">
       <button onClick={onCancel}>Cancel</button>
+    </div>
+  ),
+}))
+
+vi.mock('./CaregiverPermissionEditor', () => ({
+  default: ({ onCancel }: { onCancel: () => void }) => (
+    <div data-testid="mock-permission-editor">
+      <button onClick={onCancel}>Cancel</button>
+    </div>
+  ),
+}))
+
+vi.mock('./TemporaryAccessGrantForm', () => ({
+  default: ({ onCancel, caregiverName }: { onCancel: () => void; caregiverName: string }) => (
+    <div data-testid="mock-grant-form">
+      <span data-testid="grant-form-caregiver">{caregiverName}</span>
+      <button onClick={onCancel}>Cancel</button>
+    </div>
+  ),
+}))
+
+vi.mock('./TemporaryAccessList', () => ({
+  default: ({ grants }: { grants: unknown[] }) => (
+    <div data-testid="mock-access-list">
+      <span data-testid="grants-count">{grants.length}</span>
     </div>
   ),
 }))
@@ -255,6 +303,136 @@ describe('CaregiverManagementPage', () => {
 
       // The caregiver list should have 2 items
       expect(screen.getByTestId('caregiver-list').children.length).toBe(2)
+    })
+  })
+
+  describe('Story 39.3: Temporary Access', () => {
+    it('shows Grant Access button for each caregiver', () => {
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      expect(screen.getByTestId('grant-access-caregiver-1')).toBeInTheDocument()
+      expect(screen.getByTestId('grant-access-caregiver-2')).toBeInTheDocument()
+    })
+
+    it('opens grant form modal when Grant Access clicked', () => {
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      fireEvent.click(screen.getByTestId('grant-access-caregiver-1'))
+
+      expect(screen.getByTestId('grant-access-modal')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-grant-form')).toBeInTheDocument()
+    })
+
+    it('passes caregiver name to grant form', () => {
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      fireEvent.click(screen.getByTestId('grant-access-caregiver-1'))
+
+      expect(screen.getByTestId('grant-form-caregiver')).toHaveTextContent('Grandpa Joe')
+    })
+
+    it('closes grant form modal when cancel clicked', () => {
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      fireEvent.click(screen.getByTestId('grant-access-caregiver-1'))
+      expect(screen.getByTestId('grant-access-modal')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText('Cancel'))
+      expect(screen.queryByTestId('grant-access-modal')).not.toBeInTheDocument()
+    })
+
+    it('subscribes to temporary grants on mount', () => {
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      expect(mockOnSnapshot).toHaveBeenCalled()
+    })
+
+    it('shows temporary access list when grants exist', () => {
+      // Simulate grants being received via onSnapshot
+      mockOnSnapshot.mockImplementation((_query, callback) => {
+        callback({
+          docs: [
+            {
+              id: 'grant-1',
+              data: () => ({
+                familyId: 'family-123',
+                caregiverUid: 'caregiver-1',
+                grantedByUid: 'parent-1',
+                startAt: { toDate: () => new Date() },
+                endAt: { toDate: () => new Date(Date.now() + 3600000) },
+                preset: 'today_only',
+                timezone: 'UTC',
+                status: 'active',
+                createdAt: { toDate: () => new Date() },
+              }),
+            },
+          ],
+        })
+        return vi.fn()
+      })
+
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      expect(screen.getByTestId('temporary-access-section')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-access-list')).toBeInTheDocument()
+    })
+
+    it('shows active temp access indicator on caregiver card', () => {
+      const now = new Date()
+      mockOnSnapshot.mockImplementation((_query, callback) => {
+        callback({
+          docs: [
+            {
+              id: 'grant-1',
+              data: () => ({
+                familyId: 'family-123',
+                caregiverUid: 'caregiver-1',
+                grantedByUid: 'parent-1',
+                startAt: { toDate: () => new Date(now.getTime() - 60000) }, // 1 min ago
+                endAt: { toDate: () => new Date(now.getTime() + 3600000) }, // 1 hour from now
+                preset: 'today_only',
+                timezone: 'UTC',
+                status: 'active',
+                createdAt: { toDate: () => new Date() },
+              }),
+            },
+          ],
+        })
+        return vi.fn()
+      })
+
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      expect(screen.getByTestId('temp-access-caregiver-1')).toBeInTheDocument()
+      expect(screen.getByText('⏱️ Temp Access')).toBeInTheDocument()
+    })
+
+    it('does not show temp access indicator for inactive grants', () => {
+      mockOnSnapshot.mockImplementation((_query, callback) => {
+        callback({
+          docs: [
+            {
+              id: 'grant-1',
+              data: () => ({
+                familyId: 'family-123',
+                caregiverUid: 'caregiver-1',
+                grantedByUid: 'parent-1',
+                startAt: { toDate: () => new Date(Date.now() - 7200000) }, // 2 hours ago
+                endAt: { toDate: () => new Date(Date.now() - 3600000) }, // 1 hour ago (expired)
+                preset: 'today_only',
+                timezone: 'UTC',
+                status: 'expired',
+                createdAt: { toDate: () => new Date() },
+              }),
+            },
+          ],
+        })
+        return vi.fn()
+      })
+
+      render(<CaregiverManagementPage familyId="family-123" />)
+
+      expect(screen.queryByTestId('temp-access-caregiver-1')).not.toBeInTheDocument()
     })
   })
 })

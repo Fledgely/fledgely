@@ -72,6 +72,8 @@ export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
 export { grantCaregiverExtension } from './callable/grantCaregiverExtension'
 export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 export { updateCaregiverPermissions } from './callable/updateCaregiverPermissions' // Story 39.2
+export { grantTemporaryAccess } from './callable/grantTemporaryAccess' // Story 39.3
+export { revokeTemporaryAccess } from './callable/revokeTemporaryAccess' // Story 39.3
 
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
@@ -96,6 +98,7 @@ export {
   generateHealthCheckIns,
   sendCheckInReminders,
   syncCalendarEvents,
+  processTemporaryAccessExpiry, // Story 39.3
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3

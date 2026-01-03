@@ -1,9 +1,10 @@
 'use client'
 
 /**
- * useAccessWindowCheck Hook - Story 19D.4
+ * useAccessWindowCheck Hook - Story 19D.4, Story 39.3
  *
- * Checks if caregiver has active access based on configured windows.
+ * Checks if caregiver has active access based on configured windows
+ * and temporary access grants.
  *
  * Acceptance Criteria:
  * - AC2: Caregiver can only view status during active window
@@ -11,12 +12,16 @@
  * - AC5: Access windows shown to caregiver
  * - AC6: Timezone handling for caregiver's location
  *
+ * Story 39.3:
+ * - AC3: Temporary access grants override regular windows
+ * - AC4: Access ends when temporary grant expires
+ *
  * Security Note: This is client-side enforcement only for MVP.
  * Server-side enforcement via Firestore security rules is planned for Epic 19E.
  */
 
 import { useMemo, useState, useEffect } from 'react'
-import type { AccessWindow } from '@fledgely/shared'
+import type { AccessWindow, TemporaryAccessGrant } from '@fledgely/shared'
 
 /**
  * Day of week mapping for AccessWindow
@@ -41,6 +46,11 @@ export interface OneTimeExtension {
 }
 
 /**
+ * Source of access for tracking (Story 39.3)
+ */
+export type AccessSource = 'window' | 'temporary' | 'extension' | 'none' | 'always_active'
+
+/**
  * Result of access window check
  */
 export interface AccessWindowCheckResult {
@@ -51,9 +61,13 @@ export interface AccessWindowCheckResult {
   /** Current window end time (null if not in window) */
   currentWindowEnd: Date | null
   /** Reason for current access status */
-  reason: 'in_window' | 'extension' | 'outside_window' | 'always_active'
+  reason: 'in_window' | 'extension' | 'outside_window' | 'always_active' | 'temporary'
   /** Formatted string for display */
   statusMessage: string
+  /** Source of access: 'window' | 'temporary' | 'extension' | 'none' | 'always_active' (Story 39.3) */
+  accessSource: AccessSource
+  /** Active temporary grant if applicable (Story 39.3) */
+  temporaryGrant?: TemporaryAccessGrant
 }
 
 /**
@@ -210,17 +224,36 @@ function formatDateTime(date: Date, now: Date): string {
 }
 
 /**
+ * Find active temporary access grant for a caregiver
+ * Story 39.3: Temporary access grants override regular windows
+ */
+function findActiveTemporaryGrant(
+  grants: TemporaryAccessGrant[],
+  now: Date
+): TemporaryAccessGrant | null {
+  for (const grant of grants) {
+    if (grant.status === 'active' && grant.startAt <= now && grant.endAt > now) {
+      return grant
+    }
+  }
+  return null
+}
+
+/**
  * Hook to check if caregiver has active access
  *
  * Story 19D.4: Caregiver Access Window Enforcement
+ * Story 39.3: Temporary Access Grant Support
  *
  * @param accessWindows - Array of configured access windows (empty = always active)
  * @param oneTimeExtension - Optional one-time extension
+ * @param temporaryGrants - Array of temporary access grants (Story 39.3)
  * @returns AccessWindowCheckResult with current access status
  */
 export function useAccessWindowCheck(
   accessWindows: AccessWindow[] = [],
-  oneTimeExtension?: OneTimeExtension | null
+  oneTimeExtension?: OneTimeExtension | null,
+  temporaryGrants: TemporaryAccessGrant[] = []
 ): AccessWindowCheckResult {
   // Force re-calculation every minute to handle window transitions
   const [currentMinute, setCurrentMinute] = useState(() => Math.floor(Date.now() / 60000))
@@ -235,6 +268,22 @@ export function useAccessWindowCheck(
   }, [])
 
   return useMemo(() => {
+    const now = new Date()
+
+    // Story 39.3: Check for active temporary access grant first (overrides windows)
+    const activeGrant = findActiveTemporaryGrant(temporaryGrants, now)
+    if (activeGrant) {
+      return {
+        isAccessActive: true,
+        nextWindowStart: null,
+        currentWindowEnd: activeGrant.endAt,
+        reason: 'temporary' as const,
+        statusMessage: `Temporary access until ${formatTime(activeGrant.endAt)}`,
+        accessSource: 'temporary' as const,
+        temporaryGrant: activeGrant,
+      }
+    }
+
     // No windows configured = always active (AC2: default state)
     if (accessWindows.length === 0) {
       return {
@@ -243,31 +292,33 @@ export function useAccessWindowCheck(
         currentWindowEnd: null,
         reason: 'always_active' as const,
         statusMessage: 'You have access anytime',
+        accessSource: 'always_active' as const,
       }
     }
 
     // Get current time in the window's timezone
     // All windows should have the same timezone (parent's timezone)
     const timezone = accessWindows[0]?.timezone ?? 'America/New_York'
-    const now = getCurrentTimeInTimezone(timezone)
+    const nowInTimezone = getCurrentTimeInTimezone(timezone)
 
     // Check for active one-time extension (AC4)
     if (oneTimeExtension) {
       const expiresAt = new Date(oneTimeExtension.expiresAt)
-      if (now < expiresAt) {
+      if (nowInTimezone < expiresAt) {
         return {
           isAccessActive: true,
           nextWindowStart: null,
           currentWindowEnd: expiresAt,
           reason: 'extension' as const,
           statusMessage: `Extended access until ${formatTime(expiresAt)}`,
+          accessSource: 'extension' as const,
         }
       }
     }
 
     // Check each access window
     for (const window of accessWindows) {
-      const { inWindow, windowEnd } = isInWindow(window, now)
+      const { inWindow, windowEnd } = isInWindow(window, nowInTimezone)
       if (inWindow && windowEnd) {
         return {
           isAccessActive: true,
@@ -275,14 +326,15 @@ export function useAccessWindowCheck(
           currentWindowEnd: windowEnd,
           reason: 'in_window' as const,
           statusMessage: `Access until ${formatTime(windowEnd)}`,
+          accessSource: 'window' as const,
         }
       }
     }
 
     // Not in any window - find next window (AC3, AC5)
-    const nextWindow = findNextWindowStart(accessWindows, now)
+    const nextWindow = findNextWindowStart(accessWindows, nowInTimezone)
     const statusMessage = nextWindow
-      ? `Next access: ${formatDateTime(nextWindow, now)}`
+      ? `Next access: ${formatDateTime(nextWindow, nowInTimezone)}`
       : 'No scheduled access'
 
     return {
@@ -291,9 +343,10 @@ export function useAccessWindowCheck(
       currentWindowEnd: null,
       reason: 'outside_window' as const,
       statusMessage,
+      accessSource: 'none' as const,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessWindows, oneTimeExtension, currentMinute])
+  }, [accessWindows, oneTimeExtension, temporaryGrants, currentMinute])
 }
 
 /**

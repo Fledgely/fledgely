@@ -372,6 +372,141 @@ export const acceptCaregiverInvitationResultSchema = z.object({
 })
 export type AcceptCaregiverInvitationResult = z.infer<typeof acceptCaregiverInvitationResultSchema>
 
+// ============================================
+// Temporary Caregiver Access Schemas - Story 39.3
+// ============================================
+
+/**
+ * Temporary access preset options.
+ * Story 39.3: Temporary Caregiver Access - AC2
+ * Defines preset duration options for quick selection.
+ */
+export const temporaryAccessPresetSchema = z.enum(['today_only', 'this_weekend', 'custom'])
+export type TemporaryAccessPreset = z.infer<typeof temporaryAccessPresetSchema>
+
+/**
+ * Temporary access grant status.
+ * Story 39.3: Temporary Caregiver Access - AC3
+ */
+export const temporaryAccessStatusSchema = z.enum(['pending', 'active', 'expired', 'revoked'])
+export type TemporaryAccessStatus = z.infer<typeof temporaryAccessStatusSchema>
+
+/**
+ * Temporary access grant schema.
+ * Story 39.3: Temporary Caregiver Access
+ *
+ * Represents a one-time temporary access grant for a caregiver.
+ * Stored in Firestore at /families/{familyId}/temporaryAccessGrants/{grantId}.
+ */
+export const temporaryAccessGrantSchema = z.object({
+  id: z.string(),
+  familyId: z.string(),
+  caregiverUid: z.string(),
+  grantedByUid: z.string(),
+  /** Story 39.3 AC1: Start time of the temporary access */
+  startAt: z.date(),
+  /** Story 39.3 AC1: End time of the temporary access */
+  endAt: z.date(),
+  /** Story 39.3 AC2: Which preset was used */
+  preset: temporaryAccessPresetSchema,
+  /** Story 39.3 AC1: IANA timezone for the grant */
+  timezone: z.string(),
+  /** Story 39.3 AC3: Current status of the grant */
+  status: temporaryAccessStatusSchema,
+  /** Story 39.3 AC5: When access was revoked early (optional) */
+  revokedAt: z.date().optional(),
+  /** Story 39.3 AC5: Who revoked the access (optional) */
+  revokedByUid: z.string().optional(),
+  /** Story 39.3 AC5: Reason for early revocation (optional) */
+  revokedReason: z.string().max(200).optional(),
+  createdAt: z.date(),
+})
+export type TemporaryAccessGrant = z.infer<typeof temporaryAccessGrantSchema>
+
+/**
+ * Duration constraints for temporary access.
+ * Story 39.3: Temporary Caregiver Access - AC1
+ */
+export const MIN_TEMP_ACCESS_DURATION_HOURS = 1
+export const MAX_TEMP_ACCESS_DURATION_DAYS = 7
+
+/**
+ * Input for granting temporary access.
+ * Story 39.3: Temporary Caregiver Access - AC1, AC2
+ */
+export const grantTemporaryAccessInputSchema = z.object({
+  familyId: z.string(),
+  caregiverUid: z.string(),
+  preset: temporaryAccessPresetSchema,
+  /** Custom start time (required for 'custom' preset) */
+  startAt: z.date().optional(),
+  /** Custom end time (required for 'custom' preset) */
+  endAt: z.date().optional(),
+  timezone: z.string(),
+})
+export type GrantTemporaryAccessInput = z.infer<typeof grantTemporaryAccessInputSchema>
+
+/**
+ * Input for revoking temporary access.
+ * Story 39.3: Temporary Caregiver Access - AC5
+ */
+export const revokeTemporaryAccessInputSchema = z.object({
+  familyId: z.string(),
+  grantId: z.string(),
+  reason: z.string().max(200).optional(),
+})
+export type RevokeTemporaryAccessInput = z.infer<typeof revokeTemporaryAccessInputSchema>
+
+/**
+ * Check if a temporary access grant is currently active.
+ * Story 39.3: Temporary Caregiver Access - AC3
+ */
+export function isTemporaryAccessActive(grant: TemporaryAccessGrant): boolean {
+  if (grant.status !== 'active') return false
+  const now = new Date()
+  return now >= grant.startAt && now <= grant.endAt
+}
+
+/**
+ * Check if a temporary access grant is pending (not yet started).
+ * Story 39.3: Temporary Caregiver Access - AC3
+ */
+export function isTemporaryAccessPending(grant: TemporaryAccessGrant): boolean {
+  if (grant.status !== 'pending') return false
+  const now = new Date()
+  return now < grant.startAt
+}
+
+/**
+ * Calculate time remaining for an active temporary access grant.
+ * Story 39.3: Temporary Caregiver Access - AC4
+ * Returns null if grant is not active.
+ */
+export function getTemporaryAccessTimeRemaining(grant: TemporaryAccessGrant): number | null {
+  if (!isTemporaryAccessActive(grant)) return null
+  const now = new Date()
+  return grant.endAt.getTime() - now.getTime()
+}
+
+/**
+ * Format temporary access duration for display.
+ * Story 39.3: Temporary Caregiver Access - AC1
+ */
+export function formatTemporaryAccessDuration(startAt: Date, endAt: Date): string {
+  const durationMs = endAt.getTime() - startAt.getTime()
+  const hours = Math.floor(durationMs / (1000 * 60 * 60))
+  const days = Math.floor(hours / 24)
+
+  if (days >= 1) {
+    const remainingHours = hours % 24
+    if (remainingHours === 0) {
+      return days === 1 ? '1 day' : `${days} days`
+    }
+    return days === 1 ? `1 day ${remainingHours}h` : `${days} days ${remainingHours}h`
+  }
+  return hours === 1 ? '1 hour' : `${hours} hours`
+}
+
 /**
  * Data view type for audit logging.
  * Tracks what type of data was viewed by a guardian.

@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CaregiverManagementPage - Story 39.1, Story 39.2
+ * CaregiverManagementPage - Story 39.1, Story 39.2, Story 39.3
  *
  * Component for parents to manage family caregivers.
  * Shows list of active caregivers, pending invitations, and add button.
@@ -17,10 +17,18 @@
  *   - "Manage" button opens CaregiverPermissionEditor modal
  *   - Display permission icons (eye, clock, flag)
  *
+ * - Story 39.3: Temporary Access Management
+ *   - "Grant Access" button on caregiver cards
+ *   - TemporaryAccessGrantForm modal
+ *   - TemporaryAccessList section
+ *   - Active temporary access indicators
+ *
  * Uses React.CSSProperties inline styles per project pattern.
  */
 
 import { useState, useCallback, useMemo, useEffect } from 'react'
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore'
+import { db } from '../../lib/firebase'
 import { useCaregiverLimit } from '../../hooks/useCaregiverLimit'
 import { useFamily } from '../../contexts/FamilyContext'
 import {
@@ -29,10 +37,13 @@ import {
 } from '../../services/caregiverInvitationService'
 import CaregiverInviteForm from './CaregiverInviteForm'
 import CaregiverPermissionEditor from './CaregiverPermissionEditor'
+import TemporaryAccessGrantForm from './TemporaryAccessGrantForm'
+import TemporaryAccessList from './TemporaryAccessList'
 import type {
   FamilyCaregiver,
   CaregiverRelationship,
   CaregiverPermissions,
+  TemporaryAccessGrant,
 } from '@fledgely/shared/contracts'
 
 interface CaregiverManagementPageProps {
@@ -131,6 +142,12 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     gap: '4px',
     flex: 1,
+  },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap' as const,
   },
   cardName: {
     fontSize: '16px',
@@ -241,6 +258,40 @@ const styles: Record<string, React.CSSProperties> = {
   permissionBadgeIcon: {
     fontSize: '12px',
   },
+  // Story 39.3: Temporary access styles
+  grantAccessButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '44px',
+    padding: '8px 16px',
+    backgroundColor: '#ecfdf5',
+    color: '#059669',
+    fontSize: '14px',
+    fontWeight: 500,
+    border: '1px solid #a7f3d0',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    marginRight: '8px',
+  },
+  tempAccessIndicator: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 8px',
+    backgroundColor: '#dcfce7',
+    color: '#166534',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 500,
+  },
+  cardActions: {
+    display: 'flex',
+    gap: '8px',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
 }
 
 /** Format relationship for display */
@@ -275,6 +326,11 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
   const [loadingInvitations, setLoadingInvitations] = useState(true)
   // Story 39.2: Permission editor modal state
   const [editingCaregiver, setEditingCaregiver] = useState<FamilyCaregiver | null>(null)
+  // Story 39.3: Temporary access state
+  const [grantingAccessCaregiver, setGrantingAccessCaregiver] = useState<FamilyCaregiver | null>(
+    null
+  )
+  const [temporaryGrants, setTemporaryGrants] = useState<TemporaryAccessGrant[]>([])
 
   const { family, refreshFamily } = useFamily()
   const { limit, loading: loadingLimit } = useCaregiverLimit({ familyId })
@@ -301,6 +357,38 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
   useEffect(() => {
     loadPendingInvitations()
   }, [loadPendingInvitations])
+
+  // Story 39.3: Load temporary access grants with real-time updates
+  useEffect(() => {
+    if (!familyId) return
+
+    const grantsRef = collection(db, 'families', familyId, 'temporaryAccessGrants')
+    const grantsQuery = query(grantsRef, orderBy('createdAt', 'desc'))
+
+    const unsubscribe = onSnapshot(grantsQuery, (snapshot) => {
+      const grants: TemporaryAccessGrant[] = snapshot.docs.map((doc) => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          familyId: data.familyId,
+          caregiverUid: data.caregiverUid,
+          grantedByUid: data.grantedByUid,
+          startAt: data.startAt?.toDate?.() || new Date(data.startAt),
+          endAt: data.endAt?.toDate?.() || new Date(data.endAt),
+          preset: data.preset,
+          timezone: data.timezone,
+          status: data.status,
+          revokedAt: data.revokedAt?.toDate?.() || undefined,
+          revokedByUid: data.revokedByUid || undefined,
+          revokedReason: data.revokedReason || undefined,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+        }
+      })
+      setTemporaryGrants(grants)
+    })
+
+    return () => unsubscribe()
+  }, [familyId])
 
   const handleAddClick = useCallback(() => {
     setShowInviteForm(true)
@@ -335,6 +423,46 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
       }, 1500)
     },
     [refreshFamily]
+  )
+
+  // Story 39.3: Temporary access grant handlers
+  const handleGrantAccessClick = useCallback((caregiver: FamilyCaregiver) => {
+    setGrantingAccessCaregiver(caregiver)
+  }, [])
+
+  const handleGrantAccessClose = useCallback(() => {
+    setGrantingAccessCaregiver(null)
+  }, [])
+
+  const handleGrantAccessSuccess = useCallback(() => {
+    // Grant data refreshes automatically via onSnapshot
+    setTimeout(() => {
+      setGrantingAccessCaregiver(null)
+    }, 2000)
+  }, [])
+
+  // Build caregiver names map for TemporaryAccessList
+  const caregiverNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    caregivers.forEach((c) => {
+      names[c.uid] = c.displayName || c.email || 'Caregiver'
+    })
+    return names
+  }, [caregivers])
+
+  // Check if caregiver has active temporary access
+  const hasActiveTemporaryAccess = useCallback(
+    (caregiverUid: string): boolean => {
+      const now = new Date()
+      return temporaryGrants.some(
+        (grant) =>
+          grant.caregiverUid === caregiverUid &&
+          grant.status === 'active' &&
+          grant.startAt <= now &&
+          grant.endAt > now
+      )
+    },
+    [temporaryGrants]
   )
 
   const isAtLimit = limit?.isAtLimit ?? false
@@ -387,7 +515,18 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
                 data-testid={`caregiver-${caregiver.uid}`}
               >
                 <div style={styles.cardInfo}>
-                  <p style={styles.cardName}>{caregiver.displayName || caregiver.email}</p>
+                  <div style={styles.cardHeader}>
+                    <p style={styles.cardName}>{caregiver.displayName || caregiver.email}</p>
+                    {/* Story 39.3: Active temporary access indicator */}
+                    {hasActiveTemporaryAccess(caregiver.uid) && (
+                      <span
+                        style={styles.tempAccessIndicator}
+                        data-testid={`temp-access-${caregiver.uid}`}
+                      >
+                        ⏱️ Temp Access
+                      </span>
+                    )}
+                  </div>
                   <span style={styles.cardRelationship}>
                     {formatRelationship(caregiver.relationship, caregiver.customRelationship)}
                   </span>
@@ -418,14 +557,25 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
                   </div>
                   <p style={styles.cardMeta}>Added {formatDate(caregiver.addedAt)}</p>
                 </div>
-                <button
-                  type="button"
-                  style={styles.manageButton}
-                  onClick={() => handleManageClick(caregiver)}
-                  data-testid={`manage-${caregiver.uid}`}
-                >
-                  Manage
-                </button>
+                {/* Story 39.3: Grant Access and Manage buttons */}
+                <div style={styles.cardActions}>
+                  <button
+                    type="button"
+                    style={styles.grantAccessButton}
+                    onClick={() => handleGrantAccessClick(caregiver)}
+                    data-testid={`grant-access-${caregiver.uid}`}
+                  >
+                    Grant Access
+                  </button>
+                  <button
+                    type="button"
+                    style={styles.manageButton}
+                    onClick={() => handleManageClick(caregiver)}
+                    data-testid={`manage-${caregiver.uid}`}
+                  >
+                    Manage
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -508,6 +658,40 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
               onCancel={handlePermissionEditorClose}
             />
           </div>
+        </div>
+      )}
+
+      {/* Story 39.3: Temporary Access Grant Modal */}
+      {grantingAccessCaregiver && (
+        <div
+          style={styles.modal}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleGrantAccessClose()
+          }}
+          data-testid="grant-access-modal"
+        >
+          <div style={styles.modalContent}>
+            <TemporaryAccessGrantForm
+              familyId={familyId}
+              caregiverUid={grantingAccessCaregiver.uid}
+              caregiverName={
+                grantingAccessCaregiver.displayName || grantingAccessCaregiver.email || 'Caregiver'
+              }
+              onSuccess={handleGrantAccessSuccess}
+              onCancel={handleGrantAccessClose}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Story 39.3: Temporary Access Section */}
+      {temporaryGrants.length > 0 && (
+        <div style={styles.section} data-testid="temporary-access-section">
+          <TemporaryAccessList
+            familyId={familyId}
+            grants={temporaryGrants}
+            caregiverNames={caregiverNames}
+          />
         </div>
       )}
     </div>
