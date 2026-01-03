@@ -1,11 +1,13 @@
 /**
- * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2, Story 39.3, Story 39.4
+ * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2, Story 39.3, Story 39.4, Story 39.5, Story 39.6
  *
  * Task 7.1: Test caregiver schemas
  * Story 39.1: Added relationship field tests
  * Story 39.2: Added permission configuration tests
  * Story 39.3: Added temporary access schema tests
  * Story 39.4: Added PIN and extension limit tests
+ * Story 39.5: Added flag viewing schema tests
+ * Story 39.6: Added audit action and activity summary schema tests
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -50,6 +52,11 @@ import {
   caregiverFlagViewLogSchema,
   logCaregiverFlagViewInputSchema,
   markFlagReviewedByCaregiverInputSchema,
+  // Story 39.6: Audit action and activity summary schemas
+  caregiverAuditActionSchema,
+  caregiverAuditLogSchema,
+  caregiverActionCountsSchema,
+  caregiverActivitySummarySchema,
 } from './index'
 
 describe('Caregiver Schemas - Story 19D.1', () => {
@@ -1597,6 +1604,155 @@ describe('Caregiver PIN Schemas - Story 39.4', () => {
       expect(parsed.permissions?.canExtendTime).toBe(true)
       expect(parsed.pinConfig).toBeDefined()
       expect(parsed.extensionLimits?.maxDurationMinutes).toBe(120)
+    })
+  })
+
+  // ============================================
+  // Story 39.6: Caregiver Action Logging Schemas
+  // ============================================
+
+  describe('caregiverAuditActionSchema', () => {
+    it('should accept permission_change action', () => {
+      expect(caregiverAuditActionSchema.parse('permission_change')).toBe('permission_change')
+    })
+
+    it('should accept time_extension action', () => {
+      expect(caregiverAuditActionSchema.parse('time_extension')).toBe('time_extension')
+    })
+
+    it('should accept flag_viewed action', () => {
+      expect(caregiverAuditActionSchema.parse('flag_viewed')).toBe('flag_viewed')
+    })
+
+    it('should accept flag_marked_reviewed action', () => {
+      expect(caregiverAuditActionSchema.parse('flag_marked_reviewed')).toBe('flag_marked_reviewed')
+    })
+
+    it('should reject invalid action', () => {
+      expect(() => caregiverAuditActionSchema.parse('invalid_action')).toThrow()
+    })
+  })
+
+  describe('caregiverAuditLogSchema', () => {
+    const validLog = {
+      id: 'audit-123',
+      familyId: 'family-456',
+      caregiverUid: 'caregiver-789',
+      caregiverName: 'Grandma',
+      action: 'time_extension',
+      changedByUid: 'caregiver-789',
+      changes: { childId: 'child-1', extensionMinutes: 30 },
+      childUid: 'child-1',
+      childName: 'Emma',
+      createdAt: new Date(),
+    }
+
+    it('should accept valid audit log', () => {
+      const parsed = caregiverAuditLogSchema.parse(validLog)
+      expect(parsed.id).toBe('audit-123')
+      expect(parsed.action).toBe('time_extension')
+      expect(parsed.caregiverName).toBe('Grandma')
+    })
+
+    it('should accept audit log without optional fields', () => {
+      const minimalLog = {
+        id: 'audit-123',
+        familyId: 'family-456',
+        caregiverUid: 'caregiver-789',
+        action: 'permission_change',
+        changedByUid: 'parent-123',
+        changes: { canExtendTime: true },
+        createdAt: new Date(),
+      }
+      const parsed = caregiverAuditLogSchema.parse(minimalLog)
+      expect(parsed.caregiverName).toBeUndefined()
+      expect(parsed.childUid).toBeUndefined()
+    })
+
+    it('should require id', () => {
+      const { id: _id, ...logWithoutId } = validLog
+      expect(() => caregiverAuditLogSchema.parse(logWithoutId)).toThrow()
+    })
+
+    it('should require familyId', () => {
+      const { familyId: _familyId, ...logWithoutFamilyId } = validLog
+      expect(() => caregiverAuditLogSchema.parse(logWithoutFamilyId)).toThrow()
+    })
+
+    it('should require valid action type', () => {
+      const invalidLog = { ...validLog, action: 'invalid' }
+      expect(() => caregiverAuditLogSchema.parse(invalidLog)).toThrow()
+    })
+  })
+
+  describe('caregiverActionCountsSchema', () => {
+    it('should accept valid action counts', () => {
+      const counts = {
+        time_extension: 5,
+        flag_viewed: 3,
+        flag_marked_reviewed: 2,
+        permission_change: 1,
+      }
+      const parsed = caregiverActionCountsSchema.parse(counts)
+      expect(parsed.time_extension).toBe(5)
+      expect(parsed.flag_viewed).toBe(3)
+    })
+
+    it('should provide default values for missing fields', () => {
+      const parsed = caregiverActionCountsSchema.parse({})
+      expect(parsed.time_extension).toBe(0)
+      expect(parsed.flag_viewed).toBe(0)
+      expect(parsed.flag_marked_reviewed).toBe(0)
+      expect(parsed.permission_change).toBe(0)
+    })
+
+    it('should accept partial counts', () => {
+      const counts = { time_extension: 10 }
+      const parsed = caregiverActionCountsSchema.parse(counts)
+      expect(parsed.time_extension).toBe(10)
+      expect(parsed.flag_viewed).toBe(0)
+    })
+  })
+
+  describe('caregiverActivitySummarySchema', () => {
+    const validSummary = {
+      caregiverUid: 'caregiver-123',
+      caregiverName: 'Grandma',
+      actionCounts: {
+        time_extension: 2,
+        flag_viewed: 1,
+        flag_marked_reviewed: 0,
+        permission_change: 0,
+      },
+      lastActiveAt: new Date(),
+      totalActions: 3,
+    }
+
+    it('should accept valid activity summary', () => {
+      const parsed = caregiverActivitySummarySchema.parse(validSummary)
+      expect(parsed.caregiverName).toBe('Grandma')
+      expect(parsed.totalActions).toBe(3)
+      expect(parsed.actionCounts.time_extension).toBe(2)
+    })
+
+    it('should require caregiverUid', () => {
+      const { caregiverUid: _uid, ...summaryWithoutUid } = validSummary
+      expect(() => caregiverActivitySummarySchema.parse(summaryWithoutUid)).toThrow()
+    })
+
+    it('should require caregiverName', () => {
+      const { caregiverName: _name, ...summaryWithoutName } = validSummary
+      expect(() => caregiverActivitySummarySchema.parse(summaryWithoutName)).toThrow()
+    })
+
+    it('should require lastActiveAt', () => {
+      const { lastActiveAt: _lastActive, ...summaryWithoutLastActive } = validSummary
+      expect(() => caregiverActivitySummarySchema.parse(summaryWithoutLastActive)).toThrow()
+    })
+
+    it('should require totalActions', () => {
+      const { totalActions: _total, ...summaryWithoutTotal } = validSummary
+      expect(() => caregiverActivitySummarySchema.parse(summaryWithoutTotal)).toThrow()
     })
   })
 })

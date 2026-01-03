@@ -347,6 +347,87 @@ export type MarkFlagReviewedByCaregiverInput = z.infer<
   typeof markFlagReviewedByCaregiverInputSchema
 >
 
+// ============================================
+// Story 39.6: Caregiver Action Logging
+// ============================================
+
+/**
+ * Caregiver audit action type.
+ * Story 39.6: AC1 - All caregiver actions are logged
+ * Includes all trackable caregiver activities
+ */
+export const caregiverAuditActionSchema = z.enum([
+  'permission_change',
+  'time_extension',
+  'flag_viewed',
+  'flag_marked_reviewed',
+])
+export type CaregiverAuditAction = z.infer<typeof caregiverAuditActionSchema>
+
+/**
+ * Caregiver audit log entry schema.
+ * Story 39.6: AC1, AC2 - Unified audit log entry for all caregiver actions
+ * Stored at: /caregiverAuditLogs/{logId}
+ */
+export const caregiverAuditLogSchema = z.object({
+  /** Unique log identifier */
+  id: z.string(),
+  /** Family ID */
+  familyId: z.string(),
+  /** UID of caregiver who performed the action */
+  caregiverUid: z.string(),
+  /** Display name of caregiver */
+  caregiverName: z.string().optional(),
+  /** Action type */
+  action: caregiverAuditActionSchema,
+  /** UID of user who triggered the action (usually caregiver) */
+  changedByUid: z.string(),
+  /** Action-specific details */
+  changes: z.record(z.unknown()),
+  /** Child UID if action is child-specific */
+  childUid: z.string().optional(),
+  /** Child name for display */
+  childName: z.string().optional(),
+  /** When the action occurred */
+  createdAt: z.date(),
+})
+export type CaregiverAuditLog = z.infer<typeof caregiverAuditLogSchema>
+
+/**
+ * Caregiver action counts for summary display.
+ * Story 39.6: AC3 - Summary shows counts per action type
+ */
+export const caregiverActionCountsSchema = z.object({
+  /** Number of time extensions granted */
+  time_extension: z.number().default(0),
+  /** Number of flags viewed */
+  flag_viewed: z.number().default(0),
+  /** Number of flags marked as reviewed */
+  flag_marked_reviewed: z.number().default(0),
+  /** Number of permission changes */
+  permission_change: z.number().default(0),
+})
+export type CaregiverActionCounts = z.infer<typeof caregiverActionCountsSchema>
+
+/**
+ * Caregiver activity summary schema.
+ * Story 39.6: AC3 - Summary display for parent dashboard
+ * Format: "Grandma: 2 time extensions, 1 flag viewed"
+ */
+export const caregiverActivitySummarySchema = z.object({
+  /** Caregiver UID */
+  caregiverUid: z.string(),
+  /** Caregiver display name */
+  caregiverName: z.string(),
+  /** Count of each action type */
+  actionCounts: caregiverActionCountsSchema,
+  /** When caregiver was last active */
+  lastActiveAt: z.date(),
+  /** Total number of actions */
+  totalActions: z.number(),
+})
+export type CaregiverActivitySummary = z.infer<typeof caregiverActivitySummarySchema>
+
 export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),

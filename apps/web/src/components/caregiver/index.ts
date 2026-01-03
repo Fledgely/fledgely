@@ -36,3 +36,13 @@ export type {
   CaregiverFlagAuditViewProps,
   CaregiverFlagViewLogEntry,
 } from './CaregiverFlagAuditView'
+
+// Story 39.6: Caregiver Action Logging
+export { CaregiverActivityDashboard } from './CaregiverActivityDashboard'
+export type { CaregiverActivityDashboardProps } from './CaregiverActivityDashboard'
+export { CaregiverActivityRow } from './CaregiverActivityRow'
+export type { CaregiverActivityRowProps } from './CaregiverActivityRow'
+export { CaregiverSummaryCard } from './CaregiverSummaryCard'
+export type { CaregiverSummaryCardProps } from './CaregiverSummaryCard'
+export { ChildCaregiverActivityView } from './ChildCaregiverActivityView'
+export type { ChildCaregiverActivityViewProps } from './ChildCaregiverActivityView'
