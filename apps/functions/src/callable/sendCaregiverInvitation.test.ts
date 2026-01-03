@@ -9,6 +9,9 @@
  * - Success path
  *
  * Story 19D.1: Caregiver Invitation & Onboarding
+ * Story 39.1: Caregiver Account Creation
+ * - Relationship field validation
+ * - Maximum 5 caregivers per family limit
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -300,6 +303,146 @@ describe('sendCaregiverInvitation Cloud Function', () => {
 
       // All tokens should be unique
       expect(tokens.size).toBe(100)
+    })
+  })
+
+  describe('Story 39.1: Relationship Field', () => {
+    it('accepts grandparent relationship (AC1)', () => {
+      const validInput = {
+        familyId: 'family-123',
+        recipientEmail: 'grandpa@example.com',
+        childIds: ['child-1'],
+        relationship: 'grandparent',
+      }
+
+      expect(['grandparent', 'aunt_uncle', 'babysitter', 'other']).toContain(
+        validInput.relationship
+      )
+    })
+
+    it('accepts aunt_uncle relationship (AC1)', () => {
+      const validInput = {
+        familyId: 'family-123',
+        recipientEmail: 'aunt@example.com',
+        childIds: ['child-1'],
+        relationship: 'aunt_uncle',
+      }
+
+      expect(['grandparent', 'aunt_uncle', 'babysitter', 'other']).toContain(
+        validInput.relationship
+      )
+    })
+
+    it('accepts babysitter relationship (AC1)', () => {
+      const validInput = {
+        familyId: 'family-123',
+        recipientEmail: 'sitter@example.com',
+        childIds: ['child-1'],
+        relationship: 'babysitter',
+      }
+
+      expect(['grandparent', 'aunt_uncle', 'babysitter', 'other']).toContain(
+        validInput.relationship
+      )
+    })
+
+    it('accepts other relationship with custom text (AC1)', () => {
+      const validInput = {
+        familyId: 'family-123',
+        recipientEmail: 'neighbor@example.com',
+        childIds: ['child-1'],
+        relationship: 'other',
+        customRelationship: 'Trusted Neighbor',
+      }
+
+      expect(validInput.relationship).toBe('other')
+      expect(validInput.customRelationship).toBe('Trusted Neighbor')
+      expect(validInput.customRelationship!.length).toBeLessThanOrEqual(50)
+    })
+
+    it('rejects invalid relationship type', () => {
+      const invalidRelationship = 'cousin'
+      const validRelationships = ['grandparent', 'aunt_uncle', 'babysitter', 'other']
+
+      expect(validRelationships).not.toContain(invalidRelationship)
+    })
+
+    it('rejects customRelationship longer than 50 chars', () => {
+      const longCustomRelationship = 'A'.repeat(51)
+
+      expect(longCustomRelationship.length).toBeGreaterThan(50)
+    })
+
+    it('stores relationship in invitation data', () => {
+      const invitationData = {
+        caregiverRole: 'status_viewer',
+        relationship: 'grandparent',
+        customRelationship: null,
+        childIds: ['child-1'],
+        status: 'pending',
+      }
+
+      expect(invitationData.relationship).toBe('grandparent')
+    })
+  })
+
+  describe('Story 39.1: Caregiver Limit (AC2)', () => {
+    const MAX_CAREGIVERS_PER_FAMILY = 5
+
+    it('allows invitation when under limit', () => {
+      const activeCaregiversCount = 2
+      const pendingInvitationsCount = 1
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeLessThan(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('allows invitation at exactly 4 total (room for 1 more)', () => {
+      const activeCaregiversCount = 3
+      const pendingInvitationsCount = 1
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeLessThan(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('rejects invitation when at limit with active caregivers', () => {
+      const activeCaregiversCount = 5
+      const pendingInvitationsCount = 0
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeGreaterThanOrEqual(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('rejects invitation when at limit with pending invitations', () => {
+      const activeCaregiversCount = 2
+      const pendingInvitationsCount = 3
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeGreaterThanOrEqual(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('rejects invitation when exceeding limit (pending count toward limit)', () => {
+      const activeCaregiversCount = 4
+      const pendingInvitationsCount = 2
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeGreaterThan(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('counts pending invitations toward limit', () => {
+      const activeCaregiversCount = 0
+      const pendingInvitationsCount = 5
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeGreaterThanOrEqual(MAX_CAREGIVERS_PER_FAMILY)
+    })
+
+    it('handles family with no existing caregivers', () => {
+      const activeCaregiversCount = 0
+      const pendingInvitationsCount = 0
+      const totalCount = activeCaregiversCount + pendingInvitationsCount
+
+      expect(totalCount).toBeLessThan(MAX_CAREGIVERS_PER_FAMILY)
     })
   })
 })

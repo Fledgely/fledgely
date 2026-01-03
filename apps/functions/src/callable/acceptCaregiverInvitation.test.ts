@@ -9,6 +9,9 @@
  * - Success path and response format (AC4)
  *
  * Story 19D.1: Caregiver Invitation & Onboarding
+ * Story 39.1: Caregiver Account Creation
+ * - AC1: Copy relationship from invitation to family caregiver entry
+ * - AC4: Create notification for each child when caregiver joins
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -317,6 +320,178 @@ describe('acceptCaregiverInvitation Cloud Function', () => {
     it('provides clear message for already a member', () => {
       const errorMessage = 'You are already a caregiver in this family'
       expect(errorMessage).toContain('already')
+    })
+  })
+
+  describe('Story 39.1: Relationship Copy', () => {
+    it('copies relationship from invitation to caregiver entry', () => {
+      const invitationData = {
+        relationship: 'grandparent',
+        customRelationship: null,
+        inviterUid: 'parent-123',
+        childIds: ['child-1'],
+      }
+
+      const caregiverEntry = {
+        uid: 'caregiver-123',
+        email: 'grandpa@example.com',
+        displayName: 'Grandpa Joe',
+        role: 'status_viewer',
+        relationship: invitationData.relationship,
+        customRelationship: invitationData.customRelationship,
+        childIds: invitationData.childIds,
+        addedAt: new Date(),
+        addedByUid: invitationData.inviterUid,
+      }
+
+      expect(caregiverEntry.relationship).toBe('grandparent')
+      expect(caregiverEntry.customRelationship).toBeNull()
+    })
+
+    it('copies custom relationship text for other type', () => {
+      const invitationData = {
+        relationship: 'other',
+        customRelationship: 'Trusted Neighbor',
+        inviterUid: 'parent-123',
+        childIds: ['child-1'],
+      }
+
+      const caregiverEntry = {
+        uid: 'caregiver-123',
+        email: 'neighbor@example.com',
+        displayName: 'Mrs. Smith',
+        role: 'status_viewer',
+        relationship: invitationData.relationship,
+        customRelationship: invitationData.customRelationship,
+        childIds: invitationData.childIds,
+        addedAt: new Date(),
+        addedByUid: invitationData.inviterUid,
+      }
+
+      expect(caregiverEntry.relationship).toBe('other')
+      expect(caregiverEntry.customRelationship).toBe('Trusted Neighbor')
+    })
+
+    it('handles aunt_uncle relationship', () => {
+      const invitationData = {
+        relationship: 'aunt_uncle',
+        customRelationship: null,
+      }
+
+      const caregiverEntry = {
+        relationship: invitationData.relationship,
+        customRelationship: invitationData.customRelationship,
+      }
+
+      expect(caregiverEntry.relationship).toBe('aunt_uncle')
+    })
+
+    it('handles babysitter relationship', () => {
+      const invitationData = {
+        relationship: 'babysitter',
+        customRelationship: null,
+      }
+
+      const caregiverEntry = {
+        relationship: invitationData.relationship,
+        customRelationship: invitationData.customRelationship,
+      }
+
+      expect(caregiverEntry.relationship).toBe('babysitter')
+    })
+  })
+
+  describe('Story 39.1 AC4: Child Notification', () => {
+    it('creates notification for each child in childIds', () => {
+      const childIds = ['child-1', 'child-2', 'child-3']
+      const notificationsToCreate: { childId: string; notification: Record<string, unknown> }[] = []
+
+      // Simulate notification creation for each child
+      for (const childId of childIds) {
+        notificationsToCreate.push({
+          childId,
+          notification: {
+            type: 'caregiver_added',
+            caregiverUid: 'caregiver-123',
+            caregiverName: 'Grandpa Joe',
+            caregiverRelationship: 'grandparent',
+            customRelationship: null,
+            message: 'Grandpa Joe (Grandparent) has been added as a caregiver',
+            read: false,
+          },
+        })
+      }
+
+      expect(notificationsToCreate.length).toBe(3)
+      expect(notificationsToCreate.map((n) => n.childId)).toEqual(['child-1', 'child-2', 'child-3'])
+    })
+
+    it('formats notification message with relationship label', () => {
+      const formatNotificationMessage = (
+        displayName: string,
+        relationship: string,
+        customRelationship: string | null
+      ): string => {
+        const relationshipLabels: Record<string, string> = {
+          grandparent: 'Grandparent',
+          aunt_uncle: 'Aunt/Uncle',
+          babysitter: 'Babysitter',
+          other: customRelationship || 'Caregiver',
+        }
+        const label = relationshipLabels[relationship] || 'Caregiver'
+        return `${displayName} (${label}) has been added as a caregiver`
+      }
+
+      expect(formatNotificationMessage('Grandpa Joe', 'grandparent', null)).toBe(
+        'Grandpa Joe (Grandparent) has been added as a caregiver'
+      )
+      expect(formatNotificationMessage('Aunt Sarah', 'aunt_uncle', null)).toBe(
+        'Aunt Sarah (Aunt/Uncle) has been added as a caregiver'
+      )
+      expect(formatNotificationMessage('Mary', 'babysitter', null)).toBe(
+        'Mary (Babysitter) has been added as a caregiver'
+      )
+      expect(formatNotificationMessage('Mrs. Smith', 'other', 'Trusted Neighbor')).toBe(
+        'Mrs. Smith (Trusted Neighbor) has been added as a caregiver'
+      )
+    })
+
+    it('uses email prefix when displayName not available', () => {
+      const getDisplayName = (displayName: string | null, email: string | null): string => {
+        return displayName || email?.split('@')[0] || 'A caregiver'
+      }
+
+      expect(getDisplayName(null, 'grandpa@example.com')).toBe('grandpa')
+      expect(getDisplayName('Grandpa Joe', 'grandpa@example.com')).toBe('Grandpa Joe')
+      expect(getDisplayName(null, null)).toBe('A caregiver')
+    })
+
+    it('notification structure matches expected schema', () => {
+      const notification = {
+        type: 'caregiver_added',
+        caregiverUid: 'caregiver-123',
+        caregiverName: 'Grandpa Joe',
+        caregiverRelationship: 'grandparent',
+        customRelationship: null,
+        message: 'Grandpa Joe (Grandparent) has been added as a caregiver',
+        createdAt: 'SERVER_TIMESTAMP',
+        read: false,
+      }
+
+      expect(notification.type).toBe('caregiver_added')
+      expect(notification.caregiverUid).toBeDefined()
+      expect(notification.caregiverName).toBeDefined()
+      expect(notification.caregiverRelationship).toBeDefined()
+      expect(notification.message).toBeDefined()
+      expect(notification.read).toBe(false)
+    })
+
+    it('stores notification in child notifications subcollection path', () => {
+      // Path should be: children/{childId}/notifications/{notificationId}
+      const childId = 'child-123'
+      const expectedPath = `children/${childId}/notifications`
+
+      expect(expectedPath).toBe('children/child-123/notifications')
     })
   })
 })

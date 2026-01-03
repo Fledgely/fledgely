@@ -12,6 +12,10 @@
  * - AC2: Caregiver role is "Status Viewer"
  * - AC5: Parent can set which children caregiver can see
  * - AC6: Invitation expires in 7 days
+ *
+ * Story 39.1 additions:
+ * - AC1: Relationship field (grandparent, aunt_uncle, babysitter, other)
+ * - AC2: Maximum 5 caregivers per family limit enforcement
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
@@ -25,10 +29,16 @@ import { sendCaregiverInvitationEmail } from '../services/caregiverEmailService'
 // Input validation schema - mirrors @fledgely/shared/contracts/sendCaregiverInvitationInputSchema
 // Note: Cloud Functions currently can't use workspace packages directly, so we duplicate
 // the schema here. Both should be kept in sync.
+// Story 39.1: Added relationship fields
+const caregiverRelationshipSchema = z.enum(['grandparent', 'aunt_uncle', 'babysitter', 'other'])
+const MAX_CAREGIVERS_PER_FAMILY = 5
+
 const sendCaregiverInvitationInputSchema = z.object({
   familyId: z.string().min(1),
   recipientEmail: z.string().email(),
   childIds: z.array(z.string()).min(1), // AC5: Must specify at least one child
+  relationship: caregiverRelationshipSchema, // Story 39.1 AC1
+  customRelationship: z.string().max(50).optional(), // Story 39.1 AC1: For "other" relationship
 })
 
 // Response type
@@ -80,7 +90,7 @@ export const sendCaregiverInvitation = onCall<
       'Invalid input: please provide family ID, email, and at least one child'
     )
   }
-  const { familyId, recipientEmail, childIds } = parseResult.data
+  const { familyId, recipientEmail, childIds, relationship, customRelationship } = parseResult.data
 
   // Additional email validation
   if (!isValidEmail(recipientEmail)) {
@@ -146,6 +156,22 @@ export const sendCaregiverInvitation = onCall<
     throw new HttpsError('already-exists', 'An invitation has already been sent to this email')
   }
 
+  // Story 39.1 AC2: Enforce maximum caregiver limit
+  const activeCaregiversCount = familyData.caregivers?.length || 0
+  const allPendingInvitations = await db
+    .collection('caregiverInvitations')
+    .where('familyId', '==', familyId)
+    .where('status', '==', 'pending')
+    .get()
+  const pendingInvitationsCount = allPendingInvitations.size
+
+  if (activeCaregiversCount + pendingInvitationsCount >= MAX_CAREGIVERS_PER_FAMILY) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Maximum ${MAX_CAREGIVERS_PER_FAMILY} caregivers per family. You have ${activeCaregiversCount} active and ${pendingInvitationsCount} pending.`
+    )
+  }
+
   // 4. Business logic (LAST)
   // Generate secure token
   const token = generateSecureToken()
@@ -169,6 +195,8 @@ export const sendCaregiverInvitation = onCall<
     status: 'pending',
     recipientEmail: recipientEmail.toLowerCase(),
     caregiverRole: 'status_viewer', // AC2: Status Viewer role
+    relationship, // Story 39.1 AC1: Relationship type
+    customRelationship: customRelationship || null, // Story 39.1 AC1: Custom text for "other"
     childIds, // AC5: Which children caregiver can see
     emailSentAt: null,
     acceptedAt: null,

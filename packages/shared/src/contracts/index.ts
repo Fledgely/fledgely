@@ -73,6 +73,26 @@ export const caregiverRoleSchema = z.enum(['status_viewer'])
 export type CaregiverRole = z.infer<typeof caregiverRoleSchema>
 
 /**
+ * Caregiver relationship type.
+ * Story 39.1: Caregiver Account Creation - AC1
+ * Defines the relationship between the caregiver and the family.
+ */
+export const caregiverRelationshipSchema = z.enum([
+  'grandparent',
+  'aunt_uncle',
+  'babysitter',
+  'other',
+])
+export type CaregiverRelationship = z.infer<typeof caregiverRelationshipSchema>
+
+/**
+ * Maximum number of caregivers allowed per family.
+ * Story 39.1: Caregiver Account Creation - AC2
+ * Includes both active caregivers and pending invitations.
+ */
+export const MAX_CAREGIVERS_PER_FAMILY = 5
+
+/**
  * Access window for caregiver time-based access.
  * Story 19D.4: Caregiver Access Window Enforcement
  * Defined here for use in familySchema.
@@ -95,6 +115,10 @@ export const familyCaregiverSchema = z.object({
   email: z.string().email(),
   displayName: z.string().nullable(),
   role: caregiverRoleSchema,
+  /** Story 39.1: Relationship type (grandparent, aunt_uncle, babysitter, other) */
+  relationship: caregiverRelationshipSchema,
+  /** Story 39.1: Custom relationship text when relationship is 'other' */
+  customRelationship: z.string().max(50).optional(),
   childIds: z.array(z.string()), // Which children they can view (AC5)
   accessWindows: z.array(accessWindowSchema).optional(), // For Story 19D.4
   addedAt: z.date(),
@@ -276,6 +300,10 @@ export const caregiverInvitationSchema = z.object({
   status: caregiverInvitationStatusSchema,
   recipientEmail: z.string().email(),
   caregiverRole: caregiverRoleSchema,
+  /** Story 39.1: Relationship type (grandparent, aunt_uncle, babysitter, other) */
+  relationship: caregiverRelationshipSchema,
+  /** Story 39.1: Custom relationship text when relationship is 'other' */
+  customRelationship: z.string().max(50).optional(),
   childIds: z.array(z.string()), // Which children caregiver will see (AC5)
   emailSentAt: z.date().nullable(),
   acceptedAt: z.date().nullable(),
@@ -294,6 +322,10 @@ export const sendCaregiverInvitationInputSchema = z.object({
   familyId: z.string(),
   recipientEmail: z.string().email(),
   childIds: z.array(z.string()).min(1), // At least one child (AC5)
+  /** Story 39.1: Relationship type (grandparent, aunt_uncle, babysitter, other) */
+  relationship: caregiverRelationshipSchema,
+  /** Story 39.1: Custom relationship text when relationship is 'other' */
+  customRelationship: z.string().max(50).optional(),
 })
 export type SendCaregiverInvitationInput = z.infer<typeof sendCaregiverInvitationInputSchema>
 

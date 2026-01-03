@@ -11,6 +11,10 @@
  * - AC3: Caregiver completes Google Sign-In to accept
  * - AC4: Caregiver sees onboarding explaining limited access
  * - AC6: Invitation expires in 7 days if not accepted
+ *
+ * Story 39.1 additions:
+ * - AC1: Copy relationship from invitation to family caregiver entry
+ * - AC4: Create notification for each child when caregiver joins
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
@@ -150,6 +154,8 @@ export const acceptCaregiverInvitation = onCall<
     email: user.email || invitationData.recipientEmail,
     displayName: user.displayName || null,
     role: 'status_viewer', // AC2: Status Viewer role only
+    relationship: invitationData.relationship, // Story 39.1 AC1: Relationship type
+    customRelationship: invitationData.customRelationship || null, // Story 39.1 AC1: Custom text for "other"
     childIds: invitationData.childIds, // AC5: Which children they can view
     addedAt: new Date(),
     addedByUid: invitationData.inviterUid,
@@ -170,6 +176,33 @@ export const acceptCaregiverInvitation = onCall<
 
   // Note: Unlike guardians, caregivers do NOT get added to child documents
   // They only view status, not manage children
+
+  // Story 39.1 AC4: Create notification for each child
+  // Format relationship for display in notification message
+  const relationshipLabels: Record<string, string> = {
+    grandparent: 'Grandparent',
+    aunt_uncle: 'Aunt/Uncle',
+    babysitter: 'Babysitter',
+    other: invitationData.customRelationship || 'Caregiver',
+  }
+  const relationshipLabel = relationshipLabels[invitationData.relationship as string] || 'Caregiver'
+  const caregiverDisplayName =
+    user.displayName || invitationData.recipientEmail?.split('@')[0] || 'A caregiver'
+
+  for (const childId of childIds) {
+    const notificationRef = db.collection('children').doc(childId).collection('notifications').doc()
+
+    batch.set(notificationRef, {
+      type: 'caregiver_added',
+      caregiverUid: user.uid,
+      caregiverName: caregiverDisplayName,
+      caregiverRelationship: invitationData.relationship,
+      customRelationship: invitationData.customRelationship || null,
+      message: `${caregiverDisplayName} (${relationshipLabel}) has been added as a caregiver`,
+      createdAt: FieldValue.serverTimestamp(),
+      read: false,
+    })
+  }
 
   // Commit all changes atomically
   await batch.commit()

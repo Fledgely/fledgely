@@ -551,8 +551,8 @@ development_status:
   # ============================================
 
   # Epic 39: Caregiver Full Features
-  epic-39: backlog
-  39-1-caregiver-account-creation: backlog
+  epic-39: in-progress
+  39-1-caregiver-account-creation: in-progress
   39-2-caregiver-permission-configuration: backlog
   39-3-temporary-caregiver-access: backlog
   39-4-caregiver-pin-for-time-extension: backlog

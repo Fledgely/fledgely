@@ -6,11 +6,18 @@
  * Validates data with Zod schemas from @fledgely/shared/contracts.
  *
  * Story 19D.1: Caregiver Invitation & Onboarding
+ * Story 39.1: Caregiver Account Creation
+ * - Added relationship field support
+ * - Added caregiver limit handling
  */
 
 import { collection, query, where, getDocs, Timestamp, FirestoreError } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { caregiverInvitationSchema, type CaregiverInvitation } from '@fledgely/shared/contracts'
+import {
+  caregiverInvitationSchema,
+  type CaregiverInvitation,
+  type CaregiverRelationship,
+} from '@fledgely/shared/contracts'
 import { getFirestoreDb, getFirebaseFunctions } from '../lib/firebase'
 
 /**
@@ -61,23 +68,40 @@ export interface SendCaregiverInvitationResult {
  * @param familyId - The family ID
  * @param recipientEmail - The caregiver's email address
  * @param childIds - Array of child IDs the caregiver can view
+ * @param relationship - The caregiver's relationship type (Story 39.1)
+ * @param customRelationship - Custom text if relationship is 'other' (Story 39.1)
  * @returns Result with success status and invitation ID
  *
  * Story 19D.1: AC1 (parent invites), AC5 (child selection)
+ * Story 39.1: AC1 (relationship field)
  */
 export async function sendCaregiverInvitation(
   familyId: string,
   recipientEmail: string,
-  childIds: string[]
+  childIds: string[],
+  relationship: CaregiverRelationship,
+  customRelationship?: string
 ): Promise<SendCaregiverInvitationResult> {
   try {
     const functions = getFirebaseFunctions()
     const sendInvitation = httpsCallable<
-      { familyId: string; recipientEmail: string; childIds: string[] },
+      {
+        familyId: string
+        recipientEmail: string
+        childIds: string[]
+        relationship: CaregiverRelationship
+        customRelationship?: string
+      },
       { success: boolean; invitationId: string; message: string }
     >(functions, 'sendCaregiverInvitation')
 
-    const result = await sendInvitation({ familyId, recipientEmail, childIds })
+    const result = await sendInvitation({
+      familyId,
+      recipientEmail,
+      childIds,
+      relationship,
+      customRelationship,
+    })
     return {
       success: result.data.success,
       invitationId: result.data.invitationId,
@@ -117,6 +141,13 @@ export async function sendCaregiverInvitation(
       return {
         success: false,
         message: error.message || 'Please provide a valid email and select at least one child.',
+      }
+    }
+    // Story 39.1 AC2: Handle caregiver limit reached
+    if (error.code === 'functions/failed-precondition') {
+      return {
+        success: false,
+        message: error.message || 'Maximum 5 caregivers per family.',
       }
     }
 

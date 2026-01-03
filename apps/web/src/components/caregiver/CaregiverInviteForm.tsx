@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CaregiverInviteForm - Story 19D.1
+ * CaregiverInviteForm - Story 19D.1, Story 39.1
  *
  * Form for parents to invite a caregiver with limited status-only access.
  * Allows selecting which children the caregiver can view.
@@ -11,12 +11,26 @@
  * - AC2: Caregiver role is "Status Viewer"
  * - AC5: Parent can set which children caregiver can see
  *
+ * Story 39.1 additions:
+ * - AC1: Relationship field (grandparent, aunt/uncle, babysitter, other)
+ * - AC2: Maximum 5 caregivers limit display
+ *
  * Uses React.CSSProperties inline styles per project pattern.
  */
 
 import { useState, useCallback } from 'react'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
+import { useCaregiverLimit } from '../../hooks/useCaregiverLimit'
 import { sendCaregiverInvitation, isValidEmail } from '../../services/caregiverInvitationService'
+import type { CaregiverRelationship } from '@fledgely/shared/contracts'
+
+/** Relationship options for dropdown */
+const RELATIONSHIP_OPTIONS: { value: CaregiverRelationship; label: string }[] = [
+  { value: 'grandparent', label: 'Grandparent' },
+  { value: 'aunt_uncle', label: 'Aunt/Uncle' },
+  { value: 'babysitter', label: 'Babysitter' },
+  { value: 'other', label: 'Other' },
+]
 
 interface CaregiverInviteFormProps {
   familyId: string
@@ -222,6 +236,50 @@ const styles: Record<string, React.CSSProperties> = {
     animation: 'spin 1s linear infinite',
     marginRight: '8px',
   },
+  // Story 39.1: Relationship dropdown styles
+  select: {
+    width: '100%',
+    minHeight: '44px',
+    padding: '10px 14px',
+    fontSize: '14px',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+    backgroundColor: '#ffffff',
+    cursor: 'pointer',
+  },
+  // Story 39.1: Limit display styles
+  limitBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f3f4f6',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '20px',
+  },
+  limitText: {
+    fontSize: '14px',
+    color: '#374151',
+    margin: 0,
+  },
+  limitCount: {
+    fontWeight: 600,
+    color: '#7c3aed',
+  },
+  limitWarning: {
+    backgroundColor: '#fef3c7',
+    border: '1px solid #fcd34d',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '20px',
+  },
+  limitWarningText: {
+    color: '#92400e',
+    fontSize: '14px',
+    margin: 0,
+  },
 }
 
 export default function CaregiverInviteForm({
@@ -235,12 +293,21 @@ export default function CaregiverInviteForm({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // Story 39.1: Relationship state
+  const [relationship, setRelationship] = useState<CaregiverRelationship>('grandparent')
+  const [customRelationship, setCustomRelationship] = useState('')
 
   const {
     children,
     loading: loadingChildren,
     error: childrenError,
   } = useChildren({
+    familyId,
+    enabled: true,
+  })
+
+  // Story 39.1: Get caregiver limit info
+  const { limit, loading: loadingLimit } = useCaregiverLimit({
     familyId,
     enabled: true,
   })
@@ -279,6 +346,22 @@ export default function CaregiverInviteForm({
     }
   }, [children, selectedChildIds.length])
 
+  // Handle relationship change (Story 39.1)
+  const handleRelationshipChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value as CaregiverRelationship
+    setRelationship(value)
+    if (value !== 'other') {
+      setCustomRelationship('')
+    }
+    setError(null)
+  }, [])
+
+  // Handle custom relationship change (Story 39.1)
+  const handleCustomRelationshipChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setCustomRelationship(e.target.value)
+    setError(null)
+  }, [])
+
   // Handle form submission
   const handleSubmit = useCallback(async () => {
     if (!email || emailError || selectedChildIds.length === 0) {
@@ -291,17 +374,32 @@ export default function CaregiverInviteForm({
       return
     }
 
+    // Story 39.1: Validate custom relationship if "other" selected
+    if (relationship === 'other' && !customRelationship.trim()) {
+      setError('Please enter a custom relationship')
+      return
+    }
+
     setSending(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const result = await sendCaregiverInvitation(familyId, email, selectedChildIds)
+      // Story 39.1: Include relationship in invitation
+      const result = await sendCaregiverInvitation(
+        familyId,
+        email,
+        selectedChildIds,
+        relationship,
+        relationship === 'other' ? customRelationship.trim() : undefined
+      )
 
       if (result.success) {
         setSuccess(result.message)
         setEmail('')
         setSelectedChildIds([])
+        setRelationship('grandparent')
+        setCustomRelationship('')
         if (onSuccess && result.invitationId) {
           onSuccess(result.invitationId)
         }
@@ -313,9 +411,17 @@ export default function CaregiverInviteForm({
     } finally {
       setSending(false)
     }
-  }, [email, emailError, selectedChildIds, familyId, onSuccess])
+  }, [email, emailError, selectedChildIds, familyId, relationship, customRelationship, onSuccess])
 
-  const isSubmitDisabled = sending || !email || !!emailError || selectedChildIds.length === 0
+  // Story 39.1: Disable submit if at limit or missing required fields
+  const isAtLimit = limit?.isAtLimit ?? false
+  const isSubmitDisabled =
+    sending ||
+    !email ||
+    !!emailError ||
+    selectedChildIds.length === 0 ||
+    isAtLimit ||
+    (relationship === 'other' && !customRelationship.trim())
 
   return (
     <div style={styles.container} data-testid="caregiver-invite-form">
@@ -358,6 +464,29 @@ export default function CaregiverInviteForm({
           their screen time. They cannot view detailed activity, make changes, or access settings.
         </p>
       </div>
+
+      {/* Story 39.1: Caregiver limit display */}
+      {!loadingLimit && limit && (
+        <>
+          {limit.isAtLimit ? (
+            <div style={styles.limitWarning} data-testid="limit-warning">
+              <p style={styles.limitWarningText}>
+                You have reached the maximum of {limit.maxAllowed} caregivers. Remove an existing
+                caregiver or cancel a pending invitation to add a new one.
+              </p>
+            </div>
+          ) : (
+            <div style={styles.limitBanner} data-testid="limit-banner">
+              <p style={styles.limitText}>
+                <span style={styles.limitCount}>{limit.activeCount}</span> of {limit.maxAllowed}{' '}
+                caregivers
+                {limit.pendingCount > 0 && <span> ({limit.pendingCount} pending)</span>}
+              </p>
+              <p style={styles.limitText}>You can add {limit.remaining} more</p>
+            </div>
+          )}
+        </>
+      )}
 
       {error && (
         <div style={styles.errorMessage} role="alert" data-testid="error-message">
@@ -402,6 +531,50 @@ export default function CaregiverInviteForm({
           </p>
         )}
       </div>
+
+      {/* Story 39.1: Relationship selection */}
+      <div style={styles.formGroup}>
+        <label htmlFor="caregiver-relationship" style={styles.label}>
+          Relationship
+        </label>
+        <select
+          id="caregiver-relationship"
+          value={relationship}
+          onChange={handleRelationshipChange}
+          disabled={sending || isAtLimit}
+          style={styles.select}
+          className="invite-form-input"
+          data-testid="relationship-select"
+        >
+          {RELATIONSHIP_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Story 39.1: Custom relationship text for "other" */}
+      {relationship === 'other' && (
+        <div style={styles.formGroup}>
+          <label htmlFor="custom-relationship" style={styles.label}>
+            Describe relationship
+          </label>
+          <input
+            id="custom-relationship"
+            type="text"
+            value={customRelationship}
+            onChange={handleCustomRelationshipChange}
+            placeholder="e.g., Family friend, Neighbor"
+            disabled={sending || isAtLimit}
+            maxLength={50}
+            style={styles.input}
+            className="invite-form-input"
+            data-testid="custom-relationship-input"
+          />
+          <p style={styles.inputHint}>Maximum 50 characters</p>
+        </div>
+      )}
 
       {/* Child selection (AC5) */}
       <div style={styles.childrenSection}>

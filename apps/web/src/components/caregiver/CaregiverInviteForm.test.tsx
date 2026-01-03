@@ -2,11 +2,14 @@
  * Tests for CaregiverInviteForm component.
  *
  * Story 19D.1: Caregiver Invitation & Onboarding
+ * Story 39.1: Caregiver Account Creation
  *
  * Tests cover:
  * - AC1: Parent invites a caregiver from family settings
  * - AC2: Caregiver role is "Status Viewer"
  * - AC5: Parent can set which children caregiver can see
+ * - Story 39.1 AC1: Relationship field
+ * - Story 39.1 AC2: Caregiver limit display
  * - Email validation
  * - Form submission
  * - Error and success states
@@ -22,12 +25,17 @@ vi.mock('../../hooks/useChildren', () => ({
   useChildren: vi.fn(),
 }))
 
+vi.mock('../../hooks/useCaregiverLimit', () => ({
+  useCaregiverLimit: vi.fn(),
+}))
+
 vi.mock('../../services/caregiverInvitationService', () => ({
   sendCaregiverInvitation: vi.fn(),
   isValidEmail: vi.fn((email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
 }))
 
 import { useChildren } from '../../hooks/useChildren'
+import { useCaregiverLimit } from '../../hooks/useCaregiverLimit'
 import { sendCaregiverInvitation } from '../../services/caregiverInvitationService'
 
 const mockChildren = [
@@ -35,6 +43,15 @@ const mockChildren = [
   { id: 'child-2', name: 'Jack', photoURL: null },
   { id: 'child-3', name: 'Lily', photoURL: null },
 ]
+
+const mockLimitInfo = {
+  currentCount: 2,
+  maxAllowed: 5,
+  remaining: 3,
+  isAtLimit: false,
+  activeCount: 2,
+  pendingCount: 0,
+}
 
 describe('CaregiverInviteForm', () => {
   const mockOnSuccess = vi.fn()
@@ -44,6 +61,11 @@ describe('CaregiverInviteForm', () => {
     vi.clearAllMocks()
     vi.mocked(useChildren).mockReturnValue({
       children: mockChildren,
+      loading: false,
+      error: null,
+    })
+    vi.mocked(useCaregiverLimit).mockReturnValue({
+      limit: mockLimitInfo,
       loading: false,
       error: null,
     })
@@ -229,7 +251,7 @@ describe('CaregiverInviteForm', () => {
       expect(submitButton).not.toBeDisabled()
     })
 
-    it('calls sendCaregiverInvitation on submit', async () => {
+    it('calls sendCaregiverInvitation on submit with relationship', async () => {
       vi.mocked(sendCaregiverInvitation).mockResolvedValue({
         success: true,
         invitationId: 'inv-123',
@@ -248,9 +270,14 @@ describe('CaregiverInviteForm', () => {
       fireEvent.click(submitButton)
 
       await waitFor(() => {
-        expect(sendCaregiverInvitation).toHaveBeenCalledWith('family-123', 'grandpa@example.com', [
-          'child-1',
-        ])
+        // Story 39.1: Now includes relationship (default: grandparent)
+        expect(sendCaregiverInvitation).toHaveBeenCalledWith(
+          'family-123',
+          'grandpa@example.com',
+          ['child-1'],
+          'grandparent',
+          undefined
+        )
       })
     })
 
@@ -344,6 +371,164 @@ describe('CaregiverInviteForm', () => {
       fireEvent.click(screen.getByTestId('cancel-button'))
 
       expect(mockOnCancel).toHaveBeenCalled()
+    })
+  })
+
+  describe('Story 39.1: Relationship Field', () => {
+    it('renders relationship dropdown', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      expect(screen.getByTestId('relationship-select')).toBeInTheDocument()
+    })
+
+    it('defaults to grandparent relationship', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      const select = screen.getByTestId('relationship-select') as HTMLSelectElement
+      expect(select.value).toBe('grandparent')
+    })
+
+    it('shows all relationship options', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      expect(screen.getByRole('option', { name: 'Grandparent' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Aunt/Uncle' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Babysitter' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Other' })).toBeInTheDocument()
+    })
+
+    it('shows custom relationship input when Other is selected', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      const select = screen.getByTestId('relationship-select')
+      fireEvent.change(select, { target: { value: 'other' } })
+
+      expect(screen.getByTestId('custom-relationship-input')).toBeInTheDocument()
+    })
+
+    it('hides custom relationship input for non-other relationships', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      // Initially grandparent, no custom input
+      expect(screen.queryByTestId('custom-relationship-input')).not.toBeInTheDocument()
+
+      // Switch to other, shows input
+      fireEvent.change(screen.getByTestId('relationship-select'), { target: { value: 'other' } })
+      expect(screen.getByTestId('custom-relationship-input')).toBeInTheDocument()
+
+      // Switch back, hides input
+      fireEvent.change(screen.getByTestId('relationship-select'), {
+        target: { value: 'babysitter' },
+      })
+      expect(screen.queryByTestId('custom-relationship-input')).not.toBeInTheDocument()
+    })
+
+    it('includes custom relationship in submission when other is selected', async () => {
+      vi.mocked(sendCaregiverInvitation).mockResolvedValue({
+        success: true,
+        invitationId: 'inv-123',
+        message: 'Invitation sent!',
+      })
+
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      // Fill form
+      fireEvent.change(screen.getByTestId('email-input'), {
+        target: { value: 'neighbor@example.com' },
+      })
+      fireEvent.click(screen.getByTestId('child-checkbox-child-1'))
+
+      // Select "other" and enter custom
+      fireEvent.change(screen.getByTestId('relationship-select'), { target: { value: 'other' } })
+      fireEvent.change(screen.getByTestId('custom-relationship-input'), {
+        target: { value: 'Family Friend' },
+      })
+
+      // Submit
+      fireEvent.click(screen.getByTestId('submit-button'))
+
+      await waitFor(() => {
+        expect(sendCaregiverInvitation).toHaveBeenCalledWith(
+          'family-123',
+          'neighbor@example.com',
+          ['child-1'],
+          'other',
+          'Family Friend'
+        )
+      })
+    })
+  })
+
+  describe('Story 39.1: Caregiver Limit Display', () => {
+    it('shows limit banner when under limit', () => {
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      const banner = screen.getByTestId('limit-banner')
+      expect(banner).toBeInTheDocument()
+      // Check that banner has the expected content
+      expect(banner.textContent).toContain('2')
+      expect(banner.textContent).toContain('5')
+      expect(banner.textContent).toContain('caregivers')
+    })
+
+    it('shows pending count in banner', () => {
+      vi.mocked(useCaregiverLimit).mockReturnValue({
+        limit: {
+          ...mockLimitInfo,
+          pendingCount: 1,
+          currentCount: 3,
+          remaining: 2,
+        },
+        loading: false,
+        error: null,
+      })
+
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      expect(screen.getByText(/1 pending/i)).toBeInTheDocument()
+    })
+
+    it('shows warning when at limit', () => {
+      vi.mocked(useCaregiverLimit).mockReturnValue({
+        limit: {
+          currentCount: 5,
+          maxAllowed: 5,
+          remaining: 0,
+          isAtLimit: true,
+          activeCount: 3,
+          pendingCount: 2,
+        },
+        loading: false,
+        error: null,
+      })
+
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      expect(screen.getByTestId('limit-warning')).toBeInTheDocument()
+      expect(screen.getByText(/maximum of 5 caregivers/i)).toBeInTheDocument()
+    })
+
+    it('disables submit button when at limit', () => {
+      vi.mocked(useCaregiverLimit).mockReturnValue({
+        limit: {
+          currentCount: 5,
+          maxAllowed: 5,
+          remaining: 0,
+          isAtLimit: true,
+          activeCount: 5,
+          pendingCount: 0,
+        },
+        loading: false,
+        error: null,
+      })
+
+      render(<CaregiverInviteForm familyId="family-123" />)
+
+      // Even with valid email and child selected, should be disabled
+      fireEvent.change(screen.getByTestId('email-input'), { target: { value: 'test@example.com' } })
+      fireEvent.click(screen.getByTestId('child-checkbox-child-1'))
+
+      expect(screen.getByTestId('submit-button')).toBeDisabled()
     })
   })
 })
