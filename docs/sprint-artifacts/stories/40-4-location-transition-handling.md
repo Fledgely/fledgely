@@ -1,6 +1,6 @@
 # Story 40.4: Location Transition Handling
 
-## Status: in-dev
+## Status: done
 
 ## Story
 
