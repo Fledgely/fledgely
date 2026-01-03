@@ -7537,3 +7537,31 @@ export {
   type ReenableSafeEscapeResponse,
   type SafeEscapeStatus,
 } from './safeEscape'
+
+// Story 40.4: Location Transition Handling
+export {
+  LOCATION_TRANSITION_GRACE_PERIOD_MS,
+  LOCATION_TRANSITION_GRACE_PERIOD_SECONDS,
+  LOCATION_UPDATE_MIN_INTERVAL_MS,
+  LOCATION_MAX_ACCURACY_METERS,
+  TRANSITION_CHILD_MESSAGES,
+  TRANSITION_ADULT_MESSAGES,
+  appliedRulesSchema,
+  locationTransitionSchema,
+  deviceLocationSchema,
+  locationUpdateInputSchema,
+  locationUpdateResponseSchema,
+  getLocationTransitionsInputSchema,
+  getLocationTransitionsResponseSchema,
+  calculateDistanceMeters,
+  isWithinZone,
+  calculateGracePeriodMinutes,
+  isGracePeriodExpired,
+  type AppliedRules,
+  type LocationTransition,
+  type DeviceLocation,
+  type LocationUpdateInput,
+  type LocationUpdateResponse,
+  type GetLocationTransitionsInput,
+  type GetLocationTransitionsResponse,
+} from './locationTransition'

@@ -2083,3 +2083,35 @@ export {
   type ReenableSafeEscapeResponse,
   type SafeEscapeStatus,
 } from './contracts'
+
+// Location Transition exports (Story 40.4)
+export {
+  // Constants
+  LOCATION_TRANSITION_GRACE_PERIOD_MS,
+  LOCATION_TRANSITION_GRACE_PERIOD_SECONDS,
+  LOCATION_UPDATE_MIN_INTERVAL_MS,
+  LOCATION_MAX_ACCURACY_METERS,
+  TRANSITION_CHILD_MESSAGES,
+  TRANSITION_ADULT_MESSAGES,
+  // Schemas
+  appliedRulesSchema,
+  locationTransitionSchema,
+  deviceLocationSchema,
+  locationUpdateInputSchema,
+  locationUpdateResponseSchema,
+  getLocationTransitionsInputSchema,
+  getLocationTransitionsResponseSchema,
+  // Utilities
+  calculateDistanceMeters,
+  isWithinZone,
+  calculateGracePeriodMinutes,
+  isGracePeriodExpired,
+  // Types
+  type AppliedRules,
+  type LocationTransition,
+  type DeviceLocation,
+  type LocationUpdateInput,
+  type LocationUpdateResponse,
+  type GetLocationTransitionsInput,
+  type GetLocationTransitionsResponse,
+} from './contracts'

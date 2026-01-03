@@ -196,3 +196,9 @@ export {
   disconnectCalendar,
   getCalendarStatus,
 } from './http/calendar'
+
+// Location transition handlers (Story 40.4)
+export { locationUpdate } from './http/locationUpdate'
+export { onLocationUpdate } from './triggers/onLocationUpdate'
+export { applyTransitionRules } from './scheduled/applyTransitionRules'
+export { getLocationTransitions } from './callable/getLocationTransitions'
