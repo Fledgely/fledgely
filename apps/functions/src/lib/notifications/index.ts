@@ -102,3 +102,15 @@ export type { ChildTimeLimitNotificationResult } from './childTimeLimitNotificat
 // Story 41.3: Time limit check integration
 export { checkTimeLimitsAndNotify } from './timeLimitCheck'
 export type { TimeLimitCheckResult } from './timeLimitCheck'
+
+// Story 41.4: Device sync notifications
+export {
+  sendDeviceSyncTimeoutNotification,
+  sendPermissionRevokedNotification,
+  sendSyncRestoredNotification,
+  hasAlreadyNotifiedForThreshold,
+  hasRecentlyNotifiedPermissionRevoked,
+  markDeviceOffline,
+  clearDeviceNotificationStatus,
+} from './deviceSyncNotification'
+export type { DeviceSyncNotificationResult } from './deviceSyncNotification'

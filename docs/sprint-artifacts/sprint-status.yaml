@@ -580,7 +580,7 @@ development_status:
   41-1-notification-preferences-configuration: done
   41-2-flag-notifications: done
   41-3-time-limit-notifications: done
-  41-4-device-sync-status-notifications: backlog
+  41-4-device-sync-status-notifications: done
   41-5-new-login-notifications: backlog
   41-6-notification-delivery-channels: backlog
   41-7-child-notification-preferences: backlog

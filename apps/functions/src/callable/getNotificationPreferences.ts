@@ -97,6 +97,8 @@ export const getNotificationPreferences = onCall(
           extensionRequestsEnabled: data?.extensionRequestsEnabled,
           syncAlertsEnabled: data?.syncAlertsEnabled,
           syncThresholdHours: data?.syncThresholdHours,
+          deviceStatusEnabled: data?.deviceStatusEnabled ?? true,
+          deviceSyncRecoveryEnabled: data?.deviceSyncRecoveryEnabled ?? false,
           quietHoursEnabled: data?.quietHoursEnabled,
           quietHoursStart: data?.quietHoursStart,
           quietHoursEnd: data?.quietHoursEnd,

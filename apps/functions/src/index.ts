@@ -221,3 +221,10 @@ export { autoDisableLocationForAbuse } from './scheduled/autoDisableLocationForA
 // Notification preferences (Story 41.1)
 export { getNotificationPreferences } from './callable/getNotificationPreferences'
 export { updateNotificationPreferences } from './callable/updateNotificationPreferences'
+
+// Flag notifications (Story 41.2)
+export { hourlyFlagDigest, dailyFlagDigest } from './scheduled'
+
+// Device sync notifications (Story 41.4)
+export { checkDeviceSyncStatus } from './scheduled'
+export { onDevicePermissionChange } from './triggers/onDevicePermissionChange'

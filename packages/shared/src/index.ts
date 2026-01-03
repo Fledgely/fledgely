@@ -2223,7 +2223,7 @@ export {
   buildExtensionRequestContent,
   buildChildWarningContent,
   buildChildLimitReachedContent,
-  formatMinutes,
+  formatMinutesShort,
   // Types
   type TimeLimitNotificationType,
   type LimitType,
@@ -2233,4 +2233,28 @@ export {
   type ExtensionRequestNotificationParams,
   type TimeLimitWarningParams,
   type LimitReachedParams,
+} from './contracts'
+
+// Story 41.4: Device Sync Notifications
+// Note: syncThresholdHoursSchema and SyncThresholdHours already exported from 41.1 notification preferences
+export {
+  // Schemas
+  DEFAULT_SYNC_THRESHOLD_HOURS,
+  deviceSyncNotificationTypeSchema,
+  deviceSyncNotificationEventSchema,
+  deviceSyncNotificationContentSchema,
+  deviceNotificationStatusSchema,
+  // Helper functions
+  buildSyncTimeoutContent,
+  buildPermissionRevokedContent,
+  buildSyncRestoredContent,
+  buildDetailedSyncTimeoutContent,
+  // Types
+  type DeviceSyncNotificationType,
+  type DeviceSyncNotificationEvent,
+  type DeviceSyncNotificationContent,
+  type DeviceNotificationStatus,
+  type SyncTimeoutParams,
+  type PermissionRevokedParams,
+  type SyncRestoredParams,
 } from './contracts'

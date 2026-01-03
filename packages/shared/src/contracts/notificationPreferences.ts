@@ -36,6 +36,10 @@ export const NOTIFICATION_DEFAULTS = {
   syncAlertsEnabled: true,
   /** Default sync threshold is 4 hours */
   syncThresholdHours: 4 as const,
+  /** Device status notifications on by default (Story 41.4) */
+  deviceStatusEnabled: true,
+  /** Device sync recovery notifications off by default (Story 41.4) */
+  deviceSyncRecoveryEnabled: false,
   /** Quiet hours off by default */
   quietHoursEnabled: false,
 } as const
@@ -114,6 +118,12 @@ export const parentNotificationPreferencesSchema = z.object({
   /** Hours without sync before alert (1, 4, 12, or 24) */
   syncThresholdHours: syncThresholdHoursSchema.default(NOTIFICATION_DEFAULTS.syncThresholdHours),
 
+  // Device status notifications (Story 41.4)
+  /** Whether device status notifications are enabled */
+  deviceStatusEnabled: z.boolean().default(NOTIFICATION_DEFAULTS.deviceStatusEnabled),
+  /** Whether to notify when device comes back online */
+  deviceSyncRecoveryEnabled: z.boolean().default(NOTIFICATION_DEFAULTS.deviceSyncRecoveryEnabled),
+
   // Quiet hours (AC4)
   /** Whether quiet hours are enabled */
   quietHoursEnabled: z.boolean().default(NOTIFICATION_DEFAULTS.quietHoursEnabled),
@@ -157,6 +167,10 @@ export const notificationPreferencesUpdateSchema = z.object({
   // Sync alerts
   syncAlertsEnabled: z.boolean().optional(),
   syncThresholdHours: syncThresholdHoursSchema.optional(),
+
+  // Device status notifications (Story 41.4)
+  deviceStatusEnabled: z.boolean().optional(),
+  deviceSyncRecoveryEnabled: z.boolean().optional(),
 
   // Quiet hours
   quietHoursEnabled: z.boolean().optional(),
@@ -247,6 +261,9 @@ export function applyPreferencesUpdate(
     extensionRequestsEnabled: update.extensionRequestsEnabled ?? existing.extensionRequestsEnabled,
     syncAlertsEnabled: update.syncAlertsEnabled ?? existing.syncAlertsEnabled,
     syncThresholdHours: update.syncThresholdHours ?? existing.syncThresholdHours,
+    deviceStatusEnabled: update.deviceStatusEnabled ?? existing.deviceStatusEnabled,
+    deviceSyncRecoveryEnabled:
+      update.deviceSyncRecoveryEnabled ?? existing.deviceSyncRecoveryEnabled,
     quietHoursEnabled: update.quietHoursEnabled ?? existing.quietHoursEnabled,
     quietHoursStart: update.quietHoursStart ?? existing.quietHoursStart,
     quietHoursEnd: update.quietHoursEnd ?? existing.quietHoursEnd,

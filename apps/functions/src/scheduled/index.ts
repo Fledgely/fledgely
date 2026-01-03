@@ -20,3 +20,4 @@ export { processTemporaryAccessExpiry } from './processTemporaryAccessExpiry' //
 export { sendSafeEscapeNotifications } from './sendSafeEscapeNotifications' // Story 40.3
 export { hourlyFlagDigest } from './hourlyFlagDigest' // Story 41.2
 export { dailyFlagDigest } from './dailyFlagDigest' // Story 41.2
+export { checkDeviceSyncStatus } from './checkDeviceSyncStatus' // Story 41.4
