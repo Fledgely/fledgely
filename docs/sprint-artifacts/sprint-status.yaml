@@ -554,8 +554,8 @@ development_status:
   epic-39: in-progress
   39-1-caregiver-account-creation: done
   39-2-caregiver-permission-configuration: done
-  39-3-temporary-caregiver-access: ready-for-dev
-  39-4-caregiver-pin-for-time-extension: backlog
+  39-3-temporary-caregiver-access: done
+  39-4-caregiver-pin-for-time-extension: ready-for-dev
   39-5-caregiver-flag-viewing: backlog
   39-6-caregiver-action-logging: backlog
   39-7-caregiver-removal: backlog

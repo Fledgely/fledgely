@@ -147,6 +147,128 @@ export const familyCaregiverSchema = z.object({
 })
 export type FamilyCaregiver = z.infer<typeof familyCaregiverSchema>
 
+// ============================================
+// Story 39.4: Caregiver PIN for Time Extension
+// ============================================
+
+/**
+ * PIN security constants.
+ * Story 39.4: Caregiver PIN for Time Extension
+ */
+export const MAX_PIN_ATTEMPTS = 3
+export const PIN_LOCKOUT_MINUTES = 15
+
+/**
+ * Caregiver PIN configuration schema.
+ * Story 39.4: AC1 - PIN setup by parent
+ * Stores hashed PIN and lockout information.
+ */
+export const caregiverPinConfigSchema = z.object({
+  /** bcrypt hash of the PIN - never store plain text */
+  pinHash: z.string(),
+  /** When PIN was set */
+  pinSetAt: z.date(),
+  /** UID of parent who set the PIN */
+  pinSetByUid: z.string(),
+  /** Number of failed PIN attempts (resets on success) */
+  failedAttempts: z.number().int().min(0).default(0),
+  /** Lockout expiry time (set after MAX_PIN_ATTEMPTS failures) */
+  lockedUntil: z.date().optional(),
+})
+export type CaregiverPinConfig = z.infer<typeof caregiverPinConfigSchema>
+
+/**
+ * Extension limit configuration schema.
+ * Story 39.4: AC3 - Extension limits configurable
+ * Defines how much time a caregiver can extend and how often.
+ */
+export const extensionLimitConfigSchema = z.object({
+  /** Maximum extension duration in minutes (30, 60, or 120) */
+  maxDurationMinutes: z.union([z.literal(30), z.literal(60), z.literal(120)]).default(30),
+  /** Maximum number of extensions per day */
+  maxDailyExtensions: z.number().int().min(1).max(5).default(1),
+})
+export type ExtensionLimitConfig = z.infer<typeof extensionLimitConfigSchema>
+
+/** Default extension limits */
+export const DEFAULT_EXTENSION_LIMITS: ExtensionLimitConfig = {
+  maxDurationMinutes: 30,
+  maxDailyExtensions: 1,
+}
+
+/**
+ * Caregiver extension log schema.
+ * Story 39.4: AC4, AC5 - Extension logging for audit
+ * Stored at: /families/{familyId}/caregiverExtensionLogs/{logId}
+ */
+export const caregiverExtensionLogSchema = z.object({
+  /** Unique log identifier */
+  id: z.string(),
+  /** Family ID */
+  familyId: z.string(),
+  /** UID of caregiver who granted extension */
+  caregiverUid: z.string(),
+  /** Display name of caregiver */
+  caregiverName: z.string(),
+  /** UID of child who received extension */
+  childUid: z.string(),
+  /** Display name of child */
+  childName: z.string(),
+  /** Amount of time extended in minutes */
+  extensionMinutes: z.number().int().min(1).max(120),
+  /** Optional reference to child's extension request */
+  requestId: z.string().optional(),
+  /** When extension was granted */
+  createdAt: z.date(),
+})
+export type CaregiverExtensionLog = z.infer<typeof caregiverExtensionLogSchema>
+
+/**
+ * Set caregiver PIN input schema.
+ * Story 39.4: Cloud function input for setting PIN
+ */
+export const setCaregiverPinInputSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Caregiver UID */
+  caregiverUid: z.string(),
+  /** PIN (4-6 digits) - will be hashed before storage */
+  pin: z.string().regex(/^\d{4,6}$/, 'PIN must be 4-6 digits'),
+  /** Optional extension limits to set */
+  extensionLimits: extensionLimitConfigSchema.optional(),
+})
+export type SetCaregiverPinInput = z.infer<typeof setCaregiverPinInputSchema>
+
+/**
+ * Approve extension with PIN input schema.
+ * Story 39.4: Cloud function input for caregiver extension approval
+ */
+export const approveExtensionWithPinInputSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Child UID */
+  childUid: z.string(),
+  /** Caregiver PIN */
+  pin: z.string().regex(/^\d{4,6}$/, 'PIN must be 4-6 digits'),
+  /** Extension amount in minutes (optional, defaults to max allowed) */
+  extensionMinutes: z.number().int().min(1).max(120).optional(),
+  /** Optional reference to child's extension request */
+  requestId: z.string().optional(),
+})
+export type ApproveExtensionWithPinInput = z.infer<typeof approveExtensionWithPinInputSchema>
+
+/**
+ * Extended family caregiver schema with PIN configuration.
+ * Story 39.4: Adds optional PIN config and extension limits to caregiver
+ */
+export const familyCaregiverWithPinSchema = familyCaregiverSchema.extend({
+  /** Story 39.4: PIN configuration (set when canExtendTime is enabled) */
+  pinConfig: caregiverPinConfigSchema.optional(),
+  /** Story 39.4: Extension limit configuration */
+  extensionLimits: extensionLimitConfigSchema.optional(),
+})
+export type FamilyCaregiverWithPin = z.infer<typeof familyCaregiverWithPinSchema>
+
 export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),

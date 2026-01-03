@@ -2,6 +2,7 @@
  * Tests for CaregiverPermissionEditor component.
  *
  * Story 39.2: Caregiver Permission Configuration
+ * Story 39.4: Caregiver PIN for Time Extension (integration)
  *
  * Tests cover:
  * - AC1: Permission Toggles display
@@ -9,6 +10,7 @@
  * - AC3: Extend Time Permission toggle
  * - AC4: View Flags Permission toggle
  * - AC5: Changes take effect immediately
+ * - PIN configuration integration (Story 39.4)
  * - NFR49: 44px minimum touch targets
  * - Accessibility compliance
  */
@@ -404,6 +406,156 @@ describe('CaregiverPermissionEditor', () => {
 
       const cancelButton = screen.getByTestId('cancel-button')
       expect(cancelButton).toHaveStyle({ minHeight: '44px' })
+    })
+  })
+
+  describe('PIN Configuration (Story 39.4)', () => {
+    it('does not show PIN section when canExtendTime is false', () => {
+      render(<CaregiverPermissionEditor {...defaultProps} />)
+
+      expect(screen.queryByTestId('pin-section')).not.toBeInTheDocument()
+    })
+
+    it('shows PIN section when canExtendTime is true', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      expect(screen.getByTestId('pin-section')).toBeInTheDocument()
+    })
+
+    it('shows PIN section when canExtendTime is toggled on', () => {
+      render(<CaregiverPermissionEditor {...defaultProps} />)
+
+      expect(screen.queryByTestId('pin-section')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('toggle-extend-time'))
+
+      expect(screen.getByTestId('pin-section')).toBeInTheDocument()
+    })
+
+    it('hides PIN section when canExtendTime is toggled off', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      expect(screen.getByTestId('pin-section')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('toggle-extend-time'))
+
+      expect(screen.queryByTestId('pin-section')).not.toBeInTheDocument()
+    })
+
+    it('shows "Set PIN" button when PIN not configured', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      expect(screen.getByTestId('configure-pin-button')).toHaveTextContent('Set PIN')
+    })
+
+    it('shows "Update PIN" button when PIN is configured', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+          hasPinConfigured={true}
+        />
+      )
+
+      expect(screen.getByTestId('configure-pin-button')).toHaveTextContent('Update PIN')
+    })
+
+    it('shows PIN not configured status when PIN not set', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      const status = screen.getByTestId('pin-status')
+      expect(status.textContent).toContain('PIN required')
+    })
+
+    it('shows PIN configured status when PIN is set', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+          hasPinConfigured={true}
+        />
+      )
+
+      const status = screen.getByTestId('pin-status')
+      expect(status.textContent).toContain('PIN configured')
+    })
+
+    it('shows extension limits when configured', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+          hasPinConfigured={true}
+          currentExtensionLimits={{ maxDurationMinutes: 60, maxDailyExtensions: 2 }}
+        />
+      )
+
+      const status = screen.getByTestId('pin-status')
+      expect(status.textContent).toContain('60min')
+      expect(status.textContent).toContain('2/day')
+    })
+
+    it('opens PIN editor modal when configure button clicked', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      expect(screen.queryByTestId('pin-editor-modal')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('configure-pin-button'))
+
+      expect(screen.getByTestId('pin-editor-modal')).toBeInTheDocument()
+    })
+
+    it('closes PIN editor modal when overlay clicked', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      fireEvent.click(screen.getByTestId('configure-pin-button'))
+      expect(screen.getByTestId('pin-editor-modal')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('pin-editor-modal'))
+
+      expect(screen.queryByTestId('pin-editor-modal')).not.toBeInTheDocument()
+    })
+
+    it('PIN button has min-height of 44px (NFR49)', () => {
+      render(
+        <CaregiverPermissionEditor
+          {...defaultProps}
+          currentPermissions={{ canExtendTime: true, canViewFlags: false }}
+        />
+      )
+
+      const pinButton = screen.getByTestId('configure-pin-button')
+      expect(pinButton).toHaveStyle({ minHeight: '44px' })
     })
   })
 })

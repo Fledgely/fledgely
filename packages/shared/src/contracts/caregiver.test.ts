@@ -1,10 +1,11 @@
 /**
- * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2, Story 39.3
+ * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2, Story 39.3, Story 39.4
  *
  * Task 7.1: Test caregiver schemas
  * Story 39.1: Added relationship field tests
  * Story 39.2: Added permission configuration tests
  * Story 39.3: Added temporary access schema tests
+ * Story 39.4: Added PIN and extension limit tests
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -35,6 +36,16 @@ import {
   getTemporaryAccessTimeRemaining,
   formatTemporaryAccessDuration,
   type TemporaryAccessGrant,
+  // Story 39.4: PIN and extension schemas
+  MAX_PIN_ATTEMPTS,
+  PIN_LOCKOUT_MINUTES,
+  caregiverPinConfigSchema,
+  extensionLimitConfigSchema,
+  DEFAULT_EXTENSION_LIMITS,
+  caregiverExtensionLogSchema,
+  setCaregiverPinInputSchema,
+  approveExtensionWithPinInputSchema,
+  familyCaregiverWithPinSchema,
 } from './index'
 
 describe('Caregiver Schemas - Story 19D.1', () => {
@@ -1051,6 +1062,387 @@ describe('Temporary Access Helper Functions - Story 39.3', () => {
       const startAt = new Date('2026-01-05T10:00:00Z')
       const endAt = new Date('2026-01-07T18:00:00Z')
       expect(formatTemporaryAccessDuration(startAt, endAt)).toBe('2 days 8h')
+    })
+  })
+})
+
+// ============================================
+// Story 39.4: Caregiver PIN for Time Extension Tests
+// ============================================
+
+describe('Caregiver PIN Schemas - Story 39.4', () => {
+  describe('PIN Security Constants', () => {
+    it('MAX_PIN_ATTEMPTS should be 3', () => {
+      expect(MAX_PIN_ATTEMPTS).toBe(3)
+    })
+
+    it('PIN_LOCKOUT_MINUTES should be 15', () => {
+      expect(PIN_LOCKOUT_MINUTES).toBe(15)
+    })
+  })
+
+  describe('caregiverPinConfigSchema', () => {
+    it('should accept valid PIN config', () => {
+      const config = {
+        pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+        pinSetAt: new Date(),
+        pinSetByUid: 'parent-123',
+        failedAttempts: 0,
+      }
+      const parsed = caregiverPinConfigSchema.parse(config)
+      expect(parsed.pinHash).toBe('$2b$10$abcdefghijklmnopqrstuv')
+      expect(parsed.failedAttempts).toBe(0)
+    })
+
+    it('should accept config with lockout', () => {
+      const config = {
+        pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+        pinSetAt: new Date(),
+        pinSetByUid: 'parent-123',
+        failedAttempts: 3,
+        lockedUntil: new Date(Date.now() + 15 * 60 * 1000),
+      }
+      const parsed = caregiverPinConfigSchema.parse(config)
+      expect(parsed.failedAttempts).toBe(3)
+      expect(parsed.lockedUntil).toBeDefined()
+    })
+
+    it('should default failedAttempts to 0', () => {
+      const config = {
+        pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+        pinSetAt: new Date(),
+        pinSetByUid: 'parent-123',
+      }
+      const parsed = caregiverPinConfigSchema.parse(config)
+      expect(parsed.failedAttempts).toBe(0)
+    })
+
+    it('should require pinHash', () => {
+      const config = {
+        pinSetAt: new Date(),
+        pinSetByUid: 'parent-123',
+      }
+      expect(() => caregiverPinConfigSchema.parse(config)).toThrow()
+    })
+
+    it('should reject negative failedAttempts', () => {
+      const config = {
+        pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+        pinSetAt: new Date(),
+        pinSetByUid: 'parent-123',
+        failedAttempts: -1,
+      }
+      expect(() => caregiverPinConfigSchema.parse(config)).toThrow()
+    })
+  })
+
+  describe('extensionLimitConfigSchema', () => {
+    it('should accept valid extension limits', () => {
+      const limits = {
+        maxDurationMinutes: 60,
+        maxDailyExtensions: 2,
+      }
+      const parsed = extensionLimitConfigSchema.parse(limits)
+      expect(parsed.maxDurationMinutes).toBe(60)
+      expect(parsed.maxDailyExtensions).toBe(2)
+    })
+
+    it('should accept 30 minute max duration', () => {
+      const limits = { maxDurationMinutes: 30 }
+      const parsed = extensionLimitConfigSchema.parse(limits)
+      expect(parsed.maxDurationMinutes).toBe(30)
+    })
+
+    it('should accept 120 minute max duration', () => {
+      const limits = { maxDurationMinutes: 120 }
+      const parsed = extensionLimitConfigSchema.parse(limits)
+      expect(parsed.maxDurationMinutes).toBe(120)
+    })
+
+    it('should reject invalid max duration', () => {
+      const limits = { maxDurationMinutes: 45 }
+      expect(() => extensionLimitConfigSchema.parse(limits)).toThrow()
+    })
+
+    it('should default maxDurationMinutes to 30', () => {
+      const parsed = extensionLimitConfigSchema.parse({})
+      expect(parsed.maxDurationMinutes).toBe(30)
+    })
+
+    it('should default maxDailyExtensions to 1', () => {
+      const parsed = extensionLimitConfigSchema.parse({})
+      expect(parsed.maxDailyExtensions).toBe(1)
+    })
+
+    it('should reject maxDailyExtensions less than 1', () => {
+      const limits = { maxDailyExtensions: 0 }
+      expect(() => extensionLimitConfigSchema.parse(limits)).toThrow()
+    })
+
+    it('should reject maxDailyExtensions greater than 5', () => {
+      const limits = { maxDailyExtensions: 6 }
+      expect(() => extensionLimitConfigSchema.parse(limits)).toThrow()
+    })
+  })
+
+  describe('DEFAULT_EXTENSION_LIMITS', () => {
+    it('should have maxDurationMinutes as 30', () => {
+      expect(DEFAULT_EXTENSION_LIMITS.maxDurationMinutes).toBe(30)
+    })
+
+    it('should have maxDailyExtensions as 1', () => {
+      expect(DEFAULT_EXTENSION_LIMITS.maxDailyExtensions).toBe(1)
+    })
+  })
+
+  describe('caregiverExtensionLogSchema', () => {
+    const validLog = {
+      id: 'log-123',
+      familyId: 'family-456',
+      caregiverUid: 'caregiver-789',
+      caregiverName: 'Grandma',
+      childUid: 'child-101',
+      childName: 'Mateo',
+      extensionMinutes: 30,
+      createdAt: new Date(),
+    }
+
+    it('should accept valid extension log', () => {
+      const parsed = caregiverExtensionLogSchema.parse(validLog)
+      expect(parsed.id).toBe('log-123')
+      expect(parsed.extensionMinutes).toBe(30)
+      expect(parsed.caregiverName).toBe('Grandma')
+    })
+
+    it('should accept log with optional requestId', () => {
+      const logWithRequest = { ...validLog, requestId: 'req-123' }
+      const parsed = caregiverExtensionLogSchema.parse(logWithRequest)
+      expect(parsed.requestId).toBe('req-123')
+    })
+
+    it('should reject extensionMinutes less than 1', () => {
+      const invalidLog = { ...validLog, extensionMinutes: 0 }
+      expect(() => caregiverExtensionLogSchema.parse(invalidLog)).toThrow()
+    })
+
+    it('should reject extensionMinutes greater than 120', () => {
+      const invalidLog = { ...validLog, extensionMinutes: 121 }
+      expect(() => caregiverExtensionLogSchema.parse(invalidLog)).toThrow()
+    })
+
+    it('should require all mandatory fields', () => {
+      const incompleteLog = {
+        id: 'log-123',
+        familyId: 'family-456',
+        // missing other required fields
+      }
+      expect(() => caregiverExtensionLogSchema.parse(incompleteLog)).toThrow()
+    })
+  })
+
+  describe('setCaregiverPinInputSchema', () => {
+    it('should accept valid 4-digit PIN', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '1234',
+      }
+      const parsed = setCaregiverPinInputSchema.parse(input)
+      expect(parsed.pin).toBe('1234')
+    })
+
+    it('should accept valid 6-digit PIN', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '123456',
+      }
+      const parsed = setCaregiverPinInputSchema.parse(input)
+      expect(parsed.pin).toBe('123456')
+    })
+
+    it('should accept input with extension limits', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '1234',
+        extensionLimits: {
+          maxDurationMinutes: 60,
+          maxDailyExtensions: 2,
+        },
+      }
+      const parsed = setCaregiverPinInputSchema.parse(input)
+      expect(parsed.extensionLimits?.maxDurationMinutes).toBe(60)
+    })
+
+    it('should reject PIN with fewer than 4 digits', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '123',
+      }
+      expect(() => setCaregiverPinInputSchema.parse(input)).toThrow()
+    })
+
+    it('should reject PIN with more than 6 digits', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '1234567',
+      }
+      expect(() => setCaregiverPinInputSchema.parse(input)).toThrow()
+    })
+
+    it('should reject PIN with non-digit characters', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '12ab',
+      }
+      expect(() => setCaregiverPinInputSchema.parse(input)).toThrow()
+    })
+
+    it('should reject empty PIN', () => {
+      const input = {
+        familyId: 'family-123',
+        caregiverUid: 'caregiver-456',
+        pin: '',
+      }
+      expect(() => setCaregiverPinInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('approveExtensionWithPinInputSchema', () => {
+    it('should accept valid input', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: '1234',
+      }
+      const parsed = approveExtensionWithPinInputSchema.parse(input)
+      expect(parsed.familyId).toBe('family-123')
+      expect(parsed.pin).toBe('1234')
+    })
+
+    it('should accept input with extensionMinutes', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: '1234',
+        extensionMinutes: 30,
+      }
+      const parsed = approveExtensionWithPinInputSchema.parse(input)
+      expect(parsed.extensionMinutes).toBe(30)
+    })
+
+    it('should accept input with requestId', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: '1234',
+        requestId: 'req-789',
+      }
+      const parsed = approveExtensionWithPinInputSchema.parse(input)
+      expect(parsed.requestId).toBe('req-789')
+    })
+
+    it('should reject extensionMinutes less than 1', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: '1234',
+        extensionMinutes: 0,
+      }
+      expect(() => approveExtensionWithPinInputSchema.parse(input)).toThrow()
+    })
+
+    it('should reject extensionMinutes greater than 120', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: '1234',
+        extensionMinutes: 121,
+      }
+      expect(() => approveExtensionWithPinInputSchema.parse(input)).toThrow()
+    })
+
+    it('should reject invalid PIN format', () => {
+      const input = {
+        familyId: 'family-123',
+        childUid: 'child-456',
+        pin: 'abcd',
+      }
+      expect(() => approveExtensionWithPinInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('familyCaregiverWithPinSchema', () => {
+    const baseCaregiver = {
+      uid: 'caregiver-123',
+      email: 'grandma@example.com',
+      displayName: 'Grandma',
+      role: 'status_viewer',
+      relationship: 'grandparent',
+      childIds: ['child-1'],
+      addedAt: new Date(),
+      addedByUid: 'parent-123',
+    }
+
+    it('should accept caregiver without PIN config', () => {
+      const parsed = familyCaregiverWithPinSchema.parse(baseCaregiver)
+      expect(parsed.pinConfig).toBeUndefined()
+      expect(parsed.extensionLimits).toBeUndefined()
+    })
+
+    it('should accept caregiver with PIN config', () => {
+      const caregiverWithPin = {
+        ...baseCaregiver,
+        pinConfig: {
+          pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+          pinSetAt: new Date(),
+          pinSetByUid: 'parent-123',
+          failedAttempts: 0,
+        },
+      }
+      const parsed = familyCaregiverWithPinSchema.parse(caregiverWithPin)
+      expect(parsed.pinConfig).toBeDefined()
+      expect(parsed.pinConfig?.pinHash).toBe('$2b$10$abcdefghijklmnopqrstuv')
+    })
+
+    it('should accept caregiver with extension limits', () => {
+      const caregiverWithLimits = {
+        ...baseCaregiver,
+        extensionLimits: {
+          maxDurationMinutes: 60,
+          maxDailyExtensions: 2,
+        },
+      }
+      const parsed = familyCaregiverWithPinSchema.parse(caregiverWithLimits)
+      expect(parsed.extensionLimits?.maxDurationMinutes).toBe(60)
+    })
+
+    it('should accept caregiver with both PIN and limits', () => {
+      const fullCaregiver = {
+        ...baseCaregiver,
+        permissions: {
+          canExtendTime: true,
+          canViewFlags: false,
+        },
+        pinConfig: {
+          pinHash: '$2b$10$abcdefghijklmnopqrstuv',
+          pinSetAt: new Date(),
+          pinSetByUid: 'parent-123',
+          failedAttempts: 0,
+        },
+        extensionLimits: {
+          maxDurationMinutes: 120,
+          maxDailyExtensions: 3,
+        },
+      }
+      const parsed = familyCaregiverWithPinSchema.parse(fullCaregiver)
+      expect(parsed.permissions?.canExtendTime).toBe(true)
+      expect(parsed.pinConfig).toBeDefined()
+      expect(parsed.extensionLimits?.maxDurationMinutes).toBe(120)
     })
   })
 })

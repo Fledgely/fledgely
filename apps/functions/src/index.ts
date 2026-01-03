@@ -74,6 +74,8 @@ export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
 export { updateCaregiverPermissions } from './callable/updateCaregiverPermissions' // Story 39.2
 export { grantTemporaryAccess } from './callable/grantTemporaryAccess' // Story 39.3
 export { revokeTemporaryAccess } from './callable/revokeTemporaryAccess' // Story 39.3
+export { setCaregiverPin } from './callable/setCaregiverPin' // Story 39.4
+export { approveExtensionWithPin } from './callable/approveExtensionWithPin' // Story 39.4
 
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'

@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CaregiverPermissionEditor - Story 39.2
+ * CaregiverPermissionEditor - Story 39.2 + Story 39.4
  *
  * Component for parents to edit caregiver permissions.
  *
@@ -11,6 +11,7 @@
  * - AC3: Extend Time Permission toggle
  * - AC4: View Flags Permission toggle
  * - AC5: Changes take effect immediately
+ * - Story 39.4: PIN configuration for time extension
  *
  * NFR49: 44x44px minimum touch targets for toggle switches.
  * Uses React.CSSProperties inline styles per project pattern.
@@ -18,7 +19,8 @@
 
 import { useState, useCallback } from 'react'
 import { getFunctions, httpsCallable } from 'firebase/functions'
-import type { CaregiverPermissions } from '@fledgely/shared/contracts'
+import type { CaregiverPermissions, ExtensionLimitConfig } from '@fledgely/shared/contracts'
+import CaregiverPinEditor from './CaregiverPinEditor'
 
 interface CaregiverPermissionEditorProps {
   familyId: string
@@ -26,6 +28,10 @@ interface CaregiverPermissionEditorProps {
   caregiverName: string
   /** Current permissions (defaults to most restricted if not provided) */
   currentPermissions?: CaregiverPermissions
+  /** Whether PIN is already configured for this caregiver */
+  hasPinConfigured?: boolean
+  /** Current extension limits if PIN is configured */
+  currentExtensionLimits?: ExtensionLimitConfig
   onSuccess?: (permissions: CaregiverPermissions) => void
   onCancel?: () => void
 }
@@ -187,6 +193,70 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#991b1b',
     border: '1px solid #fecaca',
   },
+  pinSection: {
+    marginTop: '20px',
+    padding: '16px',
+    backgroundColor: '#f0f9ff',
+    borderRadius: '8px',
+    border: '1px solid #bae6fd',
+  },
+  pinSectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+  },
+  pinSectionTitle: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#0c4a6e',
+    margin: 0,
+  },
+  pinSectionDescription: {
+    fontSize: '12px',
+    color: '#0369a1',
+    margin: 0,
+    marginBottom: '12px',
+    lineHeight: 1.4,
+  },
+  pinButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '44px',
+    padding: '8px 16px',
+    fontSize: '14px',
+    fontWeight: 500,
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    backgroundColor: '#0284c7',
+    color: '#ffffff',
+    transition: 'background-color 0.2s ease',
+  },
+  pinStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    color: '#059669',
+    marginTop: '8px',
+  },
+  pinNotConfigured: {
+    color: '#d97706',
+  },
+  modalOverlay: {
+    position: 'fixed' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
 }
 
 /** Default permissions (most restricted per AC2) */
@@ -246,6 +316,8 @@ export default function CaregiverPermissionEditor({
   caregiverUid,
   caregiverName,
   currentPermissions,
+  hasPinConfigured = false,
+  currentExtensionLimits,
   onSuccess,
   onCancel,
 }: CaregiverPermissionEditorProps) {
@@ -255,6 +327,11 @@ export default function CaregiverPermissionEditor({
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  const [showPinEditor, setShowPinEditor] = useState(false)
+  const [pinConfigured, setPinConfigured] = useState(hasPinConfigured)
+  const [extensionLimits, setExtensionLimits] = useState<ExtensionLimitConfig | undefined>(
+    currentExtensionLimits
+  )
 
   const handleToggle = useCallback((permission: keyof CaregiverPermissions, value: boolean) => {
     setPermissions((prev) => ({
@@ -263,6 +340,12 @@ export default function CaregiverPermissionEditor({
     }))
     setHasChanges(true)
     setStatus(null) // Clear any previous status
+  }, [])
+
+  const handlePinSuccess = useCallback((limits: ExtensionLimitConfig) => {
+    setPinConfigured(true)
+    setExtensionLimits(limits)
+    setShowPinEditor(false)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -368,6 +451,74 @@ export default function CaregiverPermissionEditor({
           />
         </div>
       </div>
+
+      {/* PIN Configuration Section (Story 39.4) - Only shown when canExtendTime is true */}
+      {permissions.canExtendTime && (
+        <div style={styles.pinSection} data-testid="pin-section">
+          <div style={styles.pinSectionHeader}>
+            <p style={styles.pinSectionTitle}>PIN for Time Extensions</p>
+          </div>
+          <p style={styles.pinSectionDescription}>
+            {caregiverName} will need to enter this PIN to grant extra screen time.
+          </p>
+          <button
+            type="button"
+            style={styles.pinButton}
+            onClick={() => setShowPinEditor(true)}
+            data-testid="configure-pin-button"
+          >
+            {pinConfigured ? 'Update PIN' : 'Set PIN'}
+          </button>
+          <div
+            style={{
+              ...styles.pinStatus,
+              ...(pinConfigured ? {} : styles.pinNotConfigured),
+            }}
+            data-testid="pin-status"
+          >
+            {pinConfigured ? (
+              <>
+                <span aria-hidden="true">&#x2713;</span>
+                PIN configured
+                {extensionLimits && (
+                  <span>
+                    {' '}
+                    (max {extensionLimits.maxDurationMinutes}min,{' '}
+                    {extensionLimits.maxDailyExtensions}
+                    /day)
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span aria-hidden="true">&#x26A0;</span>
+                PIN required to extend time
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PIN Editor Modal */}
+      {showPinEditor && (
+        <div
+          style={styles.modalOverlay}
+          onClick={() => setShowPinEditor(false)}
+          data-testid="pin-editor-modal"
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <CaregiverPinEditor
+              familyId={familyId}
+              caregiverUid={caregiverUid}
+              caregiverName={caregiverName}
+              hasPinConfigured={pinConfigured}
+              currentLimits={extensionLimits}
+              onSuccess={handlePinSuccess}
+              onCancel={() => setShowPinEditor(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Buttons */}
       <div style={styles.buttonGroup}>
