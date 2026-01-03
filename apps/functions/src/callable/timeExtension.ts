@@ -21,9 +21,12 @@
 import { onCall, HttpsError, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { getFirestore } from 'firebase-admin/firestore'
-import { getMessaging } from 'firebase-admin/messaging'
 import { z } from 'zod'
 import * as logger from 'firebase-functions/logger'
+import {
+  sendExtensionRequestNotification,
+  sendExtensionResponseNotification,
+} from '../lib/notifications/extensionRequestNotification'
 
 /** Time extension reason options - Story 31.6 AC2 */
 const timeExtensionReasonSchema = z.enum([
@@ -230,8 +233,41 @@ export const requestTimeExtension = onRequest({ cors: true }, async (req, res) =
       reason,
     })
 
-    // AC3: Send push notification to parents
-    await sendRequestNotificationToParents(familyId, requestId, childName, reason, extensionMinutes)
+    // AC3: Send push notification to parents using Story 41.3 notification service
+    // Get current screen time for context
+    const screenTimeRef = db
+      .collection('families')
+      .doc(familyId)
+      .collection('children')
+      .doc(childId)
+      .collection('screenTime')
+      .doc(new Date().toISOString().split('T')[0])
+    const screenTimeDoc = await screenTimeRef.get()
+    const currentMinutes = screenTimeDoc.exists
+      ? (screenTimeDoc.data()?.totalMinutes as number) || 0
+      : 0
+
+    // Get time limit for context
+    const timeLimitsRef = db
+      .collection('families')
+      .doc(familyId)
+      .collection('timeLimits')
+      .doc(childId)
+    const timeLimitsDoc = await timeLimitsRef.get()
+    const allowedMinutes = timeLimitsDoc.exists
+      ? (timeLimitsDoc.data()?.dailyLimitMinutes as number) || 120
+      : 120
+
+    await sendExtensionRequestNotification({
+      requestId,
+      childId,
+      childName,
+      familyId,
+      minutesRequested: extensionMinutes,
+      reason: TIME_EXTENSION_REASON_LABELS[reason],
+      currentMinutes,
+      allowedMinutes,
+    })
 
     res.status(200).json({
       success: true,
@@ -248,92 +284,7 @@ export const requestTimeExtension = onRequest({ cors: true }, async (req, res) =
   }
 })
 
-/**
- * Send push notification to all parents in the family.
- * Story 31.6 AC3
- */
-async function sendRequestNotificationToParents(
-  familyId: string,
-  requestId: string,
-  childName: string,
-  reason: TimeExtensionReason,
-  extensionMinutes: number
-): Promise<void> {
-  const db = getFirestore()
-  const messaging = getMessaging()
-
-  try {
-    // Get family document to find guardians
-    const familyDoc = await db.collection('families').doc(familyId).get()
-    if (!familyDoc.exists) {
-      logger.warn('Family not found for notification', { familyId })
-      return
-    }
-
-    const familyData = familyDoc.data()
-    const guardians = familyData?.guardians || []
-
-    // Get FCM tokens for all guardians
-    const tokens: string[] = []
-    for (const guardian of guardians) {
-      const userDoc = await db.collection('users').doc(guardian.uid).get()
-      if (userDoc.exists) {
-        const userData = userDoc.data()
-        if (userData?.fcmToken) {
-          tokens.push(userData.fcmToken)
-        }
-      }
-    }
-
-    if (tokens.length === 0) {
-      logger.info('No FCM tokens found for family guardians', { familyId })
-      return
-    }
-
-    const reasonLabel = TIME_EXTENSION_REASON_LABELS[reason]
-
-    // Send multicast notification
-    const message = {
-      tokens,
-      notification: {
-        title: `${childName} requests more time`,
-        body: `Reason: ${reasonLabel} (${extensionMinutes} min)`,
-      },
-      data: {
-        type: 'time_extension_request',
-        requestId,
-        familyId,
-        childName,
-        reason,
-        extensionMinutes: String(extensionMinutes),
-      },
-      android: {
-        priority: 'high' as const,
-        notification: {
-          channelId: 'time_extension_requests',
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: 'default',
-            badge: 1,
-          },
-        },
-      },
-    }
-
-    const response = await messaging.sendEachForMulticast(message)
-    logger.info('Push notifications sent for time extension request', {
-      requestId,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
-    })
-  } catch (error) {
-    logger.error('Error sending push notification:', error)
-    // Don't throw - notification failure shouldn't block the request
-  }
-}
+// sendRequestNotificationToParents removed - now using sendExtensionRequestNotification from Story 41.3
 
 // =============================================================================
 // Respond to Time Extension Request (from parent)
@@ -427,6 +378,13 @@ export const respondToTimeExtension = onCall(async (request) => {
   if (approved) {
     await addTimeToChildLimit(familyId, requestData.childId, requestData.extensionMinutes)
   }
+
+  // Story 41.3: Send response notification to child
+  await sendExtensionResponseNotification(
+    requestData.childId as string,
+    approved,
+    approved ? (requestData.extensionMinutes as number) : undefined
+  )
 
   logger.info('Time extension request responded', {
     requestId,

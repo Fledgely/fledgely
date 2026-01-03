@@ -77,3 +77,28 @@ export {
   getUsersWithPendingDigest,
 } from './flagDigestService'
 export type { DigestType, FlagDigestQueueItem, ProcessDigestResult } from './flagDigestService'
+
+// Story 41.3: Time limit notifications - Parent service
+export {
+  sendTimeLimitWarningNotification,
+  sendLimitReachedNotification,
+} from './timeLimitNotificationService'
+export type { TimeLimitNotificationResult } from './timeLimitNotificationService'
+
+// Story 41.3: Extension request notifications
+export {
+  sendExtensionRequestNotification,
+  sendExtensionResponseNotification,
+} from './extensionRequestNotification'
+export type { ExtensionRequestNotificationResult } from './extensionRequestNotification'
+
+// Story 41.3: Child time limit notifications
+export {
+  sendChildTimeLimitWarning,
+  sendChildLimitReachedNotification,
+} from './childTimeLimitNotification'
+export type { ChildTimeLimitNotificationResult } from './childTimeLimitNotification'
+
+// Story 41.3: Time limit check integration
+export { checkTimeLimitsAndNotify } from './timeLimitCheck'
+export type { TimeLimitCheckResult } from './timeLimitCheck'

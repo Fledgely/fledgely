@@ -579,7 +579,7 @@ development_status:
   epic-41: in-progress
   41-1-notification-preferences-configuration: done
   41-2-flag-notifications: done
-  41-3-time-limit-notifications: backlog
+  41-3-time-limit-notifications: done
   41-4-device-sync-status-notifications: backlog
   41-5-new-login-notifications: backlog
   41-6-notification-delivery-channels: backlog

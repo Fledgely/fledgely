@@ -7651,3 +7651,32 @@ export {
   type MediumFlagsMode,
   type SyncThresholdHours,
 } from './notificationPreferences'
+
+// Story 41.3: Time Limit Notifications
+export {
+  TIME_LIMIT_NOTIFICATION_TYPES,
+  LIMIT_TYPES,
+  DEFAULT_WARNING_MINUTES,
+  timeLimitNotificationTypeSchema,
+  limitTypeSchema,
+  timeLimitNotificationEventSchema,
+  timeLimitNotificationContentSchema,
+  childTimeLimitNotificationPreferencesSchema,
+  extensionRequestNotificationParamsSchema,
+  timeLimitWarningParamsSchema,
+  limitReachedParamsSchema,
+  buildParentWarningContent,
+  buildParentLimitReachedContent,
+  buildExtensionRequestContent,
+  buildChildWarningContent,
+  buildChildLimitReachedContent,
+  formatMinutes,
+  type TimeLimitNotificationType,
+  type LimitType,
+  type TimeLimitNotificationEvent,
+  type TimeLimitNotificationContent,
+  type ChildTimeLimitNotificationPreferences,
+  type ExtensionRequestNotificationParams,
+  type TimeLimitWarningParams,
+  type LimitReachedParams,
+} from './timeLimitNotifications'
