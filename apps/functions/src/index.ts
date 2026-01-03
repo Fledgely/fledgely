@@ -217,3 +217,7 @@ export {
 } from './callable/sendLocationAbuseAlert'
 export { detectLocationAbuse } from './scheduled/detectLocationAbuse'
 export { autoDisableLocationForAbuse } from './scheduled/autoDisableLocationForAbuse'
+
+// Notification preferences (Story 41.1)
+export { getNotificationPreferences } from './callable/getNotificationPreferences'
+export { updateNotificationPreferences } from './callable/updateNotificationPreferences'

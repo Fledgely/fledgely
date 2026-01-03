@@ -7626,3 +7626,28 @@ export {
   type GuardianAccessCount,
   type AsymmetryResult,
 } from './locationAbuse'
+
+// Story 41.1: Notification Preferences Configuration
+export {
+  NOTIFICATION_DEFAULTS,
+  QUIET_HOURS_DEFAULTS,
+  SYNC_THRESHOLD_OPTIONS,
+  MEDIUM_FLAGS_MODE_OPTIONS,
+  mediumFlagsModeSchema,
+  syncThresholdHoursSchema,
+  parentNotificationPreferencesSchema,
+  notificationPreferencesUpdateSchema,
+  getNotificationPreferencesInputSchema,
+  updateNotificationPreferencesInputSchema,
+  createDefaultNotificationPreferences,
+  applyPreferencesUpdate,
+  isInQuietHours,
+  shouldSendNotification as shouldSendNotificationByPrefs,
+  getPreferencesDescription,
+  type ParentNotificationPreferences,
+  type NotificationPreferencesUpdate,
+  type GetNotificationPreferencesInput,
+  type UpdateNotificationPreferencesInput,
+  type MediumFlagsMode,
+  type SyncThresholdHours,
+} from './notificationPreferences'
