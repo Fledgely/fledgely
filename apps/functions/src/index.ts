@@ -207,3 +207,13 @@ export { getLocationTransitions } from './callable/getLocationTransitions'
 export { getChildLocationStatus } from './callable/getChildLocationStatus'
 export { getChildLocationHistory } from './callable/getChildLocationHistory'
 export { requestLocationDisable } from './callable/requestLocationDisable'
+
+// Location abuse prevention (Story 40.6)
+export { trackLocationAccess } from './callable/trackLocationAccess'
+export {
+  sendLocationAbuseAlert,
+  acknowledgeLocationAbuseAlert,
+  markResourcesViewed,
+} from './callable/sendLocationAbuseAlert'
+export { detectLocationAbuse } from './scheduled/detectLocationAbuse'
+export { autoDisableLocationForAbuse } from './scheduled/autoDisableLocationForAbuse'

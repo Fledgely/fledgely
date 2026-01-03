@@ -2143,3 +2143,43 @@ export {
   type ChildLocationHistoryItem,
   type GetChildLocationHistoryResponse,
 } from './contracts'
+
+// Location Abuse Prevention exports (Story 40.6)
+export {
+  // Constants
+  LOCATION_ABUSE_THRESHOLDS,
+  LOCATION_ABUSE_RESOURCES,
+  LOCATION_ABUSE_MESSAGES,
+  // Schemas
+  locationAbusePatternTypeSchema,
+  locationAccessTypeSchema,
+  locationAccessLogSchema,
+  trackLocationAccessInputSchema,
+  asymmetricCheckMetadataSchema,
+  frequentRuleChangeMetadataSchema,
+  crossCustodyRestrictionMetadataSchema,
+  locationAbuseMetadataSchema,
+  locationAbusePatternSchema,
+  locationAbuseAlertSchema,
+  sendLocationAbuseAlertInputSchema,
+  locationAbuseAlertResponseSchema,
+  locationAutoDisableSchema,
+  guardianAccessCountSchema,
+  asymmetryResultSchema,
+  // Types
+  type LocationAbusePatternType,
+  type LocationAccessType,
+  type LocationAccessLog,
+  type TrackLocationAccessInput,
+  type AsymmetricCheckMetadata,
+  type FrequentRuleChangeMetadata,
+  type CrossCustodyRestrictionMetadata,
+  type LocationAbuseMetadata,
+  type LocationAbusePattern,
+  type LocationAbuseAlert,
+  type SendLocationAbuseAlertInput,
+  type LocationAbuseAlertResponse,
+  type LocationAutoDisable,
+  type GuardianAccessCount,
+  type AsymmetryResult,
+} from './contracts'

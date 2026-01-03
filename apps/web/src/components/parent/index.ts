@@ -29,3 +29,9 @@ export { GuardianRemovalBlockedModal } from './GuardianRemovalBlockedModal'
 
 // Viewing Rate Alert Components (Story 3A.5)
 export { default as ViewingRateAlertBanner } from './ViewingRateAlertBanner'
+
+// Location Abuse Prevention Components (Story 40.6)
+export { LocationAbuseAlert } from './LocationAbuseAlert'
+export type { LocationAbuseAlertProps, LocationAbuseAlertData } from './LocationAbuseAlert'
+export { LocationAbuseResources } from './LocationAbuseResources'
+export type { LocationAbuseResourcesProps } from './LocationAbuseResources'
