@@ -1,11 +1,14 @@
 /**
- * RevokeAccessButton Component Tests - Story 19D.5
+ * RevokeAccessButton Component Tests - Story 19D.5, extended by Story 39.7
  *
  * Tests for the revoke access button with confirmation dialog.
  *
  * Story 19D.5 Acceptance Criteria:
  * - AC1: Parent clicks "Remove Access" in settings
  * - AC1: Revoke access within 5 minutes (NFR62) - immediate in practice
+ *
+ * Story 39.7 Acceptance Criteria:
+ * - AC6: Optional removal reason stored in audit log
  *
  * @vitest-environment jsdom
  */
@@ -20,6 +23,7 @@ describe('RevokeAccessButton', () => {
   const defaultProps = {
     caregiverName: 'Grandpa Joe',
     onRevoke: mockOnRevoke,
+    showReasonStep: false, // For backward compatibility in existing tests
   }
 
   beforeEach(() => {
@@ -294,6 +298,119 @@ describe('RevokeAccessButton', () => {
       fireEvent.keyDown(document, { key: 'Escape' })
 
       expect(screen.getByTestId('revoke-confirm-dialog')).toBeInTheDocument()
+    })
+  })
+
+  describe('Reason step (Story 39.7 AC6)', () => {
+    const propsWithReasonStep = {
+      ...defaultProps,
+      showReasonStep: true,
+    }
+
+    it('shows reason dialog when button clicked with showReasonStep', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+
+      expect(screen.getByTestId('revoke-reason-dialog')).toBeInTheDocument()
+      expect(screen.queryByTestId('revoke-confirm-dialog')).not.toBeInTheDocument()
+    })
+
+    it('shows RemovalReasonInput in reason dialog', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+
+      expect(screen.getByTestId('removal-reason-input')).toBeInTheDocument()
+    })
+
+    it('shows continue and cancel buttons in reason dialog', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+
+      expect(screen.getByTestId('reason-continue-button')).toBeInTheDocument()
+      expect(screen.getByTestId('reason-cancel-button')).toBeInTheDocument()
+    })
+
+    it('closes reason dialog when cancel clicked', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      expect(screen.getByTestId('revoke-reason-dialog')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('reason-cancel-button'))
+      expect(screen.queryByTestId('revoke-reason-dialog')).not.toBeInTheDocument()
+    })
+
+    it('moves to confirm dialog when continue clicked', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      fireEvent.click(screen.getByTestId('reason-continue-button'))
+
+      expect(screen.queryByTestId('revoke-reason-dialog')).not.toBeInTheDocument()
+      expect(screen.getByTestId('revoke-confirm-dialog')).toBeInTheDocument()
+    })
+
+    it('skips to confirm dialog when skip button clicked', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      fireEvent.click(screen.getByTestId('skip-button'))
+
+      expect(screen.queryByTestId('revoke-reason-dialog')).not.toBeInTheDocument()
+      expect(screen.getByTestId('revoke-confirm-dialog')).toBeInTheDocument()
+    })
+
+    it('passes reason to onRevoke when provided', async () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      fireEvent.change(screen.getByTestId('reason-textarea'), {
+        target: { value: 'Moving out of state' },
+      })
+      fireEvent.click(screen.getByTestId('reason-continue-button'))
+      fireEvent.click(screen.getByTestId('revoke-confirm-button'))
+
+      await waitFor(() => {
+        expect(mockOnRevoke).toHaveBeenCalledWith('Moving out of state')
+      })
+    })
+
+    it('passes undefined reason when skipped', async () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      fireEvent.click(screen.getByTestId('skip-button'))
+      fireEvent.click(screen.getByTestId('revoke-confirm-button'))
+
+      await waitFor(() => {
+        expect(mockOnRevoke).toHaveBeenCalledWith(undefined)
+      })
+    })
+
+    it('displays reason in confirmation dialog', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      fireEvent.change(screen.getByTestId('reason-textarea'), {
+        target: { value: 'Moving away' },
+      })
+      fireEvent.click(screen.getByTestId('reason-continue-button'))
+
+      expect(screen.getByText(/Moving away/)).toBeInTheDocument()
+    })
+
+    it('closes reason dialog when Escape pressed', () => {
+      render(<RevokeAccessButton {...propsWithReasonStep} />)
+
+      fireEvent.click(screen.getByTestId('revoke-access-button'))
+      expect(screen.getByTestId('revoke-reason-dialog')).toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(screen.queryByTestId('revoke-reason-dialog')).not.toBeInTheDocument()
     })
   })
 })

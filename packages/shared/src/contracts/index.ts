@@ -428,6 +428,55 @@ export const caregiverActivitySummarySchema = z.object({
 })
 export type CaregiverActivitySummary = z.infer<typeof caregiverActivitySummarySchema>
 
+/**
+ * Child notification type for caregiver removal.
+ * Story 39.7: Caregiver Removal - AC3
+ */
+export const childNotificationTypeSchema = z.enum(['caregiver_removed'])
+export type ChildNotificationType = z.infer<typeof childNotificationTypeSchema>
+
+/**
+ * Child notification schema.
+ * Story 39.7: Caregiver Removal - AC3
+ *
+ * Stored at families/{familyId}/childNotifications/{notificationId}
+ */
+export const childNotificationSchema = z.object({
+  /** Notification ID */
+  id: z.string(),
+  /** Notification type */
+  type: childNotificationTypeSchema,
+  /** Which children should see this notification */
+  childUids: z.array(z.string()),
+  /** Display message (child-friendly) */
+  message: z.string(),
+  /** Caregiver name for caregiver_removed type */
+  caregiverName: z.string().optional(),
+  /** When notification was created */
+  createdAt: z.date(),
+  /** UIDs of children who have read the notification */
+  readBy: z.array(z.string()).default([]),
+})
+export type ChildNotification = z.infer<typeof childNotificationSchema>
+
+/**
+ * Input for removing a caregiver with optional reason and child notification.
+ * Story 39.7: Caregiver Removal - AC1, AC3, AC6
+ */
+export const removeCaregiverWithNotificationInputSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Caregiver UID to remove */
+  caregiverUid: z.string(),
+  /** Caregiver email (for invitation cleanup) */
+  caregiverEmail: z.string().email(),
+  /** Optional reason for removal (stored in audit log, not shared) */
+  reason: z.string().max(500).optional(),
+})
+export type RemoveCaregiverWithNotificationInput = z.infer<
+  typeof removeCaregiverWithNotificationInputSchema
+>
+
 export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),

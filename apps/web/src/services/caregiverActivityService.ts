@@ -2,12 +2,15 @@
  * Caregiver Activity Service
  *
  * Story 39.6: Caregiver Action Logging - AC1, AC2, AC3, AC5
+ * Story 39.7: Caregiver Removal - AC4 (Historical Log Preservation)
+ *
  * Provides functions to fetch, aggregate, and subscribe to caregiver activity logs.
  *
  * Used for:
  * - Parent dashboard showing "Grandma: 2 time extensions, 1 flag viewed"
  * - Child transparency view of caregiver actions
  * - Real-time activity updates
+ * - Anonymizing removed caregivers in historical logs
  */
 
 import {
@@ -28,6 +31,37 @@ import type {
   CaregiverActionCounts,
   CaregiverActivitySummary,
 } from '@fledgely/shared'
+
+/**
+ * Default display name for removed caregivers.
+ * Story 39.7: AC4 - Historical Log Preservation
+ */
+export const FORMER_CAREGIVER_NAME = 'Former Caregiver'
+
+/**
+ * Anonymize caregiver name if they have been removed.
+ *
+ * Story 39.7: AC4 - Historical Log Preservation
+ * - Caregiver's past actions remain visible
+ * - Caregiver name anonymized to "Former Caregiver" in future queries
+ * - Original caregiver UID preserved for data integrity
+ * - Anonymization applies only to removed caregiver's display name
+ *
+ * @param caregiverUid - The caregiver's UID
+ * @param caregiverName - The caregiver's display name
+ * @param removedCaregivers - Set of UIDs for removed caregivers
+ * @returns Original name or "Former Caregiver" if removed
+ */
+export function anonymizeCaregiverName(
+  caregiverUid: string,
+  caregiverName: string | undefined,
+  removedCaregivers: Set<string>
+): string {
+  if (removedCaregivers.has(caregiverUid)) {
+    return FORMER_CAREGIVER_NAME
+  }
+  return caregiverName ?? 'Unknown Caregiver'
+}
 
 /**
  * Parameters for querying caregiver activity logs

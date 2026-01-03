@@ -46,3 +46,7 @@ export { CaregiverSummaryCard } from './CaregiverSummaryCard'
 export type { CaregiverSummaryCardProps } from './CaregiverSummaryCard'
 export { ChildCaregiverActivityView } from './ChildCaregiverActivityView'
 export type { ChildCaregiverActivityViewProps } from './ChildCaregiverActivityView'
+
+// Story 39.7: Caregiver Removal
+export { RemovalReasonInput } from './RemovalReasonInput'
+export type { RemovalReasonInputProps } from './RemovalReasonInput'

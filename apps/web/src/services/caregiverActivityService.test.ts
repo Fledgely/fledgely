@@ -2,12 +2,14 @@
  * Tests for Caregiver Activity Service
  *
  * Story 39.6: Caregiver Action Logging - AC1, AC2, AC3, AC4, AC5
+ * Story 39.7: Caregiver Removal - AC4 (Historical Log Preservation)
  *
  * Tests cover:
  * - Formatting functions (pure functions, no Firebase needed)
  * - Activity log fetching (with mocks)
  * - Summary aggregation (with mocks)
  * - Child-friendly formatting
+ * - Caregiver name anonymization for removed caregivers
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -43,6 +45,8 @@ import {
   formatActivityForChild,
   getActivityForChild,
   getWeeklyActivitySummaries,
+  anonymizeCaregiverName,
+  FORMER_CAREGIVER_NAME,
 } from './caregiverActivityService'
 
 describe('caregiverActivityService', () => {
@@ -443,6 +447,62 @@ describe('caregiverActivityService', () => {
 
       expect(summaries).toBeDefined()
       expect(Array.isArray(summaries)).toBe(true)
+    })
+  })
+
+  describe('anonymizeCaregiverName (Story 39.7 AC4)', () => {
+    it('should return original name when caregiver is not removed', () => {
+      const removedCaregivers = new Set<string>()
+
+      const result = anonymizeCaregiverName('caregiver-1', 'Grandma', removedCaregivers)
+
+      expect(result).toBe('Grandma')
+    })
+
+    it('should return "Former Caregiver" when caregiver is removed', () => {
+      const removedCaregivers = new Set(['caregiver-1'])
+
+      const result = anonymizeCaregiverName('caregiver-1', 'Grandma', removedCaregivers)
+
+      expect(result).toBe(FORMER_CAREGIVER_NAME)
+    })
+
+    it('should not anonymize other caregivers when one is removed', () => {
+      const removedCaregivers = new Set(['caregiver-1'])
+
+      const result = anonymizeCaregiverName('caregiver-2', 'Grandpa', removedCaregivers)
+
+      expect(result).toBe('Grandpa')
+    })
+
+    it('should return "Unknown Caregiver" when name is undefined and not removed', () => {
+      const removedCaregivers = new Set<string>()
+
+      const result = anonymizeCaregiverName('caregiver-1', undefined, removedCaregivers)
+
+      expect(result).toBe('Unknown Caregiver')
+    })
+
+    it('should return "Former Caregiver" when name is undefined but removed', () => {
+      const removedCaregivers = new Set(['caregiver-1'])
+
+      const result = anonymizeCaregiverName('caregiver-1', undefined, removedCaregivers)
+
+      expect(result).toBe(FORMER_CAREGIVER_NAME)
+    })
+
+    it('should handle multiple removed caregivers', () => {
+      const removedCaregivers = new Set(['caregiver-1', 'caregiver-2', 'caregiver-3'])
+
+      expect(anonymizeCaregiverName('caregiver-1', 'Grandma', removedCaregivers)).toBe(
+        FORMER_CAREGIVER_NAME
+      )
+      expect(anonymizeCaregiverName('caregiver-2', 'Grandpa', removedCaregivers)).toBe(
+        FORMER_CAREGIVER_NAME
+      )
+      expect(anonymizeCaregiverName('caregiver-4', 'Aunt Sarah', removedCaregivers)).toBe(
+        'Aunt Sarah'
+      )
     })
   })
 })

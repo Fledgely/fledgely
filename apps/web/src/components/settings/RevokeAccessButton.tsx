@@ -1,21 +1,26 @@
 'use client'
 
 /**
- * RevokeAccessButton Component - Story 19D.5
+ * RevokeAccessButton Component - Story 19D.5, extended by Story 39.7
  *
  * Button for parents to revoke caregiver access with confirmation.
  *
- * Acceptance Criteria:
+ * Acceptance Criteria (Story 19D.5):
  * - AC1: Parent clicks "Remove Access" in settings
  * - AC1: Revoke access within 5 minutes (NFR62) - immediate in practice
  *
+ * Acceptance Criteria (Story 39.7):
+ * - AC6: Optional removal reason stored in audit log
+ *
  * UI/UX Requirements:
  * - Prominent "Remove Access" button
- * - Confirmation dialog to prevent accidents
+ * - Optional reason input before confirmation
+ * - "Skip & Remove Now" for immediate removal
  * - Clear feedback that revocation completed
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { RemovalReasonInput } from '../caregiver/RemovalReasonInput'
 
 /**
  * Props for RevokeAccessButton component
@@ -23,48 +28,77 @@ import { useState, useEffect, useCallback } from 'react'
 export interface RevokeAccessButtonProps {
   /** Caregiver's display name for confirmation */
   caregiverName: string
-  /** Callback when revocation is confirmed */
-  onRevoke: () => Promise<void>
+  /** Callback when revocation is confirmed (with optional reason) */
+  onRevoke: (reason?: string) => Promise<void>
   /** Whether revocation is in progress */
   loading?: boolean
   /** Whether the button should be disabled */
   disabled?: boolean
+  /** Whether to show the reason input step (default: true) */
+  showReasonStep?: boolean
 }
 
 /**
  * RevokeAccessButton - Button with confirmation for revoking caregiver access
  *
  * Story 19D.5: AC1 - "Remove Access" button
+ * Story 39.7: AC6 - Optional removal reason
  */
 export function RevokeAccessButton({
   caregiverName,
   onRevoke,
   loading = false,
   disabled = false,
+  showReasonStep = true,
 }: RevokeAccessButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showReason, setShowReason] = useState(false)
+  const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const handleRevoke = async () => {
     setError(null)
     try {
-      await onRevoke()
+      await onRevoke(reason || undefined)
       setShowConfirm(false)
+      setShowReason(false)
+      setReason('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to revoke access')
     }
   }
 
+  const handleInitialClick = () => {
+    if (showReasonStep) {
+      setShowReason(true)
+    } else {
+      setShowConfirm(true)
+    }
+  }
+
+  const handleContinueToConfirm = () => {
+    setShowReason(false)
+    setShowConfirm(true)
+  }
+
+  const handleSkipReason = () => {
+    setReason('')
+    setShowReason(false)
+    setShowConfirm(true)
+  }
+
   const closeDialog = useCallback(() => {
     if (!loading) {
       setShowConfirm(false)
+      setShowReason(false)
+      setReason('')
       setError(null)
     }
   }, [loading])
 
   // Handle Escape key to close dialog (Issue #6: Keyboard navigation)
   useEffect(() => {
-    if (!showConfirm) return
+    if (!showConfirm && !showReason) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -74,7 +108,7 @@ export function RevokeAccessButton({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [showConfirm, closeDialog])
+  }, [showConfirm, showReason, closeDialog])
 
   // Main button styles (Issue #7: 48px min for NFR49 accessibility)
   const buttonStyles: React.CSSProperties = {
@@ -179,7 +213,7 @@ export function RevokeAccessButton({
       {/* Main revoke button */}
       <button
         style={buttonStyles}
-        onClick={() => setShowConfirm(true)}
+        onClick={handleInitialClick}
         disabled={disabled || loading}
         aria-label={`Remove ${caregiverName}'s access`}
         data-testid="revoke-access-button"
@@ -187,6 +221,47 @@ export function RevokeAccessButton({
         <span aria-hidden="true">🚫</span>
         Remove Access
       </button>
+
+      {/* Reason input dialog - Story 39.7 AC6 */}
+      {showReason && (
+        <div
+          style={overlayStyles}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reason-dialog-heading"
+          data-testid="revoke-reason-dialog"
+        >
+          <div style={dialogStyles}>
+            <h2 id="reason-dialog-heading" style={headingStyles}>
+              Remove {caregiverName}?
+            </h2>
+            <RemovalReasonInput
+              value={reason}
+              onChange={setReason}
+              onSkip={handleSkipReason}
+              disabled={loading}
+            />
+            <div style={buttonGroupStyles}>
+              <button
+                style={cancelButtonStyles}
+                onClick={closeDialog}
+                disabled={loading}
+                data-testid="reason-cancel-button"
+              >
+                Cancel
+              </button>
+              <button
+                style={confirmButtonStyles}
+                onClick={handleContinueToConfirm}
+                disabled={loading}
+                data-testid="reason-continue-button"
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation dialog */}
       {showConfirm && (
@@ -204,6 +279,13 @@ export function RevokeAccessButton({
             <p style={messageStyles}>
               Are you sure you want to remove <strong>{caregiverName}</strong>&apos;s access? They
               will no longer be able to view your family&apos;s status.
+              {reason && (
+                <>
+                  <br />
+                  <br />
+                  <em>Your reason: &ldquo;{reason}&rdquo;</em>
+                </>
+              )}
             </p>
 
             {error && (

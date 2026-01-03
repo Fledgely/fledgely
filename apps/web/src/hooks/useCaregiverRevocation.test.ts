@@ -1,13 +1,16 @@
 /**
- * useCaregiverRevocation Hook Tests - Story 19D.5
+ * useCaregiverRevocation Hook Tests - Story 19D.5, extended by Story 39.7
  *
  * Tests for the caregiver revocation hook.
  *
  * Story 19D.5 Acceptance Criteria:
  * - AC1: Revoke access within 5 minutes (NFR62)
- * - AC2: Terminate caregiver's current session
- * - AC5: Revocation logged in audit trail
+ * - AC5: Revocation logged in audit trail (via cloud function)
  * - AC6: Parent can re-invite same caregiver later
+ *
+ * Story 39.7 Acceptance Criteria:
+ * - AC3: Child notification when caregiver removed (via cloud function)
+ * - AC6: Optional removal reason stored in audit log
  *
  * @vitest-environment jsdom
  */
@@ -15,33 +18,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCaregiverRevocation } from './useCaregiverRevocation'
-import * as firebase from 'firebase/firestore'
 
-// Mock Firebase Firestore
-vi.mock('firebase/firestore', async () => {
-  const actual = await vi.importActual('firebase/firestore')
-  return {
-    ...actual,
-    doc: vi.fn(),
-    getDoc: vi.fn(),
-    updateDoc: vi.fn(),
-    deleteDoc: vi.fn(),
-    runTransaction: vi.fn(),
-    arrayRemove: vi.fn((item) => ({ _type: 'arrayRemove', item })),
-  }
-})
+// Mock Firebase Functions
+const mockHttpsCallable = vi.fn()
 
-// Mock Firebase initialization
-vi.mock('../lib/firebase', () => ({
-  getFirestoreDb: vi.fn(() => ({})),
+vi.mock('firebase/functions', () => ({
+  getFunctions: vi.fn(() => ({})),
+  httpsCallable: (...args: unknown[]) => mockHttpsCallable(...args),
 }))
-
-// Mock audit service
-vi.mock('../services/dataViewAuditService', () => ({
-  logDataViewNonBlocking: vi.fn(),
-}))
-
-import { logDataViewNonBlocking } from '../services/dataViewAuditService'
 
 describe('useCaregiverRevocation', () => {
   const mockFamilyId = 'family-123'
@@ -49,42 +33,19 @@ describe('useCaregiverRevocation', () => {
   const mockCaregiverId = 'caregiver-789'
   const mockCaregiverEmail = 'grandpa@example.com'
 
-  const mockCaregiverObject = {
-    uid: mockCaregiverId,
-    email: mockCaregiverEmail,
-    displayName: 'Grandpa Joe',
-    role: 'viewer',
-    childIds: ['child-1'],
-    addedAt: new Date(),
-    addedByUid: mockParentUid,
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Setup default mock for runTransaction (success case)
-    vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-      const mockTransaction = {
-        get: vi.fn().mockResolvedValue({
-          exists: () => true,
-          data: () => ({
-            guardianUids: [mockParentUid],
-            caregivers: [mockCaregiverObject],
-          }),
-        }),
-        update: vi.fn(),
-      }
-      return callback(mockTransaction as any)
-    })
-
-    // Setup default mock for getDoc (for invitation lookup)
-    vi.mocked(firebase.getDoc).mockResolvedValue({
-      exists: () => false,
-      data: () => null,
-    } as any)
-
-    // Setup default mock for deleteDoc (success)
-    vi.mocked(firebase.deleteDoc).mockResolvedValue(undefined)
+    // Setup default mock for successful cloud function call
+    mockHttpsCallable.mockReturnValue(
+      vi.fn().mockResolvedValue({
+        data: {
+          success: true,
+          notificationId: 'notification-123',
+          message: 'Grandpa Joe has been removed and children notified',
+        },
+      })
+    )
   })
 
   afterEach(() => {
@@ -115,30 +76,20 @@ describe('useCaregiverRevocation', () => {
     it('successfully revokes caregiver access', async () => {
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(true)
+      expect(revocationResult!.success).toBe(true)
       expect(result.current.error).toBeNull()
     })
 
-    it('removes caregiver from family document via transaction', async () => {
-      const mockUpdate = vi.fn()
-      vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-        const mockTransaction = {
-          get: vi.fn().mockResolvedValue({
-            exists: () => true,
-            data: () => ({
-              guardianUids: [mockParentUid],
-              caregivers: [mockCaregiverObject],
-            }),
-          }),
-          update: mockUpdate,
-        }
-        return callback(mockTransaction as any)
+    it('calls cloud function with correct parameters', async () => {
+      const mockCallableFn = vi.fn().mockResolvedValue({
+        data: { success: true, notificationId: 'notif-1', message: 'Removed' },
       })
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
@@ -146,39 +97,31 @@ describe('useCaregiverRevocation', () => {
         await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(mockUpdate).toHaveBeenCalled()
-      expect(firebase.arrayRemove).toHaveBeenCalledWith(mockCaregiverObject)
-    })
-
-    it('attempts to delete invitation document when it exists', async () => {
-      // getDoc is now only used for invitation lookup (transaction.get is used for family)
-      vi.mocked(firebase.getDoc).mockResolvedValue({
-        exists: () => true,
-        data: () => ({}),
-      } as any)
-
-      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
-
-      await act(async () => {
-        await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
+      expect(mockHttpsCallable).toHaveBeenCalledWith(
+        expect.anything(),
+        'removeCaregiverWithNotification'
+      )
+      expect(mockCallableFn).toHaveBeenCalledWith({
+        familyId: mockFamilyId,
+        caregiverUid: mockCaregiverId,
+        caregiverEmail: mockCaregiverEmail,
+        reason: undefined,
       })
-
-      // deleteDoc should be called for the invitation
-      expect(firebase.deleteDoc).toHaveBeenCalled()
     })
 
     it('sets loading to true during revocation', async () => {
-      // Create a controllable promise for runTransaction
-      let resolveTransaction: ((value: unknown) => void) | undefined
-      const transactionPromise = new Promise((resolve) => {
-        resolveTransaction = resolve
+      // Create a controllable promise
+      let resolvePromise: ((value: unknown) => void) | undefined
+      const callablePromise = new Promise((resolve) => {
+        resolvePromise = resolve
       })
-      vi.mocked(firebase.runTransaction).mockReturnValue(transactionPromise as any)
+      const mockCallableFn = vi.fn().mockReturnValue(callablePromise)
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
       // Start revocation (don't await)
-      let revokePromise: Promise<any>
+      let revokePromise: Promise<unknown>
       act(() => {
         revokePromise = result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
@@ -193,7 +136,7 @@ describe('useCaregiverRevocation', () => {
 
       // Resolve and wait for completion
       await act(async () => {
-        resolveTransaction?.(mockCaregiverObject)
+        resolvePromise?.({ data: { success: true, notificationId: 'n', message: 'm' } })
         await revokePromise
       })
 
@@ -201,157 +144,123 @@ describe('useCaregiverRevocation', () => {
     })
   })
 
-  describe('Audit logging (AC5)', () => {
-    it('logs revocation to audit trail', async () => {
+  describe('Cloud function integration (AC5, Story 39.7 AC3)', () => {
+    it('calls removeCaregiverWithNotification cloud function', async () => {
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
       await act(async () => {
         await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(logDataViewNonBlocking).toHaveBeenCalledWith({
-        viewerUid: mockParentUid,
-        childId: null,
-        familyId: mockFamilyId,
-        dataType: 'caregiver_revoked',
-        metadata: {
-          action: 'revoke',
-          revokedCaregiverId: mockCaregiverId,
-          revokedCaregiverEmail: mockCaregiverEmail,
-        },
-      })
+      expect(mockHttpsCallable).toHaveBeenCalledWith(
+        expect.anything(),
+        'removeCaregiverWithNotification'
+      )
     })
   })
 
   describe('Error handling', () => {
     it('returns error when family not found', async () => {
-      vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-        const mockTransaction = {
-          get: vi.fn().mockResolvedValue({
-            exists: () => false,
-            data: () => null,
-          }),
-          update: vi.fn(),
-        }
-        return callback(mockTransaction as any)
-      })
+      const mockCallableFn = vi.fn().mockRejectedValue(new Error('Family not found'))
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('Family not found')
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Family not found')
       expect(result.current.error).toBe('Family not found')
     })
 
     it('returns error when caregiver not in family', async () => {
-      vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-        const mockTransaction = {
-          get: vi.fn().mockResolvedValue({
-            exists: () => true,
-            data: () => ({
-              guardianUids: [mockParentUid],
-              caregivers: [], // Empty - caregiver not found
-            }),
-          }),
-          update: vi.fn(),
-        }
-        return callback(mockTransaction as any)
-      })
+      const mockCallableFn = vi.fn().mockRejectedValue(new Error('Caregiver not found in family'))
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('Caregiver not found in family')
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Caregiver not found in family')
     })
 
     it('returns error when caller is not a guardian', async () => {
-      vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-        const mockTransaction = {
-          get: vi.fn().mockResolvedValue({
-            exists: () => true,
-            data: () => ({
-              guardianUids: ['other-parent-id'], // Caller not in list
-              caregivers: [mockCaregiverObject],
-            }),
-          }),
-          update: vi.fn(),
-        }
-        return callback(mockTransaction as any)
-      })
+      const mockCallableFn = vi
+        .fn()
+        .mockRejectedValue(new Error('Only family guardians can remove caregivers'))
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('Only family guardians can revoke caregiver access')
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Only family guardians can remove caregivers')
     })
 
     it('returns error when no family ID', async () => {
       const { result } = renderHook(() => useCaregiverRevocation(null, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('No family ID provided')
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('No family ID provided')
     })
 
-    it('returns error when not authenticated', async () => {
-      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, null))
-
-      let revocationResult: any
-      await act(async () => {
-        revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
-      })
-
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('Not authenticated')
-    })
-
-    it('handles Firestore errors gracefully', async () => {
-      vi.mocked(firebase.runTransaction).mockRejectedValue(new Error('Firestore error'))
+    it('handles cloud function errors gracefully', async () => {
+      const mockCallableFn = vi.fn().mockRejectedValue(new Error('Network error'))
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
-      let revocationResult: any
+      let revocationResult: { success: boolean; error?: string }
       await act(async () => {
         revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
       })
 
-      expect(revocationResult.success).toBe(false)
-      expect(revocationResult.error).toBe('Firestore error')
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Network error')
       expect(result.current.loading).toBe(false)
+    })
+
+    it('extracts clean error message from Firebase error format', async () => {
+      // Firebase HttpsError format with colon separator
+      const mockCallableFn = vi
+        .fn()
+        .mockRejectedValue(
+          new Error('permission-denied: Only family guardians can remove caregivers')
+        )
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
+
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      let revocationResult: { success: boolean; error?: string }
+      await act(async () => {
+        revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
+      })
+
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Only family guardians can remove caregivers')
     })
   })
 
   describe('clearError', () => {
     it('clears error state', async () => {
-      vi.mocked(firebase.runTransaction).mockImplementation(async (_db, callback) => {
-        const mockTransaction = {
-          get: vi.fn().mockResolvedValue({
-            exists: () => false,
-            data: () => null,
-          }),
-          update: vi.fn(),
-        }
-        return callback(mockTransaction as any)
-      })
+      const mockCallableFn = vi.fn().mockRejectedValue(new Error('Family not found'))
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
 
       const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
 
@@ -368,6 +277,119 @@ describe('useCaregiverRevocation', () => {
       })
 
       expect(result.current.error).toBeNull()
+    })
+  })
+
+  describe('Removal reason (Story 39.7 AC6)', () => {
+    it('passes reason to cloud function when provided', async () => {
+      const mockCallableFn = vi.fn().mockResolvedValue({
+        data: { success: true, notificationId: 'notif-1', message: 'Removed' },
+      })
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
+
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      await act(async () => {
+        await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail, {
+          reason: 'Moving out of state',
+        })
+      })
+
+      expect(mockCallableFn).toHaveBeenCalledWith({
+        familyId: mockFamilyId,
+        caregiverUid: mockCaregiverId,
+        caregiverEmail: mockCaregiverEmail,
+        reason: 'Moving out of state',
+      })
+    })
+
+    it('passes undefined reason when not provided', async () => {
+      const mockCallableFn = vi.fn().mockResolvedValue({
+        data: { success: true, notificationId: 'notif-1', message: 'Removed' },
+      })
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
+
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      await act(async () => {
+        await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
+      })
+
+      expect(mockCallableFn).toHaveBeenCalledWith({
+        familyId: mockFamilyId,
+        caregiverUid: mockCaregiverId,
+        caregiverEmail: mockCaregiverEmail,
+        reason: undefined,
+      })
+    })
+
+    it('passes empty string reason when provided as empty', async () => {
+      const mockCallableFn = vi.fn().mockResolvedValue({
+        data: { success: true, notificationId: 'notif-1', message: 'Removed' },
+      })
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
+
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      await act(async () => {
+        await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail, {
+          reason: '',
+        })
+      })
+
+      expect(mockCallableFn).toHaveBeenCalledWith({
+        familyId: mockFamilyId,
+        caregiverUid: mockCaregiverId,
+        caregiverEmail: mockCaregiverEmail,
+        reason: '',
+      })
+    })
+
+    it('revocation succeeds with reason provided', async () => {
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      let revocationResult: { success: boolean; error?: string }
+      await act(async () => {
+        revocationResult = await result.current.revokeCaregiver(
+          mockCaregiverId,
+          mockCaregiverEmail,
+          {
+            reason: 'No longer needed',
+          }
+        )
+      })
+
+      expect(revocationResult!.success).toBe(true)
+    })
+
+    it('maintains backward compatibility without options', async () => {
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      let revocationResult: { success: boolean; error?: string }
+      await act(async () => {
+        revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
+      })
+
+      expect(revocationResult!.success).toBe(true)
+    })
+  })
+
+  describe('Response handling', () => {
+    it('handles cloud function returning success: false', async () => {
+      const mockCallableFn = vi.fn().mockResolvedValue({
+        data: { success: false, notificationId: '', message: '' },
+      })
+      mockHttpsCallable.mockReturnValue(mockCallableFn)
+
+      const { result } = renderHook(() => useCaregiverRevocation(mockFamilyId, mockParentUid))
+
+      let revocationResult: { success: boolean; error?: string }
+      await act(async () => {
+        revocationResult = await result.current.revokeCaregiver(mockCaregiverId, mockCaregiverEmail)
+      })
+
+      expect(revocationResult!.success).toBe(false)
+      expect(revocationResult!.error).toBe('Failed to remove caregiver')
     })
   })
 })

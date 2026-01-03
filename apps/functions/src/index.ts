@@ -78,6 +78,7 @@ export { setCaregiverPin } from './callable/setCaregiverPin' // Story 39.4
 export { approveExtensionWithPin } from './callable/approveExtensionWithPin' // Story 39.4
 export { logCaregiverFlagView } from './callable/logCaregiverFlagView' // Story 39.5
 export { markFlagReviewedByCaregiver } from './callable/markFlagReviewedByCaregiver' // Story 39.5
+export { removeCaregiverWithNotification } from './callable/removeCaregiverWithNotification' // Story 39.7
 
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
