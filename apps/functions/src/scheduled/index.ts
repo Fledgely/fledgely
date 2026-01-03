@@ -17,3 +17,4 @@ export { generateHealthCheckIns } from './generateHealthCheckIns'
 export { sendCheckInReminders } from './sendCheckInReminders'
 export { syncCalendarEvents } from './syncCalendarEvents'
 export { processTemporaryAccessExpiry } from './processTemporaryAccessExpiry' // Story 39.3
+export { sendSafeEscapeNotifications } from './sendSafeEscapeNotifications' // Story 40.3

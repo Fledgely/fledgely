@@ -7514,3 +7514,26 @@ export {
   type DeleteLocationRuleInput,
   type EffectiveLocationRule,
 } from './locationRules'
+
+// Story 40.3: Fleeing Mode - Safe Escape
+export {
+  SAFE_ESCAPE_SILENT_PERIOD_MS,
+  SAFE_ESCAPE_SILENT_PERIOD_HOURS,
+  SAFE_ESCAPE_NOTIFICATION_MESSAGE,
+  SAFE_ESCAPE_CHILD_MESSAGES,
+  SAFE_ESCAPE_ADULT_MESSAGES,
+  safeEscapeActivationSchema,
+  activateSafeEscapeInputSchema,
+  activateSafeEscapeResponseSchema,
+  reenableSafeEscapeInputSchema,
+  reenableSafeEscapeResponseSchema,
+  safeEscapeStatusSchema,
+  calculateHoursUntilNotification,
+  shouldSendNotification,
+  type SafeEscapeActivation,
+  type ActivateSafeEscapeInput,
+  type ActivateSafeEscapeResponse,
+  type ReenableSafeEscapeInput,
+  type ReenableSafeEscapeResponse,
+  type SafeEscapeStatus,
+} from './safeEscape'

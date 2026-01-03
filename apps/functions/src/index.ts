@@ -93,6 +93,10 @@ export {
 } from './callable/manageLocationZone'
 export { setLocationRule, deleteLocationRule } from './callable/manageLocationRule'
 
+// Safe Escape callable functions (Story 40.3)
+export { activateSafeEscape } from './callable/activateSafeEscape'
+export { reenableSafeEscape } from './callable/reenableSafeEscape'
+
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'
 
@@ -117,6 +121,7 @@ export {
   sendCheckInReminders,
   syncCalendarEvents,
   processTemporaryAccessExpiry, // Story 39.3
+  sendSafeEscapeNotifications, // Story 40.3
 } from './scheduled'
 export { cleanupStealthQueue } from './scheduled/cleanupStealthQueue'
 export { checkAnnotationDeadlines } from './scheduled/checkAnnotationDeadlines' // Story 23.3

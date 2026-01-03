@@ -2056,3 +2056,30 @@ export {
   type SetLocationRuleResponse,
   type DeleteLocationRuleResponse,
 } from './contracts'
+
+// Safe Escape exports (Story 40.3)
+export {
+  // Constants
+  SAFE_ESCAPE_SILENT_PERIOD_MS,
+  SAFE_ESCAPE_SILENT_PERIOD_HOURS,
+  SAFE_ESCAPE_NOTIFICATION_MESSAGE,
+  SAFE_ESCAPE_CHILD_MESSAGES,
+  SAFE_ESCAPE_ADULT_MESSAGES,
+  // Schemas
+  safeEscapeActivationSchema,
+  activateSafeEscapeInputSchema,
+  activateSafeEscapeResponseSchema,
+  reenableSafeEscapeInputSchema,
+  reenableSafeEscapeResponseSchema,
+  safeEscapeStatusSchema,
+  // Utilities
+  calculateHoursUntilNotification,
+  shouldSendNotification,
+  // Types
+  type SafeEscapeActivation,
+  type ActivateSafeEscapeInput,
+  type ActivateSafeEscapeResponse,
+  type ReenableSafeEscapeInput,
+  type ReenableSafeEscapeResponse,
+  type SafeEscapeStatus,
+} from './contracts'
