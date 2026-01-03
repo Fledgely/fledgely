@@ -269,6 +269,84 @@ export const familyCaregiverWithPinSchema = familyCaregiverSchema.extend({
 })
 export type FamilyCaregiverWithPin = z.infer<typeof familyCaregiverWithPinSchema>
 
+// ============================================
+// Story 39.5: Caregiver Flag Viewing
+// ============================================
+
+/**
+ * Caregiver flag view action type.
+ * Story 39.5: Tracks what action caregiver took when viewing flag
+ */
+export const caregiverFlagViewActionSchema = z.enum(['viewed', 'marked_reviewed'])
+export type CaregiverFlagViewAction = z.infer<typeof caregiverFlagViewActionSchema>
+
+/**
+ * Caregiver flag view log schema.
+ * Story 39.5: AC4 - Flag viewing audit log
+ * Stored at: /families/{familyId}/caregiverFlagViewLogs/{logId}
+ */
+export const caregiverFlagViewLogSchema = z.object({
+  /** Unique log identifier */
+  id: z.string(),
+  /** Family ID */
+  familyId: z.string(),
+  /** UID of caregiver who viewed the flag */
+  caregiverUid: z.string(),
+  /** Display name of caregiver */
+  caregiverName: z.string(),
+  /** Flag ID that was viewed */
+  flagId: z.string(),
+  /** UID of child whose flag was viewed */
+  childUid: z.string(),
+  /** Display name of child */
+  childName: z.string(),
+  /** Action taken: viewed or marked_reviewed */
+  action: caregiverFlagViewActionSchema,
+  /** Flag category for display without re-fetching */
+  flagCategory: z.string(),
+  /** Flag severity for display without re-fetching */
+  flagSeverity: z.string(),
+  /** When the view/action occurred */
+  createdAt: z.date(),
+})
+export type CaregiverFlagViewLog = z.infer<typeof caregiverFlagViewLogSchema>
+
+/**
+ * Log caregiver flag view input schema.
+ * Story 39.5: Cloud function input for logging flag views
+ */
+export const logCaregiverFlagViewInputSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Flag ID being viewed */
+  flagId: z.string(),
+  /** Child UID whose flag is being viewed */
+  childUid: z.string(),
+  /** Action: viewed or marked_reviewed */
+  action: caregiverFlagViewActionSchema,
+  /** Flag category (for logging without re-fetch) */
+  flagCategory: z.string(),
+  /** Flag severity (for logging without re-fetch) */
+  flagSeverity: z.string(),
+})
+export type LogCaregiverFlagViewInput = z.infer<typeof logCaregiverFlagViewInputSchema>
+
+/**
+ * Mark flag reviewed by caregiver input schema.
+ * Story 39.5: Cloud function input for marking flag as reviewed
+ */
+export const markFlagReviewedByCaregiverInputSchema = z.object({
+  /** Family ID */
+  familyId: z.string(),
+  /** Flag ID to mark as reviewed */
+  flagId: z.string(),
+  /** Child UID whose flag this is */
+  childUid: z.string(),
+})
+export type MarkFlagReviewedByCaregiverInput = z.infer<
+  typeof markFlagReviewedByCaregiverInputSchema
+>
+
 export const familySchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(100),

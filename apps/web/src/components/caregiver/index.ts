@@ -25,3 +25,14 @@ export type { AccessDeniedProps } from './AccessDenied'
 // Story 19D.5: Caregiver Quick Revocation
 export { AccessRevoked } from './AccessRevoked'
 export type { AccessRevokedProps } from './AccessRevoked'
+
+// Story 39.5: Caregiver Flag Viewing
+export { CaregiverFlagQueue } from './CaregiverFlagQueue'
+export type { CaregiverFlagQueueProps } from './CaregiverFlagQueue'
+export { CaregiverFlagDetailView } from './CaregiverFlagDetailView'
+export type { CaregiverFlagDetailViewProps } from './CaregiverFlagDetailView'
+export { CaregiverFlagAuditView } from './CaregiverFlagAuditView'
+export type {
+  CaregiverFlagAuditViewProps,
+  CaregiverFlagViewLogEntry,
+} from './CaregiverFlagAuditView'

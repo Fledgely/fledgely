@@ -32,6 +32,7 @@ import { useAccessWindowCheck, type OneTimeExtension } from '../../hooks/useAcce
 import { CaregiverChildCard } from './CaregiverChildCard'
 import { CallParentButton } from './CallParentButton'
 import { AccessDenied } from './AccessDenied'
+import { CaregiverFlagQueue } from './CaregiverFlagQueue'
 import { statusColors } from '../dashboard/statusConstants'
 
 /**
@@ -45,6 +46,14 @@ export interface CaregiverQuickViewProps {
   accessWindows?: AccessWindow[]
   /** Story 19D.4: One-time extension if granted */
   oneTimeExtension?: OneTimeExtension | null
+  /** Story 39.5: Whether caregiver has permission to view flags */
+  canViewFlags?: boolean
+  /** Story 39.5: Child IDs this caregiver is assigned to (for flag filtering) */
+  caregiverChildIds?: string[]
+  /** Story 39.5: Caregiver's display name */
+  caregiverName?: string
+  /** Story 39.5: Family children with names (for display) */
+  familyChildren?: Array<{ id: string; name: string }>
 }
 
 /**
@@ -172,6 +181,10 @@ export function CaregiverQuickView({
   viewerUid,
   accessWindows = [],
   oneTimeExtension,
+  canViewFlags = false,
+  caregiverChildIds = [],
+  caregiverName = 'Caregiver',
+  familyChildren = [],
 }: CaregiverQuickViewProps) {
   const {
     overallStatus,
@@ -314,6 +327,18 @@ export function CaregiverQuickView({
           <CaregiverChildCard key={child.childId} child={child} />
         ))}
       </div>
+
+      {/* Story 39.5: Flag viewing section (only if caregiver has permission) */}
+      {canViewFlags && familyId && caregiverChildIds.length > 0 && (
+        <div style={{ marginBottom: '24px' }} data-testid="caregiver-flags-section">
+          <CaregiverFlagQueue
+            caregiverChildIds={caregiverChildIds}
+            canViewFlags={canViewFlags}
+            caregiverName={caregiverName}
+            familyChildren={familyChildren}
+          />
+        </div>
+      )}
 
       {/* Call parent button */}
       <CallParentButton contact={parentContact} hasIssues={childrenNeedingAttention.length > 0} />

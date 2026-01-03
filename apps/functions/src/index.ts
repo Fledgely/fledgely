@@ -76,6 +76,8 @@ export { grantTemporaryAccess } from './callable/grantTemporaryAccess' // Story 
 export { revokeTemporaryAccess } from './callable/revokeTemporaryAccess' // Story 39.3
 export { setCaregiverPin } from './callable/setCaregiverPin' // Story 39.4
 export { approveExtensionWithPin } from './callable/approveExtensionWithPin' // Story 39.4
+export { logCaregiverFlagView } from './callable/logCaregiverFlagView' // Story 39.5
+export { markFlagReviewedByCaregiver } from './callable/markFlagReviewedByCaregiver' // Story 39.5
 
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'

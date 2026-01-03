@@ -31,6 +31,16 @@ vi.mock('../../hooks/useCaregiverAccessLog', () => ({
   logCaregiverAction: vi.fn(),
 }))
 
+// Mock flagService for CaregiverFlagQueue
+vi.mock('../../services/flagService', () => ({
+  subscribeToPendingFlags: vi.fn((childIds, callback) => {
+    callback([])
+    return vi.fn() // unsubscribe function
+  }),
+  getFlagsForChildren: vi.fn().mockResolvedValue([]),
+  applyClientFilters: vi.fn((flags) => flags),
+}))
+
 /**
  * Helper to create default mock result
  */
@@ -626,6 +636,95 @@ describe('CaregiverQuickView', () => {
         'caregiver-123',
         'family-1'
       )
+    })
+  })
+
+  // Story 39.5: Flag viewing section
+  describe('Flag Viewing Section (Story 39.5)', () => {
+    beforeEach(() => {
+      vi.mocked(useCaregiverStatusModule.useCaregiverStatus).mockReturnValue(
+        createMockResult({
+          children: [
+            {
+              childId: 'child-1',
+              childName: 'Emma',
+              photoURL: null,
+              status: 'good',
+              statusMessage: 'Doing well',
+            },
+          ],
+        })
+      )
+    })
+
+    it('should show flag section when canViewFlags is true', () => {
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          canViewFlags={true}
+          caregiverChildIds={['child-1']}
+          caregiverName="Grandma"
+        />
+      )
+
+      expect(screen.getByTestId('caregiver-flags-section')).toBeInTheDocument()
+    })
+
+    it('should NOT show flag section when canViewFlags is false', () => {
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          canViewFlags={false}
+          caregiverChildIds={['child-1']}
+          caregiverName="Grandma"
+        />
+      )
+
+      expect(screen.queryByTestId('caregiver-flags-section')).not.toBeInTheDocument()
+    })
+
+    it('should NOT show flag section when caregiverChildIds is empty', () => {
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          canViewFlags={true}
+          caregiverChildIds={[]}
+          caregiverName="Grandma"
+        />
+      )
+
+      expect(screen.queryByTestId('caregiver-flags-section')).not.toBeInTheDocument()
+    })
+
+    it('should NOT show flag section when familyId is null', () => {
+      render(
+        <CaregiverQuickView
+          familyId={null}
+          canViewFlags={true}
+          caregiverChildIds={['child-1']}
+          caregiverName="Grandma"
+        />
+      )
+
+      expect(screen.queryByTestId('caregiver-flags-section')).not.toBeInTheDocument()
+    })
+
+    it('should pass correct props to CaregiverFlagQueue', () => {
+      render(
+        <CaregiverQuickView
+          familyId="family-1"
+          canViewFlags={true}
+          caregiverChildIds={['child-1', 'child-2']}
+          caregiverName="Grandma"
+          familyChildren={[
+            { id: 'child-1', name: 'Emma' },
+            { id: 'child-2', name: 'Liam' },
+          ]}
+        />
+      )
+
+      // CaregiverFlagQueue should be rendered with correct data-testid
+      expect(screen.getByTestId('caregiver-flag-queue')).toBeInTheDocument()
     })
   })
 })

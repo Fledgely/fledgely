@@ -46,6 +46,10 @@ import {
   setCaregiverPinInputSchema,
   approveExtensionWithPinInputSchema,
   familyCaregiverWithPinSchema,
+  // Story 39.5: Flag viewing schemas
+  caregiverFlagViewLogSchema,
+  logCaregiverFlagViewInputSchema,
+  markFlagReviewedByCaregiverInputSchema,
 } from './index'
 
 describe('Caregiver Schemas - Story 19D.1', () => {
@@ -1373,6 +1377,156 @@ describe('Caregiver PIN Schemas - Story 39.4', () => {
         pin: 'abcd',
       }
       expect(() => approveExtensionWithPinInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('caregiverFlagViewLogSchema', () => {
+    const validLog = {
+      id: 'log-123',
+      familyId: 'family-456',
+      caregiverUid: 'caregiver-789',
+      caregiverName: 'Grandma',
+      flagId: 'flag-101',
+      childUid: 'child-202',
+      childName: 'Emma',
+      action: 'viewed',
+      flagCategory: 'Violence',
+      flagSeverity: 'high',
+      createdAt: new Date(),
+    }
+
+    it('should accept valid flag view log with viewed action', () => {
+      const parsed = caregiverFlagViewLogSchema.parse(validLog)
+      expect(parsed.id).toBe('log-123')
+      expect(parsed.action).toBe('viewed')
+      expect(parsed.caregiverName).toBe('Grandma')
+      expect(parsed.flagCategory).toBe('Violence')
+    })
+
+    it('should accept valid flag view log with marked_reviewed action', () => {
+      const logWithReviewed = { ...validLog, action: 'marked_reviewed' }
+      const parsed = caregiverFlagViewLogSchema.parse(logWithReviewed)
+      expect(parsed.action).toBe('marked_reviewed')
+    })
+
+    it('should reject invalid action', () => {
+      const invalidLog = { ...validLog, action: 'dismissed' }
+      expect(() => caregiverFlagViewLogSchema.parse(invalidLog)).toThrow()
+    })
+
+    it('should require flagId', () => {
+      const { flagId: _flagId, ...logWithoutFlagId } = validLog
+      expect(() => caregiverFlagViewLogSchema.parse(logWithoutFlagId)).toThrow()
+    })
+
+    it('should require flagCategory', () => {
+      const { flagCategory: _flagCategory, ...logWithoutCategory } = validLog
+      expect(() => caregiverFlagViewLogSchema.parse(logWithoutCategory)).toThrow()
+    })
+
+    it('should require flagSeverity', () => {
+      const { flagSeverity: _flagSeverity, ...logWithoutSeverity } = validLog
+      expect(() => caregiverFlagViewLogSchema.parse(logWithoutSeverity)).toThrow()
+    })
+
+    it('should require caregiverName', () => {
+      const { caregiverName: _caregiverName, ...logWithoutName } = validLog
+      expect(() => caregiverFlagViewLogSchema.parse(logWithoutName)).toThrow()
+    })
+
+    it('should require childName', () => {
+      const { childName: _childName, ...logWithoutChildName } = validLog
+      expect(() => caregiverFlagViewLogSchema.parse(logWithoutChildName)).toThrow()
+    })
+
+    it('should require all mandatory fields', () => {
+      const incompleteLog = {
+        id: 'log-123',
+        familyId: 'family-456',
+        // missing other required fields
+      }
+      expect(() => caregiverFlagViewLogSchema.parse(incompleteLog)).toThrow()
+    })
+  })
+
+  describe('logCaregiverFlagViewInputSchema', () => {
+    it('should accept valid input with viewed action', () => {
+      const input = {
+        familyId: 'family-123',
+        flagId: 'flag-456',
+        childUid: 'child-789',
+        action: 'viewed',
+        flagCategory: 'Bullying',
+        flagSeverity: 'medium',
+      }
+      const parsed = logCaregiverFlagViewInputSchema.parse(input)
+      expect(parsed.action).toBe('viewed')
+      expect(parsed.flagCategory).toBe('Bullying')
+    })
+
+    it('should accept valid input with marked_reviewed action', () => {
+      const input = {
+        familyId: 'family-123',
+        flagId: 'flag-456',
+        childUid: 'child-789',
+        action: 'marked_reviewed',
+        flagCategory: 'Violence',
+        flagSeverity: 'high',
+      }
+      const parsed = logCaregiverFlagViewInputSchema.parse(input)
+      expect(parsed.action).toBe('marked_reviewed')
+    })
+
+    it('should reject invalid action', () => {
+      const input = {
+        familyId: 'family-123',
+        flagId: 'flag-456',
+        childUid: 'child-789',
+        action: 'escalated',
+        flagCategory: 'Violence',
+        flagSeverity: 'high',
+      }
+      expect(() => logCaregiverFlagViewInputSchema.parse(input)).toThrow()
+    })
+
+    it('should require flagCategory', () => {
+      const input = {
+        familyId: 'family-123',
+        flagId: 'flag-456',
+        childUid: 'child-789',
+        action: 'viewed',
+        flagSeverity: 'high',
+      }
+      expect(() => logCaregiverFlagViewInputSchema.parse(input)).toThrow()
+    })
+  })
+
+  describe('markFlagReviewedByCaregiverInputSchema', () => {
+    it('should accept valid input', () => {
+      const input = {
+        familyId: 'family-123',
+        flagId: 'flag-456',
+        childUid: 'child-1',
+      }
+      const parsed = markFlagReviewedByCaregiverInputSchema.parse(input)
+      expect(parsed.familyId).toBe('family-123')
+      expect(parsed.flagId).toBe('flag-456')
+      expect(parsed.childUid).toBe('child-1')
+    })
+
+    it('should require familyId', () => {
+      const input = { flagId: 'flag-456', childUid: 'child-1' }
+      expect(() => markFlagReviewedByCaregiverInputSchema.parse(input)).toThrow()
+    })
+
+    it('should require flagId', () => {
+      const input = { familyId: 'family-123', childUid: 'child-1' }
+      expect(() => markFlagReviewedByCaregiverInputSchema.parse(input)).toThrow()
+    })
+
+    it('should require childUid', () => {
+      const input = { familyId: 'family-123', flagId: 'flag-456' }
+      expect(() => markFlagReviewedByCaregiverInputSchema.parse(input)).toThrow()
     })
   })
 
