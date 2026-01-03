@@ -1,14 +1,17 @@
 /**
- * Caregiver Schema Tests - Story 19D.1, Story 39.1
+ * Caregiver Schema Tests - Story 19D.1, Story 39.1, Story 39.2
  *
  * Task 7.1: Test caregiver schemas
  * Story 39.1: Added relationship field tests
+ * Story 39.2: Added permission configuration tests
  */
 
 import { describe, it, expect } from 'vitest'
 import {
   caregiverRoleSchema,
   caregiverRelationshipSchema,
+  caregiverPermissionsSchema,
+  DEFAULT_CAREGIVER_PERMISSIONS,
   MAX_CAREGIVERS_PER_FAMILY,
   accessWindowSchema,
   familyCaregiverSchema,
@@ -491,6 +494,118 @@ describe('Caregiver Schemas - Story 19D.1', () => {
       }
       expect(familySchema.parse(family).caregivers).toHaveLength(3)
       // Note: The 5 limit is enforced at the Cloud Function level, not schema level
+    })
+  })
+
+  describe('caregiverPermissionsSchema - Story 39.2', () => {
+    it('should accept valid permissions with both false', () => {
+      const permissions = {
+        canExtendTime: false,
+        canViewFlags: false,
+      }
+      expect(caregiverPermissionsSchema.parse(permissions)).toEqual(permissions)
+    })
+
+    it('should accept valid permissions with both true', () => {
+      const permissions = {
+        canExtendTime: true,
+        canViewFlags: true,
+      }
+      expect(caregiverPermissionsSchema.parse(permissions)).toEqual(permissions)
+    })
+
+    it('should accept mixed permissions', () => {
+      const permissions = {
+        canExtendTime: true,
+        canViewFlags: false,
+      }
+      expect(caregiverPermissionsSchema.parse(permissions)).toEqual(permissions)
+    })
+
+    it('should default canExtendTime to false', () => {
+      const permissions = caregiverPermissionsSchema.parse({})
+      expect(permissions.canExtendTime).toBe(false)
+    })
+
+    it('should default canViewFlags to false', () => {
+      const permissions = caregiverPermissionsSchema.parse({})
+      expect(permissions.canViewFlags).toBe(false)
+    })
+
+    it('should reject non-boolean values', () => {
+      expect(() =>
+        caregiverPermissionsSchema.parse({
+          canExtendTime: 'yes',
+          canViewFlags: false,
+        })
+      ).toThrow()
+    })
+  })
+
+  describe('DEFAULT_CAREGIVER_PERMISSIONS - Story 39.2', () => {
+    it('should have canExtendTime as false', () => {
+      expect(DEFAULT_CAREGIVER_PERMISSIONS.canExtendTime).toBe(false)
+    })
+
+    it('should have canViewFlags as false', () => {
+      expect(DEFAULT_CAREGIVER_PERMISSIONS.canViewFlags).toBe(false)
+    })
+  })
+
+  describe('familyCaregiverSchema with permissions - Story 39.2', () => {
+    it('should accept caregiver with permissions', () => {
+      const caregiver = {
+        uid: 'caregiver-123',
+        email: 'grandpa@example.com',
+        displayName: 'Grandpa Joe',
+        role: 'status_viewer',
+        relationship: 'grandparent',
+        permissions: {
+          canExtendTime: true,
+          canViewFlags: false,
+        },
+        childIds: ['child-1'],
+        addedAt: new Date(),
+        addedByUid: 'parent-123',
+      }
+      const parsed = familyCaregiverSchema.parse(caregiver)
+      expect(parsed.permissions?.canExtendTime).toBe(true)
+      expect(parsed.permissions?.canViewFlags).toBe(false)
+    })
+
+    it('should accept caregiver without permissions (defaults)', () => {
+      const caregiver = {
+        uid: 'caregiver-123',
+        email: 'grandpa@example.com',
+        displayName: 'Grandpa Joe',
+        role: 'status_viewer',
+        relationship: 'grandparent',
+        childIds: ['child-1'],
+        addedAt: new Date(),
+        addedByUid: 'parent-123',
+      }
+      const parsed = familyCaregiverSchema.parse(caregiver)
+      expect(parsed.permissions).toBeUndefined()
+    })
+
+    it('should accept caregiver with full permissions', () => {
+      const caregiver = {
+        uid: 'caregiver-123',
+        email: 'babysitter@example.com',
+        displayName: 'Mary',
+        role: 'status_viewer',
+        relationship: 'babysitter',
+        permissions: {
+          canExtendTime: true,
+          canViewFlags: true,
+        },
+        childIds: ['child-1', 'child-2'],
+        addedAt: new Date(),
+        addedByUid: 'parent-123',
+      }
+      const parsed = familyCaregiverSchema.parse(caregiver)
+      expect(parsed.permissions?.canExtendTime).toBe(true)
+      expect(parsed.permissions?.canViewFlags).toBe(true)
     })
   })
 })

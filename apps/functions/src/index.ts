@@ -66,11 +66,12 @@ export { logGuardianRemovalAttempt } from './callable/logGuardianRemovalAttempt'
 // Screenshot viewing rate alert (Story 3A.5)
 export { sendViewingRateAlert } from './callable/sendViewingRateAlert'
 
-// Caregiver callable functions (Story 19D.1, 19D.4, 19D.5)
+// Caregiver callable functions (Story 19D.1, 19D.4, 19D.5, 39.2)
 export { sendCaregiverInvitation } from './callable/sendCaregiverInvitation'
 export { acceptCaregiverInvitation } from './callable/acceptCaregiverInvitation'
 export { grantCaregiverExtension } from './callable/grantCaregiverExtension'
 export { revokeCaregiverAccess } from './callable/revokeCaregiverAccess'
+export { updateCaregiverPermissions } from './callable/updateCaregiverPermissions' // Story 39.2
 
 // AI Learning callable functions (Story 24.4)
 export { getLearningDashboard, resetFamilyLearning } from './callable/learningDashboard'

@@ -106,6 +106,25 @@ export const accessWindowSchema = z.object({
 export type AccessWindow = z.infer<typeof accessWindowSchema>
 
 /**
+ * Caregiver permissions schema.
+ * Story 39.2: Caregiver Permission Configuration
+ * Defines what actions a caregiver can take beyond viewing status.
+ */
+export const caregiverPermissionsSchema = z.object({
+  /** Story 39.2 AC3: Caregiver can grant extra screen time */
+  canExtendTime: z.boolean().default(false),
+  /** Story 39.2 AC4: Caregiver can see flagged content */
+  canViewFlags: z.boolean().default(false),
+})
+export type CaregiverPermissions = z.infer<typeof caregiverPermissionsSchema>
+
+/** Default caregiver permissions (most restricted) */
+export const DEFAULT_CAREGIVER_PERMISSIONS: CaregiverPermissions = {
+  canExtendTime: false,
+  canViewFlags: false,
+}
+
+/**
  * Caregiver entry in a family document.
  * Story 19D.1: Caregiver Invitation & Onboarding
  * Defined here for use in familySchema.
@@ -119,6 +138,8 @@ export const familyCaregiverSchema = z.object({
   relationship: caregiverRelationshipSchema,
   /** Story 39.1: Custom relationship text when relationship is 'other' */
   customRelationship: z.string().max(50).optional(),
+  /** Story 39.2: Caregiver permissions (defaults to most restricted) */
+  permissions: caregiverPermissionsSchema.optional(),
   childIds: z.array(z.string()), // Which children they can view (AC5)
   accessWindows: z.array(accessWindowSchema).optional(), // For Story 19D.4
   addedAt: z.date(),

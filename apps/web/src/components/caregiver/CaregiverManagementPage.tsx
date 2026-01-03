@@ -1,16 +1,21 @@
 'use client'
 
 /**
- * CaregiverManagementPage - Story 39.1
+ * CaregiverManagementPage - Story 39.1, Story 39.2
  *
  * Component for parents to manage family caregivers.
  * Shows list of active caregivers, pending invitations, and add button.
  *
  * Implements:
- * - AC5: Caregiver List Display
+ * - Story 39.1 AC5: Caregiver List Display
  *   - Shows list of all caregivers with name, relationship, status
  *   - Shows pending invitations separately
  *   - Shows count: "3 of 5 caregivers"
+ *
+ * - Story 39.2 AC1: Permission Display
+ *   - Shows permission badges on each caregiver card
+ *   - "Manage" button opens CaregiverPermissionEditor modal
+ *   - Display permission icons (eye, clock, flag)
  *
  * Uses React.CSSProperties inline styles per project pattern.
  */
@@ -23,7 +28,12 @@ import {
   type CaregiverInvitation,
 } from '../../services/caregiverInvitationService'
 import CaregiverInviteForm from './CaregiverInviteForm'
-import type { FamilyCaregiver, CaregiverRelationship } from '@fledgely/shared/contracts'
+import CaregiverPermissionEditor from './CaregiverPermissionEditor'
+import type {
+  FamilyCaregiver,
+  CaregiverRelationship,
+  CaregiverPermissions,
+} from '@fledgely/shared/contracts'
 
 interface CaregiverManagementPageProps {
   familyId: string
@@ -210,6 +220,27 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center' as const,
     color: '#6b7280',
   },
+  // Story 39.2: Permission badge styles
+  permissionBadges: {
+    display: 'flex',
+    gap: '8px',
+    marginTop: '8px',
+    flexWrap: 'wrap' as const,
+  },
+  permissionBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 8px',
+    backgroundColor: '#ede9fe',
+    color: '#7c3aed',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 500,
+  },
+  permissionBadgeIcon: {
+    fontSize: '12px',
+  },
 }
 
 /** Format relationship for display */
@@ -242,8 +273,10 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
   const [showInviteForm, setShowInviteForm] = useState(false)
   const [pendingInvitations, setPendingInvitations] = useState<CaregiverInvitation[]>([])
   const [loadingInvitations, setLoadingInvitations] = useState(true)
+  // Story 39.2: Permission editor modal state
+  const [editingCaregiver, setEditingCaregiver] = useState<FamilyCaregiver | null>(null)
 
-  const { family } = useFamily()
+  const { family, refreshFamily } = useFamily()
   const { limit, loading: loadingLimit } = useCaregiverLimit({ familyId })
 
   // Get caregivers from family context
@@ -282,6 +315,27 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
     // Reload invitations to show the new pending one
     loadPendingInvitations()
   }, [loadPendingInvitations])
+
+  // Story 39.2: Permission editor handlers
+  const handleManageClick = useCallback((caregiver: FamilyCaregiver) => {
+    setEditingCaregiver(caregiver)
+  }, [])
+
+  const handlePermissionEditorClose = useCallback(() => {
+    setEditingCaregiver(null)
+  }, [])
+
+  const handlePermissionSuccess = useCallback(
+    (_permissions: CaregiverPermissions) => {
+      // Refresh family data to show updated permissions
+      refreshFamily?.()
+      // Close modal after a brief delay to show success message
+      setTimeout(() => {
+        setEditingCaregiver(null)
+      }, 1500)
+    },
+    [refreshFamily]
+  )
 
   const isAtLimit = limit?.isAtLimit ?? false
 
@@ -337,11 +391,37 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
                   <span style={styles.cardRelationship}>
                     {formatRelationship(caregiver.relationship, caregiver.customRelationship)}
                   </span>
+                  {/* Story 39.2: Permission badges */}
+                  <div style={styles.permissionBadges} data-testid={`permissions-${caregiver.uid}`}>
+                    <span style={styles.permissionBadge} title="Can view status (always on)">
+                      <span style={styles.permissionBadgeIcon} aria-hidden="true">
+                        &#x1F441;
+                      </span>
+                      View Status
+                    </span>
+                    {caregiver.permissions?.canExtendTime && (
+                      <span style={styles.permissionBadge} title="Can extend screen time">
+                        <span style={styles.permissionBadgeIcon} aria-hidden="true">
+                          &#x23F0;
+                        </span>
+                        Extend Time
+                      </span>
+                    )}
+                    {caregiver.permissions?.canViewFlags && (
+                      <span style={styles.permissionBadge} title="Can view flagged content">
+                        <span style={styles.permissionBadgeIcon} aria-hidden="true">
+                          &#x1F6A9;
+                        </span>
+                        View Flags
+                      </span>
+                    )}
+                  </div>
                   <p style={styles.cardMeta}>Added {formatDate(caregiver.addedAt)}</p>
                 </div>
                 <button
                   type="button"
                   style={styles.manageButton}
+                  onClick={() => handleManageClick(caregiver)}
                   data-testid={`manage-${caregiver.uid}`}
                 >
                   Manage
@@ -404,6 +484,28 @@ export default function CaregiverManagementPage({ familyId }: CaregiverManagemen
               familyId={familyId}
               onSuccess={handleInviteSuccess}
               onCancel={handleCloseForm}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Story 39.2: Permission Editor Modal */}
+      {editingCaregiver && (
+        <div
+          style={styles.modal}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handlePermissionEditorClose()
+          }}
+          data-testid="permission-editor-modal"
+        >
+          <div style={styles.modalContent}>
+            <CaregiverPermissionEditor
+              familyId={familyId}
+              caregiverUid={editingCaregiver.uid}
+              caregiverName={editingCaregiver.displayName || editingCaregiver.email || 'Caregiver'}
+              currentPermissions={editingCaregiver.permissions}
+              onSuccess={handlePermissionSuccess}
+              onCancel={handlePermissionEditorClose}
             />
           </div>
         </div>
