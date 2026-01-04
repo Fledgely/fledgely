@@ -632,7 +632,7 @@ development_status:
   epic-45-retrospective: optional
 
   # Epic 46: Offline Operation Foundation
-  epic-46: in-progress
+  epic-46: done
   46-1-chromebook-extension-offline-queue: done
   46-2-android-app-offline-queue: backlog
   46-3-automatic-sync-on-reconnect: done
@@ -640,7 +640,7 @@ development_status:
   46-5-offline-mode-indication-on-device: done
   46-6-offline-crisis-url-handling: done
   46-7-offline-sync-progress: done
-  epic-46-retrospective: optional
+  epic-46-retrospective: done
 
   # ============================================
   # Phase 6: Operations & Self-Hosting (Epics 48-52)
