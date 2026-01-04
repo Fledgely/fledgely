@@ -2,12 +2,15 @@
  * Health Metrics Module for Fledgely Chrome Extension
  *
  * Story 19.4: Monitoring Health Details
+ * Story 46.1: Updated to use IndexedDB queue and network status module
  *
  * Collects and syncs device health metrics to Firestore for dashboard display.
  * Metrics are synced every 5 minutes via chrome.alarms.
  */
 
 import { getEventStats } from './event-logger'
+import { getQueueSize as getOfflineQueueSize } from './offline-queue'
+import { isOnline, getOfflineDurationSeconds } from './network-status'
 
 /**
  * Health metrics collected from the device
@@ -19,6 +22,8 @@ export interface DeviceHealthMetrics {
   uploadQueueSize: number
   /** Network connectivity status */
   networkStatus: 'online' | 'offline'
+  /** Story 46.1: Current offline duration in seconds (0 if online) */
+  offlineDurationSeconds: number
   /** Battery level percentage (0-100) */
   batteryLevel: number | null
   /** Whether device is charging */
@@ -32,13 +37,12 @@ export interface DeviceHealthMetrics {
 }
 
 /**
- * Get current upload queue size from background state
+ * Get current upload queue size from IndexedDB
+ * Story 46.1: Updated to use IndexedDB-based offline queue
  */
 async function getQueueSize(): Promise<number> {
   try {
-    const result = await chrome.storage.local.get('screenshotQueue')
-    const queue = result.screenshotQueue || []
-    return Array.isArray(queue) ? queue.length : 0
+    return await getOfflineQueueSize()
   } catch {
     return 0
   }
@@ -86,6 +90,7 @@ async function checkForUpdate(): Promise<boolean | null> {
 
 /**
  * Collect all health metrics from the device
+ * Story 46.1: Updated to use network-status module
  */
 export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
   // Get capture stats from event logger
@@ -93,11 +98,12 @@ export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
   const captureSuccessRate =
     stats.total > 0 ? Math.round((stats.successful / stats.total) * 100) : null
 
-  // Get queue size
+  // Get queue size from IndexedDB
   const uploadQueueSize = await getQueueSize()
 
-  // Get network status
-  const networkStatus = navigator.onLine ? 'online' : 'offline'
+  // Story 46.1: Get network status from network-status module
+  const networkStatus = isOnline() ? 'online' : 'offline'
+  const offlineDurationSeconds = getOfflineDurationSeconds()
 
   // Get battery status
   const battery = await getBatteryStatus()
@@ -112,6 +118,7 @@ export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
     captureSuccessRate24h: captureSuccessRate,
     uploadQueueSize,
     networkStatus,
+    offlineDurationSeconds,
     batteryLevel: battery?.level ?? null,
     batteryCharging: battery?.charging ?? null,
     appVersion,

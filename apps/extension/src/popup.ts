@@ -56,6 +56,7 @@ let isScanning = false
 let stopPolling: (() => void) | null = null // Story 12.3: Cleanup function for polling
 let pendingWithdrawal: WithdrawalRequest | null = null // Story 6.6: Pending withdrawal request
 let countdownInterval: ReturnType<typeof setInterval> | null = null // Story 6.6: Countdown timer
+let queueStatusInterval: ReturnType<typeof setInterval> | null = null // Story 46.1: Queue status refresh
 
 // DOM Elements - Not Enrolled (Story 12.2)
 const stateNotEnrolled = document.getElementById('state-not-enrolled')!
@@ -131,6 +132,13 @@ const withdrawnChildAvatar = document.getElementById('withdrawn-child-avatar')!
 const withdrawnChildName = document.getElementById('withdrawn-child-name')!
 const withdrawnChangeChild = document.getElementById('withdrawn-change-child') as HTMLButtonElement
 
+// Story 46.1: DOM Elements - Queue/Offline Status
+const queueStatusRow = document.getElementById('queue-status-row')!
+const queueStatusIcon = document.getElementById('queue-status-icon')!
+const queueStatusText = document.getElementById('queue-status-text')!
+const offlineStatus = document.getElementById('offline-status')!
+const offlineQueueCount = document.getElementById('offline-queue-count')!
+
 /**
  * Hide all state sections
  */
@@ -150,6 +158,27 @@ function hideAllStates(): void {
     clearInterval(countdownInterval)
     countdownInterval = null
   }
+
+  // Story 46.1: Clear queue status interval when changing states
+  if (queueStatusInterval) {
+    clearInterval(queueStatusInterval)
+    queueStatusInterval = null
+  }
+}
+
+/**
+ * Story 46.1: Start periodic queue status refresh (every 5 seconds)
+ */
+function startQueueStatusRefresh(): void {
+  // Clear existing interval if any
+  if (queueStatusInterval) {
+    clearInterval(queueStatusInterval)
+  }
+
+  // Update every 5 seconds
+  queueStatusInterval = setInterval(async () => {
+    await updateQueueStatusDisplay()
+  }, 5000)
 }
 
 /**
@@ -368,6 +397,54 @@ async function checkForPendingWithdrawal(): Promise<WithdrawalRequest | null> {
     return result.request
   }
   return null
+}
+
+/**
+ * Story 46.1: Queue status response interface
+ */
+interface QueueStatusResponse {
+  queueSize: number
+  isOnline: boolean
+}
+
+/**
+ * Story 46.1: Get queue and network status from background
+ */
+async function getQueueStatus(): Promise<QueueStatusResponse> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: 'GET_QUEUE_STATUS' }, (response) => {
+      resolve({
+        queueSize: response?.queueSize || 0,
+        isOnline: response?.isOnline !== false, // Default to true if not specified
+      })
+    })
+  })
+}
+
+/**
+ * Story 46.1: Update queue status display
+ */
+async function updateQueueStatusDisplay(): Promise<void> {
+  const { queueSize, isOnline } = await getQueueStatus()
+
+  // Update queue status row
+  if (queueSize > 0) {
+    queueStatusIcon.textContent = '📤'
+    queueStatusText.textContent = `${queueSize} screenshot${queueSize !== 1 ? 's' : ''} pending upload`
+    queueStatusRow.classList.add('queue-pending')
+  } else {
+    queueStatusIcon.textContent = '✅'
+    queueStatusText.textContent = 'All screenshots synced'
+    queueStatusRow.classList.remove('queue-pending')
+  }
+
+  // Show/hide offline indicator
+  if (!isOnline) {
+    offlineQueueCount.textContent = queueSize.toString()
+    offlineStatus.classList.remove('hidden')
+  } else {
+    offlineStatus.classList.add('hidden')
+  }
 }
 
 /**
@@ -883,6 +960,10 @@ async function updateUI(authState: AuthState): Promise<void> {
 
       // Update last sync time
       await updateLastSyncDisplay()
+
+      // Story 46.1: Update queue/offline status and start periodic refresh
+      await updateQueueStatusDisplay()
+      startQueueStatusRefresh()
     } else {
       // Consent status not yet determined - show consent pending as default for safety
       // Story 6.5 AC2: No monitoring without consent

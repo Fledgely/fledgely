@@ -67,6 +67,25 @@ import { isCrisisSearch, getRelevantResources } from './crisis-keywords'
 import { extractSearchQuery } from './search-detector'
 import { getOrGenerateSchedule, isInPrivacyGap, clearSchedule } from './privacy-gaps'
 import { checkAndUpdateVpnStatus, clearVpnState } from './vpn-detection'
+// Story 46.1: Offline queue with IndexedDB and encryption
+import {
+  initOfflineQueue,
+  addToQueue as addToOfflineQueue,
+  getQueuedItems,
+  removeFromQueue,
+  getQueueSize as getOfflineQueueSize,
+  updateRetryCount,
+  generateQueueId,
+  setQueueDeviceId,
+  MAX_QUEUE_SIZE,
+  type QueuedScreenshot,
+} from './offline-queue'
+import {
+  initNetworkStatusMonitoring,
+  isOnline,
+  onNetworkStatusChange,
+  getLastOfflineDuration,
+} from './network-status'
 // Story 32.3: Family Offline Time Enforcement
 // Story 32.4: Parent Compliance Tracking
 import {
@@ -461,27 +480,24 @@ function createDecoyCapture(): ScreenshotCapture {
   }
 }
 
-/**
- * Maximum number of screenshots in the local queue (NFR87)
- */
-const MAX_QUEUE_SIZE = 500
+// Story 46.1: MAX_QUEUE_SIZE and QueuedScreenshot now imported from offline-queue
 
 /**
- * Queue item for pending screenshot upload
+ * Ensure queue device ID is set for encryption.
+ * Story 46.1 AC4: Must be called before queue operations.
  */
-interface QueuedScreenshot {
-  id: string
-  capture: ScreenshotCapture
-  childId: string
-  queuedAt: number
-  retryCount: number
-  lastRetryAt: number | null
-  isDecoy: boolean // Story 11.5: True if this is a decoy image for crisis protection
+async function ensureQueueDeviceId(): Promise<boolean> {
+  const { state } = await chrome.storage.local.get('state')
+  if (state?.deviceId) {
+    setQueueDeviceId(state.deviceId)
+    return true
+  }
+  return false
 }
 
 /**
  * Add a screenshot to the upload queue
- * Queue persists in chrome.storage.local for offline support
+ * Story 46.1: Queue now uses IndexedDB for offline persistence with encryption
  * Story 10.6: Now logs queue overflow events
  * Story 11.5: Added isDecoy parameter for decoy mode
  */
@@ -490,10 +506,15 @@ async function queueScreenshot(
   childId: string,
   isDecoy: boolean = false
 ): Promise<void> {
-  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
+  // Story 46.1 AC4: Ensure deviceId is set for encryption
+  const hasDeviceId = await ensureQueueDeviceId()
+  if (!hasDeviceId) {
+    console.error('[Fledgely] Cannot queue screenshot: device not enrolled')
+    return
+  }
 
   const item: QueuedScreenshot = {
-    id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+    id: generateQueueId(),
     capture,
     childId,
     queuedAt: Date.now(),
@@ -502,15 +523,10 @@ async function queueScreenshot(
     isDecoy,
   }
 
-  // Add to queue
-  screenshotQueue.push(item)
-
-  // Enforce queue size limit (drop oldest items)
-  if (screenshotQueue.length > MAX_QUEUE_SIZE) {
-    const dropped = screenshotQueue.length - MAX_QUEUE_SIZE
-    screenshotQueue.splice(0, dropped)
-    console.warn(`[Fledgely] Queue overflow: dropped ${dropped} oldest screenshots`)
-
+  // Check if queue will overflow (for logging purposes)
+  const currentSize = await getOfflineQueueSize()
+  if (currentSize >= MAX_QUEUE_SIZE) {
+    console.warn('[Fledgely] Queue overflow: dropping oldest screenshot for new one')
     // Log queue overflow event (Story 10.6)
     await logCaptureEvent('queue_overflow', false, {
       queueSize: MAX_QUEUE_SIZE,
@@ -518,26 +534,44 @@ async function queueScreenshot(
     })
   }
 
-  await chrome.storage.local.set({ screenshotQueue })
-  console.log(`[Fledgely] Screenshot queued (${screenshotQueue.length} items in queue)`)
+  // Add to IndexedDB queue (FIFO eviction handled automatically, encrypted at rest)
+  await addToOfflineQueue(item)
+  const newSize = await getOfflineQueueSize()
+  console.log(`[Fledgely] Screenshot queued (${newSize} items in queue)`)
 }
 
 /**
  * Get the current queue size
+ * Story 46.1: Now uses IndexedDB queue
  * Exported for popup to display queue status
  */
 export async function getQueueSize(): Promise<number> {
-  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
-  return screenshotQueue.length
+  return getOfflineQueueSize()
 }
 
 /**
  * Process the screenshot queue - upload pending items
  * Story 10.4: Screenshot Upload to API
  * Story 10.6: Now logs all upload events
+ * Story 46.1: Now uses IndexedDB queue with encryption
  */
 async function processScreenshotQueue(): Promise<void> {
-  const { screenshotQueue = [] } = await chrome.storage.local.get('screenshotQueue')
+  // Story 46.1: Skip processing if offline (AC1: Automatic queue mode)
+  if (!isOnline()) {
+    const queueSize = await getOfflineQueueSize()
+    console.log(`[Fledgely] Device offline, queue processing paused (${queueSize} items queued)`)
+    return
+  }
+
+  // Story 46.1 AC4: Ensure deviceId is set for decryption
+  const hasDeviceId = await ensureQueueDeviceId()
+  if (!hasDeviceId) {
+    console.log('[Fledgely] Queue processing skipped: device not enrolled')
+    return
+  }
+
+  // Story 46.1: Get items from IndexedDB queue (decrypted)
+  const screenshotQueue = await getQueuedItems()
 
   if (screenshotQueue.length === 0) {
     console.log('[Fledgely] Queue empty, nothing to process')
@@ -555,24 +589,22 @@ async function processScreenshotQueue(): Promise<void> {
 
   // Process queue items that are ready for upload
   const now = Date.now()
-  const updatedQueue: QueuedScreenshot[] = []
   let uploadsThisRun = 0
   let successCount = 0
   let failCount = 0
+  const idsToRemove: string[] = []
 
   for (const item of screenshotQueue) {
     // Check if we've hit the rate limit for this run
     if (uploadsThisRun >= remainingUploads) {
-      updatedQueue.push(item) // Keep for later
-      continue
+      continue // Keep remaining items for later (already in IndexedDB)
     }
 
     // Check if item needs to wait for retry backoff
     if (item.lastRetryAt !== null) {
       const retryDelay = calculateRetryDelay(item.retryCount)
       if (now - item.lastRetryAt < retryDelay) {
-        updatedQueue.push(item) // Not ready for retry yet
-        continue
+        continue // Not ready for retry yet (stays in IndexedDB)
       }
     }
 
@@ -580,13 +612,14 @@ async function processScreenshotQueue(): Promise<void> {
     if (!shouldRetry(item.retryCount)) {
       console.warn(`[Fledgely] Dropping screenshot ${item.id} after max retries`)
       failCount++
+      idsToRemove.push(item.id) // Remove from IndexedDB
 
       // Log retry exhausted event (Story 10.6)
       await logCaptureEvent('retry_exhausted', false, {
         queueSize: screenshotQueue.length,
         errorCode: ERROR_CODES.MAX_RETRIES_EXCEEDED,
       })
-      continue // Don't re-add to queue
+      continue
     }
 
     // Attempt upload
@@ -597,44 +630,148 @@ async function processScreenshotQueue(): Promise<void> {
 
     if (result.success) {
       successCount++
+      idsToRemove.push(item.id) // Remove from IndexedDB
 
       // Log upload success event (Story 10.6)
+      const remainingCount = screenshotQueue.length - uploadsThisRun
       await logCaptureEvent('upload_success', true, {
         duration: uploadDuration,
-        queueSize: updatedQueue.length + (screenshotQueue.length - uploadsThisRun),
+        queueSize: remainingCount,
       })
-      // Don't add back to queue - successfully uploaded
     } else {
       if (result.shouldRetry) {
-        // Update retry info and keep in queue
-        updatedQueue.push({
-          ...item,
-          retryCount: item.retryCount + 1,
-          lastRetryAt: now,
-        })
+        // Update retry info in IndexedDB
+        await updateRetryCount(item.id, item.retryCount + 1, now)
+      } else {
+        idsToRemove.push(item.id) // Remove non-retryable failed items
       }
       failCount++
 
       // Log upload failure event (Story 10.6)
+      const remainingCount = screenshotQueue.length - idsToRemove.length
       await logCaptureEvent('upload_failed', false, {
         duration: uploadDuration,
-        queueSize: updatedQueue.length + (screenshotQueue.length - uploadsThisRun),
+        queueSize: remainingCount,
         errorCode: ERROR_CODES.UPLOAD_NETWORK_ERROR,
       })
     }
   }
 
-  // Save updated queue
-  await chrome.storage.local.set({ screenshotQueue: updatedQueue })
+  // Remove successfully uploaded and exhausted items from IndexedDB
+  for (const id of idsToRemove) {
+    await removeFromQueue(id)
+  }
 
+  const finalSize = await getOfflineQueueSize()
   console.log(
     `[Fledgely] Queue processed: ${successCount} uploaded, ${failCount} failed, ` +
-      `${updatedQueue.length} remaining`
+      `${finalSize} remaining`
   )
 
   // Update error badge after processing (Story 10.6)
   if (state) {
     await updateErrorBadge(state)
+  }
+}
+
+/**
+ * Migrate existing queue from chrome.storage.local to IndexedDB.
+ * Story 46.1: One-time migration for existing installations.
+ *
+ * This runs once per installation/update and moves any queued
+ * screenshots from the old chrome.storage.local format to IndexedDB.
+ */
+async function migrateQueueToIndexedDB(): Promise<void> {
+  try {
+    // Check if migration is needed
+    const { screenshotQueue, queueMigratedToIndexedDB } = await chrome.storage.local.get([
+      'screenshotQueue',
+      'queueMigratedToIndexedDB',
+    ])
+
+    // Skip if already migrated
+    if (queueMigratedToIndexedDB) {
+      console.log('[Fledgely] Queue already migrated to IndexedDB')
+      return
+    }
+
+    // Skip if no queue to migrate
+    if (!screenshotQueue || !Array.isArray(screenshotQueue) || screenshotQueue.length === 0) {
+      console.log('[Fledgely] No queue to migrate to IndexedDB')
+      await chrome.storage.local.set({ queueMigratedToIndexedDB: true })
+      return
+    }
+
+    console.log(`[Fledgely] Migrating ${screenshotQueue.length} items to IndexedDB...`)
+
+    // Initialize IndexedDB queue
+    await initOfflineQueue()
+
+    // AC4: Ensure deviceId is set for encryption (required for new queue)
+    const hasDeviceId = await ensureQueueDeviceId()
+    if (!hasDeviceId) {
+      // Cannot migrate without deviceId for encryption
+      // Keep old queue data, will migrate on next startup after enrollment
+      console.warn(
+        '[Fledgely] Migration deferred: device not enrolled (no deviceId for encryption)'
+      )
+      return
+    }
+
+    // Migrate each item
+    let migratedCount = 0
+    const failedItems: { id: string; error: string }[] = []
+
+    for (const item of screenshotQueue) {
+      try {
+        // Validate required fields before migration
+        if (!item.capture || !item.childId) {
+          failedItems.push({
+            id: item.id || 'unknown',
+            error: 'Missing required fields (capture or childId)',
+          })
+          continue
+        }
+
+        // Ensure item has all required fields
+        const migratedItem: QueuedScreenshot = {
+          id: item.id || generateQueueId(),
+          capture: item.capture,
+          childId: item.childId,
+          queuedAt: item.queuedAt || Date.now(),
+          retryCount: item.retryCount || 0,
+          lastRetryAt: item.lastRetryAt || null,
+          isDecoy: item.isDecoy || false,
+        }
+        await addToOfflineQueue(migratedItem)
+        migratedCount++
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        failedItems.push({ id: item.id || 'unknown', error: errorMsg })
+        console.error('[Fledgely] Failed to migrate queue item:', error)
+      }
+    }
+
+    // Only mark migration complete if all items migrated successfully
+    if (failedItems.length === 0) {
+      await chrome.storage.local.set({ queueMigratedToIndexedDB: true })
+      await chrome.storage.local.remove('screenshotQueue')
+      console.log(
+        `[Fledgely] Migration complete: ${migratedCount}/${screenshotQueue.length} items migrated`
+      )
+    } else {
+      // Partial failure - log details but don't clear old data
+      console.warn(
+        `[Fledgely] Migration partial: ${migratedCount}/${screenshotQueue.length} succeeded, ` +
+          `${failedItems.length} failed`
+      )
+      // Log failed item details for debugging
+      for (const failed of failedItems) {
+        console.warn(`[Fledgely] Failed item ${failed.id}: ${failed.error}`)
+      }
+    }
+  } catch (error) {
+    console.error('[Fledgely] Queue migration failed:', error)
   }
 }
 
@@ -931,6 +1068,31 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Story 33.1: Initialize focus mode check alarm (1 min interval)
   setupFocusModeCheckAlarm()
 
+  // Story 46.1: Initialize offline queue with IndexedDB
+  await initOfflineQueue()
+  console.log('[Fledgely] Offline queue initialized (IndexedDB)')
+
+  // Story 46.1: Initialize network status monitoring
+  initNetworkStatusMonitoring()
+  console.log('[Fledgely] Network status monitoring initialized')
+
+  // Story 46.1: Set up auto-sync when coming back online (AC1: Automatic queue mode)
+  onNetworkStatusChange(async (online) => {
+    if (online) {
+      const offlineDuration = getLastOfflineDuration()
+      console.log(`[Fledgely] Back online after ${offlineDuration}s, processing queue...`)
+      // Small delay to ensure connectivity is stable
+      setTimeout(async () => {
+        await processScreenshotQueue()
+      }, 2000)
+    } else {
+      console.log('[Fledgely] Device went offline, queue mode activated')
+    }
+  })
+
+  // Story 46.1: Migrate existing queue from chrome.storage.local to IndexedDB
+  await migrateQueueToIndexedDB()
+
   if (details.reason === 'install') {
     // First installation - initialize state and open onboarding
     await chrome.storage.local.set({ state: DEFAULT_STATE })
@@ -983,6 +1145,28 @@ chrome.runtime.onStartup.addListener(async () => {
 
   // Story 33.1: Initialize focus mode check alarm (1 min interval)
   setupFocusModeCheckAlarm()
+
+  // Story 46.1: Initialize offline queue with IndexedDB
+  await initOfflineQueue()
+  console.log('[Fledgely] Offline queue initialized (IndexedDB)')
+
+  // Story 46.1: Initialize network status monitoring
+  initNetworkStatusMonitoring()
+  console.log('[Fledgely] Network status monitoring initialized')
+
+  // Story 46.1: Set up auto-sync when coming back online (AC1: Automatic queue mode)
+  onNetworkStatusChange(async (online) => {
+    if (online) {
+      const offlineDuration = getLastOfflineDuration()
+      console.log(`[Fledgely] Back online after ${offlineDuration}s, processing queue...`)
+      // Small delay to ensure connectivity is stable
+      setTimeout(async () => {
+        await processScreenshotQueue()
+      }, 2000)
+    } else {
+      console.log('[Fledgely] Device went offline, queue mode activated')
+    }
+  })
 
   // Story 11.2: Check if allowlist needs immediate sync
   if (await isAllowlistStale()) {
@@ -1430,6 +1614,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         })
         .catch((error) => {
           sendResponse({ success: false, error: String(error) })
+        })
+      return true
+
+    case 'GET_QUEUE_STATUS':
+      // Story 46.1: Get queue size and network status for popup display
+      getOfflineQueueSize()
+        .then((queueSize) => {
+          sendResponse({
+            queueSize,
+            isOnline: isOnline(),
+          })
+        })
+        .catch((error) => {
+          console.error('[Fledgely] Error getting queue status:', error)
+          sendResponse({
+            queueSize: 0,
+            isOnline: true,
+          })
         })
       return true
 

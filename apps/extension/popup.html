@@ -751,6 +751,30 @@
         color: #6b7280;
         line-height: 1.5;
       }
+
+      /* Story 46.1: Offline/Queue Status Styles */
+      .offline-info {
+        background: #fef3c7;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .offline-icon {
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .offline-text {
+        font-size: 13px;
+        color: #92400e;
+        line-height: 1.4;
+      }
+      .queue-pending .info-icon {
+        animation: pulse 2s infinite;
+      }
     </style>
   </head>
   <body>
@@ -985,6 +1009,16 @@
             <span class="info-icon" aria-hidden="true">🕐</span>
             <span class="info-text">Last sync: <span id="last-sync-time">Just now</span></span>
           </div>
+          <!-- Story 46.1: Queue status indicator -->
+          <div class="info-row" id="queue-status-row">
+            <span class="info-icon" id="queue-status-icon" aria-hidden="true">📤</span>
+            <span class="info-text" id="queue-status-text">Queue empty</span>
+          </div>
+        </div>
+        <!-- Story 46.1: Offline status indicator -->
+        <div class="offline-info hidden" id="offline-status" role="alert">
+          <span class="offline-icon" aria-hidden="true">📴</span>
+          <span class="offline-text">Offline - <span id="offline-queue-count">0</span> screenshots queued</span>
         </div>
 
         <p class="message" id="auth-message">
