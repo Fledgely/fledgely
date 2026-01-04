@@ -637,7 +637,7 @@ development_status:
   46-2-android-app-offline-queue: backlog
   46-3-automatic-sync-on-reconnect: done
   46-4-offline-timestamp-display: done
-  46-5-offline-mode-indication-on-device: backlog
+  46-5-offline-mode-indication-on-device: done
   46-6-offline-crisis-url-handling: backlog
   46-7-offline-sync-progress: backlog
   epic-46-retrospective: optional

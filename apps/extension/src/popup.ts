@@ -423,26 +423,31 @@ async function getQueueStatus(): Promise<QueueStatusResponse> {
 
 /**
  * Story 46.1: Update queue status display
+ * Story 46.5: Enhanced with reassuring messaging (AC1, AC3, AC5)
  */
 async function updateQueueStatusDisplay(): Promise<void> {
   const { queueSize, isOnline } = await getQueueStatus()
 
-  // Update queue status row
+  // Update queue status row in monitoring info
   if (queueSize > 0) {
     queueStatusIcon.textContent = '📤'
-    queueStatusText.textContent = `${queueSize} screenshot${queueSize !== 1 ? 's' : ''} pending upload`
+    queueStatusText.textContent = `${queueSize} item${queueSize !== 1 ? 's' : ''} waiting to sync`
     queueStatusRow.classList.add('queue-pending')
   } else {
     queueStatusIcon.textContent = '✅'
-    queueStatusText.textContent = 'All screenshots synced'
+    // Story 46.5 AC3: Friendly message when queue is empty
+    queueStatusText.textContent = isOnline ? 'All caught up!' : 'All screenshots synced'
     queueStatusRow.classList.remove('queue-pending')
   }
 
-  // Show/hide offline indicator
+  // Story 46.5: Show/hide offline indicator with reassuring messaging
   if (!isOnline) {
-    offlineQueueCount.textContent = queueSize.toString()
+    // Story 46.5 AC3: Format queue count with proper pluralization
+    const itemText = queueSize === 1 ? '1 item' : `${queueSize} items`
+    offlineQueueCount.textContent = `${itemText} waiting to sync`
     offlineStatus.classList.remove('hidden')
   } else {
+    // Story 46.5 AC6: Auto-clear when back online
     offlineStatus.classList.add('hidden')
   }
 }

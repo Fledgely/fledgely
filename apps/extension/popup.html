@@ -753,12 +753,15 @@
       }
 
       /* Story 46.1: Offline/Queue Status Styles */
+      /* Story 46.5: Updated to use softer, reassuring colors (not warning amber) */
       .offline-info {
-        background: #fef3c7;
-        border: 1px solid #fbbf24;
+        background: #f0f9ff;
+        border: 1px solid #7dd3fc;
         border-radius: 8px;
         padding: 12px;
         margin-bottom: 16px;
+      }
+      .offline-header {
         display: flex;
         align-items: center;
         gap: 10px;
@@ -769,7 +772,22 @@
       }
       .offline-text {
         font-size: 13px;
-        color: #92400e;
+        color: #0369a1;
+        line-height: 1.4;
+        font-weight: 500;
+      }
+      .offline-queue-count {
+        font-size: 12px;
+        color: #0284c7;
+        margin-left: 28px;
+        margin-top: 4px;
+      }
+      /* Story 46.5 AC4: Explanation text */
+      .offline-explanation {
+        font-size: 11px;
+        color: #64748b;
+        margin-left: 28px;
+        margin-top: 6px;
         line-height: 1.4;
       }
       .queue-pending .info-icon {
@@ -1015,10 +1033,15 @@
             <span class="info-text" id="queue-status-text">Queue empty</span>
           </div>
         </div>
-        <!-- Story 46.1: Offline status indicator -->
-        <div class="offline-info hidden" id="offline-status" role="alert">
-          <span class="offline-icon" aria-hidden="true">📴</span>
-          <span class="offline-text">Offline - <span id="offline-queue-count">0</span> screenshots queued</span>
+        <!-- Story 46.1/46.5: Offline status indicator -->
+        <!-- Story 46.5: Updated to be reassuring, not alarming (AC1, AC5) -->
+        <div class="offline-info hidden" id="offline-status" role="status">
+          <div class="offline-header">
+            <span class="offline-icon" aria-hidden="true">☁️</span>
+            <span class="offline-text">Offline - syncing when connected</span>
+          </div>
+          <div class="offline-queue-count" id="offline-queue-count">0 items waiting to sync</div>
+          <div class="offline-explanation">Monitoring continues. Your activity will upload when you're back online.</div>
         </div>
 
         <p class="message" id="auth-message">
