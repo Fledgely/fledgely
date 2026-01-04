@@ -114,3 +114,12 @@ export {
   clearDeviceNotificationStatus,
 } from './deviceSyncNotification'
 export type { DeviceSyncNotificationResult } from './deviceSyncNotification'
+
+// Story 41.5: Login notifications
+export {
+  sendNewLoginNotification,
+  sendSuspiciousLoginNotification,
+  isInFleeingMode,
+  hasRecentlyNotifiedForFingerprint,
+} from './loginNotification'
+export type { SendLoginNotificationParams, LoginNotificationResult } from './loginNotification'

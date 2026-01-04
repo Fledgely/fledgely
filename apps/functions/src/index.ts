@@ -228,3 +228,11 @@ export { hourlyFlagDigest, dailyFlagDigest } from './scheduled'
 // Device sync notifications (Story 41.4)
 export { checkDeviceSyncStatus } from './scheduled'
 export { onDevicePermissionChange } from './triggers/onDevicePermissionChange'
+
+// Login session tracking and notifications (Story 41.5)
+export { trackLoginSessionCallable } from './callable/trackLoginSession'
+export {
+  getTrustedDevicesCallable,
+  addTrustedDeviceCallable,
+  removeTrustedDeviceCallable,
+} from './callable/manageTrustedDevices'

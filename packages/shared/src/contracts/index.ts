@@ -7701,3 +7701,44 @@ export {
   type PermissionRevokedParams,
   type SyncRestoredParams,
 } from './deviceSyncNotifications'
+
+// Story 41.5: Login Session and Notification
+export {
+  deviceTypeSchema,
+  deviceFingerprintSchema,
+  loginSessionSchema,
+  trustedDeviceSchema,
+  parseUserAgent,
+  generateFingerprintId,
+  hashIpAddress,
+  buildDeviceDescription,
+  trackLoginSessionInputSchema,
+  trackLoginSessionOutputSchema,
+  addTrustedDeviceInputSchema,
+  removeTrustedDeviceInputSchema,
+  trustedDeviceListOutputSchema,
+  type DeviceType,
+  type DeviceFingerprint,
+  type LoginSession,
+  type TrustedDevice,
+  type TrackLoginSessionInput,
+  type TrackLoginSessionOutput,
+  type AddTrustedDeviceInput,
+  type RemoveTrustedDeviceInput,
+  type TrustedDeviceListOutput,
+} from './loginSession'
+
+export {
+  loginNotificationActionSchema,
+  loginNotificationEventSchema,
+  loginNotificationContentSchema,
+  loginNotificationStatusSchema,
+  buildLoginNotificationContent,
+  buildSuspiciousLoginContent,
+  DEFAULT_LOGIN_NOTIFICATION_STATUS,
+  type LoginNotificationAction,
+  type LoginNotificationEvent,
+  type LoginNotificationContent,
+  type LoginNotificationStatus,
+  type LoginNotificationParams,
+} from './loginNotification'
