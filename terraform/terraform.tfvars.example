@@ -1,0 +1,47 @@
+# Fledgely Terraform Configuration Example
+# Copy this file to terraform.tfvars and customize for your deployment
+
+# =============================================================================
+# Required Variables
+# =============================================================================
+
+# Your GCP project ID (REQUIRED)
+project_id = "my-fledgely-project"
+
+# =============================================================================
+# Optional Variables - Uncomment and customize as needed
+# =============================================================================
+
+# Deployment region
+# region = "us-central1"
+
+# Environment name
+# environment = "production"
+
+# Screenshot retention period (days)
+# screenshot_retention_days = 90
+
+# Cloud Functions configuration
+# functions_memory = 256
+# functions_max_instances = 100
+
+# Cloud Run configuration
+# cloudrun_memory = "512Mi"
+# cloudrun_cpu = "1"
+# cloudrun_max_instances = 10
+
+# Custom domain (optional)
+# custom_domain = "app.yourdomain.com"
+# enable_ssl = true
+
+# CI/CD integration (optional)
+# enable_ci_cd = true
+# github_owner = "your-org"
+# github_repo = "fledgely"
+
+# Resource labels for cost tracking
+# labels = {
+#   app         = "fledgely"
+#   managed-by  = "terraform"
+#   team        = "platform"
+# }
