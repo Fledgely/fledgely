@@ -12,7 +12,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { isUrlProtected, DEFAULT_CRISIS_DOMAINS, _testExports } from './crisis-allowlist'
+import {
+  isUrlProtected,
+  DEFAULT_CRISIS_DOMAINS,
+  syncAllowlistFromServer,
+  _testExports,
+} from './crisis-allowlist'
 
 const {
   extractDomain,
@@ -21,10 +26,12 @@ const {
   levenshteinDistance,
   extractBaseDomain,
   findFuzzyMatch,
+  transformResourcesToDomains,
   FUZZY_MATCH_THRESHOLD,
   MIN_DOMAIN_LENGTH_FOR_FUZZY,
   MAX_DOMAIN_LENGTH_FOR_FUZZY,
   FUZZY_MATCH_QUEUE_KEY,
+  CRISIS_ALLOWLIST_API,
 } = _testExports
 
 // Mock chrome.storage.local for tests
@@ -662,6 +669,366 @@ describe('Crisis Allowlist - Story 11.6', () => {
 
     it('extractBaseDomain handles only dots', () => {
       expect(extractBaseDomain('...')).toBe('')
+    })
+  })
+
+  // ===========================================================================
+  // Story 7.7: Allowlist Distribution & Sync Tests
+  // ===========================================================================
+  describe('Story 7.7: Transform Resources to Domains', () => {
+    it('extracts primary domain from resources', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'rainn.org',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Sexual assault hotline',
+          phone: '1-800-656-4673',
+          text: null,
+          aliases: [],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains).toContain('rainn.org')
+    })
+
+    it('extracts aliases from resources', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'rainn.org',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Help',
+          phone: null,
+          text: null,
+          aliases: ['www.rainn.org', 'help.rainn.org'],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains).toContain('rainn.org')
+      expect(domains).toContain('www.rainn.org')
+      expect(domains).toContain('help.rainn.org')
+    })
+
+    it('normalizes domains to lowercase', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'RAINN.ORG',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Help',
+          phone: null,
+          text: null,
+          aliases: ['WWW.RAINN.ORG'],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains).toContain('rainn.org')
+      expect(domains).toContain('www.rainn.org')
+    })
+
+    it('handles empty aliases array', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'rainn.org',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Help',
+          phone: null,
+          text: null,
+          aliases: [],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains.length).toBe(1)
+      expect(domains).toContain('rainn.org')
+    })
+
+    it('handles multiple resources', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'rainn.org',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Help',
+          phone: null,
+          text: null,
+          aliases: [],
+          regional: false,
+        },
+        {
+          id: '2',
+          domain: 'thehotline.org',
+          pattern: null,
+          category: 'domestic_violence',
+          name: 'Hotline',
+          description: 'DV Help',
+          phone: null,
+          text: null,
+          aliases: ['hotline.org'],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains).toContain('rainn.org')
+      expect(domains).toContain('thehotline.org')
+      expect(domains).toContain('hotline.org')
+    })
+
+    it('handles empty resources array', () => {
+      const domains = transformResourcesToDomains([])
+      expect(domains.length).toBe(0)
+    })
+
+    it('skips null/undefined aliases gracefully', () => {
+      const resources = [
+        {
+          id: '1',
+          domain: 'rainn.org',
+          pattern: null,
+          category: 'sexual_assault',
+          name: 'RAINN',
+          description: 'Help',
+          phone: null,
+          text: null,
+          aliases: [null as unknown as string, '', 'valid.alias.org'],
+          regional: false,
+        },
+      ]
+      const domains = transformResourcesToDomains(resources)
+      expect(domains).toContain('rainn.org')
+      expect(domains).toContain('valid.alias.org')
+      expect(domains.length).toBe(2) // Only valid entries
+    })
+  })
+
+  describe('Story 7.7: API URL Configuration', () => {
+    it('has correct API URL format', () => {
+      expect(CRISIS_ALLOWLIST_API).toContain('cloudfunctions.net')
+      expect(CRISIS_ALLOWLIST_API).toContain('getCrisisAllowlist')
+    })
+  })
+
+  describe('Story 7.7: syncAllowlistFromServer', () => {
+    let mockFetch: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      mockFetch = vi.fn()
+      vi.stubGlobal('fetch', mockFetch)
+      // Reset storage
+      Object.keys(mockStorage).forEach((key) => delete mockStorage[key])
+      resetCache()
+    })
+
+    it('fetches from API and updates cache on success', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          version: '2.0.0',
+          lastUpdated: new Date().toISOString(),
+          resources: [
+            {
+              id: '1',
+              domain: 'newresource.org',
+              pattern: null,
+              category: 'crisis_general',
+              name: 'New Resource',
+              description: 'New crisis resource',
+              phone: null,
+              text: null,
+              aliases: [],
+              regional: false,
+            },
+          ],
+        }),
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(true)
+      expect(mockFetch).toHaveBeenCalledWith(
+        CRISIS_ALLOWLIST_API,
+        expect.objectContaining({
+          method: 'GET',
+        })
+      )
+      // Check that storage was updated
+      expect(mockStorage['crisisAllowlist']).toBeDefined()
+      const stored = mockStorage['crisisAllowlist'] as { version: string; domains: string[] }
+      expect(stored.version).toBe('2.0.0')
+      expect(stored.domains).toContain('newresource.org')
+    })
+
+    it('returns false on network error (fail-safe)', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false on timeout (fail-safe)', async () => {
+      const abortError = new Error('Aborted')
+      abortError.name = 'AbortError'
+      mockFetch.mockRejectedValueOnce(abortError)
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false on HTTP error (fail-safe)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false on invalid response format', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ invalid: 'format' }),
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false when version unchanged', async () => {
+      // Set up initial version
+      mockStorage['crisisAllowlist'] = {
+        version: '1.0.0',
+        lastUpdated: Date.now(),
+        domains: ['rainn.org'],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          version: '1.0.0',
+          lastUpdated: new Date().toISOString(),
+          resources: [],
+        }),
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+    })
+
+    it('handles 304 Not Modified response', async () => {
+      mockStorage['crisisAllowlist'] = {
+        version: '1.0.0',
+        lastUpdated: Date.now() - 1000,
+        domains: ['rainn.org'],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 304,
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
+      // lastUpdated should be updated
+      const stored = mockStorage['crisisAllowlist'] as { lastUpdated: number }
+      expect(stored.lastUpdated).toBeGreaterThan(Date.now() - 1000)
+    })
+
+    it('merges API domains with bundled defaults', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          version: '2.0.0',
+          lastUpdated: new Date().toISOString(),
+          resources: [
+            {
+              id: '1',
+              domain: 'newresource.org',
+              pattern: null,
+              category: 'crisis_general',
+              name: 'New',
+              description: 'New',
+              phone: null,
+              text: null,
+              aliases: [],
+              regional: false,
+            },
+          ],
+        }),
+      })
+
+      await syncAllowlistFromServer()
+
+      const stored = mockStorage['crisisAllowlist'] as { domains: string[] }
+      // Should contain both new resource AND bundled defaults
+      expect(stored.domains).toContain('newresource.org')
+      expect(stored.domains).toContain('rainn.org') // bundled default
+      expect(stored.domains).toContain('thehotline.org') // bundled default
+    })
+
+    it('sends If-None-Match header with cached version', async () => {
+      mockStorage['crisisAllowlist'] = {
+        version: '1.0.5',
+        lastUpdated: Date.now(),
+        domains: ['rainn.org'],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 304,
+      })
+
+      await syncAllowlistFromServer()
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        CRISIS_ALLOWLIST_API,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'If-None-Match': '"1.0.5"',
+          }),
+        })
+      )
+    })
+
+    it('returns false when API returns empty resources', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          version: '2.0.0',
+          lastUpdated: new Date().toISOString(),
+          resources: [],
+        }),
+      })
+
+      const result = await syncAllowlistFromServer()
+
+      expect(result).toBe(false)
     })
   })
 })

@@ -29,7 +29,6 @@ import {
   initializeAllowlist,
   getAllowlistVersion,
   syncAllowlistFromServer,
-  isAllowlistStale,
 } from './crisis-allowlist'
 import { validateEnrollmentState, isEnrolled } from './enrollment-state'
 import { verifyDeviceEnrollment } from './enrollment-service'
@@ -1225,11 +1224,13 @@ chrome.runtime.onStartup.addListener(async () => {
     }
   })
 
-  // Story 11.2: Check if allowlist needs immediate sync
-  if (await isAllowlistStale()) {
-    console.log('[Fledgely] Allowlist is stale, syncing now')
-    await syncAllowlistFromServer()
-  }
+  // Story 7.7 AC2: Forced refresh on extension startup
+  // Always sync on startup to ensure fresh allowlist, don't wait for 24h TTL
+  console.log('[Fledgely] Forcing allowlist sync on startup')
+  syncAllowlistFromServer().catch((err) => {
+    // Non-blocking - fail-safe uses cached version
+    console.warn('[Fledgely] Startup allowlist sync failed:', err)
+  })
 
   const { state } = await chrome.storage.local.get('state')
 

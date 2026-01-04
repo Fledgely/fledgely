@@ -146,7 +146,7 @@ development_status:
   7-4-emergency-allowlist-push: done
   7-5-fuzzy-domain-matching: done
   7-6-crisis-search-redirection: done
-  7-7-allowlist-distribution-sync: blocked # Depends on backend/API infrastructure
+  7-7-allowlist-distribution-sync: done
   7-8-privacy-gaps-injection: done
   7-9-cross-platform-allowlist-testing: blocked # Depends on platform implementations
   epic-7-retrospective: done

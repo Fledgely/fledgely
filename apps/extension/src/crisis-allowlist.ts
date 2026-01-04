@@ -23,11 +23,44 @@ export interface CrisisAllowlist {
   domains: string[]
 }
 
+/**
+ * Crisis resource from API response
+ * Story 7.7: Allowlist Distribution & Sync
+ */
+interface CrisisResourceFromAPI {
+  id: string
+  domain: string
+  pattern: string | null
+  category: string
+  name: string
+  description: string
+  phone: string | null
+  text: string | null
+  aliases: string[]
+  regional: boolean
+}
+
+/**
+ * API response format from GET /getCrisisAllowlist
+ * Story 7.7: Allowlist Distribution & Sync
+ */
+interface GetAllowlistAPIResponse {
+  version: string
+  lastUpdated: string // ISO timestamp
+  resources: CrisisResourceFromAPI[]
+}
+
 // Storage key for cached allowlist
 const ALLOWLIST_STORAGE_KEY = 'crisisAllowlist'
 
 // Storage key for fuzzy match improvement queue (Story 7.5)
 const FUZZY_MATCH_QUEUE_KEY = 'fuzzyMatchQueue'
+
+// Story 7.7: API URL for crisis allowlist sync
+// Uses Firebase Functions public endpoint (no auth required for fail-safe crisis protection)
+const FIREBASE_PROJECT_ID = 'fledgely-cns-me'
+const FIREBASE_REGION = 'us-central1'
+const CRISIS_ALLOWLIST_API = `https://${FIREBASE_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/getCrisisAllowlist`
 
 // Fuzzy matching constants (Story 7.5)
 const FUZZY_MATCH_THRESHOLD = 2 // Maximum Levenshtein distance for typo detection
@@ -527,35 +560,145 @@ export async function isAllowlistStale(maxAgeMs: number = 24 * 60 * 60 * 1000): 
 }
 
 /**
- * Sync allowlist from server (placeholder - Epic 12 will implement real API)
- * For now, this just logs the attempt and returns false (no update available)
+ * Transform CrisisResource[] from API to domain list
+ * Story 7.7: AC5 Format Transformation
+ *
+ * Extracts primary domains and aliases from each resource.
+ * PRIVACY: Only extracts domain information, no logging of actual domains.
+ *
+ * @param resources - Array of crisis resources from API
+ * @returns Array of domains for allowlist matching
+ */
+function transformResourcesToDomains(resources: CrisisResourceFromAPI[]): string[] {
+  const domains: string[] = []
+  for (const resource of resources) {
+    // Add primary domain
+    if (resource.domain) {
+      domains.push(resource.domain.toLowerCase())
+    }
+    // Add all aliases (these are domain variations/typos)
+    if (resource.aliases && Array.isArray(resource.aliases)) {
+      for (const alias of resource.aliases) {
+        if (alias && typeof alias === 'string') {
+          domains.push(alias.toLowerCase())
+        }
+      }
+    }
+  }
+  return domains
+}
+
+/**
+ * Sync allowlist from server
+ * Story 7.7: Allowlist Distribution & Sync
+ *
+ * Fetches the crisis allowlist from the Fledgely API.
+ * AC1: Fetches from GET /getCrisisAllowlist
+ * AC3: Fail-safe caching (uses cached on error)
+ * AC4: Version mismatch re-sync
+ * AC5: Format transformation
+ *
+ * CRITICAL: On ANY error, return false and keep using cached version.
+ * Never leave the extension without protection.
+ *
  * @returns true if allowlist was updated, false otherwise
  */
 export async function syncAllowlistFromServer(): Promise<boolean> {
   console.log('[Fledgely] Crisis allowlist sync requested')
 
   try {
-    // PLACEHOLDER: Epic 12 will implement real fledgely API
-    // For now, simulate a successful check with no updates
-    console.log('[Fledgely] Allowlist sync: using bundled defaults (API not yet available)')
-
-    // Update lastUpdated to prevent constant retries
+    // Get current cached version for comparison
     const currentAllowlist = await getAllowlist()
-    if (currentAllowlist.lastUpdated === 0) {
-      // First time sync - mark as "synced" with bundled defaults
+    const cachedVersion = currentAllowlist.version
+
+    // Fetch from API with timeout (10 seconds)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+    const response = await fetch(CRISIS_ALLOWLIST_API, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        // Send cached version for ETag-style optimization
+        ...(cachedVersion && cachedVersion !== 'bundled-v1'
+          ? { 'If-None-Match': `"${cachedVersion}"` }
+          : {}),
+      },
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    // Handle 304 Not Modified (cached version is current)
+    if (response.status === 304) {
+      console.log(`[Fledgely] Allowlist sync: cached version ${cachedVersion} is current`)
+      // Update lastUpdated to show successful check
       await updateAllowlist({
-        version: 'bundled-v1-synced',
+        ...currentAllowlist,
         lastUpdated: Date.now(),
-        domains: currentAllowlist.domains,
       })
-      console.log('[Fledgely] Allowlist marked as synced with bundled defaults')
-      return true
+      return false
     }
 
-    return false
+    // Handle non-success responses
+    if (!response.ok) {
+      console.warn(`[Fledgely] Allowlist sync: API returned ${response.status}, using cached`)
+      return false
+    }
+
+    // Parse API response
+    const data: GetAllowlistAPIResponse = await response.json()
+
+    // Validate response structure
+    if (!data.version || !data.resources || !Array.isArray(data.resources)) {
+      console.warn('[Fledgely] Allowlist sync: Invalid API response format, using cached')
+      return false
+    }
+
+    // AC4: Check if version is different (re-sync needed)
+    if (data.version === cachedVersion) {
+      console.log(`[Fledgely] Allowlist sync: version ${data.version} unchanged`)
+      // Update lastUpdated even if version unchanged
+      await updateAllowlist({
+        ...currentAllowlist,
+        lastUpdated: Date.now(),
+      })
+      return false
+    }
+
+    // AC5: Transform resources to domain list
+    const domains = transformResourcesToDomains(data.resources)
+
+    // Validate we got at least some domains
+    if (domains.length === 0) {
+      console.warn('[Fledgely] Allowlist sync: API returned empty domain list, using cached')
+      return false
+    }
+
+    // Merge with bundled defaults for fail-safe (bundled are always included)
+    const mergedDomains = Array.from(new Set([...DEFAULT_CRISIS_SITES, ...domains]))
+
+    // Update the allowlist
+    await updateAllowlist({
+      version: data.version,
+      lastUpdated: Date.now(),
+      domains: mergedDomains,
+    })
+
+    // Log version transition (no domain contents for privacy)
+    console.log(
+      `[Fledgely] Allowlist updated: ${cachedVersion} → ${data.version} (${mergedDomains.length} domains)`
+    )
+
+    return true
   } catch (error) {
-    // Network error or other failure - keep using cached version
-    console.warn('[Fledgely] Crisis allowlist sync failed, using cached version')
+    // AC3: Fail-safe - any error means keep using cached version
+    // This includes network errors, JSON parse errors, AbortError, etc.
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('[Fledgely] Allowlist sync: request timed out, using cached')
+    } else {
+      console.warn('[Fledgely] Allowlist sync: request failed, using cached')
+    }
     return false
   }
 }
@@ -588,7 +731,7 @@ export async function getAllowlistAge(): Promise<string> {
 // Export default sites for testing
 export const DEFAULT_CRISIS_DOMAINS = DEFAULT_CRISIS_SITES
 
-// Export internal functions for testing (Story 11.6, Story 7.5)
+// Export internal functions for testing (Story 11.6, Story 7.5, Story 7.7)
 // These are NOT part of the public API but needed for comprehensive testing
 export const _testExports = {
   extractDomain,
@@ -597,10 +740,12 @@ export const _testExports = {
   extractBaseDomain,
   findFuzzyMatch,
   logFuzzyMatch,
+  transformResourcesToDomains,
   FUZZY_MATCH_THRESHOLD,
   MIN_DOMAIN_LENGTH_FOR_FUZZY,
   MAX_DOMAIN_LENGTH_FOR_FUZZY,
   FUZZY_MATCH_QUEUE_KEY,
+  CRISIS_ALLOWLIST_API,
   resetCache: () => {
     cachedDomainSet = null
     cachedAllowlistVersion = null
