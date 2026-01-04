@@ -21,6 +21,24 @@ let statusChangeListeners: Array<(isOnline: boolean) => void> = []
 // Story 46.4: Track syncing state (for when queue is being processed after coming online)
 let isSyncingState = false
 
+// Story 46.7: Sync progress tracking
+interface SyncProgress {
+  total: number
+  synced: number
+  startedAt: number | null
+  lastCompletedAt: number | null
+  lastSyncedCount: number | null
+  lastSyncDurationMs: number | null
+}
+let syncProgress: SyncProgress = {
+  total: 0,
+  synced: 0,
+  startedAt: null,
+  lastCompletedAt: null,
+  lastSyncedCount: null,
+  lastSyncDurationMs: null,
+}
+
 /**
  * Check if the device is currently online.
  *
@@ -212,6 +230,15 @@ export function resetNetworkStatus(): void {
   lastOfflineDuration = 0
   statusChangeListeners = []
   isSyncingState = false // Story 46.4: Reset syncing state
+  // Story 46.7: Reset sync progress
+  syncProgress = {
+    total: 0,
+    synced: 0,
+    startedAt: null,
+    lastCompletedAt: null,
+    lastSyncedCount: null,
+    lastSyncDurationMs: null,
+  }
 }
 
 /**
@@ -250,4 +277,90 @@ export function getNetworkStatusString(): 'online' | 'offline' | 'syncing' {
     return 'syncing'
   }
   return currentOnlineStatus ? 'online' : 'offline'
+}
+
+/**
+ * Story 46.7: Start sync progress tracking
+ * Called when sync begins with total items to sync
+ * @param total Total number of items to sync
+ */
+export function startSyncProgress(total: number): void {
+  syncProgress = {
+    ...syncProgress,
+    total,
+    synced: 0,
+    startedAt: Date.now(),
+  }
+  isSyncingState = true
+  console.log(`[NetworkStatus] Sync started: ${total} items to sync`)
+}
+
+/**
+ * Story 46.7: Update sync progress
+ * Called after each item is synced
+ * @param synced Number of items synced so far
+ */
+export function updateSyncProgress(synced: number): void {
+  syncProgress.synced = synced
+}
+
+/**
+ * Story 46.7: Complete sync progress tracking
+ * Called when sync finishes
+ */
+export function completeSyncProgress(): void {
+  if (syncProgress.startedAt) {
+    const duration = Date.now() - syncProgress.startedAt
+    syncProgress.lastCompletedAt = Date.now()
+    syncProgress.lastSyncedCount = syncProgress.synced
+    syncProgress.lastSyncDurationMs = duration
+    console.log(
+      `[NetworkStatus] Sync completed: ${syncProgress.synced} items in ${(duration / 1000).toFixed(1)}s`
+    )
+  }
+  syncProgress.total = 0
+  syncProgress.synced = 0
+  syncProgress.startedAt = null
+  isSyncingState = false
+}
+
+/**
+ * Story 46.7: Get current sync progress
+ * @returns Sync progress state
+ */
+export function getSyncProgress(): {
+  total: number
+  synced: number
+  startedAt: number | null
+  speedItemsPerMinute: number | null
+  estimatedSecondsRemaining: number | null
+  lastCompletedAt: number | null
+  lastSyncedCount: number | null
+  lastSyncDurationMs: number | null
+} {
+  let speedItemsPerMinute: number | null = null
+  let estimatedSecondsRemaining: number | null = null
+
+  // Calculate speed and ETA if sync is in progress
+  if (syncProgress.startedAt && syncProgress.synced > 0) {
+    const elapsedMs = Date.now() - syncProgress.startedAt
+    const elapsedMinutes = elapsedMs / 60000
+    speedItemsPerMinute = Math.round(syncProgress.synced / elapsedMinutes)
+
+    const remaining = syncProgress.total - syncProgress.synced
+    if (speedItemsPerMinute > 0) {
+      estimatedSecondsRemaining = Math.round((remaining / speedItemsPerMinute) * 60)
+    }
+  }
+
+  return {
+    total: syncProgress.total,
+    synced: syncProgress.synced,
+    startedAt: syncProgress.startedAt,
+    speedItemsPerMinute,
+    estimatedSecondsRemaining,
+    lastCompletedAt: syncProgress.lastCompletedAt,
+    lastSyncedCount: syncProgress.lastSyncedCount,
+    lastSyncDurationMs: syncProgress.lastSyncDurationMs,
+  }
 }

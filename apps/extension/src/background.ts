@@ -85,7 +85,10 @@ import {
   isOnline,
   onNetworkStatusChange,
   getLastOfflineDuration,
-  setSyncingState, // Story 46.4: Syncing state for health metrics
+  // Story 46.7: Sync progress tracking (startSyncProgress also sets syncing state)
+  startSyncProgress,
+  updateSyncProgress,
+  completeSyncProgress,
 } from './network-status'
 // Story 32.3: Family Offline Time Enforcement
 // Story 32.4: Parent Compliance Tracking
@@ -612,7 +615,8 @@ async function processScreenshotQueue(): Promise<void> {
   })
 
   // Story 46.4: Set syncing state for health metrics reporting
-  setSyncingState(true)
+  // Story 46.7: Start sync progress tracking
+  startSyncProgress(screenshotQueue.length)
 
   // Get state for badge updates
   const { state } = await chrome.storage.local.get('state')
@@ -661,6 +665,9 @@ async function processScreenshotQueue(): Promise<void> {
     if (result.success) {
       successCount++
       idsToRemove.push(item.id) // Remove from IndexedDB
+
+      // Story 46.7: Update sync progress
+      updateSyncProgress(successCount)
 
       // Log upload success event (Story 10.6)
       const remainingCount = screenshotQueue.length - uploadsThisRun
@@ -720,8 +727,8 @@ async function processScreenshotQueue(): Promise<void> {
     await updateErrorBadge(state)
   }
 
-  // Story 46.4: Clear syncing state after queue processing completes
-  setSyncingState(false)
+  // Story 46.4/46.7: Clear syncing state and record sync completion
+  completeSyncProgress()
 }
 
 /**

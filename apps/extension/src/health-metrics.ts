@@ -10,11 +10,16 @@
 
 import { getEventStats } from './event-logger'
 import { getQueueSize as getOfflineQueueSize } from './offline-queue'
-import { getNetworkStatusString, getOfflineDurationSeconds } from './network-status'
+import {
+  getNetworkStatusString,
+  getOfflineDurationSeconds,
+  getSyncProgress,
+} from './network-status'
 
 /**
  * Health metrics collected from the device
  * Story 46.4: Added syncing networkStatus
+ * Story 46.7: Added sync progress fields
  */
 export interface DeviceHealthMetrics {
   /** Capture success rate over last 24h (0-100) */
@@ -35,6 +40,21 @@ export interface DeviceHealthMetrics {
   updateAvailable: boolean | null
   /** Timestamp of this health check */
   collectedAt: number
+  // Story 46.7: Sync progress fields
+  /** Total items to sync (when syncing) */
+  syncProgressTotal: number | null
+  /** Items synced so far (when syncing) */
+  syncProgressSynced: number | null
+  /** Sync speed in items per minute */
+  syncSpeedItemsPerMinute: number | null
+  /** Estimated seconds remaining for sync */
+  syncEstimatedSecondsRemaining: number | null
+  /** Timestamp when last sync completed */
+  syncLastCompletedAt: number | null
+  /** Number of items synced in last sync */
+  syncLastSyncedCount: number | null
+  /** Duration of last sync in milliseconds */
+  syncLastDurationMs: number | null
 }
 
 /**
@@ -92,6 +112,7 @@ async function checkForUpdate(): Promise<boolean | null> {
 /**
  * Collect all health metrics from the device
  * Story 46.1: Updated to use network-status module
+ * Story 46.7: Added sync progress metrics
  */
 export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
   // Get capture stats from event logger
@@ -106,6 +127,9 @@ export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
   // Story 46.4: Updated to use getNetworkStatusString which includes 'syncing' state
   const networkStatus = getNetworkStatusString()
   const offlineDurationSeconds = getOfflineDurationSeconds()
+
+  // Story 46.7: Get sync progress
+  const syncProgressData = getSyncProgress()
 
   // Get battery status
   const battery = await getBatteryStatus()
@@ -126,6 +150,14 @@ export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
     appVersion,
     updateAvailable,
     collectedAt: Date.now(),
+    // Story 46.7: Sync progress
+    syncProgressTotal: syncProgressData.total > 0 ? syncProgressData.total : null,
+    syncProgressSynced: syncProgressData.total > 0 ? syncProgressData.synced : null,
+    syncSpeedItemsPerMinute: syncProgressData.speedItemsPerMinute,
+    syncEstimatedSecondsRemaining: syncProgressData.estimatedSecondsRemaining,
+    syncLastCompletedAt: syncProgressData.lastCompletedAt,
+    syncLastSyncedCount: syncProgressData.lastSyncedCount,
+    syncLastDurationMs: syncProgressData.lastSyncDurationMs,
   }
 }
 

@@ -152,6 +152,43 @@ const styles = {
     backgroundColor: '#3b82f6',
     animation: 'pulse 1.5s ease-in-out infinite',
   },
+  // Story 46.7: Sync progress bar styles
+  syncProgressContainer: {
+    marginTop: '8px',
+    padding: '8px 12px',
+    backgroundColor: '#eff6ff',
+    borderRadius: '6px',
+    border: '1px solid #bfdbfe',
+  },
+  syncProgressHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '6px',
+    fontSize: '12px',
+    color: '#1e40af',
+    fontWeight: 500,
+  },
+  syncProgressBar: {
+    height: '6px',
+    backgroundColor: '#e5e7eb',
+    borderRadius: '3px',
+    overflow: 'hidden',
+  },
+  syncProgressFill: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: '3px',
+    transition: 'width 0.3s ease',
+  },
+  syncProgressMeta: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: '4px',
+    fontSize: '11px',
+    color: '#64748b',
+  },
   // Story 6.5: Consent pending badge styles
   consentBadge: {
     display: 'inline-flex',
@@ -1241,6 +1278,20 @@ export function DevicesList({ familyId }: DevicesListProps) {
     return formatLastSeen(date)
   }
 
+  /**
+   * Story 46.7: Format estimated time remaining for sync
+   */
+  const formatEstimatedTime = (seconds: number | null): string => {
+    if (seconds === null || seconds <= 0) return ''
+    if (seconds < 60) return '<1 min remaining'
+    const minutes = Math.ceil(seconds / 60)
+    if (minutes < 60) return `~${minutes} min remaining`
+    const hours = Math.floor(minutes / 60)
+    const remainingMins = minutes % 60
+    if (remainingMins === 0) return `~${hours}h remaining`
+    return `~${hours}h ${remainingMins}m remaining`
+  }
+
   const renderDeviceItem = (device: Device) => {
     const healthStatus = getDeviceHealthStatus(device)
     // Story 46.4: Check if device is in an offline-like state
@@ -1267,6 +1318,39 @@ export function DevicesList({ familyId }: DevicesListProps) {
             )}{' '}
             &middot; Screenshot {formatScreenshotTime(device.lastScreenshotAt)}
           </div>
+          {/* Story 46.7: Sync progress bar */}
+          {healthStatus === 'syncing' &&
+            device.healthMetrics?.syncProgressTotal &&
+            device.healthMetrics.syncProgressTotal > 0 && (
+              <div style={styles.syncProgressContainer} data-testid="sync-progress-bar">
+                <div style={styles.syncProgressHeader}>
+                  <span>
+                    Syncing: {device.healthMetrics.syncProgressSynced ?? 0} of{' '}
+                    {device.healthMetrics.syncProgressTotal} items
+                  </span>
+                  {device.healthMetrics.syncEstimatedSecondsRemaining !== null &&
+                    device.healthMetrics.syncEstimatedSecondsRemaining > 0 && (
+                      <span>
+                        {formatEstimatedTime(device.healthMetrics.syncEstimatedSecondsRemaining)}
+                      </span>
+                    )}
+                </div>
+                <div style={styles.syncProgressBar}>
+                  <div
+                    style={{
+                      ...styles.syncProgressFill,
+                      width: `${Math.round(((device.healthMetrics.syncProgressSynced ?? 0) / device.healthMetrics.syncProgressTotal) * 100)}%`,
+                    }}
+                  />
+                </div>
+                {device.healthMetrics.syncSpeedItemsPerMinute !== null &&
+                  device.healthMetrics.syncSpeedItemsPerMinute > 0 && (
+                    <div style={styles.syncProgressMeta}>
+                      <span>{device.healthMetrics.syncSpeedItemsPerMinute} items/min</span>
+                    </div>
+                  )}
+              </div>
+            )}
         </div>
         {/* Story 19.3 Task 3: Warning icon for delayed sync */}
         {(healthStatus === 'warning' || healthStatus === 'critical') && (

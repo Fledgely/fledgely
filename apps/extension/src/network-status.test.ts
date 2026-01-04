@@ -21,6 +21,11 @@ import {
   isSyncing,
   setSyncingState,
   getNetworkStatusString,
+  // Story 46.7: Sync progress functions
+  startSyncProgress,
+  updateSyncProgress,
+  completeSyncProgress,
+  getSyncProgress,
 } from './network-status'
 
 describe('Network Status Module', () => {
@@ -387,6 +392,141 @@ describe('Network Status Module', () => {
 
       setSyncingState(false)
       expect(getNetworkStatusString()).toBe('online')
+    })
+  })
+
+  // Story 46.7: Sync Progress Tests
+  describe('startSyncProgress (Story 46.7)', () => {
+    it('should initialize sync progress with total count', () => {
+      startSyncProgress(100)
+      const progress = getSyncProgress()
+      expect(progress.total).toBe(100)
+      expect(progress.synced).toBe(0)
+      expect(progress.startedAt).not.toBeNull()
+    })
+
+    it('should set syncing state to true', () => {
+      startSyncProgress(50)
+      expect(isSyncing()).toBe(true)
+    })
+
+    it('should reset synced count to 0', () => {
+      startSyncProgress(100)
+      updateSyncProgress(50)
+      startSyncProgress(200)
+      const progress = getSyncProgress()
+      expect(progress.synced).toBe(0)
+      expect(progress.total).toBe(200)
+    })
+  })
+
+  describe('updateSyncProgress (Story 46.7)', () => {
+    it('should update synced count', () => {
+      startSyncProgress(100)
+      updateSyncProgress(25)
+      const progress = getSyncProgress()
+      expect(progress.synced).toBe(25)
+    })
+
+    it('should allow updating to any value', () => {
+      startSyncProgress(100)
+      updateSyncProgress(50)
+      updateSyncProgress(75)
+      const progress = getSyncProgress()
+      expect(progress.synced).toBe(75)
+    })
+  })
+
+  describe('completeSyncProgress (Story 46.7)', () => {
+    it('should clear syncing state', () => {
+      startSyncProgress(100)
+      expect(isSyncing()).toBe(true)
+      completeSyncProgress()
+      expect(isSyncing()).toBe(false)
+    })
+
+    it('should record last sync stats', () => {
+      startSyncProgress(100)
+      updateSyncProgress(100)
+      completeSyncProgress()
+      const progress = getSyncProgress()
+      expect(progress.lastCompletedAt).not.toBeNull()
+      expect(progress.lastSyncedCount).toBe(100)
+      expect(progress.lastSyncDurationMs).not.toBeNull()
+    })
+
+    it('should reset current progress', () => {
+      startSyncProgress(100)
+      updateSyncProgress(50)
+      completeSyncProgress()
+      const progress = getSyncProgress()
+      expect(progress.total).toBe(0)
+      expect(progress.synced).toBe(0)
+      expect(progress.startedAt).toBeNull()
+    })
+  })
+
+  describe('getSyncProgress (Story 46.7)', () => {
+    it('should return zero values when no sync in progress', () => {
+      const progress = getSyncProgress()
+      expect(progress.total).toBe(0)
+      expect(progress.synced).toBe(0)
+      expect(progress.startedAt).toBeNull()
+      expect(progress.speedItemsPerMinute).toBeNull()
+      expect(progress.estimatedSecondsRemaining).toBeNull()
+    })
+
+    it('should calculate speed when sync in progress with items synced', () => {
+      const startTime = Date.now()
+      startSyncProgress(100)
+      // Advance fake time by 1 second
+      vi.setSystemTime(startTime + 1000)
+      updateSyncProgress(10)
+      const progress = getSyncProgress()
+      expect(progress.speedItemsPerMinute).not.toBeNull()
+      // 10 items in 1 second = 600 items/minute
+      expect(progress.speedItemsPerMinute).toBe(600)
+    })
+
+    it('should calculate estimated time remaining', () => {
+      const startTime = Date.now()
+      startSyncProgress(100)
+      // Advance fake time by 1 second
+      vi.setSystemTime(startTime + 1000)
+      updateSyncProgress(10)
+      const progress = getSyncProgress()
+      expect(progress.estimatedSecondsRemaining).not.toBeNull()
+      // 90 remaining items at 600/min = 9 seconds
+      expect(progress.estimatedSecondsRemaining).toBe(9)
+    })
+
+    it('should preserve last sync stats after new sync starts', () => {
+      startSyncProgress(100)
+      updateSyncProgress(100)
+      completeSyncProgress()
+
+      const lastCompleted = getSyncProgress().lastCompletedAt
+      const lastCount = getSyncProgress().lastSyncedCount
+
+      startSyncProgress(50)
+      const progress = getSyncProgress()
+      expect(progress.lastCompletedAt).toBe(lastCompleted)
+      expect(progress.lastSyncedCount).toBe(lastCount)
+    })
+  })
+
+  describe('resetNetworkStatus sync progress (Story 46.7)', () => {
+    it('should reset sync progress', () => {
+      startSyncProgress(100)
+      updateSyncProgress(50)
+      completeSyncProgress()
+
+      resetNetworkStatus()
+      const progress = getSyncProgress()
+      expect(progress.total).toBe(0)
+      expect(progress.synced).toBe(0)
+      expect(progress.lastCompletedAt).toBeNull()
+      expect(progress.lastSyncedCount).toBeNull()
     })
   })
 })

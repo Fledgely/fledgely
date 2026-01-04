@@ -19,6 +19,7 @@ import { getFirestoreDb } from '../lib/firebase'
  * Story 19.4: Monitoring Health Details
  * Story 8.8: Added encryptedTrafficPercent
  * Story 46.4: Added syncing to networkStatus
+ * Story 46.7: Added sync progress fields
  */
 export interface DeviceHealthMetrics {
   captureSuccessRate24h: number | null
@@ -32,6 +33,21 @@ export interface DeviceHealthMetrics {
   lastHealthSync: Date | null
   /** Story 8.8: Percentage of HTTPS traffic (encrypted) */
   encryptedTrafficPercent: number | null
+  // Story 46.7: Sync progress fields
+  /** Total items to sync (when syncing) */
+  syncProgressTotal: number | null
+  /** Items synced so far (when syncing) */
+  syncProgressSynced: number | null
+  /** Sync speed in items per minute */
+  syncSpeedItemsPerMinute: number | null
+  /** Estimated seconds remaining for sync */
+  syncEstimatedSecondsRemaining: number | null
+  /** Timestamp when last sync completed */
+  syncLastCompletedAt: number | null
+  /** Number of items synced in last sync */
+  syncLastSyncedCount: number | null
+  /** Duration of last sync in milliseconds */
+  syncLastDurationMs: number | null
 }
 
 /**
@@ -138,6 +154,14 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
               collectedAt: hm.collectedAt ?? 0,
               lastHealthSync: hm.lastHealthSync?.toDate?.() || null,
               encryptedTrafficPercent: hm.encryptedTrafficPercent ?? null,
+              // Story 46.7: Sync progress fields
+              syncProgressTotal: hm.syncProgressTotal ?? null,
+              syncProgressSynced: hm.syncProgressSynced ?? null,
+              syncSpeedItemsPerMinute: hm.syncSpeedItemsPerMinute ?? null,
+              syncEstimatedSecondsRemaining: hm.syncEstimatedSecondsRemaining ?? null,
+              syncLastCompletedAt: hm.syncLastCompletedAt ?? null,
+              syncLastSyncedCount: hm.syncLastSyncedCount ?? null,
+              syncLastDurationMs: hm.syncLastDurationMs ?? null,
             }
           }
 
