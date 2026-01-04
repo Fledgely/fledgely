@@ -2623,13 +2623,15 @@ export {
   clearAllAge16NotificationData,
 } from './services/age16TransitionNotificationService'
 
-// Reverse Mode (Story 52.2)
+// Reverse Mode (Story 52.2, 52.3)
 export {
   REVERSE_MODE_FEATURE,
   ReverseModeStatus,
   ReverseModeChangeType,
+  ScreenTimeShareLevel,
   ReverseModeShareingPreferencesSchema,
   DEFAULT_REVERSE_MODE_SHARING,
+  type ScreenTimeShareLevelValue,
   ReverseModeSettingsSchema,
   DEFAULT_REVERSE_MODE_SETTINGS,
   ReverseModeActivationRequestSchema,
@@ -2687,3 +2689,25 @@ export {
   type ReverseModeNotificationType,
   type ReverseModeNotificationPayload,
 } from './services/reverseModeNotificationService'
+
+// Sharing Preview Service (Story 52.3 Task 2)
+export {
+  calculateParentVisibility,
+  generateSharingPreview,
+  validateSharingPreferences,
+  isAnythingShared,
+  getSharedItemsList,
+  type ScreenTimeData,
+  type FlagData,
+  type LocationData,
+  type ScreenshotData,
+  type ChildActivityData,
+  type ParentVisibleData,
+  type ParentVisibleScreenTime,
+  type ParentVisibleFlag,
+  type ParentVisibleScreenshot,
+  type ParentVisibleLocation,
+  type ParentVisibleTimeLimitStatus,
+  type SharingPreview,
+  type SharingPreviewDetail,
+} from './services/sharingPreviewService'

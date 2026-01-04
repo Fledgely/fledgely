@@ -1,14 +1,23 @@
 /**
- * Reverse Mode Callable Functions - Story 52.2
+ * Reverse Mode Callable Functions - Story 52.2, 52.3
  *
  * Callable functions for managing reverse mode activation/deactivation.
  *
+ * Story 52.2:
  * AC1: Check if child is 16+ for reverse mode visibility
  * AC2: Activation requires understanding confirmation
  * AC3: Mode switch - child controls what's shared
  * AC4: Parent notification on activation
  * AC5: Can be deactivated anytime
  * AC6: Mode changes logged (NFR42)
+ *
+ * Story 52.3:
+ * AC1: Daily screen time summary sharing
+ * AC2: Category-based sharing
+ * AC3: Time limit status sharing
+ * AC5: Granular controls
+ * AC6: Real-time parent view update
+ * AC7: Settings persistence
  */
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
@@ -26,8 +35,14 @@ import {
   getParentReverseModeActivatedMessage,
   getParentReverseModeDeactivatedMessage,
   SUPPORTING_INDEPENDENCE_LINK,
+  calculateParentVisibility,
+  validateSharingPreferences,
+  generateSharingPreview,
   type ReverseModeSettings,
   type ReverseModeChangeEvent,
+  type ReverseModeShareingPreferences,
+  type ChildActivityData,
+  type ScreenTimeData,
 } from '@fledgely/shared'
 
 const db = getFirestore()
@@ -318,17 +333,16 @@ export const deactivateReverseModeCallable = onCall({ enforceAppCheck: false }, 
 
 /**
  * Update sharing preferences while in reverse mode.
- * Only available when reverse mode is active.
+ * Story 52.3: Enhanced with granular controls.
+ *
+ * AC5: Granular controls - what, when, how much
+ * AC6: Real-time update - parents see only what teen chooses
+ * AC7: Settings persistence - previous selections preserved
  */
 export const updateReverseModeSharing = onCall({ enforceAppCheck: false }, async (request) => {
   const { childId, sharingPreferences } = request.data as {
     childId: string
-    sharingPreferences: {
-      screenTime?: boolean
-      flags?: boolean
-      screenshots?: boolean
-      location?: boolean
-    }
+    sharingPreferences: Partial<ReverseModeShareingPreferences>
   }
 
   if (!childId) {
@@ -353,24 +367,240 @@ export const updateReverseModeSharing = onCall({ enforceAppCheck: false }, async
     throw new HttpsError('failed-precondition', 'Reverse Mode must be active to update sharing')
   }
 
-  // Merge new preferences with existing ones
-  const updatedPreferences = {
-    screenTime:
-      sharingPreferences.screenTime ?? currentSettings!.sharingPreferences?.screenTime ?? false,
-    flags: sharingPreferences.flags ?? currentSettings!.sharingPreferences?.flags ?? false,
-    screenshots:
-      sharingPreferences.screenshots ?? currentSettings!.sharingPreferences?.screenshots ?? false,
-    location: sharingPreferences.location ?? currentSettings!.sharingPreferences?.location ?? false,
+  // Merge new preferences with existing ones (AC7: Settings persistence)
+  const currentPrefs = currentSettings!.sharingPreferences || {}
+  const updatedPreferences: ReverseModeShareingPreferences = {
+    screenTime: sharingPreferences.screenTime ?? currentPrefs.screenTime ?? false,
+    screenTimeDetail:
+      sharingPreferences.screenTimeDetail ?? currentPrefs.screenTimeDetail ?? 'none',
+    flags: sharingPreferences.flags ?? currentPrefs.flags ?? false,
+    screenshots: sharingPreferences.screenshots ?? currentPrefs.screenshots ?? false,
+    location: sharingPreferences.location ?? currentPrefs.location ?? false,
+    timeLimitStatus: sharingPreferences.timeLimitStatus ?? currentPrefs.timeLimitStatus ?? false,
+    sharedCategories: sharingPreferences.sharedCategories ?? currentPrefs.sharedCategories ?? [],
   }
 
-  // Update child document
+  // Validate the preferences
+  const validation = validateSharingPreferences(updatedPreferences)
+  if (!validation.valid) {
+    throw new HttpsError('invalid-argument', validation.errors.join(', '))
+  }
+
+  // Update child document (AC6: Real-time update)
   await childRef.update({
     'reverseModeSettings.sharingPreferences': updatedPreferences,
     updatedAt: FieldValue.serverTimestamp(),
   })
 
+  // Generate preview for response (AC5: Preview of what parents see)
+  const preview = generateSharingPreview(updatedPreferences)
+
   return {
     success: true,
     sharingPreferences: updatedPreferences,
+    preview,
   }
 })
+
+/**
+ * Get the sharing preview for current preferences.
+ * AC5: Preview of what parents will see.
+ */
+export const getSharingPreviewCallable = onCall({ enforceAppCheck: false }, async (request) => {
+  const { childId } = request.data as { childId: string }
+
+  if (!childId) {
+    throw new HttpsError('invalid-argument', 'Child ID is required')
+  }
+
+  const auth = request.auth
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required')
+  }
+
+  const { childData } = await findChildWithAccess(childId, auth.uid)
+  const currentSettings = childData.reverseModeSettings as ReverseModeSettings | undefined
+
+  // If reverse mode is not active, return null preview
+  if (!isReverseModeActiveStatus(currentSettings)) {
+    return {
+      reverseModeActive: false,
+      preview: null,
+    }
+  }
+
+  const preview = generateSharingPreview(currentSettings?.sharingPreferences)
+
+  return {
+    reverseModeActive: true,
+    preview,
+    sharingPreferences: currentSettings?.sharingPreferences || null,
+  }
+})
+
+/**
+ * Get parent-visible data for a child.
+ * Story 52.3 Task 3: Returns filtered data based on sharing preferences.
+ *
+ * AC1: Daily screen time summary only (if configured)
+ * AC2: Category-based filtering
+ * AC3: Time limit status if enabled
+ * AC4: "No data shared" when nothing shared
+ * AC6: Real-time filtered view
+ */
+export const getParentVisibleDataCallable = onCall({ enforceAppCheck: false }, async (request) => {
+  const { childId } = request.data as { childId: string }
+
+  if (!childId) {
+    throw new HttpsError('invalid-argument', 'Child ID is required')
+  }
+
+  const auth = request.auth
+  if (!auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required')
+  }
+
+  const { childData, familyId, familyData } = await findChildWithAccess(childId, auth.uid)
+
+  // Verify the requester is a parent
+  const parentIds = familyData.parentIds || []
+  if (!parentIds.includes(auth.uid)) {
+    throw new HttpsError('permission-denied', 'Only parents can view child data')
+  }
+
+  const currentSettings = childData.reverseModeSettings as ReverseModeSettings | undefined
+
+  // Fetch the child's activity data
+  const activityData = await fetchChildActivityData(familyId, childId)
+
+  // Calculate what parents can see based on reverse mode settings
+  const visibleData = calculateParentVisibility(
+    activityData,
+    currentSettings?.sharingPreferences,
+    currentSettings
+  )
+
+  return {
+    childId,
+    reverseModeActive: isReverseModeActiveStatus(currentSettings),
+    ...visibleData,
+  }
+})
+
+/**
+ * Helper to fetch child activity data for parent visibility calculation.
+ */
+async function fetchChildActivityData(
+  familyId: string,
+  childId: string
+): Promise<ChildActivityData> {
+  // Fetch screen time data
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
+
+  const screenTimeDoc = await db
+    .collection('families')
+    .doc(familyId)
+    .collection('children')
+    .doc(childId)
+    .collection('screenTime')
+    .where('date', '>=', todayStart)
+    .orderBy('date', 'desc')
+    .limit(1)
+    .get()
+
+  let screenTime: ScreenTimeData = {
+    totalMinutes: 0,
+    categoryBreakdown: {},
+    appBreakdown: {},
+    isApproachingLimit: false,
+    isLimitReached: false,
+  }
+
+  if (!screenTimeDoc.empty) {
+    const data = screenTimeDoc.docs[0].data()
+    screenTime = {
+      totalMinutes: data.totalMinutes || 0,
+      categoryBreakdown: data.categoryBreakdown || {},
+      appBreakdown: data.appBreakdown || {},
+      isApproachingLimit: data.isApproachingLimit || false,
+      isLimitReached: data.isLimitReached || false,
+      dailyLimit: data.dailyLimit,
+    }
+  }
+
+  // Fetch recent flags
+  const flagsSnapshot = await db
+    .collection('families')
+    .doc(familyId)
+    .collection('children')
+    .doc(childId)
+    .collection('flags')
+    .where('createdAt', '>=', todayStart)
+    .orderBy('createdAt', 'desc')
+    .limit(50)
+    .get()
+
+  const flags = flagsSnapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      category: data.category || 'unknown',
+      type: data.type || 'unknown',
+      timestamp: data.createdAt?.toDate() || new Date(),
+      description: data.description || '',
+    }
+  })
+
+  // Fetch recent screenshots
+  const screenshotsSnapshot = await db
+    .collection('families')
+    .doc(familyId)
+    .collection('children')
+    .doc(childId)
+    .collection('screenshots')
+    .where('createdAt', '>=', todayStart)
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .get()
+
+  const screenshots = screenshotsSnapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      timestamp: data.createdAt?.toDate() || new Date(),
+      appName: data.appName || 'Unknown',
+      url: data.url || '',
+    }
+  })
+
+  // Fetch last location
+  const locationDoc = await db
+    .collection('families')
+    .doc(familyId)
+    .collection('children')
+    .doc(childId)
+    .collection('locations')
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .get()
+
+  let location = {}
+  if (!locationDoc.empty) {
+    const data = locationDoc.docs[0].data()
+    location = {
+      lastLocation: {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        timestamp: data.timestamp?.toDate() || new Date(),
+      },
+    }
+  }
+
+  return {
+    screenTime,
+    flags,
+    screenshots,
+    location,
+  }
+}

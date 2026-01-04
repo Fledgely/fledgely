@@ -35,3 +35,6 @@ export { LocationAbuseAlert } from './LocationAbuseAlert'
 export type { LocationAbuseAlertProps, LocationAbuseAlertData } from './LocationAbuseAlert'
 export { LocationAbuseResources } from './LocationAbuseResources'
 export type { LocationAbuseResourcesProps } from './LocationAbuseResources'
+
+// Reverse Mode Components (Story 52.3)
+export { ReverseModeDataView } from './ReverseModeDataView'

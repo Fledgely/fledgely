@@ -59,18 +59,38 @@ export type ReverseModeChangeTypeValue =
 // ============================================
 
 /**
+ * Screen time sharing detail level.
+ * Story 52-3 AC1: can share daily screen time summary only
+ */
+export const ScreenTimeShareLevel = {
+  NONE: 'none',
+  SUMMARY: 'summary',
+  FULL: 'full',
+} as const
+
+export type ScreenTimeShareLevelValue =
+  (typeof ScreenTimeShareLevel)[keyof typeof ScreenTimeShareLevel]
+
+/**
  * Schema for sharing preferences in reverse mode.
  * When reverse mode is active, these control what parents can see.
+ * Story 52-3: Granular sharing controls
  */
 export const ReverseModeShareingPreferencesSchema = z.object({
-  /** Share screen time summary with parents */
+  /** Share screen time with parents - level of detail */
   screenTime: z.boolean().default(false),
+  /** Screen time detail level: none, summary, or full (Story 52-3) */
+  screenTimeDetail: z.enum(['none', 'summary', 'full']).default('none'),
   /** Share flagged content alerts with parents */
   flags: z.boolean().default(false),
   /** Share screenshots with parents */
   screenshots: z.boolean().default(false),
   /** Share location data with parents */
   location: z.boolean().default(false),
+  /** Share time limit status (approaching/reached) with parents (Story 52-3) */
+  timeLimitStatus: z.boolean().default(false),
+  /** Categories to share (if empty, none shared) (Story 52-3) */
+  sharedCategories: z.array(z.string()).default([]),
 })
 
 export type ReverseModeShareingPreferences = z.infer<typeof ReverseModeShareingPreferencesSchema>
@@ -81,9 +101,12 @@ export type ReverseModeShareingPreferences = z.infer<typeof ReverseModeShareingP
  */
 export const DEFAULT_REVERSE_MODE_SHARING: ReverseModeShareingPreferences = {
   screenTime: false,
+  screenTimeDetail: 'none',
   flags: false,
   screenshots: false,
   location: false,
+  timeLimitStatus: false,
+  sharedCategories: [],
 }
 
 /**

@@ -1,14 +1,23 @@
 'use client'
 
 /**
- * Reverse Mode Settings Page - Story 52.2 Task 5
+ * Reverse Mode Settings Page - Story 52.2 & 52.3
  *
  * Settings page for managing reverse mode activation and sharing preferences.
  *
+ * Story 52.2:
  * AC1: Visible only if child is 16+
  * AC2: Confirmation modal before activation
  * AC3: Toggle control for activation/deactivation
  * AC5: Can be deactivated anytime
+ *
+ * Story 52.3:
+ * AC1: Daily screen time summary sharing
+ * AC2: Category-based sharing
+ * AC3: Time limit status sharing
+ * AC4: Nothing shared option
+ * AC5: Granular controls with preview
+ * AC7: Settings persistence
  */
 
 import { useState, useEffect } from 'react'
@@ -18,6 +27,8 @@ import { useReverseMode } from '../../../../hooks/useReverseMode'
 import { useAge16Transition } from '../../../../hooks/useAge16Transition'
 import ReverseModeToggle from '../../../../components/reverse-mode/ReverseModeToggle'
 import ReverseModeConfirmationModal from '../../../../components/reverse-mode/ReverseModeConfirmationModal'
+import { SharingPreferencesPanel, SharingPreviewCard } from '../../../../components/reverse-mode'
+import { generateSharingPreview, type ReverseModeShareingPreferences } from '@fledgely/shared'
 
 const styles = {
   main: {
@@ -91,62 +102,8 @@ const styles = {
     border: '1px solid #e5e7eb',
     overflow: 'hidden',
   },
-  settingRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px 20px',
-    borderBottom: '1px solid #f3f4f6',
-  },
-  settingRowLast: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px 20px',
-  },
-  settingInfo: {
-    flex: 1,
-  },
-  settingLabel: {
-    fontSize: '15px',
-    fontWeight: 500,
-    color: '#1f2937',
-    marginBottom: '4px',
-  },
-  settingDescription: {
-    fontSize: '13px',
-    color: '#6b7280',
-  },
-  toggle: {
-    position: 'relative' as const,
-    width: '44px',
-    height: '24px',
-    backgroundColor: '#d1d5db',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-    border: 'none',
-  },
-  toggleActive: {
-    backgroundColor: '#3b82f6',
-  },
-  toggleDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  },
-  toggleKnob: {
-    position: 'absolute' as const,
-    top: '2px',
-    left: '2px',
-    width: '20px',
-    height: '20px',
-    backgroundColor: '#ffffff',
-    borderRadius: '50%',
-    transition: 'transform 0.2s',
-  },
-  toggleKnobActive: {
-    transform: 'translateX(20px)',
-  },
+  // settingRow styles removed - using SharingPreferencesPanel for Story 52.3
+  // Toggle styles removed - using SharingPreferencesPanel for Story 52.3
   infoBox: {
     display: 'flex',
     gap: '12px',
@@ -203,37 +160,7 @@ const styles = {
   },
 }
 
-function SharingToggle({
-  enabled,
-  onChange,
-  disabled,
-}: {
-  enabled: boolean
-  onChange: (value: boolean) => void
-  disabled: boolean
-}) {
-  return (
-    <button
-      type="button"
-      style={{
-        ...styles.toggle,
-        ...(enabled ? styles.toggleActive : {}),
-        ...(disabled ? styles.toggleDisabled : {}),
-      }}
-      onClick={() => !disabled && onChange(!enabled)}
-      disabled={disabled}
-      role="switch"
-      aria-checked={enabled}
-    >
-      <div
-        style={{
-          ...styles.toggleKnob,
-          ...(enabled ? styles.toggleKnobActive : {}),
-        }}
-      />
-    </button>
-  )
-}
+// SharingToggle component removed - using SharingPreferencesPanel instead for Story 52.3
 
 export default function ReverseModeSettingsPage() {
   const router = useRouter()
@@ -275,14 +202,19 @@ export default function ReverseModeSettingsPage() {
     }
   }
 
-  // Handle sharing preference change
-  const handleSharingChange = async (key: string, value: boolean) => {
+  // Handle sharing preferences save (Story 52.3)
+  const handleSharingPreferencesSave = async (prefs: ReverseModeShareingPreferences) => {
     try {
-      await reverseMode.updateSharing({ [key]: value })
+      await reverseMode.updateSharing(prefs)
     } catch (error) {
       console.error('Failed to update sharing:', error)
     }
   }
+
+  // Generate preview for current preferences
+  const sharingPreview = reverseMode.isActive
+    ? generateSharingPreview(reverseMode.sharingPreferences)
+    : null
 
   // Loading state
   if (authLoading || age16Transition.isLoading || reverseMode.isLoading) {
@@ -396,64 +328,26 @@ export default function ReverseModeSettingsPage() {
         </div>
 
         {reverseMode.isActive && (
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>What to Share</div>
-            <div style={styles.card}>
-              <div style={styles.settingRow}>
-                <div style={styles.settingInfo}>
-                  <div style={styles.settingLabel}>Screen Time</div>
-                  <div style={styles.settingDescription}>
-                    Share how long you use your device each day
-                  </div>
-                </div>
-                <SharingToggle
-                  enabled={reverseMode.sharingPreferences?.screenTime ?? false}
-                  onChange={(value) => handleSharingChange('screenTime', value)}
-                  disabled={reverseMode.isUpdatingSharing}
-                />
-              </div>
-
-              <div style={styles.settingRow}>
-                <div style={styles.settingInfo}>
-                  <div style={styles.settingLabel}>Flags</div>
-                  <div style={styles.settingDescription}>
-                    Share flagged content alerts with parents
-                  </div>
-                </div>
-                <SharingToggle
-                  enabled={reverseMode.sharingPreferences?.flags ?? false}
-                  onChange={(value) => handleSharingChange('flags', value)}
-                  disabled={reverseMode.isUpdatingSharing}
-                />
-              </div>
-
-              <div style={styles.settingRow}>
-                <div style={styles.settingInfo}>
-                  <div style={styles.settingLabel}>Screenshots</div>
-                  <div style={styles.settingDescription}>
-                    Share captured screenshots with parents
-                  </div>
-                </div>
-                <SharingToggle
-                  enabled={reverseMode.sharingPreferences?.screenshots ?? false}
-                  onChange={(value) => handleSharingChange('screenshots', value)}
-                  disabled={reverseMode.isUpdatingSharing}
-                />
-              </div>
-
-              <div style={styles.settingRowLast}>
-                <div style={styles.settingInfo}>
-                  <div style={styles.settingLabel}>Location</div>
-                  <div style={styles.settingDescription}>Share your location data with parents</div>
-                </div>
-                <SharingToggle
-                  enabled={reverseMode.sharingPreferences?.location ?? false}
-                  onChange={(value) => handleSharingChange('location', value)}
-                  disabled={reverseMode.isUpdatingSharing}
-                />
-              </div>
+          <>
+            {/* Enhanced Sharing Preferences Panel - Story 52.3 */}
+            <div style={styles.section}>
+              <div style={styles.sectionTitle}>What to Share</div>
+              <SharingPreferencesPanel
+                currentPreferences={reverseMode.sharingPreferences}
+                onSave={handleSharingPreferencesSave}
+                isLoading={reverseMode.isUpdatingSharing}
+              />
             </div>
-          </div>
+
+            {/* Sharing Preview Card - Story 52.3 AC5 */}
+            <div style={styles.section}>
+              <div style={styles.sectionTitle}>Preview</div>
+              <SharingPreviewCard
+                preview={sharingPreview}
+                reverseModeActive={reverseMode.isActive}
+              />
+            </div>
+          </>
         )}
       </div>
 
