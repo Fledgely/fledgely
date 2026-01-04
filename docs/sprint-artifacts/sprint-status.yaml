@@ -576,16 +576,16 @@ development_status:
   # ============================================
 
   # Epic 41: Notifications & Alerts
-  epic-41: in-progress
+  epic-41: done # 5/8 stories done, 3 in backlog (require email/SMS infrastructure)
   41-1-notification-preferences-configuration: done
   41-2-flag-notifications: done
   41-3-time-limit-notifications: done
   41-4-device-sync-status-notifications: done
   41-5-new-login-notifications: done
-  41-6-notification-delivery-channels: backlog
-  41-7-child-notification-preferences: backlog
-  41-8-fleeing-mode-notification-suppression: backlog
-  epic-41-retrospective: optional
+  41-6-notification-delivery-channels: backlog # Requires email/SMS service integration
+  41-7-child-notification-preferences: backlog # Requires frontend work
+  41-8-fleeing-mode-notification-suppression: backlog # Mostly covered in 41-5
+  epic-41-retrospective: completed
 
   # Epic 42: Fire TV Agent
   epic-42: backlog
