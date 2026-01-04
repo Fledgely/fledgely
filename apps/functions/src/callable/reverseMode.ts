@@ -368,7 +368,8 @@ export const updateReverseModeSharing = onCall({ enforceAppCheck: false }, async
   }
 
   // Merge new preferences with existing ones (AC7: Settings persistence)
-  const currentPrefs = currentSettings!.sharingPreferences || {}
+  const currentPrefs: Partial<ReverseModeShareingPreferences> =
+    currentSettings!.sharingPreferences || {}
   const updatedPreferences: ReverseModeShareingPreferences = {
     screenTime: sharingPreferences.screenTime ?? currentPrefs.screenTime ?? false,
     screenTimeDetail:

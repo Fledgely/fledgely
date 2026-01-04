@@ -313,3 +313,13 @@ export {
   deactivateReverseModeCallable,
   updateReverseModeSharing,
 } from './callable/reverseMode'
+
+// Trusted Adult (Story 52.4)
+export {
+  inviteTrustedAdultCallable,
+  acceptTrustedAdultInvitationCallable,
+  approveTrustedAdultByTeenCallable,
+  getTrustedAdultsCallable,
+  revokeTrustedAdultCallable,
+  resendTrustedAdultInvitationCallable,
+} from './callable/trustedAdult'

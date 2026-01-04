@@ -260,7 +260,15 @@ describe('reverseModeService', () => {
         status: 'active',
         activatedAt: new Date('2026-01-01'),
         activatedBy: 'child-1',
-        sharingPreferences: { screenTime: true, flags: false, screenshots: false, location: false },
+        sharingPreferences: {
+          screenTime: true,
+          screenTimeDetail: 'summary',
+          flags: false,
+          screenshots: false,
+          location: false,
+          timeLimitStatus: false,
+          sharedCategories: [],
+        },
       }
       const settings = createDeactivationSettings(previousSettings)
       expect(settings.status).toBe('off')
@@ -307,7 +315,15 @@ describe('reverseModeService', () => {
         status: 'active',
         activatedAt: new Date(),
         activatedBy: 'child-1',
-        sharingPreferences: { screenTime: true, flags: true, screenshots: false, location: false },
+        sharingPreferences: {
+          screenTime: true,
+          screenTimeDetail: 'summary',
+          flags: true,
+          screenshots: false,
+          location: false,
+          timeLimitStatus: false,
+          sharedCategories: [],
+        },
       }
       const settings = createDeactivationSettings(previousSettings)
       expect(settings.sharingPreferences).toBeUndefined()
