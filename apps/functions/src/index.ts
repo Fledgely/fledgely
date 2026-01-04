@@ -296,3 +296,12 @@ export {
 } from './callable/submitCorrectionRequest'
 export { disputeAIContent, resolveAIDispute } from './callable/disputeAIContent'
 export { getProfileChanges } from './callable/getProfileChanges'
+
+// Age 16 Transition (Story 52.1)
+export { checkAge16Transitions } from './scheduled/checkAge16Transitions'
+export {
+  getAge16TransitionEligibility,
+  getAge16TransitionNotifications,
+  dismissAge16TransitionNotification,
+  acknowledgeAge16TransitionNotification,
+} from './callable/age16Transition'

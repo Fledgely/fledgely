@@ -2562,3 +2562,63 @@ export {
   type SubmitAIDisputeResponse,
   type GetProfileChangesResponse,
 } from './contracts/rectification'
+
+// Age 16 Transition (Story 52.1)
+export {
+  AGE_16_IN_YEARS,
+  PRE_TRANSITION_DAYS,
+  MAX_TRUSTED_ADULTS,
+  Age16NotificationType,
+  Age16TransitionNotificationSchema,
+  TransitionGuideStepSchema,
+  TransitionGuideSchema,
+  TransitionEligibilitySchema,
+  generateTransitionNotificationId,
+  isEligibleForTransition,
+  isApproachingTransition,
+  createAge16TransitionNotification,
+  getDefaultTransitionGuide,
+  CHILD_PRE_TRANSITION_MESSAGE,
+  CHILD_TRANSITION_AVAILABLE_MESSAGE,
+  PARENT_PRE_TRANSITION_MESSAGE,
+  PARENT_TRANSITION_AVAILABLE_TEMPLATE,
+  type Age16NotificationTypeValue,
+  type Age16ViewerType,
+  type Age16TransitionNotification,
+  type TransitionGuideStep,
+  type TransitionGuide,
+  type TransitionEligibility,
+} from './contracts/age16Transition'
+
+export {
+  is16OrOlder,
+  get16thBirthdayDate,
+  getDaysUntil16,
+  isWithin30DaysOf16,
+  isExactly16Today,
+  getTransitionEligibility,
+  shouldSendPreTransitionNotification,
+  shouldSendTransitionAvailableNotification,
+} from './services/age16TransitionService'
+
+export {
+  getChildPreTransitionMessage,
+  getChildTransitionAvailableMessage,
+  getParentPreTransitionMessage,
+  getParentTransitionAvailableMessage,
+  getAge16TransitionMessageForViewer,
+  getPreTransitionMessageWithDays,
+  getParentPreTransitionMessageWithDays,
+  getAge16TransitionGuide,
+  getAge16CelebrationMessage,
+  sendPreTransitionNotification,
+  sendTransitionAvailableNotification,
+  getAge16NotificationsForChild,
+  getAge16NotificationById,
+  getUnacknowledgedAge16Notifications,
+  wasPreTransitionNotificationSent,
+  wasTransitionAvailableNotificationSent,
+  markNotificationAcknowledged,
+  dismissNotification,
+  clearAllAge16NotificationData,
+} from './services/age16TransitionNotificationService'
