@@ -7785,3 +7785,29 @@ export {
   type ChannelDeliveryResult,
   type DeliveryResult,
 } from './deliveryChannel'
+
+// Story 41.7: Child Notification Preferences
+// Note: AGE_BRACKETS already exported from graduation eligibility, calculateAge from age18Deletion
+export {
+  CHILD_QUIET_HOURS_DEFAULTS,
+  CHILD_NOTIFICATION_TYPES,
+  REQUIRED_CHILD_NOTIFICATION_TYPES,
+  OPTIONAL_CHILD_NOTIFICATION_TYPES,
+  childNotificationPreferencesSchema,
+  childNotificationPreferencesUpdateSchema,
+  getChildNotificationPreferencesInputSchema,
+  updateChildNotificationPreferencesInputSchema,
+  getAgeAppropriateDefaults,
+  createDefaultChildNotificationPreferences,
+  applyChildPreferencesUpdate,
+  isInChildQuietHours,
+  shouldDeliverChildNotification,
+  isRequiredChildNotificationType,
+  getChildPreferencesDescription,
+  type ChildNotificationPreferenceType,
+  type ChildNotificationDefaults,
+  type ChildNotificationPreferences,
+  type ChildNotificationPreferencesUpdate,
+  type GetChildNotificationPreferencesInput,
+  type UpdateChildNotificationPreferencesInput,
+} from './childNotificationPreferences'

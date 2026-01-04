@@ -243,3 +243,7 @@ export {
   getChannelPreferences,
 } from './callable/updateChannelPreferences'
 export { handleUnsubscribe } from './callable/handleUnsubscribe'
+
+// Child notification preferences (Story 41.7)
+export { getChildNotificationPreferences } from './callable/getChildNotificationPreferences'
+export { updateChildNotificationPreferences } from './callable/updateChildNotificationPreferences'

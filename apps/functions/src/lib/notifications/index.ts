@@ -130,3 +130,27 @@ export {
   deliverNotification,
   updateChannelPreferences,
 } from './deliveryChannelManager'
+
+// Story 41.7: Child notification preferences service
+export {
+  getChildNotificationPreferences,
+  updateChildNotificationPreferences,
+  initializeChildPreferences,
+  deleteChildPreferences,
+  childPreferencesExist,
+} from './childNotificationPreferencesService'
+
+// Story 41.7: Child notification delivery
+export {
+  shouldDeliverToChild,
+  deliverNotificationToChild,
+  sendTimeLimitWarningToChild,
+  sendAgreementChangeToChild,
+  sendTrustScoreChangeToChild,
+  sendWeeklySummaryToChild,
+} from './childNotificationDelivery'
+export type {
+  ChildNotificationContent,
+  ChildDeliveryLog,
+  ChildDeliveryResult,
+} from './childNotificationDelivery'
