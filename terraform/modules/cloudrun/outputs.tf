@@ -25,3 +25,14 @@ output "custom_domain_status" {
   description = "Status of the custom domain mapping"
   value       = var.custom_domain != "" ? google_cloud_run_domain_mapping.custom[0].status : null
 }
+
+output "dns_records" {
+  description = "DNS records required for custom domain verification"
+  value = var.custom_domain != "" ? [
+    for rr in google_cloud_run_domain_mapping.custom[0].status[0].resource_records : {
+      type  = rr.type
+      name  = rr.name != "" ? rr.name : "@"
+      value = rr.rrdata
+    }
+  ] : []
+}

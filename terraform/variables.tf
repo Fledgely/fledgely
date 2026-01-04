@@ -303,3 +303,42 @@ variable "github_repo" {
   type        = string
   default     = "fledgely"
 }
+
+# =============================================================================
+# Budget & Cost Monitoring
+# =============================================================================
+
+variable "billing_account" {
+  description = "GCP billing account ID for budget alerts (e.g., 01XXXX-XXXXXX-XXXXXX)"
+  type        = string
+  default     = ""
+}
+
+variable "enable_budget_alert" {
+  description = "Enable budget alert monitoring"
+  type        = bool
+  default     = false
+}
+
+variable "monthly_budget" {
+  description = "Monthly budget in USD for alerts"
+  type        = number
+  default     = 50
+
+  validation {
+    condition     = var.monthly_budget > 0
+    error_message = "Monthly budget must be greater than 0"
+  }
+}
+
+variable "budget_notification_channels" {
+  description = "List of monitoring notification channel IDs for budget alerts"
+  type        = list(string)
+  default     = []
+}
+
+variable "notify_billing_admins" {
+  description = "Send budget alerts to billing account admins"
+  type        = bool
+  default     = true
+}

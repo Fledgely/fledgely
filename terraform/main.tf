@@ -181,3 +181,16 @@ module "firebase" {
 
   depends_on = [google_project_service.required_apis]
 }
+
+# Billing Module - Budget alerts (Optional)
+module "billing" {
+  source = "./modules/billing"
+
+  project_id            = var.project_id
+  project_number        = data.google_project.current.number
+  billing_account       = var.billing_account
+  enable_budget_alert   = var.enable_budget_alert
+  monthly_budget        = var.monthly_budget
+  notification_channels = var.budget_notification_channels
+  notify_billing_admins = var.notify_billing_admins
+}

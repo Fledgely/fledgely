@@ -34,6 +34,11 @@ output "custom_domain_url" {
   value       = var.custom_domain != "" ? "https://${var.custom_domain}" : null
 }
 
+output "custom_domain_dns_records" {
+  description = "DNS records to add for custom domain verification"
+  value       = module.cloudrun.dns_records
+}
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
