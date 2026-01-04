@@ -358,3 +358,7 @@ export {
   logTrustedAdultAccessCallable,
   getTrustedAdultAccessLogCallable,
 } from './callable/trustedAdultAccess'
+
+// Story 8.10: Adult Pattern Detection
+export { getAdultPatternFlags, respondToAdultPattern } from './http/adultPattern'
+export { analyzeAdultPatternsScheduled } from './scheduled/analyzeAdultPatterns'

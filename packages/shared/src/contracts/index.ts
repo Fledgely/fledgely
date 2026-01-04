@@ -7873,3 +7873,42 @@ export {
   type AllowlistAuditEntry,
   type GetAllowlistResponse,
 } from './crisisAllowlistAdmin'
+
+// Story 8.10: Adult Pattern Detection
+export {
+  // Constants
+  WORK_APP_DOMAINS,
+  FINANCIAL_SITE_DOMAINS,
+  SIGNAL_WEIGHTS,
+  ADULT_PATTERN_THRESHOLD,
+  MINIMUM_ANALYSIS_DAYS,
+  PATTERN_EXPLANATION_COOLDOWN_DAYS,
+  // Schemas
+  adultPatternSignalTypeSchema,
+  adultPatternSignalSchema,
+  adultPatternAnalysisSchema,
+  adultPatternFlagStatusSchema,
+  adultPatternFlagSchema,
+  adultPatternResponseTypeSchema,
+  respondToAdultPatternInputSchema,
+  respondToAdultPatternResponseSchema,
+  getAdultPatternFlagsResponseSchema,
+  // Helper functions
+  generateAdultPatternFlagId,
+  calculateCooldownExpiry,
+  matchesDomain,
+  isWorkAppUrl,
+  isFinancialSiteUrl,
+  calculateOverallConfidence,
+  validateAdultPatternResponse,
+  // Types
+  type AdultPatternSignalType,
+  type AdultPatternSignal,
+  type AdultPatternAnalysis,
+  type AdultPatternFlagStatus,
+  type AdultPatternFlag,
+  type AdultPatternResponseType,
+  type RespondToAdultPatternInput,
+  type RespondToAdultPatternResponse,
+  type GetAdultPatternFlagsResponse,
+} from './adultPatternDetection'
