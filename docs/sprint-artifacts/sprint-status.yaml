@@ -632,10 +632,10 @@ development_status:
   epic-45-retrospective: optional
 
   # Epic 46: Offline Operation Foundation
-  epic-46: backlog
-  46-1-chromebook-extension-offline-queue: backlog
+  epic-46: in-progress
+  46-1-chromebook-extension-offline-queue: done
   46-2-android-app-offline-queue: backlog
-  46-3-automatic-sync-on-reconnect: backlog
+  46-3-automatic-sync-on-reconnect: done
   46-4-offline-timestamp-display: backlog
   46-5-offline-mode-indication-on-device: backlog
   46-6-offline-crisis-url-handling: backlog
@@ -693,7 +693,7 @@ development_status:
   epic-51-retrospective: done
 
   # Epic 52: Reverse Mode & Trusted Adults (Age 16 Transition)
-  epic-52: in-progress
+  epic-52: done
   52-1-age-16-transition-notification: done
   52-2-reverse-mode-activation: done
   52-3-selective-sharing-in-reverse-mode: done
@@ -701,5 +701,5 @@ development_status:
   52-5-trusted-adult-access: done
   52-6-trusted-adult-removal: done
   52-7-parents-view-in-reverse-mode: done
-  52-8-reverse-mode-safety-net: ready-for-dev
-  epic-52-retrospective: optional
+  52-8-reverse-mode-safety-net: done
+  epic-52-retrospective: done

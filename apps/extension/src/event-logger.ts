@@ -25,6 +25,10 @@ export type CaptureEventType =
   | 'queue_overflow'
   | 'retry_exhausted'
   | 'vpn_detected' // Story 8.7: VPN Detection Transparency
+  | 'sync_start' // Story 46.3: Queue sync started
+  | 'sync_complete' // Story 46.3: Queue sync completed
+  | 'sync_delayed' // Story 46.3: Sync delayed (low battery)
+  | 'sync_failed' // Story 46.3: Sync failed/interrupted
 
 /**
  * Capture event interface for logging
@@ -69,6 +73,8 @@ export const ERROR_CODES = {
   VPN_DETECTED_HIGH: 'E012_VPN_HIGH_CONFIDENCE', // Story 8.7: VPN Detection
   VPN_DETECTED_MEDIUM: 'E013_VPN_MEDIUM_CONFIDENCE', // Story 8.7: VPN Detection
   VPN_DETECTED_LOW: 'E014_VPN_LOW_CONFIDENCE', // Story 8.7: VPN Detection
+  SYNC_BATTERY_LOW: 'E015_SYNC_BATTERY_LOW', // Story 46.3: Sync delayed due to low battery
+  SYNC_NETWORK_LOST: 'E016_SYNC_NETWORK_LOST', // Story 46.3: Sync failed due to network loss
 } as const
 
 /**

@@ -110,6 +110,8 @@ import {
   clearFocusModeBlockingFromAllTabs,
   FOCUS_MODE_CHECK_ALARM,
 } from './focus-mode'
+// Story 46.3: Battery-aware sync
+import { shouldDelaySync, getBatteryStatus } from './battery-status'
 
 /**
  * XOR encrypt/decrypt a string with a key
@@ -554,6 +556,7 @@ export async function getQueueSize(): Promise<number> {
  * Story 10.4: Screenshot Upload to API
  * Story 10.6: Now logs all upload events
  * Story 46.1: Now uses IndexedDB queue with encryption
+ * Story 46.3: Battery-aware sync and sync event logging
  */
 async function processScreenshotQueue(): Promise<void> {
   // Story 46.1: Skip processing if offline (AC1: Automatic queue mode)
@@ -578,11 +581,34 @@ async function processScreenshotQueue(): Promise<void> {
     return
   }
 
+  // Story 46.3 AC3: Battery protection for large syncs
+  const shouldDelay = await shouldDelaySync(screenshotQueue.length)
+  if (shouldDelay) {
+    const batteryInfo = await getBatteryStatus()
+    console.log(
+      `[Fledgely] Sync delayed: battery ${batteryInfo.level}%, queue ${screenshotQueue.length} items`
+    )
+    // Log sync delayed event (Story 46.3 AC5)
+    await logCaptureEvent('sync_delayed', false, {
+      queueSize: screenshotQueue.length,
+      errorCode: ERROR_CODES.SYNC_BATTERY_LOW,
+    })
+    return
+  }
+
   const remainingUploads = getRemainingUploads()
   if (remainingUploads === 0) {
     console.log('[Fledgely] Rate limit reached, will retry on next sync')
     return
   }
+
+  // Story 46.3 AC5: Log sync start event with offline duration
+  const syncStartTime = Date.now()
+  const offlineDuration = getLastOfflineDuration()
+  await logCaptureEvent('sync_start', true, {
+    queueSize: screenshotQueue.length,
+    duration: offlineDuration, // How long device was offline before this sync
+  })
 
   // Get state for badge updates
   const { state } = await chrome.storage.local.get('state')
@@ -663,10 +689,27 @@ async function processScreenshotQueue(): Promise<void> {
   }
 
   const finalSize = await getOfflineQueueSize()
+  const syncDuration = Date.now() - syncStartTime
   console.log(
     `[Fledgely] Queue processed: ${successCount} uploaded, ${failCount} failed, ` +
-      `${finalSize} remaining`
+      `${finalSize} remaining (${syncDuration}ms)`
   )
+
+  // Story 46.3 AC5: Log sync complete or failed event
+  if (successCount === 0 && failCount > 0) {
+    // All uploads failed - log sync_failed
+    await logCaptureEvent('sync_failed', false, {
+      duration: syncDuration,
+      queueSize: finalSize,
+      errorCode: ERROR_CODES.SYNC_NETWORK_LOST,
+    })
+  } else {
+    // At least some uploads succeeded - log sync_complete
+    await logCaptureEvent('sync_complete', successCount > 0, {
+      duration: syncDuration,
+      queueSize: finalSize,
+    })
+  }
 
   // Update error badge after processing (Story 10.6)
   if (state) {
