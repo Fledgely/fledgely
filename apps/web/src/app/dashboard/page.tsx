@@ -56,6 +56,8 @@ import {
 import { usePendingCheckIns } from '../../hooks/usePendingCheckIns'
 import { useFrictionIndicators } from '../../hooks/useFrictionIndicators'
 import { useResolutions } from '../../hooks/useResolutions'
+import { ParentReverseModeIndicator } from '../../components/reverse-mode'
+import { useChildrenReverseMode } from '../../hooks/useChildReverseMode'
 
 const styles = {
   main: {
@@ -217,6 +219,10 @@ export default function DashboardPage() {
     celebrationMilestone,
     dismissCelebration,
   } = useOfflineTimeStreak({ familyId: family?.id ?? null })
+
+  // Story 52.7: Reverse mode status for children
+  const childIds = children.map((c) => c.id)
+  const { reverseModeByChild } = useChildrenReverseMode(childIds)
 
   // Auto-request notification permission when user logs in (Story 19A.4 - AC #5)
   // Only prompts once per browser session and respects user's previous choice
@@ -792,6 +798,8 @@ export default function DashboardPage() {
                       const age = calculateAge(child.birthdate)
                       const initial = child.name.charAt(0).toUpperCase()
                       const needsCustody = !hasCustodyDeclaration(child)
+                      const reverseModeInfo = reverseModeByChild[child.id]
+                      const hasReverseMode = reverseModeInfo?.isActive ?? false
                       return (
                         <div key={child.id} className="child-item">
                           {child.photoURL ? (
@@ -813,8 +821,34 @@ export default function DashboardPage() {
                             <div style={{ fontSize: '13px', color: '#6b7280' }}>
                               {age} year{age !== 1 ? 's' : ''} old
                             </div>
-                            <div style={{ marginTop: '4px' }}>
+                            <div
+                              style={{
+                                marginTop: '4px',
+                                display: 'flex',
+                                gap: '6px',
+                                flexWrap: 'wrap' as const,
+                              }}
+                            >
                               <CustodyStatusBadge custody={child.custody} />
+                              {/* Story 52.7: Show reverse mode badge */}
+                              {hasReverseMode && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    backgroundColor: '#eff6ff',
+                                    color: '#1e40af',
+                                    fontSize: '11px',
+                                    fontWeight: 500,
+                                    borderRadius: '9999px',
+                                    border: '1px solid #bfdbfe',
+                                  }}
+                                >
+                                  &#x1F512; Limited View
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -891,6 +925,22 @@ export default function DashboardPage() {
                     })}
                   </div>
                 )}
+
+                {/* Story 52.7: Show detailed reverse mode indicators for children with reverse mode active */}
+                {children
+                  .filter((child) => reverseModeByChild[child.id]?.isActive)
+                  .map((child) => (
+                    <ParentReverseModeIndicator
+                      key={`rm-indicator-${child.id}`}
+                      childName={child.name}
+                      reverseModeSettings={{
+                        status: reverseModeByChild[child.id]?.status ?? 'active',
+                        activatedAt: reverseModeByChild[child.id]?.activatedAt ?? undefined,
+                        sharingPreferences:
+                          reverseModeByChild[child.id]?.sharingPreferences ?? undefined,
+                      }}
+                    />
+                  ))}
               </div>
 
               {/* Devices Section - Story 12.1, 12.4 */}

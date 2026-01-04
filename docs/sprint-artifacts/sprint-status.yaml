@@ -699,7 +699,7 @@ development_status:
   52-3-selective-sharing-in-reverse-mode: done
   52-4-trusted-adult-designation: done
   52-5-trusted-adult-access: done
-  52-6-trusted-adult-removal: ready-for-dev
-  52-7-parents-view-in-reverse-mode: backlog
+  52-6-trusted-adult-removal: done
+  52-7-parents-view-in-reverse-mode: ready-for-dev
   52-8-reverse-mode-safety-net: backlog
   epic-52-retrospective: optional
