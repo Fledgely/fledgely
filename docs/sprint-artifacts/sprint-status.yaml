@@ -143,7 +143,7 @@ development_status:
   7-1-crisis-allowlist-data-structure: done
   7-2-crisis-visit-zero-data-path: done # Zero-data-path implemented in Story 11.1
   7-3-child-allowlist-visibility: done
-  7-4-emergency-allowlist-push: blocked # Depends on backend/API infrastructure
+  7-4-emergency-allowlist-push: done
   7-5-fuzzy-domain-matching: done
   7-6-crisis-search-redirection: done
   7-7-allowlist-distribution-sync: blocked # Depends on backend/API infrastructure
@@ -669,16 +669,16 @@ development_status:
   epic-49-retrospective: completed
 
   # Epic 50: SaaS Subscription Management
-  epic-50: backlog
-  50-1-subscription-plan-selection: backlog
-  50-2-trial-period: backlog
-  50-3-stripe-payment-integration: backlog
-  50-4-billing-management-portal: backlog
-  50-5-subscription-cancellation: backlog
-  50-6-terms-of-service-family-only: backlog
-  50-7-organizational-use-prevention: backlog
-  50-8-payment-failure-handling: backlog
-  epic-50-retrospective: optional
+  epic-50: done
+  50-1-subscription-plan-selection: done
+  50-2-trial-period: done
+  50-3-stripe-payment-integration: done
+  50-4-billing-management-portal: done
+  50-5-subscription-cancellation: done
+  50-6-terms-of-service-family-only: done
+  50-7-organizational-use-prevention: done
+  50-8-payment-failure-handling: done
+  epic-50-retrospective: completed
 
   # Epic 51: Data Export, GDPR & Account Lifecycle
   epic-51: done # GDPR Data Rights - All stories complete

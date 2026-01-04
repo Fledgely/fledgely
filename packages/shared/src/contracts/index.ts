@@ -7858,3 +7858,18 @@ export {
   type CancelSubscriptionInput,
   type ManageSubscriptionResponse,
 } from './subscription'
+
+// Story 7.4: Emergency Allowlist Push
+export {
+  crisisAllowlistDocSchema,
+  emergencyPushInputSchema,
+  emergencyPushResponseSchema,
+  allowlistAuditEntrySchema,
+  getAllowlistResponseSchema,
+  incrementVersion,
+  type CrisisAllowlistDoc,
+  type EmergencyPushInput,
+  type EmergencyPushResponse,
+  type AllowlistAuditEntry,
+  type GetAllowlistResponse,
+} from './crisisAllowlistAdmin'

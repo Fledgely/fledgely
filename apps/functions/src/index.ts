@@ -272,6 +272,15 @@ export {
 } from './callable/subscription'
 export { stripeWebhook } from './http/stripeWebhook'
 
+// Crisis Allowlist (Story 7.4)
+export {
+  pushEmergencyAllowlistUpdate,
+  removeAllowlistResource,
+  initializeCrisisAllowlist,
+  getAdminAllowlist,
+} from './callable/crisisAllowlist'
+export { getCrisisAllowlist } from './http/crisis-allowlist'
+
 // GDPR Data Deletion (Story 51.2)
 export {
   requestDataDeletion,

@@ -18,3 +18,6 @@ export { getOfflineSchedule, logParentCompliance } from './offline'
 
 // GDPR data export (Story 51.1)
 export { downloadExport } from './gdpr'
+
+// Crisis Allowlist (Story 7.4)
+export { getCrisisAllowlist } from './crisis-allowlist'
