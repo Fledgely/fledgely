@@ -257,6 +257,19 @@ export { downloadExport } from './http/gdpr'
 // Firestore Backup (Story 49.1)
 export { backupFirestore, triggerBackup } from './scheduled/firestore-backup'
 
+// Epic 50: SaaS Subscription Management
+export {
+  getSubscriptionPlans,
+  getCurrentSubscription,
+  createSubscription,
+  manageSubscription,
+  cancelSubscriptionCallable,
+  reactivateSubscriptionCallable,
+  checkFeatureAccess,
+  startFreeTrial,
+} from './callable/subscription'
+export { stripeWebhook } from './http/stripeWebhook'
+
 // GDPR Data Deletion (Story 51.2)
 export {
   requestDataDeletion,

@@ -7829,3 +7829,32 @@ export {
   type GetExportStatusInput,
   type ExportedData,
 } from './dataExport'
+
+// Epic 50: SaaS Subscription Management
+export {
+  SubscriptionPlan,
+  SubscriptionStatus,
+  BillingInterval,
+  SUBSCRIPTION_PLANS,
+  TRIAL_DURATION_DAYS,
+  subscriptionPlanSchema,
+  subscriptionStatusSchema,
+  subscriptionSchema,
+  createSubscriptionInputSchema,
+  cancelSubscriptionInputSchema,
+  getPlanFeatures,
+  hasFeature,
+  canAddChild,
+  canAddDevice,
+  getAnnualSavingsPercent,
+  formatPrice,
+  isSubscriptionActive,
+  type PlanFeatures,
+  type PlanDefinition,
+  type Subscription,
+  type GetPlansResponse,
+  type CreateSubscriptionInput,
+  type CreateSubscriptionResponse,
+  type CancelSubscriptionInput,
+  type ManageSubscriptionResponse,
+} from './subscription'
