@@ -2649,6 +2649,12 @@ export {
   getParentReverseModeActivatedMessage,
   getParentReverseModeDeactivatedMessage,
   SUPPORTING_INDEPENDENCE_LINK,
+  // Story 52.8: Safety Net
+  REVERSE_MODE_SAFETY_REMINDER,
+  TRUSTED_ADULT_LIMITED_DATA_MESSAGE,
+  SAFETY_FEATURES_ALWAYS_ACTIVE,
+  getReverseModeafetyReminder,
+  getTrustedAdultLimitedDataMessage,
   type ReverseModeStatusValue,
   type ReverseModeChangeTypeValue,
   type ReverseModeShareingPreferences,

@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import type { ReverseModeSettings, ReverseModeShareingPreferences } from '@fledgely/shared'
-import { SUPPORTING_INDEPENDENCE_LINK } from '@fledgely/shared'
+import { SUPPORTING_INDEPENDENCE_LINK, SAFETY_FEATURES_ALWAYS_ACTIVE } from '@fledgely/shared'
 
 const styles = {
   container: {
@@ -95,6 +95,35 @@ const styles = {
     backgroundColor: '#ffffff',
     borderRadius: '8px',
     border: '1px solid #bfdbfe',
+  },
+  safetySection: {
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #bbf7d0',
+    borderRadius: '8px',
+    padding: '12px 16px',
+    marginBottom: '16px',
+  },
+  safetyTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: '#166534',
+    marginBottom: '8px',
+  },
+  safetyList: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+  },
+  safetyItem: {
+    fontSize: '0.75rem',
+    color: '#166534',
+    padding: '2px 0',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
   },
   celebrationBanner: {
     backgroundColor: '#ecfdf5',
@@ -237,6 +266,22 @@ export function ParentReverseModeIndicator({
                 {item.shared ? '&#x2713;' : '&#x2212;'}
               </span>
               <span style={{ color: item.shared ? '#374151' : '#9ca3af' }}>{item.label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Story 52.8 AC1-3: Safety features always active */}
+      <div style={styles.safetySection}>
+        <h4 style={styles.safetyTitle}>
+          <span aria-hidden="true">&#x2705;</span>
+          Safety Features Remain Active
+        </h4>
+        <ul style={styles.safetyList}>
+          {SAFETY_FEATURES_ALWAYS_ACTIVE.map((feature) => (
+            <li key={feature} style={styles.safetyItem}>
+              <span aria-hidden="true">&#x2022;</span>
+              {feature}
             </li>
           ))}
         </ul>

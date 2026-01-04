@@ -700,6 +700,6 @@ development_status:
   52-4-trusted-adult-designation: done
   52-5-trusted-adult-access: done
   52-6-trusted-adult-removal: done
-  52-7-parents-view-in-reverse-mode: ready-for-dev
-  52-8-reverse-mode-safety-net: backlog
+  52-7-parents-view-in-reverse-mode: done
+  52-8-reverse-mode-safety-net: ready-for-dev
   epic-52-retrospective: optional

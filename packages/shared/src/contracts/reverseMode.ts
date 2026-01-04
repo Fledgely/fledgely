@@ -336,3 +336,47 @@ export function getParentReverseModeDeactivatedMessage(childName: string): strin
 
 /** Link to supporting independence resources */
 export const SUPPORTING_INDEPENDENCE_LINK = '/help/supporting-teen-independence'
+
+// ============================================
+// Story 52.8: Safety Net Messages
+// ============================================
+
+/**
+ * Safety net reminder for reverse mode settings.
+ * AC7: Safety features remain active regardless of reverse mode
+ */
+export const REVERSE_MODE_SAFETY_REMINDER =
+  'Even in Reverse Mode, crisis resources and safety features remain fully available. You can always access help when you need it.'
+
+/**
+ * Message for trusted adults when data is limited.
+ * AC5: Trusted adults can encourage (not force) sharing
+ */
+export const TRUSTED_ADULT_LIMITED_DATA_MESSAGE =
+  "This teen is in control of their privacy. If you're concerned, you can have a supportive conversation, but remember that their autonomy is important for healthy development."
+
+/**
+ * Features that remain active regardless of reverse mode.
+ * AC1-3: Safety features are inviolable
+ */
+export const SAFETY_FEATURES_ALWAYS_ACTIVE = [
+  'Crisis URL protection (no screenshots on crisis sites)',
+  'Access to crisis resources and helplines',
+  'Safe escape functionality',
+  'Safety signal to trusted adults',
+  'Abuse reporting',
+] as const
+
+/**
+ * Get safety reminder for reverse mode UI.
+ */
+export function getReverseModeafetyReminder(): string {
+  return REVERSE_MODE_SAFETY_REMINDER
+}
+
+/**
+ * Get message for trusted adults when viewing limited data.
+ */
+export function getTrustedAdultLimitedDataMessage(): string {
+  return TRUSTED_ADULT_LIMITED_DATA_MESSAGE
+}
