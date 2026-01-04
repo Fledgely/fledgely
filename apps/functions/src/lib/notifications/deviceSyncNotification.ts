@@ -2,11 +2,13 @@
  * Device Sync Notification Service
  *
  * Story 41.4: Device Sync Status Notifications
+ * Story 41.6: Multi-channel delivery support
  *
  * Sends notifications to parents when device sync issues occur:
  * - Sync timeout notifications when device hasn't synced (respects quiet hours)
  * - Permission revoked notifications (BYPASSES quiet hours - critical)
  * - Sync restored notifications (optional recovery)
+ * - Multi-channel delivery (push, email, SMS) based on preferences
  */
 
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
@@ -18,6 +20,7 @@ import {
   type SyncRestoredParams,
   type SyncThresholdHours,
   type ParentNotificationPreferences,
+  type ChannelSettings,
   buildSyncTimeoutContent,
   buildPermissionRevokedContent,
   buildSyncRestoredContent,
@@ -25,6 +28,9 @@ import {
   isInQuietHours,
   createDefaultNotificationPreferences,
 } from '@fledgely/shared'
+import { getChannelPreferences as getDeliveryChannelPreferences } from './deliveryChannelManager'
+import { sendNotificationEmail } from '../email'
+import { sendSmsNotification } from '../sms'
 
 // Lazy Firestore initialization for testing
 let db: FirebaseFirestore.Firestore | null = null
@@ -75,6 +81,74 @@ interface DeviceNotificationStatusDoc {
   lastSyncRestoredNotifiedAt?: number
   isOffline: boolean
   updatedAt: number
+}
+
+/**
+ * Get user email and phone from Firestore
+ * Story 41.6: For email/SMS channel delivery
+ */
+async function getUserContactInfo(userId: string): Promise<{ email?: string; phone?: string }> {
+  const userRef = getDb().collection('users').doc(userId)
+  const userDoc = await userRef.get()
+
+  if (!userDoc.exists) {
+    return {}
+  }
+
+  const userData = userDoc.data()
+  return {
+    email: userData?.email,
+    phone: userData?.phone,
+  }
+}
+
+/**
+ * Send notification via email channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendEmailChannel(
+  userId: string,
+  email: string,
+  title: string,
+  body: string,
+  deepLink: string
+): Promise<boolean> {
+  try {
+    const result = await sendNotificationEmail({
+      to: email,
+      notificationType: 'deviceSyncAlerts',
+      content: { title, body, actionUrl: deepLink },
+      includeUnsubscribe: true,
+      userId,
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send device sync email notification', { userId, error })
+    return false
+  }
+}
+
+/**
+ * Send notification via SMS channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendSmsChannel(
+  userId: string,
+  phone: string,
+  title: string,
+  body: string
+): Promise<boolean> {
+  try {
+    const result = await sendSmsNotification({
+      to: phone,
+      notificationType: 'deviceSyncAlerts',
+      content: { title, body },
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send device sync SMS notification', { userId, error })
+    return false
+  }
 }
 
 /**
@@ -406,9 +480,15 @@ export async function sendDeviceSyncTimeoutNotification(
     }
   }
 
-  const content = useDetailedContent
+  // Build content and extract with explicit type assertion for TypeScript
+  const rawContent = useDetailedContent
     ? buildDetailedSyncTimeoutContent(params)
     : buildSyncTimeoutContent(params)
+  const content: { title: string; body: string; data: Record<string, unknown> } = {
+    title: rawContent.title!,
+    body: rawContent.body!,
+    data: rawContent.data as Record<string, unknown>,
+  }
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
 
   const parentsNotified: string[] = []
@@ -581,6 +661,7 @@ export async function sendPermissionRevokedNotification(
 
   const content = buildPermissionRevokedContent(params)
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
+  const deepLink = `${appUrl}/dashboard/devices/${childId}/${deviceId}/permissions`
 
   const parentsNotified: string[] = []
   const parentsSkipped: string[] = []
@@ -599,91 +680,135 @@ export async function sendPermissionRevokedNotification(
     // NOTE: Permission revoked BYPASSES quiet hours - this is critical!
     // User needs to know immediately that extension permissions changed
 
+    let pushSuccess = false
+    let emailSent = false
+
     // Get user tokens
     const tokens = await getUserTokens(userId)
     if (tokens.length === 0) {
-      logger.info('No tokens found for user', { userId })
-      await recordNotificationHistory(userId, 'permission_revoked', deviceId, childId, 'failed')
-      parentsSkipped.push(userId)
-      continue
-    }
+      logger.info('No tokens found for user, will try email', { userId })
+    } else {
+      // Send via FCM with high priority
+      const messaging = getMessaging()
 
-    // Send via FCM with high priority
-    const messaging = getMessaging()
-
-    try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokens.map((t) => t.token),
-        notification: {
-          title: content.title,
-          body: content.body,
-        },
-        data: {
-          type: 'device_permission_revoked',
-          deviceId,
-          familyId,
-          childId,
-          action: 'check_permissions',
-        },
-        webpush: {
-          fcmOptions: {
-            link: `${appUrl}/dashboard/devices/${childId}/${deviceId}/permissions`,
-          },
-        },
-        android: {
-          // High priority for critical notifications
-          priority: 'high',
+      try {
+        const response = await messaging.sendEachForMulticast({
+          tokens: tokens.map((t) => t.token),
           notification: {
-            priority: 'high',
-            channelId: 'device_alerts',
+            title: content.title,
+            body: content.body,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default',
-              badge: 1,
-              // Critical alert for permission changes
-              'interruption-level': 'time-sensitive',
+          data: {
+            type: 'device_permission_revoked',
+            deviceId,
+            familyId,
+            childId,
+            action: 'check_permissions',
+          },
+          webpush: {
+            fcmOptions: {
+              link: deepLink,
             },
           },
-        },
-      })
-
-      // Handle failures and clean up stale tokens
-      if (response.failureCount > 0) {
-        const cleanupPromises: Promise<void>[] = []
-
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success && resp.error) {
-            const errorCode = resp.error.code
-            if (
-              errorCode === 'messaging/registration-token-not-registered' ||
-              errorCode === 'messaging/invalid-registration-token'
-            ) {
-              const tokenInfo = tokens[idx]
-              cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
-            }
-          }
+          android: {
+            // High priority for critical notifications
+            priority: 'high',
+            notification: {
+              priority: 'high',
+              channelId: 'device_alerts',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+                // Critical alert for permission changes
+                'interruption-level': 'time-sensitive',
+              },
+            },
+          },
         })
 
-        await Promise.all(cleanupPromises)
-      }
+        // Handle failures and clean up stale tokens
+        if (response.failureCount > 0) {
+          const cleanupPromises: Promise<void>[] = []
 
-      if (response.successCount > 0) {
-        await recordNotificationHistory(userId, 'permission_revoked', deviceId, childId, 'sent')
-        parentsNotified.push(userId)
-        logger.info('Permission revoked notification sent', {
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              const errorCode = resp.error.code
+              if (
+                errorCode === 'messaging/registration-token-not-registered' ||
+                errorCode === 'messaging/invalid-registration-token'
+              ) {
+                const tokenInfo = tokens[idx]
+                cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
+              }
+            }
+          })
+
+          await Promise.all(cleanupPromises)
+        }
+
+        pushSuccess = response.successCount > 0
+      } catch (error) {
+        logger.error('Failed to send permission revoked push notification', {
           userId,
           deviceId,
-          successCount: response.successCount,
+          error,
         })
-      } else {
-        await recordNotificationHistory(userId, 'permission_revoked', deviceId, childId, 'failed')
-        parentsSkipped.push(userId)
       }
+    }
+
+    // Story 41.6: Get channel preferences and send email if enabled or as fallback
+    let channelPrefs: ChannelSettings = { push: true, email: true, sms: false }
+    try {
+      channelPrefs = await getDeliveryChannelPreferences(userId, 'deviceSyncAlerts')
     } catch (error) {
-      logger.error('Failed to send permission revoked notification', { userId, deviceId, error })
+      logger.warn('Failed to get channel preferences, using defaults', { userId, error })
+    }
+
+    // Send email if enabled OR as push-to-email fallback for critical notifications
+    const shouldSendEmail = channelPrefs.email || !pushSuccess
+    const contactInfo = await getUserContactInfo(userId)
+
+    if (shouldSendEmail && contactInfo.email) {
+      emailSent = await sendEmailChannel(
+        userId,
+        contactInfo.email,
+        content.title,
+        content.body,
+        deepLink
+      )
+
+      if (emailSent) {
+        logger.info('Permission revoked notification sent via email', {
+          userId,
+          deviceId,
+          isPushFallback: !channelPrefs.email,
+        })
+      }
+    }
+
+    // Send SMS if enabled (only for critical notifications like permission revoked)
+    let smsSent = false
+    if (channelPrefs.sms && contactInfo.phone) {
+      smsSent = await sendSmsChannel(userId, contactInfo.phone, content.title, content.body)
+      if (smsSent) {
+        logger.info('Permission revoked notification sent via SMS', { userId, deviceId })
+      }
+    }
+
+    const anySuccess = pushSuccess || emailSent || smsSent
+    if (anySuccess) {
+      await recordNotificationHistory(userId, 'permission_revoked', deviceId, childId, 'sent')
+      parentsNotified.push(userId)
+      logger.info('Permission revoked notification sent', {
+        userId,
+        deviceId,
+        channels: { push: pushSuccess, email: emailSent, sms: smsSent },
+      })
+    } else {
       await recordNotificationHistory(userId, 'permission_revoked', deviceId, childId, 'failed')
       parentsSkipped.push(userId)
     }
@@ -737,7 +862,13 @@ export async function sendSyncRestoredNotification(
     }
   }
 
-  const content = buildSyncRestoredContent(params)
+  // Build content and extract with explicit type assertion for TypeScript
+  const rawContent = buildSyncRestoredContent(params)
+  const content: { title: string; body: string; data: Record<string, unknown> } = {
+    title: rawContent.title!,
+    body: rawContent.body!,
+    data: rawContent.data as Record<string, unknown>,
+  }
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
 
   const parentsNotified: string[] = []

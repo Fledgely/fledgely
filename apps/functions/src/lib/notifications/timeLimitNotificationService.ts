@@ -2,11 +2,13 @@
  * Time Limit Notification Service
  *
  * Story 41.3: Time Limit Notifications - AC1, AC2, AC6, AC7
+ * Story 41.6: Multi-channel delivery support
  *
  * Sends time limit notifications to parents:
  * - Warning notifications when approaching limits
  * - Limit reached notifications when limits are enforced
  * - Respects quiet hours and notification preferences
+ * - Multi-channel delivery (push, email, SMS) based on preferences
  */
 
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
@@ -16,11 +18,16 @@ import {
   type TimeLimitWarningParams,
   type LimitReachedParams,
   type ParentNotificationPreferences,
+  type NotificationType,
+  type ChannelSettings,
   buildParentWarningContent,
   buildParentLimitReachedContent,
   isInQuietHours,
   createDefaultNotificationPreferences,
 } from '@fledgely/shared'
+import { getChannelPreferences as getDeliveryChannelPreferences } from './deliveryChannelManager'
+import { sendNotificationEmail } from '../email'
+import { sendSmsNotification } from '../sms'
 
 // Lazy Firestore initialization for testing
 let db: FirebaseFirestore.Firestore | null = null
@@ -56,6 +63,76 @@ export interface TimeLimitNotificationResult {
 interface NotificationToken {
   token: string
   createdAt?: number
+}
+
+/**
+ * Get user email and phone from Firestore
+ * Story 41.6: For email/SMS channel delivery
+ */
+async function getUserContactInfo(userId: string): Promise<{ email?: string; phone?: string }> {
+  const userRef = getDb().collection('users').doc(userId)
+  const userDoc = await userRef.get()
+
+  if (!userDoc.exists) {
+    return {}
+  }
+
+  const userData = userDoc.data()
+  return {
+    email: userData?.email,
+    phone: userData?.phone,
+  }
+}
+
+/**
+ * Send notification via email channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendEmailChannel(
+  userId: string,
+  email: string,
+  title: string,
+  body: string,
+  notificationType: NotificationType,
+  deepLink: string
+): Promise<boolean> {
+  try {
+    const result = await sendNotificationEmail({
+      to: email,
+      notificationType,
+      content: { title, body, actionUrl: deepLink },
+      includeUnsubscribe: true,
+      userId,
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send time limit email notification', { userId, error })
+    return false
+  }
+}
+
+/**
+ * Send notification via SMS channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendSmsChannel(
+  userId: string,
+  phone: string,
+  notificationType: NotificationType,
+  title: string,
+  body: string
+): Promise<boolean> {
+  try {
+    const result = await sendSmsNotification({
+      to: phone,
+      notificationType,
+      content: { title, body },
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send time limit SMS notification', { userId, error })
+    return false
+  }
 }
 
 /**
@@ -273,8 +350,15 @@ export async function sendTimeLimitWarningNotification(
     }
   }
 
-  const content = buildParentWarningContent(params)
+  // Build content and extract with explicit type assertion for TypeScript
+  const rawContent = buildParentWarningContent(params)
+  const content: { title: string; body: string; data: Record<string, unknown> } = {
+    title: rawContent.title!,
+    body: rawContent.body!,
+    data: rawContent.data as Record<string, unknown>,
+  }
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
+  const deepLink = `${appUrl}/dashboard/time/${childId}`
 
   const parentsNotified: string[] = []
   const parentsSkipped: string[] = []
@@ -308,68 +392,119 @@ export async function sendTimeLimitWarningNotification(
       continue
     }
 
-    // Get user tokens
-    const tokens = await getUserTokens(userId)
-    if (tokens.length === 0) {
-      logger.info('No tokens found for user', { userId })
-      await recordNotificationHistory(userId, 'time_warning', childId, 'failed')
-      parentsSkipped.push(userId)
-      continue
+    // Story 41.6: Get channel preferences
+    let channelPrefs: ChannelSettings = { push: true, email: false, sms: false }
+    try {
+      channelPrefs = await getDeliveryChannelPreferences(userId, 'timeLimitWarnings')
+    } catch (error) {
+      logger.warn('Failed to get channel preferences, using defaults', { userId, error })
     }
 
-    // Send via FCM
-    const messaging = getMessaging()
+    const contactInfo = await getUserContactInfo(userId)
+    let pushSuccess = false
+    let pushAttempted = false
 
-    try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokens.map((t) => t.token),
-        notification: {
-          title: content.title,
-          body: content.body,
-        },
-        data: {
-          ...Object.fromEntries(Object.entries(content.data).map(([k, v]) => [k, String(v)])),
-        },
-        webpush: {
-          fcmOptions: {
-            link: `${appUrl}/dashboard/time/${childId}`,
-          },
-        },
-      })
-
-      // Handle failures and clean up stale tokens
-      if (response.failureCount > 0) {
-        const cleanupPromises: Promise<void>[] = []
-
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success && resp.error) {
-            const errorCode = resp.error.code
-            if (
-              errorCode === 'messaging/registration-token-not-registered' ||
-              errorCode === 'messaging/invalid-registration-token'
-            ) {
-              const tokenInfo = tokens[idx]
-              cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
-            }
-          }
-        })
-
-        await Promise.all(cleanupPromises)
-      }
-
-      if (response.successCount > 0) {
-        await recordNotificationHistory(userId, 'time_warning', childId, 'sent')
-        parentsNotified.push(userId)
-        logger.info('Time limit warning notification sent', {
-          userId,
-          successCount: response.successCount,
-        })
+    // Send via push if enabled
+    if (channelPrefs.push) {
+      const tokens = await getUserTokens(userId)
+      if (tokens.length === 0) {
+        logger.info('No tokens found for user', { userId })
+        pushAttempted = true
       } else {
-        await recordNotificationHistory(userId, 'time_warning', childId, 'failed')
-        parentsSkipped.push(userId)
+        pushAttempted = true
+        const messaging = getMessaging()
+
+        try {
+          const response = await messaging.sendEachForMulticast({
+            tokens: tokens.map((t) => t.token),
+            notification: {
+              title: content.title,
+              body: content.body,
+            },
+            data: {
+              ...Object.fromEntries(Object.entries(content.data).map(([k, v]) => [k, String(v)])),
+            },
+            webpush: {
+              fcmOptions: {
+                link: deepLink,
+              },
+            },
+          })
+
+          // Handle failures and clean up stale tokens
+          if (response.failureCount > 0) {
+            const cleanupPromises: Promise<void>[] = []
+
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success && resp.error) {
+                const errorCode = resp.error.code
+                if (
+                  errorCode === 'messaging/registration-token-not-registered' ||
+                  errorCode === 'messaging/invalid-registration-token'
+                ) {
+                  const tokenInfo = tokens[idx]
+                  cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
+                }
+              }
+            })
+
+            await Promise.all(cleanupPromises)
+          }
+
+          pushSuccess = response.successCount > 0
+        } catch (error) {
+          logger.error('Failed to send time limit warning push', { userId, error })
+        }
       }
-    } catch (error) {
-      logger.error('Failed to send time limit warning', { userId, error })
+    }
+
+    // Story 41.6: Send email if enabled OR as push-to-email fallback
+    let emailSent = false
+    const shouldSendEmail =
+      channelPrefs.email || (channelPrefs.push && pushAttempted && !pushSuccess)
+
+    if (shouldSendEmail && contactInfo.email) {
+      emailSent = await sendEmailChannel(
+        userId,
+        contactInfo.email,
+        content.title,
+        content.body,
+        'timeLimitWarnings',
+        deepLink
+      )
+
+      if (emailSent) {
+        logger.info('Time limit warning sent via email', {
+          userId,
+          isPushFallback: !channelPrefs.email,
+        })
+      }
+    }
+
+    // Story 41.6: Send SMS if enabled
+    let smsSent = false
+    if (channelPrefs.sms && contactInfo.phone) {
+      smsSent = await sendSmsChannel(
+        userId,
+        contactInfo.phone,
+        'timeLimitWarnings',
+        content.title,
+        content.body
+      )
+      if (smsSent) {
+        logger.info('Time limit warning sent via SMS', { userId })
+      }
+    }
+
+    const anySuccess = pushSuccess || emailSent || smsSent
+    if (anySuccess) {
+      await recordNotificationHistory(userId, 'time_warning', childId, 'sent')
+      parentsNotified.push(userId)
+      logger.info('Time limit warning notification sent', {
+        userId,
+        channels: { push: pushSuccess, email: emailSent, sms: smsSent },
+      })
+    } else {
       await recordNotificationHistory(userId, 'time_warning', childId, 'failed')
       parentsSkipped.push(userId)
     }
@@ -413,8 +548,15 @@ export async function sendLimitReachedNotification(
     }
   }
 
-  const content = buildParentLimitReachedContent(params)
+  // Build content and extract with explicit type assertion for TypeScript
+  const rawContent = buildParentLimitReachedContent(params)
+  const content: { title: string; body: string; data: Record<string, unknown> } = {
+    title: rawContent.title!,
+    body: rawContent.body!,
+    data: rawContent.data as Record<string, unknown>,
+  }
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
+  const deepLink = `${appUrl}/dashboard/time/${childId}`
 
   const parentsNotified: string[] = []
   const parentsSkipped: string[] = []
@@ -448,68 +590,119 @@ export async function sendLimitReachedNotification(
       continue
     }
 
-    // Get user tokens
-    const tokens = await getUserTokens(userId)
-    if (tokens.length === 0) {
-      logger.info('No tokens found for user', { userId })
-      await recordNotificationHistory(userId, 'limit_reached', childId, 'failed')
-      parentsSkipped.push(userId)
-      continue
+    // Story 41.6: Get channel preferences
+    let channelPrefs: ChannelSettings = { push: true, email: false, sms: false }
+    try {
+      channelPrefs = await getDeliveryChannelPreferences(userId, 'timeLimitWarnings')
+    } catch (error) {
+      logger.warn('Failed to get channel preferences, using defaults', { userId, error })
     }
 
-    // Send via FCM
-    const messaging = getMessaging()
+    const contactInfo = await getUserContactInfo(userId)
+    let pushSuccess = false
+    let pushAttempted = false
 
-    try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokens.map((t) => t.token),
-        notification: {
-          title: content.title,
-          body: content.body,
-        },
-        data: {
-          ...Object.fromEntries(Object.entries(content.data).map(([k, v]) => [k, String(v)])),
-        },
-        webpush: {
-          fcmOptions: {
-            link: `${appUrl}/dashboard/time/${childId}`,
-          },
-        },
-      })
-
-      // Handle failures and clean up stale tokens
-      if (response.failureCount > 0) {
-        const cleanupPromises: Promise<void>[] = []
-
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success && resp.error) {
-            const errorCode = resp.error.code
-            if (
-              errorCode === 'messaging/registration-token-not-registered' ||
-              errorCode === 'messaging/invalid-registration-token'
-            ) {
-              const tokenInfo = tokens[idx]
-              cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
-            }
-          }
-        })
-
-        await Promise.all(cleanupPromises)
-      }
-
-      if (response.successCount > 0) {
-        await recordNotificationHistory(userId, 'limit_reached', childId, 'sent')
-        parentsNotified.push(userId)
-        logger.info('Limit reached notification sent', {
-          userId,
-          successCount: response.successCount,
-        })
+    // Send via push if enabled
+    if (channelPrefs.push) {
+      const tokens = await getUserTokens(userId)
+      if (tokens.length === 0) {
+        logger.info('No tokens found for user', { userId })
+        pushAttempted = true
       } else {
-        await recordNotificationHistory(userId, 'limit_reached', childId, 'failed')
-        parentsSkipped.push(userId)
+        pushAttempted = true
+        const messaging = getMessaging()
+
+        try {
+          const response = await messaging.sendEachForMulticast({
+            tokens: tokens.map((t) => t.token),
+            notification: {
+              title: content.title,
+              body: content.body,
+            },
+            data: {
+              ...Object.fromEntries(Object.entries(content.data).map(([k, v]) => [k, String(v)])),
+            },
+            webpush: {
+              fcmOptions: {
+                link: deepLink,
+              },
+            },
+          })
+
+          // Handle failures and clean up stale tokens
+          if (response.failureCount > 0) {
+            const cleanupPromises: Promise<void>[] = []
+
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success && resp.error) {
+                const errorCode = resp.error.code
+                if (
+                  errorCode === 'messaging/registration-token-not-registered' ||
+                  errorCode === 'messaging/invalid-registration-token'
+                ) {
+                  const tokenInfo = tokens[idx]
+                  cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
+                }
+              }
+            })
+
+            await Promise.all(cleanupPromises)
+          }
+
+          pushSuccess = response.successCount > 0
+        } catch (error) {
+          logger.error('Failed to send limit reached push', { userId, error })
+        }
       }
-    } catch (error) {
-      logger.error('Failed to send limit reached notification', { userId, error })
+    }
+
+    // Story 41.6: Send email if enabled OR as push-to-email fallback
+    let emailSent = false
+    const shouldSendEmail =
+      channelPrefs.email || (channelPrefs.push && pushAttempted && !pushSuccess)
+
+    if (shouldSendEmail && contactInfo.email) {
+      emailSent = await sendEmailChannel(
+        userId,
+        contactInfo.email,
+        content.title,
+        content.body,
+        'timeLimitWarnings',
+        deepLink
+      )
+
+      if (emailSent) {
+        logger.info('Limit reached notification sent via email', {
+          userId,
+          isPushFallback: !channelPrefs.email,
+        })
+      }
+    }
+
+    // Story 41.6: Send SMS if enabled
+    let smsSent = false
+    if (channelPrefs.sms && contactInfo.phone) {
+      smsSent = await sendSmsChannel(
+        userId,
+        contactInfo.phone,
+        'timeLimitWarnings',
+        content.title,
+        content.body
+      )
+      if (smsSent) {
+        logger.info('Limit reached notification sent via SMS', { userId })
+      }
+    }
+
+    const anySuccess = pushSuccess || emailSent || smsSent
+    if (anySuccess) {
+      await recordNotificationHistory(userId, 'limit_reached', childId, 'sent')
+      parentsNotified.push(userId)
+      logger.info('Limit reached notification sent', {
+        userId,
+        channels: { push: pushSuccess, email: emailSent, sms: smsSent },
+      })
+    } else {
       await recordNotificationHistory(userId, 'limit_reached', childId, 'failed')
       parentsSkipped.push(userId)
     }

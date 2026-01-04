@@ -42,29 +42,66 @@ vi.mock('@fledgely/shared', () => {
   }
 })
 
+// Mock email and SMS services for Story 41.6 multi-channel delivery
+vi.mock('../email', () => ({
+  sendNotificationEmail: vi.fn().mockResolvedValue({ success: true, messageId: 'email-123' }),
+}))
+
+vi.mock('../sms', () => ({
+  sendSmsNotification: vi.fn().mockResolvedValue({ success: true, messageSid: 'sms-123' }),
+}))
+
+// Mock deliveryChannelManager
+vi.mock('./deliveryChannelManager', () => ({
+  getChannelPreferences: vi.fn().mockResolvedValue({ push: true, email: false, sms: false }),
+}))
+
 // Mock firebase-admin/firestore
 const mockDocGet = vi.fn()
 const mockDocSet = vi.fn()
 const mockDocDelete = vi.fn()
 const mockCollectionGet = vi.fn()
+const mockUserDocGet = vi.fn().mockResolvedValue({
+  exists: true,
+  data: () => ({ email: 'test@example.com', phone: '+15551234567' }),
+})
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    collection: vi.fn(() => ({
-      doc: vi.fn(() => ({
-        get: mockDocGet,
-        set: mockDocSet,
-        delete: mockDocDelete,
-        collection: vi.fn(() => ({
-          doc: vi.fn(() => ({
-            get: mockDocGet,
+    collection: vi.fn((collectionName: string) => ({
+      doc: vi.fn((_docId: string) => {
+        // For users collection root, return mock with .get() for getUserContactInfo
+        if (collectionName === 'users') {
+          return {
+            get: mockUserDocGet,
             set: mockDocSet,
             delete: mockDocDelete,
-            id: 'test-doc-id',
+            collection: vi.fn(() => ({
+              doc: vi.fn(() => ({
+                get: mockDocGet,
+                set: mockDocSet,
+                delete: mockDocDelete,
+                id: 'test-doc-id',
+              })),
+              get: mockCollectionGet,
+            })),
+          }
+        }
+        return {
+          get: mockDocGet,
+          set: mockDocSet,
+          delete: mockDocDelete,
+          collection: vi.fn(() => ({
+            doc: vi.fn(() => ({
+              get: mockDocGet,
+              set: mockDocSet,
+              delete: mockDocDelete,
+              id: 'test-doc-id',
+            })),
+            get: mockCollectionGet,
           })),
-          get: mockCollectionGet,
-        })),
-      })),
+        }
+      }),
     })),
   }),
   FieldValue: {
@@ -253,7 +290,7 @@ describe('timeLimitNotificationService', () => {
       expect(mockDocSet).toHaveBeenCalled()
     })
 
-    it('skips parent when no tokens found', async () => {
+    it('notifies parent via email fallback when no tokens found (Story 41.6)', async () => {
       // Mock family with parent
       mockDocGet.mockResolvedValueOnce({
         exists: true,
@@ -269,8 +306,9 @@ describe('timeLimitNotificationService', () => {
 
       const result = await sendTimeLimitWarningNotification(warningParams)
 
-      expect(result.notificationGenerated).toBe(false)
-      expect(result.parentsSkipped).toContain('parent-1')
+      // With Story 41.6 email fallback, notification should be generated via email
+      expect(result.notificationGenerated).toBe(true)
+      expect(result.parentsNotified).toContain('parent-1')
     })
 
     it('sends to multiple parents independently', async () => {
@@ -294,7 +332,7 @@ describe('timeLimitNotificationService', () => {
       expect(mockSendEachForMulticast).toHaveBeenCalledTimes(2)
     })
 
-    it('cleans up stale tokens on FCM failure', async () => {
+    it('cleans up stale tokens on FCM failure and notifies via email (Story 41.6)', async () => {
       // Mock family with parent
       mockDocGet.mockResolvedValueOnce({
         exists: true,
@@ -324,7 +362,10 @@ describe('timeLimitNotificationService', () => {
 
       const result = await sendTimeLimitWarningNotification(warningParams)
 
-      expect(result.parentsSkipped).toContain('parent-1')
+      // With Story 41.6 email fallback, parent is notified via email even when push fails
+      expect(result.notificationGenerated).toBe(true)
+      expect(result.parentsNotified).toContain('parent-1')
+      // Stale tokens should still be cleaned up
       expect(mockDocDelete).toHaveBeenCalled()
     })
   })

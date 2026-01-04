@@ -331,9 +331,10 @@ export function buildChildLimitReachedContent(): { title: string; body: string }
 }
 
 /**
- * Format minutes as human-readable string.
+ * Format minutes as short human-readable string (e.g., "5m", "1h 30m").
+ * Used for compact notification display.
  */
-export function formatMinutes(minutes: number): string {
+export function formatMinutesShort(minutes: number): string {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
 

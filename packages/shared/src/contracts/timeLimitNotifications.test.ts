@@ -17,7 +17,7 @@ import {
   buildExtensionRequestContent,
   buildChildWarningContent,
   buildChildLimitReachedContent,
-  formatMinutes,
+  formatMinutesShort,
   type TimeLimitNotificationEvent,
   type TimeLimitWarningParams,
   type LimitReachedParams,
@@ -423,23 +423,23 @@ describe('buildChildLimitReachedContent', () => {
   })
 })
 
-describe('formatMinutes', () => {
+describe('formatMinutesShort', () => {
   it('formats hours only', () => {
-    expect(formatMinutes(120)).toBe('2h')
-    expect(formatMinutes(60)).toBe('1h')
+    expect(formatMinutesShort(120)).toBe('2h')
+    expect(formatMinutesShort(60)).toBe('1h')
   })
 
   it('formats minutes only', () => {
-    expect(formatMinutes(45)).toBe('45m')
-    expect(formatMinutes(5)).toBe('5m')
+    expect(formatMinutesShort(45)).toBe('45m')
+    expect(formatMinutesShort(5)).toBe('5m')
   })
 
   it('formats hours and minutes', () => {
-    expect(formatMinutes(90)).toBe('1h 30m')
-    expect(formatMinutes(125)).toBe('2h 5m')
+    expect(formatMinutesShort(90)).toBe('1h 30m')
+    expect(formatMinutesShort(125)).toBe('2h 5m')
   })
 
   it('handles zero', () => {
-    expect(formatMinutes(0)).toBe('0m')
+    expect(formatMinutesShort(0)).toBe('0m')
   })
 })

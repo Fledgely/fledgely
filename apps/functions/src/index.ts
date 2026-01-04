@@ -236,3 +236,10 @@ export {
   addTrustedDeviceCallable,
   removeTrustedDeviceCallable,
 } from './callable/manageTrustedDevices'
+
+// Notification channel preferences and unsubscribe (Story 41.6)
+export {
+  updateChannelPreferences,
+  getChannelPreferences,
+} from './callable/updateChannelPreferences'
+export { handleUnsubscribe } from './callable/handleUnsubscribe'

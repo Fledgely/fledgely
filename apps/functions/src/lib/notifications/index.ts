@@ -123,3 +123,10 @@ export {
   hasRecentlyNotifiedForFingerprint,
 } from './loginNotification'
 export type { SendLoginNotificationParams, LoginNotificationResult } from './loginNotification'
+
+// Story 41.6: Delivery channel management
+export {
+  getChannelPreferences,
+  deliverNotification,
+  updateChannelPreferences,
+} from './deliveryChannelManager'

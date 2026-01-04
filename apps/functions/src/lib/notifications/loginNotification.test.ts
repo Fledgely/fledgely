@@ -15,29 +15,57 @@ import {
 } from './loginNotification'
 import type { DeviceFingerprint } from '@fledgely/shared'
 
+// Mock email service for Story 41.6 multi-channel delivery
+vi.mock('../email', () => ({
+  sendNotificationEmail: vi.fn().mockResolvedValue({ success: true, messageId: 'email-123' }),
+}))
+
 // Mock firebase-admin/firestore
 const mockDocGet = vi.fn()
 const mockDocSet = vi.fn()
 const mockCollectionGet = vi.fn()
 const mockDocDelete = vi.fn()
+const mockUserDocGet = vi.fn().mockResolvedValue({
+  exists: true,
+  data: () => ({ email: 'user@example.com' }),
+})
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    collection: () => ({
-      doc: (docId?: string) => ({
-        collection: () => ({
-          doc: () => ({
-            get: mockDocGet,
+    collection: (collectionName: string) => ({
+      doc: (docId?: string) => {
+        // For users collection root document, return a mock with .get() for getUserEmail
+        if (collectionName === 'users') {
+          return {
+            get: mockUserDocGet,
+            collection: () => ({
+              doc: () => ({
+                get: mockDocGet,
+                set: mockDocSet,
+                delete: mockDocDelete,
+              }),
+              get: mockCollectionGet,
+            }),
             set: mockDocSet,
             delete: mockDocDelete,
+            id: docId || `notif-${Date.now()}`,
+          }
+        }
+        return {
+          collection: () => ({
+            doc: () => ({
+              get: mockDocGet,
+              set: mockDocSet,
+              delete: mockDocDelete,
+            }),
+            get: mockCollectionGet,
           }),
-          get: mockCollectionGet,
-        }),
-        get: mockDocGet,
-        set: mockDocSet,
-        delete: mockDocDelete,
-        id: docId || `notif-${Date.now()}`,
-      }),
+          get: mockDocGet,
+          set: mockDocSet,
+          delete: mockDocDelete,
+          id: docId || `notif-${Date.now()}`,
+        }
+      },
     }),
   }),
   FieldValue: {
@@ -413,7 +441,7 @@ describe('loginNotification', () => {
       expect(mockDocDelete).toHaveBeenCalled()
     })
 
-    it('skips guardian when no tokens available', async () => {
+    it('notifies guardian via email fallback when no tokens available (Story 41.6)', async () => {
       // No recent notification
       mockDocGet.mockResolvedValueOnce({ exists: false })
       // Family with guardians
@@ -443,9 +471,10 @@ describe('loginNotification', () => {
 
       const result = await sendNewLoginNotification(baseParams)
 
-      expect(result.guardiansNotified).toHaveLength(1)
+      // Both guardians notified - guardian-1 via email fallback, guardian-2 via push
+      expect(result.guardiansNotified).toHaveLength(2)
+      expect(result.guardiansNotified).toContain('guardian-1')
       expect(result.guardiansNotified).toContain('guardian-2')
-      expect(result.guardiansSkipped).toContain('guardian-1')
     })
 
     it('uses high priority for security notifications (AC5)', async () => {

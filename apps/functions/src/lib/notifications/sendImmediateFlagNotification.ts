@@ -2,11 +2,13 @@
  * Send Immediate Flag Notification
  *
  * Story 41.2: Flag Notifications - AC1, AC6
+ * Story 41.6: Multi-channel delivery support
  *
  * Sends immediate push notifications for flags, respecting:
  * - Quiet hours (except for critical flags)
  * - FCM token management
  * - Deep linking to flag detail
+ * - Multi-channel delivery (push, email, SMS) based on preferences
  */
 
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
@@ -16,8 +18,13 @@ import {
   type FlagDocument,
   type ParentNotificationPreferences,
   type ConcernSeverity,
+  type NotificationType,
+  type ChannelSettings,
   isInQuietHours,
 } from '@fledgely/shared'
+import { getChannelPreferences as getDeliveryChannelPreferences } from './deliveryChannelManager'
+import { sendNotificationEmail } from '../email'
+import { sendSmsNotification } from '../sms'
 
 // Lazy Firestore initialization for testing
 let db: FirebaseFirestore.Firestore | null = null
@@ -110,8 +117,8 @@ function getSeverityDisplay(severity: ConcernSeverity): {
   badge: string
 } {
   switch (severity) {
-    case 'critical':
-      return { label: 'Critical', badge: '🔴' }
+    case 'high':
+      return { label: 'High', badge: '🔴' }
     case 'medium':
       return { label: 'Medium', badge: '🟡' }
     case 'low':
@@ -138,6 +145,85 @@ function getCategoryDisplay(category: string): string {
   }
 
   return categoryLabels[category] || 'Flagged Content'
+}
+
+/**
+ * Map severity to notification type for channel preferences
+ * Story 41.6: All flag severities use 'criticalFlags' channel settings
+ * (the schema has a single flag notification type for all severities)
+ */
+function getNotificationTypeForSeverity(_severity: ConcernSeverity): NotificationType {
+  // All flag severities use the same channel preferences
+  return 'criticalFlags'
+}
+
+/**
+ * Get user email and phone from Firestore
+ */
+async function getUserContactInfo(userId: string): Promise<{ email?: string; phone?: string }> {
+  const userRef = getDb().collection('users').doc(userId)
+  const userDoc = await userRef.get()
+
+  if (!userDoc.exists) {
+    return {}
+  }
+
+  const userData = userDoc.data()
+  return {
+    email: userData?.email,
+    phone: userData?.phone,
+  }
+}
+
+/**
+ * Send notification via email channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendEmailChannel(
+  userId: string,
+  email: string,
+  title: string,
+  body: string,
+  notificationType: NotificationType,
+  deepLink: string
+): Promise<boolean> {
+  try {
+    const result = await sendNotificationEmail({
+      to: email,
+      notificationType,
+      content: { title, body, actionUrl: deepLink },
+      includeUnsubscribe: true,
+      userId,
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send flag email notification', { userId, error })
+    return false
+  }
+}
+
+/**
+ * Send notification via SMS channel
+ * Story 41.6: Multi-channel delivery
+ */
+async function sendSmsChannel(
+  userId: string,
+  phone: string,
+  notificationType: NotificationType,
+  title: string,
+  body: string
+): Promise<boolean> {
+  try {
+    const result = await sendSmsNotification({
+      to: phone,
+      notificationType,
+      content: { title, body },
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send flag SMS notification', { userId, error })
+    return false
+  }
 }
 
 /**
@@ -219,6 +305,7 @@ async function recordNotificationHistory(
  * Send immediate flag notification to a user
  *
  * Story 41.2: Flag Notifications - AC1, AC6
+ * Story 41.6: Multi-channel delivery (push, email, SMS)
  *
  * @param params - Notification parameters
  * @returns Result of sending notification
@@ -236,8 +323,8 @@ export async function sendImmediateFlagNotification(
     childName,
   })
 
-  // AC6: Check quiet hours (except critical flags bypass)
-  if (preferences.quietHoursEnabled && flag.severity !== 'critical') {
+  // AC6: Check quiet hours (except high severity flags bypass)
+  if (preferences.quietHoursEnabled && flag.severity !== 'high') {
     if (isInQuietHours(preferences, now)) {
       const delayedUntil = calculateQuietHoursEnd(preferences)
 
@@ -263,128 +350,184 @@ export async function sendImmediateFlagNotification(
     }
   }
 
-  // Get user's FCM tokens
-  const tokens = await getUserTokens(userId)
-
-  if (tokens.length === 0) {
-    logger.info('No tokens found for user', { userId })
-    await recordNotificationHistory(userId, flag, 'failed')
-
-    return {
-      sent: false,
-      delayed: false,
-      successCount: 0,
-      failureCount: 0,
-      tokensCleanedUp: 0,
-      reason: 'no_tokens',
-    }
-  }
-
   // Build notification content
   const severityDisplay = getSeverityDisplay(flag.severity)
   const categoryDisplay = getCategoryDisplay(flag.category)
   const appUrl = process.env.APP_URL || 'https://app.fledgely.com'
+  const deepLink = `${appUrl}/flags/${flag.childId}/${flag.id}`
 
   const title = `${severityDisplay.badge} ${severityDisplay.label}: ${categoryDisplay}`
   const body = `New flagged content for ${childName} requires your review`
 
-  // Send via FCM
-  const messaging = getMessaging()
-
-  const response = await messaging.sendEachForMulticast({
-    tokens: tokens.map((t) => t.token),
-    notification: {
-      title,
-      body,
-    },
-    data: {
-      type: 'flag_alert',
-      flagId: flag.id,
-      childId: flag.childId,
-      severity: flag.severity,
-      category: flag.category,
-      action: 'review_flag',
-    },
-    webpush: {
-      fcmOptions: {
-        link: `${appUrl}/flags/${flag.childId}/${flag.id}`,
-      },
-    },
-    android: {
-      priority: flag.severity === 'critical' ? 'high' : 'normal',
-      notification: {
-        priority: flag.severity === 'critical' ? 'max' : 'default',
-        channelId: flag.severity === 'critical' ? 'critical_flags' : 'flag_alerts',
-      },
-    },
-    apns: {
-      payload: {
-        aps: {
-          sound: flag.severity === 'critical' ? 'critical.wav' : 'default',
-          badge: 1,
-        },
-      },
-    },
-  })
-
-  // Handle failures and clean up stale tokens
-  let tokensCleanedUp = 0
-
-  if (response.failureCount > 0) {
-    const cleanupPromises: Promise<void>[] = []
-
-    response.responses.forEach((resp, idx) => {
-      if (!resp.success && resp.error) {
-        const errorCode = resp.error.code
-
-        // Clean up invalid/expired tokens
-        if (
-          errorCode === 'messaging/registration-token-not-registered' ||
-          errorCode === 'messaging/invalid-registration-token'
-        ) {
-          const tokenInfo = tokens[idx]
-          cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
-          tokensCleanedUp++
-        } else {
-          logger.error('FCM send error', { error: resp.error })
-        }
-      }
-    })
-
-    await Promise.all(cleanupPromises)
+  // Story 41.6: Get channel preferences for this notification type
+  const notificationType = getNotificationTypeForSeverity(flag.severity)
+  let channelPrefs: ChannelSettings = { push: true, email: false, sms: false }
+  try {
+    channelPrefs = await getDeliveryChannelPreferences(userId, notificationType)
+  } catch (error) {
+    logger.warn('Failed to get channel preferences, using defaults', { userId, error })
   }
 
-  // Record notification history
-  await recordNotificationHistory(userId, flag, response.successCount > 0 ? 'sent' : 'failed')
+  // Get user contact info for email/SMS
+  const contactInfo = await getUserContactInfo(userId)
 
-  if (response.successCount > 0) {
+  let pushSuccess = false
+  let pushAttempted = false
+  let tokensCleanedUp = 0
+
+  // Send via push if enabled
+  if (channelPrefs.push) {
+    const tokens = await getUserTokens(userId)
+
+    if (tokens.length === 0) {
+      logger.info('No tokens found for user', { userId })
+      pushAttempted = true
+    } else {
+      pushAttempted = true
+      const messaging = getMessaging()
+
+      try {
+        const response = await messaging.sendEachForMulticast({
+          tokens: tokens.map((t) => t.token),
+          notification: {
+            title,
+            body,
+          },
+          data: {
+            type: 'flag_alert',
+            flagId: flag.id,
+            childId: flag.childId,
+            severity: flag.severity,
+            category: flag.category,
+            action: 'review_flag',
+          },
+          webpush: {
+            fcmOptions: {
+              link: deepLink,
+            },
+          },
+          android: {
+            priority: flag.severity === 'high' ? 'high' : 'normal',
+            notification: {
+              priority: flag.severity === 'high' ? 'max' : 'default',
+              channelId: flag.severity === 'high' ? 'critical_flags' : 'flag_alerts',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: flag.severity === 'high' ? 'critical.wav' : 'default',
+                badge: 1,
+              },
+            },
+          },
+        })
+
+        // Handle failures and clean up stale tokens
+        if (response.failureCount > 0) {
+          const cleanupPromises: Promise<void>[] = []
+
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              const errorCode = resp.error.code
+
+              // Clean up invalid/expired tokens
+              if (
+                errorCode === 'messaging/registration-token-not-registered' ||
+                errorCode === 'messaging/invalid-registration-token'
+              ) {
+                const tokenInfo = tokens[idx]
+                cleanupPromises.push(removeStaleToken(userId, tokenInfo.tokenId))
+                tokensCleanedUp++
+              } else {
+                logger.error('FCM send error', { error: resp.error })
+              }
+            }
+          })
+
+          await Promise.all(cleanupPromises)
+        }
+
+        pushSuccess = response.successCount > 0
+      } catch (error) {
+        logger.error('FCM send failed', { userId, flagId: flag.id, error })
+      }
+    }
+  }
+
+  // Story 41.6: Send email if enabled OR as push-to-email fallback
+  let emailSent = false
+  const shouldSendEmail = channelPrefs.email || (channelPrefs.push && pushAttempted && !pushSuccess)
+
+  if (shouldSendEmail && contactInfo.email) {
+    emailSent = await sendEmailChannel(
+      userId,
+      contactInfo.email,
+      title,
+      body,
+      notificationType,
+      deepLink
+    )
+
+    if (emailSent) {
+      logger.info('Flag notification sent via email', {
+        userId,
+        flagId: flag.id,
+        isPushFallback: !channelPrefs.email,
+      })
+    }
+  }
+
+  // Story 41.6: Send SMS if enabled
+  let smsSent = false
+  if (channelPrefs.sms && contactInfo.phone) {
+    smsSent = await sendSmsChannel(userId, contactInfo.phone, notificationType, title, body)
+
+    if (smsSent) {
+      logger.info('Flag notification sent via SMS', { userId, flagId: flag.id })
+    }
+  }
+
+  // Determine overall success
+  const anySent = pushSuccess || emailSent || smsSent
+
+  // Record notification history
+  await recordNotificationHistory(userId, flag, anySent ? 'sent' : 'failed')
+
+  if (anySent) {
     logger.info('Immediate flag notification sent successfully', {
       userId,
       flagId: flag.id,
-      successCount: response.successCount,
+      channels: {
+        push: pushSuccess,
+        email: emailSent,
+        sms: smsSent,
+      },
     })
 
     return {
       sent: true,
       delayed: false,
-      successCount: response.successCount,
-      failureCount: response.failureCount,
+      successCount: (pushSuccess ? 1 : 0) + (emailSent ? 1 : 0) + (smsSent ? 1 : 0),
+      failureCount: 0,
       tokensCleanedUp,
     }
   }
 
-  logger.warn('Failed to send immediate flag notification', {
+  logger.warn('Failed to send immediate flag notification on any channel', {
     userId,
     flagId: flag.id,
-    failureCount: response.failureCount,
   })
 
   return {
     sent: false,
     delayed: false,
     successCount: 0,
-    failureCount: response.failureCount,
+    failureCount: 1,
     tokensCleanedUp,
-    reason: 'send_failed',
+    reason:
+      !channelPrefs.push && !channelPrefs.email && !channelPrefs.sms
+        ? 'no_tokens' // No channels enabled
+        : 'send_failed',
   }
 }

@@ -2,12 +2,14 @@
  * Login Notification Service
  *
  * Story 41.5: New Login Notifications
+ * Story 41.6: Multi-channel delivery (push + email for security)
  *
  * Sends notifications to parents when new devices log in:
  * - AC1: New device detection with device info
  * - AC3: Fleeing mode suppresses location (FR160)
  * - AC4: All guardians notified (FR103 symmetry)
  * - AC5: Login alerts BYPASS quiet hours (security - cannot be disabled)
+ * - Story 41.6: Login alerts always use push + email (locked channel)
  */
 
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
@@ -18,6 +20,7 @@ import {
   buildSuspiciousLoginContent,
   type DeviceFingerprint,
 } from '@fledgely/shared'
+import { sendNotificationEmail } from '../email'
 
 // Lazy Firestore initialization for testing
 let db: FirebaseFirestore.Firestore | null = null
@@ -77,6 +80,47 @@ const FLEEING_MODE_DURATION_MS = 72 * 60 * 60 * 1000
 // ============================================
 // Helper Functions
 // ============================================
+
+/**
+ * Get user email from Firestore
+ * Story 41.6: For email channel delivery
+ */
+async function getUserEmail(userId: string): Promise<string | undefined> {
+  const userRef = getDb().collection('users').doc(userId)
+  const userDoc = await userRef.get()
+
+  if (!userDoc.exists) {
+    return undefined
+  }
+
+  return userDoc.data()?.email
+}
+
+/**
+ * Send login notification via email
+ * Story 41.6: Login alerts always include email (security requirement)
+ */
+async function sendLoginEmailNotification(
+  userId: string,
+  email: string,
+  title: string,
+  body: string,
+  deepLink: string
+): Promise<boolean> {
+  try {
+    const result = await sendNotificationEmail({
+      to: email,
+      notificationType: 'loginAlerts',
+      content: { title, body, actionUrl: deepLink },
+      includeUnsubscribe: false, // Security notifications cannot be unsubscribed
+      userId,
+    })
+    return result.success
+  } catch (error) {
+    logger.error('Failed to send login email notification', { userId, error })
+    return false
+  }
+}
 
 /**
  * Get all FCM tokens for a user
@@ -348,96 +392,120 @@ export async function sendNewLoginNotification(
   const guardiansNotified: string[] = []
   const guardiansSkipped: string[] = []
 
+  const deepLink = `${appUrl}/settings/security/sessions`
+
   // Send to ALL guardians - LOGIN ALERTS BYPASS QUIET HOURS (AC5)
   for (const guardianUid of guardianUids) {
     // NOTE: We do NOT check quiet hours or preferences for login alerts
     // This is a security requirement - login alerts cannot be disabled
 
+    let pushSuccess = false
+    let emailSent = false
+
     // Get guardian tokens
     const tokens = await getUserTokens(guardianUid)
     if (tokens.length === 0) {
-      logger.info('No tokens found for guardian', { guardianUid })
-      await recordNotificationHistory(guardianUid, 'new_login', sessionId, 'failed')
-      guardiansSkipped.push(guardianUid)
-      continue
-    }
+      logger.info('No tokens found for guardian, will try email', { guardianUid })
+    } else {
+      // Send via FCM with high priority (security notification)
+      const messaging = getMessaging()
 
-    // Send via FCM with high priority (security notification)
-    const messaging = getMessaging()
-
-    try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokens.map((t) => t.token),
-        notification: {
-          title: content.title,
-          body: content.body,
-        },
-        data: {
-          type: content.data.type,
-          sessionId: content.data.sessionId,
-          familyId: content.data.familyId,
-          userId: content.data.userId,
-          action: content.data.action,
-        },
-        webpush: {
-          fcmOptions: {
-            link: `${appUrl}/settings/security/sessions`,
-          },
-        },
-        android: {
-          // High priority for security notifications
-          priority: 'high',
+      try {
+        const response = await messaging.sendEachForMulticast({
+          tokens: tokens.map((t) => t.token),
           notification: {
-            priority: 'high',
-            channelId: 'security_alerts',
+            title: content.title,
+            body: content.body,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default',
-              badge: 1,
-              // Time-sensitive for security alerts
-              'interruption-level': 'time-sensitive',
+          data: {
+            type: content.data.type,
+            sessionId: content.data.sessionId,
+            familyId: content.data.familyId,
+            userId: content.data.userId,
+            action: content.data.action,
+          },
+          webpush: {
+            fcmOptions: {
+              link: deepLink,
             },
           },
-        },
-      })
-
-      // Handle failures and clean up stale tokens
-      if (response.failureCount > 0) {
-        const cleanupPromises: Promise<void>[] = []
-
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success && resp.error) {
-            const errorCode = resp.error.code
-            if (
-              errorCode === 'messaging/registration-token-not-registered' ||
-              errorCode === 'messaging/invalid-registration-token'
-            ) {
-              const tokenInfo = tokens[idx]
-              cleanupPromises.push(removeStaleToken(guardianUid, tokenInfo.tokenId))
-            }
-          }
+          android: {
+            // High priority for security notifications
+            priority: 'high',
+            notification: {
+              priority: 'high',
+              channelId: 'security_alerts',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+                // Time-sensitive for security alerts
+                'interruption-level': 'time-sensitive',
+              },
+            },
+          },
         })
 
-        await Promise.all(cleanupPromises)
-      }
+        // Handle failures and clean up stale tokens
+        if (response.failureCount > 0) {
+          const cleanupPromises: Promise<void>[] = []
 
-      if (response.successCount > 0) {
-        await recordNotificationHistory(guardianUid, 'new_login', sessionId, 'sent')
-        guardiansNotified.push(guardianUid)
-        logger.info('New login notification sent', {
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              const errorCode = resp.error.code
+              if (
+                errorCode === 'messaging/registration-token-not-registered' ||
+                errorCode === 'messaging/invalid-registration-token'
+              ) {
+                const tokenInfo = tokens[idx]
+                cleanupPromises.push(removeStaleToken(guardianUid, tokenInfo.tokenId))
+              }
+            }
+          })
+
+          await Promise.all(cleanupPromises)
+        }
+
+        pushSuccess = response.successCount > 0
+      } catch (error) {
+        logger.error('Failed to send new login push notification', {
           guardianUid,
           sessionId,
-          successCount: response.successCount,
+          error,
         })
-      } else {
-        await recordNotificationHistory(guardianUid, 'new_login', sessionId, 'failed')
-        guardiansSkipped.push(guardianUid)
       }
-    } catch (error) {
-      logger.error('Failed to send new login notification', { guardianUid, sessionId, error })
+    }
+
+    // Story 41.6: Login alerts always send email (locked security channel)
+    const guardianEmail = await getUserEmail(guardianUid)
+    if (guardianEmail) {
+      emailSent = await sendLoginEmailNotification(
+        guardianUid,
+        guardianEmail,
+        content.title,
+        content.body,
+        deepLink
+      )
+
+      if (emailSent) {
+        logger.info('New login notification sent via email', { guardianUid, sessionId })
+      }
+    }
+
+    // Record result based on any successful delivery
+    const anySuccess = pushSuccess || emailSent
+    if (anySuccess) {
+      await recordNotificationHistory(guardianUid, 'new_login', sessionId, 'sent')
+      guardiansNotified.push(guardianUid)
+      logger.info('New login notification sent', {
+        guardianUid,
+        sessionId,
+        channels: { push: pushSuccess, email: emailSent },
+      })
+    } else {
       await recordNotificationHistory(guardianUid, 'new_login', sessionId, 'failed')
       guardiansSkipped.push(guardianUid)
     }
@@ -525,94 +593,113 @@ export async function sendSuspiciousLoginNotification(
 
   const guardiansNotified: string[] = []
   const guardiansSkipped: string[] = []
+  const deepLink = `${appUrl}/settings/security/sessions`
 
   // Send to ALL guardians - BYPASSES quiet hours
   for (const guardianUid of guardianUids) {
+    let pushSuccess = false
+    let emailSent = false
+
     const tokens = await getUserTokens(guardianUid)
     if (tokens.length === 0) {
-      logger.info('No tokens found for guardian', { guardianUid })
-      await recordNotificationHistory(guardianUid, 'suspicious_login', sessionId, 'failed')
-      guardiansSkipped.push(guardianUid)
-      continue
-    }
+      logger.info('No tokens found for guardian, will try email', { guardianUid })
+    } else {
+      const messaging = getMessaging()
 
-    const messaging = getMessaging()
-
-    try {
-      const response = await messaging.sendEachForMulticast({
-        tokens: tokens.map((t) => t.token),
-        notification: {
-          title: content.title,
-          body: content.body,
-        },
-        data: {
-          type: content.data.type,
-          sessionId: content.data.sessionId,
-          familyId: content.data.familyId,
-          userId: content.data.userId,
-          action: content.data.action,
-        },
-        webpush: {
-          fcmOptions: {
-            link: `${appUrl}/settings/security/sessions`,
-          },
-        },
-        android: {
-          priority: 'high',
+      try {
+        const response = await messaging.sendEachForMulticast({
+          tokens: tokens.map((t) => t.token),
           notification: {
-            priority: 'high',
-            channelId: 'security_alerts',
+            title: content.title,
+            body: content.body,
           },
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default',
-              badge: 1,
-              'interruption-level': 'critical',
+          data: {
+            type: content.data.type,
+            sessionId: content.data.sessionId,
+            familyId: content.data.familyId,
+            userId: content.data.userId,
+            action: content.data.action,
+          },
+          webpush: {
+            fcmOptions: {
+              link: deepLink,
             },
           },
-        },
-      })
-
-      // Handle failures and clean up stale tokens
-      if (response.failureCount > 0) {
-        const cleanupPromises: Promise<void>[] = []
-
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success && resp.error) {
-            const errorCode = resp.error.code
-            if (
-              errorCode === 'messaging/registration-token-not-registered' ||
-              errorCode === 'messaging/invalid-registration-token'
-            ) {
-              const tokenInfo = tokens[idx]
-              cleanupPromises.push(removeStaleToken(guardianUid, tokenInfo.tokenId))
-            }
-          }
+          android: {
+            priority: 'high',
+            notification: {
+              priority: 'high',
+              channelId: 'security_alerts',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+                'interruption-level': 'critical',
+              },
+            },
+          },
         })
 
-        await Promise.all(cleanupPromises)
-      }
+        // Handle failures and clean up stale tokens
+        if (response.failureCount > 0) {
+          const cleanupPromises: Promise<void>[] = []
 
-      if (response.successCount > 0) {
-        await recordNotificationHistory(guardianUid, 'suspicious_login', sessionId, 'sent')
-        guardiansNotified.push(guardianUid)
-        logger.info('Suspicious login notification sent', {
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              const errorCode = resp.error.code
+              if (
+                errorCode === 'messaging/registration-token-not-registered' ||
+                errorCode === 'messaging/invalid-registration-token'
+              ) {
+                const tokenInfo = tokens[idx]
+                cleanupPromises.push(removeStaleToken(guardianUid, tokenInfo.tokenId))
+              }
+            }
+          })
+
+          await Promise.all(cleanupPromises)
+        }
+
+        pushSuccess = response.successCount > 0
+      } catch (error) {
+        logger.error('Failed to send suspicious login push notification', {
           guardianUid,
           sessionId,
-          successCount: response.successCount,
+          error,
         })
-      } else {
-        await recordNotificationHistory(guardianUid, 'suspicious_login', sessionId, 'failed')
-        guardiansSkipped.push(guardianUid)
       }
-    } catch (error) {
-      logger.error('Failed to send suspicious login notification', {
+    }
+
+    // Story 41.6: Login alerts always send email (locked security channel)
+    const guardianEmail = await getUserEmail(guardianUid)
+    if (guardianEmail) {
+      emailSent = await sendLoginEmailNotification(
+        guardianUid,
+        guardianEmail,
+        content.title,
+        content.body,
+        deepLink
+      )
+
+      if (emailSent) {
+        logger.info('Suspicious login notification sent via email', { guardianUid, sessionId })
+      }
+    }
+
+    // Record result based on any successful delivery
+    const anySuccess = pushSuccess || emailSent
+    if (anySuccess) {
+      await recordNotificationHistory(guardianUid, 'suspicious_login', sessionId, 'sent')
+      guardiansNotified.push(guardianUid)
+      logger.info('Suspicious login notification sent', {
         guardianUid,
         sessionId,
-        error,
+        channels: { push: pushSuccess, email: emailSent },
       })
+    } else {
       await recordNotificationHistory(guardianUid, 'suspicious_login', sessionId, 'failed')
       guardiansSkipped.push(guardianUid)
     }

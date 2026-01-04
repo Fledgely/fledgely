@@ -2300,3 +2300,50 @@ export {
   type LoginNotificationStatus,
   type LoginNotificationParams,
 } from './contracts'
+
+// Story 41.6: Delivery Channel exports
+export {
+  // Schemas
+  deliveryChannelTypeSchema,
+  deliveryStatusSchema,
+  notificationTypeSchema,
+  channelSettingsSchema,
+  lockedChannelSettingsSchema,
+  notificationChannelPreferencesSchema,
+  deliveryLogSchema,
+  emailUnsubscribeTokenSchema,
+  updateChannelPreferencesInputSchema,
+  channelPreferencesOutputSchema,
+  handleUnsubscribeInputSchema,
+  handleUnsubscribeOutputSchema,
+  deliveryNotificationContentSchema,
+  notificationPrioritySchema,
+  deliverNotificationInputSchema,
+  channelDeliveryResultSchema,
+  deliveryResultSchema,
+  // Constants
+  securityNotificationTypes,
+  defaultChannelPreferences,
+  // Helper functions
+  isSecurityNotificationType,
+  getDefaultChannels,
+  // Types
+  type DeliveryChannelType,
+  type DeliveryStatus,
+  type NotificationType,
+  type SecurityNotificationType,
+  type ChannelSettings,
+  type LockedChannelSettings,
+  type NotificationChannelPreferences,
+  type DeliveryLog,
+  type EmailUnsubscribeToken,
+  type UpdateChannelPreferencesInput,
+  type ChannelPreferencesOutput,
+  type HandleUnsubscribeInput,
+  type HandleUnsubscribeOutput,
+  type DeliveryNotificationContent,
+  type NotificationPriority,
+  type DeliverNotificationInput,
+  type ChannelDeliveryResult,
+  type DeliveryResult,
+} from './contracts'

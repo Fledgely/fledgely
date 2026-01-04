@@ -13,10 +13,31 @@ vi.mock('@fledgely/shared', () => ({
   isInQuietHours: (...args: unknown[]) => mockIsInQuietHours(...args),
 }))
 
+// Mock email and SMS services
+vi.mock('../email', () => ({
+  sendNotificationEmail: vi.fn().mockResolvedValue({ success: true, messageId: 'email-123' }),
+}))
+
+vi.mock('../sms', () => ({
+  sendSmsNotification: vi.fn().mockResolvedValue({ success: true, messageSid: 'sms-123' }),
+}))
+
+// Mock deliveryChannelManager
+vi.mock('./deliveryChannelManager', () => ({
+  getChannelPreferences: vi.fn().mockResolvedValue({ push: true, email: false, sms: false }),
+}))
+
 // Mock firebase-admin/firestore
 const mockDocSet = vi.fn()
 const mockDocDelete = vi.fn()
 const mockCollectionGet = vi.fn()
+const mockUserDocGet = vi.fn().mockResolvedValue({
+  exists: true,
+  data: () => ({ email: 'test@example.com', phone: '+15551234567' }),
+})
+const mockChannelPrefsDocGet = vi.fn().mockResolvedValue({
+  exists: false,
+})
 const mockDoc = vi.fn(() => ({
   set: mockDocSet,
   delete: mockDocDelete,
@@ -25,13 +46,36 @@ const mockDoc = vi.fn(() => ({
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
-    collection: vi.fn(() => ({
-      doc: vi.fn(() => ({
-        collection: vi.fn(() => ({
-          get: mockCollectionGet,
-          doc: mockDoc,
-        })),
-      })),
+    collection: vi.fn((collectionName: string) => ({
+      doc: vi.fn((_docId: string) => {
+        // For users collection, return a doc that supports .get()
+        if (collectionName === 'users') {
+          return {
+            get: mockUserDocGet,
+            collection: vi.fn((subCollectionName: string) => {
+              if (subCollectionName === 'settings') {
+                return {
+                  doc: vi.fn(() => ({
+                    get: mockChannelPrefsDocGet,
+                    set: mockDocSet,
+                  })),
+                }
+              }
+              // For notificationTokens or other subcollections
+              return {
+                get: mockCollectionGet,
+                doc: mockDoc,
+              }
+            }),
+          }
+        }
+        return {
+          collection: vi.fn(() => ({
+            get: mockCollectionGet,
+            doc: mockDoc,
+          })),
+        }
+      }),
     })),
   }),
   FieldValue: {
@@ -67,7 +111,7 @@ describe('sendImmediateFlagNotification', () => {
     screenshotRef: 'children/child-456/screenshots/ss-1',
     screenshotId: 'ss-1',
     category: 'explicit_content',
-    severity: 'critical',
+    severity: 'high',
     confidence: 0.95,
     reasoning: 'Test flag',
     createdAt: Date.now(),
@@ -160,15 +204,15 @@ describe('sendImmediateFlagNotification', () => {
     expect(mockSendEachForMulticast).not.toHaveBeenCalled()
   })
 
-  it('bypasses quiet hours for critical flags', async () => {
+  it('bypasses quiet hours for high severity flags', async () => {
     mockIsInQuietHours.mockReturnValue(true)
 
-    const criticalFlag = { ...baseFlag, severity: 'critical' as const }
+    const highSeverityFlag = { ...baseFlag, severity: 'high' as const }
     const quietPrefs = { ...basePrefs, quietHoursEnabled: true }
 
     const result = await sendImmediateFlagNotification({
       userId: 'user-1',
-      flag: criticalFlag,
+      flag: highSeverityFlag,
       childName: 'Emma',
       preferences: quietPrefs,
     })
@@ -178,7 +222,7 @@ describe('sendImmediateFlagNotification', () => {
     expect(mockSendEachForMulticast).toHaveBeenCalledTimes(1)
   })
 
-  it('returns no_tokens when user has no FCM tokens', async () => {
+  it('falls back to email when push fails (no tokens)', async () => {
     mockCollectionGet.mockResolvedValue({ docs: [] })
 
     const result = await sendImmediateFlagNotification({
@@ -188,8 +232,9 @@ describe('sendImmediateFlagNotification', () => {
       preferences: basePrefs,
     })
 
-    expect(result.sent).toBe(false)
-    expect(result.reason).toBe('no_tokens')
+    // Push was enabled but failed (no tokens), email fallback should succeed
+    expect(result.sent).toBe(true)
+    expect(result.successCount).toBe(1) // Email sent successfully
     expect(mockSendEachForMulticast).not.toHaveBeenCalled()
   })
 
@@ -227,21 +272,21 @@ describe('sendImmediateFlagNotification', () => {
     expect(mockSendEachForMulticast).toHaveBeenCalledWith(
       expect.objectContaining({
         notification: {
-          title: expect.stringContaining('Critical'),
+          title: expect.stringContaining('High'),
           body: expect.stringContaining('Emma'),
         },
         data: expect.objectContaining({
           type: 'flag_alert',
           flagId: 'flag-123',
           childId: 'child-456',
-          severity: 'critical',
+          severity: 'high',
           action: 'review_flag',
         }),
       })
     )
   })
 
-  it('sets high priority for critical flags on Android', async () => {
+  it('sets high priority for high severity flags on Android', async () => {
     await sendImmediateFlagNotification({
       userId: 'user-1',
       flag: baseFlag,
@@ -316,7 +361,7 @@ describe('sendImmediateFlagNotification', () => {
         type: 'flag',
         flagId: 'flag-123',
         childId: 'child-456',
-        severity: 'critical',
+        severity: 'high',
         deliveryStatus: 'sent',
       })
     )
@@ -344,7 +389,8 @@ describe('sendImmediateFlagNotification', () => {
       preferences: basePrefs,
     })
 
-    expect(result.successCount).toBe(3)
+    // successCount now counts channels, not tokens (push = 1)
+    expect(result.successCount).toBe(1)
     expect(mockSendEachForMulticast).toHaveBeenCalledWith(
       expect.objectContaining({
         tokens: ['fcm-token-1', 'fcm-token-2', 'fcm-token-3'],
