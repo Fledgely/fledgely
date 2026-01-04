@@ -48,3 +48,30 @@ export {
   setAppCategoryApproval,
   removeAppCategoryApproval,
 } from './appApprovals'
+
+// Story 20.6: Classification Accuracy Monitoring
+export {
+  selectRandomSamplesForReview,
+  getReviewQueue,
+  submitReview,
+  skipReviewItem,
+  getReviewStats,
+} from './accuracySampling'
+
+export {
+  calculateDailyAccuracy,
+  calculateRollingAccuracy,
+  calculateCategoryAccuracy,
+  getAccuracyTrend,
+  getAllCategoryAccuracy,
+  getCategoriesNeedingImprovement,
+  getLatestAccuracyMetric,
+} from './accuracyCalculator'
+
+export {
+  checkAccuracyThreshold,
+  createAccuracyAlert,
+  getActiveAlert,
+  getActiveAlerts,
+  getAlertHistory,
+} from './accuracyAlerting'

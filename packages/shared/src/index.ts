@@ -2890,3 +2890,48 @@ export {
   type RespondToAdultPatternResponse,
   type GetAdultPatternFlagsResponse,
 } from './contracts/adultPatternDetection'
+
+// Story 20.6: Classification Accuracy Monitoring exports
+export {
+  // Constants
+  ACCURACY_ALERT_THRESHOLD,
+  MIN_SAMPLES_FOR_ACCURACY,
+  DEFAULT_DAILY_SAMPLE_SIZE,
+  CATEGORY_NEEDS_IMPROVEMENT_THRESHOLD,
+  ROLLING_ACCURACY_DAYS,
+  // Schemas
+  reviewStatusSchema,
+  classificationReviewQueueSchema,
+  submitReviewInputSchema,
+  submitReviewResponseSchema,
+  categoryMetricSchema,
+  accuracyMetricSchema,
+  classificationFeedbackSchema,
+  accuracyAlertStatusSchema,
+  accuracyAlertSchema,
+  getReviewQueueResponseSchema,
+  accuracyTrendPointSchema,
+  getAccuracyMetricsResponseSchema,
+  // Helper functions
+  generateReviewQueueId,
+  generateAccuracyMetricId,
+  generateFeedbackId,
+  generateAlertId,
+  calculateAccuracyPercentage,
+  determineAlertStatus,
+  formatDateString,
+  validateReviewInput,
+  // Types
+  type ReviewStatus,
+  type ClassificationReviewQueue,
+  type SubmitReviewInput,
+  type SubmitReviewResponse,
+  type CategoryMetric,
+  type AccuracyMetric,
+  type ClassificationFeedback,
+  type AccuracyAlertStatus,
+  type AccuracyAlert,
+  type GetReviewQueueResponse,
+  type AccuracyTrendPoint,
+  type GetAccuracyMetricsResponse,
+} from './contracts/accuracyMonitoring'

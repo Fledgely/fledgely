@@ -362,3 +362,12 @@ export {
 // Story 8.10: Adult Pattern Detection
 export { getAdultPatternFlags, respondToAdultPattern } from './http/adultPattern'
 export { analyzeAdultPatternsScheduled } from './scheduled/analyzeAdultPatterns'
+
+// Story 20.6: Classification Accuracy Monitoring
+export {
+  getReviewQueueEndpoint,
+  submitReviewEndpoint,
+  skipReviewEndpoint,
+  getAccuracyMetricsEndpoint,
+} from './http/accuracyMonitoring'
+export { sampleClassificationsScheduled } from './scheduled/sampleClassifications'
