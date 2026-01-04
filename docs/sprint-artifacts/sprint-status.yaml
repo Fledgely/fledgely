@@ -695,7 +695,7 @@ development_status:
   # Epic 52: Reverse Mode & Trusted Adults (Age 16 Transition)
   epic-52: in-progress
   52-1-age-16-transition-notification: done
-  52-2-reverse-mode-activation: backlog
+  52-2-reverse-mode-activation: done
   52-3-selective-sharing-in-reverse-mode: backlog
   52-4-trusted-adult-designation: backlog
   52-5-trusted-adult-access: backlog

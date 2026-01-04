@@ -305,3 +305,11 @@ export {
   dismissAge16TransitionNotification,
   acknowledgeAge16TransitionNotification,
 } from './callable/age16Transition'
+
+// Reverse Mode (Story 52.2)
+export {
+  getReverseModeStatusCallable,
+  activateReverseModeCallable,
+  deactivateReverseModeCallable,
+  updateReverseModeSharing,
+} from './callable/reverseMode'

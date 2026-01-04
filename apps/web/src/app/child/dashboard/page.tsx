@@ -409,6 +409,18 @@ function DashboardContent() {
             <span>{childSession?.childName || 'Guest'}</span>
           </div>
 
+          {/* Settings button (Story 52.2 - Reverse Mode) */}
+          <button
+            type="button"
+            onClick={() => router.push('/child/settings')}
+            style={styles.logoutButton}
+            className="logout-button"
+            data-testid="settings-button"
+            aria-label="Settings"
+          >
+            ⚙️ Settings
+          </button>
+
           {/* Logout button */}
           <button
             type="button"

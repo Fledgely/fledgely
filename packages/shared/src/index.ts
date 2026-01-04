@@ -2622,3 +2622,68 @@ export {
   dismissNotification,
   clearAllAge16NotificationData,
 } from './services/age16TransitionNotificationService'
+
+// Reverse Mode (Story 52.2)
+export {
+  REVERSE_MODE_FEATURE,
+  ReverseModeStatus,
+  ReverseModeChangeType,
+  ReverseModeShareingPreferencesSchema,
+  DEFAULT_REVERSE_MODE_SHARING,
+  ReverseModeSettingsSchema,
+  DEFAULT_REVERSE_MODE_SETTINGS,
+  ReverseModeActivationRequestSchema,
+  ReverseModeDeactivationRequestSchema,
+  ReverseModeChangeEventSchema,
+  ReverseModeConfirmationContentSchema,
+  generateReverseModeEventId,
+  createReverseModeChangeEvent,
+  isReverseModeActive,
+  isReverseModePending,
+  getDefaultSharingPreferences,
+  getReverseModeConfirmationContent,
+  PARENT_REVERSE_MODE_ACTIVATED_MESSAGE,
+  PARENT_REVERSE_MODE_DEACTIVATED_MESSAGE,
+  getParentReverseModeActivatedMessage,
+  getParentReverseModeDeactivatedMessage,
+  SUPPORTING_INDEPENDENCE_LINK,
+  type ReverseModeStatusValue,
+  type ReverseModeChangeTypeValue,
+  type ReverseModeShareingPreferences,
+  type ReverseModeSettings,
+  type ReverseModeActivationRequest,
+  type ReverseModeDeactivationRequest,
+  type ReverseModeChangeEvent,
+  type ReverseModeConfirmationContent,
+} from './contracts/reverseMode'
+
+// Reverse Mode Service (Story 52.2 Task 2)
+export {
+  canActivateReverseMode,
+  canActivateWithSettings,
+  isReverseModeActiveStatus,
+  isReverseModePendingStatus,
+  getReverseModeStatus,
+  wasEverActivated,
+  getReverseModeConfirmationContent as getReverseModeConfirmationContentFromService,
+  createActivationSettings,
+  createDeactivationSettings,
+  getDefaultReverseModeSettings,
+  createActivationEvent,
+  createDeactivationEvent,
+  createConfirmationStartedEvent,
+  createConfirmationCancelledEvent,
+  validateConfirmationAcknowledged,
+  validateReverseModeAction,
+} from './services/reverseModeService'
+
+// Reverse Mode Notification Service (Story 52.2 Task 4)
+export {
+  createReverseModeActivationNotification,
+  createReverseModeDeactivationNotification,
+  createReverseModeNotificationsForParents,
+  getReverseModeNotificationTitle,
+  getSupportingIndependenceLink,
+  type ReverseModeNotificationType,
+  type ReverseModeNotificationPayload,
+} from './services/reverseModeNotificationService'
