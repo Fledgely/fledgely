@@ -2495,3 +2495,31 @@ export {
   type UpdateBreachIncidentResponse,
   type GetBreachIncidentsResponse,
 } from './contracts/breachNotification'
+
+// Privacy Dashboard (Story 51.7)
+export {
+  DataCategory,
+  DataCategoryInfo,
+  RetentionPeriod,
+  RetentionPeriodInfo,
+  DataRetentionPolicy,
+  StorageRegion,
+  StorageRegionInfo,
+  PrivacyPreferencesSchema,
+  DEFAULT_PRIVACY_PREFERENCES,
+  SessionInfoSchema,
+  AccessLevel,
+  FamilyAccessInfoSchema,
+  PRIVACY_LINKS,
+  type DataCategoryValue,
+  type RetentionPeriodValue,
+  type StorageRegionValue,
+  type PrivacyPreferences,
+  type SessionInfo,
+  type AccessLevelValue,
+  type FamilyAccessInfo,
+  type GetPrivacyInfoResponse,
+  type GetSessionHistoryResponse,
+  type UpdatePrivacyPreferencesInput,
+  type UpdatePrivacyPreferencesResponse,
+} from './contracts/privacyDashboard'

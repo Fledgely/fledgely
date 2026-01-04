@@ -281,3 +281,8 @@ export { updateBreachIncident } from './callable/admin/updateBreachIncident'
 export { getBreachIncidents } from './callable/admin/getBreachIncidents'
 export { getUserBreachNotifications } from './callable/getUserBreachNotifications'
 export { dismissBreachBanner } from './callable/dismissBreachBanner'
+
+// Privacy Dashboard (Story 51.7)
+export { getPrivacyInfo } from './callable/getPrivacyInfo'
+export { getSessionHistory } from './callable/getSessionHistory'
+export { updatePrivacyPreferences } from './callable/updatePrivacyPreferences'
