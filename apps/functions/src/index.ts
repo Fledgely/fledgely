@@ -323,3 +323,11 @@ export {
   revokeTrustedAdultCallable,
   resendTrustedAdultInvitationCallable,
 } from './callable/trustedAdult'
+
+// Story 52.5: Trusted Adult Access
+export {
+  getSharedDataForTrustedAdultCallable,
+  getTrustedAdultChildrenCallable,
+  logTrustedAdultAccessCallable,
+  getTrustedAdultAccessLogCallable,
+} from './callable/trustedAdultAccess'

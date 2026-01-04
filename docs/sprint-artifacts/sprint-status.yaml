@@ -697,8 +697,8 @@ development_status:
   52-1-age-16-transition-notification: done
   52-2-reverse-mode-activation: done
   52-3-selective-sharing-in-reverse-mode: done
-  52-4-trusted-adult-designation: backlog
-  52-5-trusted-adult-access: backlog
+  52-4-trusted-adult-designation: done
+  52-5-trusted-adult-access: done
   52-6-trusted-adult-removal: backlog
   52-7-parents-view-in-reverse-mode: backlog
   52-8-reverse-mode-safety-net: backlog

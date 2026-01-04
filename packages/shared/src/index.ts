@@ -2774,3 +2774,23 @@ export {
   type AcceptInvitationResult,
   type TeenApprovalResult,
 } from './services/trustedAdultService'
+
+// Trusted Adult Access Service - Story 52.5
+export {
+  validateTrustedAdultAccess,
+  findActiveTrustedAdultByUserId,
+  getChildrenForTrustedAdult,
+  getSharedDataFilter,
+  hasAnySharedData,
+  getSharedCategoriesList,
+  createAccessEvent,
+  getSharedByLabel,
+  getNoDataSharedMessage,
+  getRevokedAccessMessage,
+  getLastAccessText,
+  generateAccessEventId,
+  type TrustedAdultAccessResult,
+  type SharedDataFilter,
+  type TrustedAdultAccessEvent,
+  type TrustedAdultAccessType,
+} from './services/trustedAdultAccessService'
