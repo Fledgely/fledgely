@@ -659,14 +659,14 @@ development_status:
   epic-48-retrospective: done
 
   # Epic 49: Self-Hosted Backups & Restore
-  epic-49: in-progress
-  49-1-automated-firestore-backup: in-progress
-  49-2-screenshot-storage-backup: backlog
-  49-3-manual-backup-trigger: backlog
-  49-4-restore-from-backup: backlog
-  49-5-point-in-time-recovery: backlog
-  49-6-backup-verification-testing: backlog
-  epic-49-retrospective: optional
+  epic-49: done
+  49-1-automated-firestore-backup: done
+  49-2-screenshot-storage-backup: done
+  49-3-manual-backup-trigger: done
+  49-4-restore-from-backup: done
+  49-5-point-in-time-recovery: done
+  49-6-backup-verification-testing: done
+  epic-49-retrospective: completed
 
   # Epic 50: SaaS Subscription Management
   epic-50: backlog

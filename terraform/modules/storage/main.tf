@@ -39,16 +39,30 @@ resource "google_storage_bucket" "screenshots" {
     }
   }
 
-  # Delete non-current versions after 7 days
+  # Delete non-current versions after configured days
   dynamic "lifecycle_rule" {
     for_each = var.enable_versioning ? [1] : []
     content {
       condition {
         num_newer_versions         = 1
-        days_since_noncurrent_time = 7
+        days_since_noncurrent_time = var.noncurrent_version_retention_days
       }
       action {
         type = "Delete"
+      }
+    }
+  }
+
+  # Move old screenshots to NEARLINE for cost savings (Story 49.2)
+  dynamic "lifecycle_rule" {
+    for_each = var.archive_after_days > 0 && var.retention_days > var.archive_after_days ? [1] : []
+    content {
+      condition {
+        age = var.archive_after_days
+      }
+      action {
+        type          = "SetStorageClass"
+        storage_class = "NEARLINE"
       }
     }
   }

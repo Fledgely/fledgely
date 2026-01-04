@@ -114,6 +114,10 @@ module "storage" {
   storage_rules_path = var.storage_rules_path
   labels             = local.common_labels
 
+  # Screenshot backup options (Story 49.2)
+  enable_versioning = var.screenshot_versioning_enabled
+  archive_after_days = var.screenshot_archive_days
+
   depends_on = [google_project_service.required_apis]
 }
 

@@ -1,4 +1,4 @@
-# Firestore Backup Guide
+# Backup Guide
 
 This document describes how to configure and manage automated Firestore backups for Fledgely.
 
@@ -249,8 +249,217 @@ gcloud firestore operations list --database='(default)'
 - Only the function service account can write to the bucket
 - Restore operations require `datastore.importExportAdmin` role
 
+## Screenshot Storage Backup (Story 49.2)
+
+Screenshots are backed up separately from Firestore data using Cloud Storage features.
+
+### Configuration
+
+```hcl
+# Enable versioning for data protection
+screenshot_versioning_enabled = true
+
+# Move to NEARLINE storage after 30 days (cost savings)
+screenshot_archive_days = 30
+
+# Delete after 90 days
+screenshot_retention_days = 90
+```
+
+### How It Works
+
+1. **Versioning**: When enabled, every overwrite creates a new version
+   - Previous versions are retained
+   - Accidental deletions can be recovered
+   - Non-current versions deleted after 7 days by default
+
+2. **NEARLINE Transition**: Old screenshots automatically move to cheaper storage
+   - Reduced storage costs (NEARLINE is ~50% cheaper)
+   - Access is slightly slower but fine for old screenshots
+   - Only applies if `screenshot_archive_days < screenshot_retention_days`
+
+3. **Deletion**: Screenshots deleted after retention period expires
+
+### Lifecycle Timeline Example
+
+```
+Day 0:  Screenshot uploaded (STANDARD storage)
+Day 30: Moved to NEARLINE storage
+Day 90: Deleted from storage
+```
+
+### Cost Optimization
+
+| Storage Class | Cost/GB/Month | Use Case                       |
+| ------------- | ------------- | ------------------------------ |
+| STANDARD      | ~$0.020       | Recent screenshots (< 30 days) |
+| NEARLINE      | ~$0.010       | Older screenshots (30-90 days) |
+
+### Disabling Screenshot Backup
+
+To exclude screenshots from versioning (data-only backup):
+
+```hcl
+screenshot_versioning_enabled = false
+screenshot_archive_days = 0
+```
+
+### Viewing Storage Size
+
+Check current storage usage:
+
+```bash
+gcloud storage du -s gs://{project-id}-screenshots-*
+```
+
+## Point-in-Time Recovery (Story 49.5)
+
+GCP Firestore supports Point-in-Time Recovery (PITR) for minute-level granularity.
+
+### Enabling PITR
+
+PITR must be enabled in the Firebase/GCP console:
+
+1. Go to Firebase Console → Firestore Database
+2. Navigate to Settings → Point-in-Time Recovery
+3. Enable PITR (may require upgrading your billing plan)
+
+### Using PITR
+
+Restore to a specific point in time:
+
+```bash
+# List available recovery points
+gcloud firestore databases describe --project={project-id}
+
+# Restore to a specific timestamp
+gcloud firestore databases restore \
+  --source-database='(default)' \
+  --destination-database='{project-id}-restored' \
+  --snapshot-time='2024-01-15T14:30:00Z' \
+  --project={project-id}
+```
+
+### PITR Limitations
+
+- Requires GCP support (not available on all tiers)
+- Recovery window: last 7 days
+- Restores to a new database (not in-place)
+- May have additional costs
+
+## Backup Verification (Story 49.6)
+
+Regular verification ensures backups are restorable when needed.
+
+### Integrity Verification
+
+Check backup metadata:
+
+```bash
+# List backup contents
+gcloud storage ls -l gs://{project-id}-fledgely-backups/firestore-backups/
+
+# Check backup metadata
+gcloud firestore operations list --database='(default)' --project={project-id}
+```
+
+### Test Restore (Recommended Quarterly)
+
+1. Create a test project:
+
+   ```bash
+   gcloud projects create {project-id}-test --name="Backup Test"
+   ```
+
+2. Restore backup to test project:
+
+   ```bash
+   gcloud firestore import \
+     gs://{project-id}-fledgely-backups/firestore-backups/2024-01-15_02-00-00 \
+     --project={project-id}-test
+   ```
+
+3. Verify data integrity in test project
+
+4. Clean up test project:
+   ```bash
+   gcloud projects delete {project-id}-test
+   ```
+
+### Backup Health Monitoring
+
+Check backup events in Firestore:
+
+```javascript
+// Recent backup events
+const events = await db
+  .collection('_system')
+  .doc('backups')
+  .collection('events')
+  .orderBy('timestamp', 'desc')
+  .limit(30)
+  .get()
+
+// Check for failures
+const failures = events.docs.filter((d) => d.data().status === 'failed')
+console.log(`Failed backups: ${failures.length}`)
+```
+
+### Estimated Restore Times
+
+| Data Size | Estimated Restore Time |
+| --------- | ---------------------- |
+| < 1 GB    | < 10 minutes           |
+| 1-10 GB   | 10-30 minutes          |
+| 10-50 GB  | 30-60 minutes          |
+| > 50 GB   | 1-4 hours              |
+
+## Recovery Runbook
+
+### Emergency Recovery Steps
+
+1. **Assess the Situation**
+   - Identify what data was lost/corrupted
+   - Determine when the issue occurred
+   - Check if PITR is available
+
+2. **Choose Recovery Method**
+   - For recent issues (< 7 days): Use PITR if enabled
+   - For older issues: Use scheduled backup
+   - For specific collections: Selective restore
+
+3. **Prepare for Restore**
+   - Notify users of maintenance window
+   - Take a current backup (preserve current state)
+   - Document the restore reason
+
+4. **Execute Restore**
+
+   ```bash
+   # Take safety backup first
+   gcloud firestore export \
+     gs://{project-id}-fledgely-backups/firestore-backups/pre-restore-$(date +%Y-%m-%d_%H-%M-%S) \
+     --project={project-id}
+
+   # Perform restore
+   gcloud firestore import \
+     gs://{project-id}-fledgely-backups/firestore-backups/{backup-timestamp} \
+     --project={project-id}
+   ```
+
+5. **Verify Restore**
+   - Check critical data is present
+   - Verify application functionality
+   - Monitor for errors
+
+6. **Post-Restore**
+   - Document what was restored
+   - Update backup verification schedule
+   - Review what caused the data loss
+
 ## Related Documentation
 
 - [Terraform Backup Module](../modules/backup/README.md)
 - [GCP Firestore Export/Import](https://cloud.google.com/firestore/docs/manage-data/export-import)
 - [Cloud Storage Lifecycle Policies](https://cloud.google.com/storage/docs/lifecycle)
+- [Firestore Point-in-Time Recovery](https://cloud.google.com/firestore/docs/backups)

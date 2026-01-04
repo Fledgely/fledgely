@@ -52,3 +52,15 @@ variable "safety_docs_retention_days" {
   type        = number
   default     = 0
 }
+
+variable "archive_after_days" {
+  description = "Move screenshots to NEARLINE storage after this many days (0 = disabled)"
+  type        = number
+  default     = 30
+}
+
+variable "noncurrent_version_retention_days" {
+  description = "Days to retain non-current versions before deletion"
+  type        = number
+  default     = 7
+}

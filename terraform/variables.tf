@@ -104,6 +104,23 @@ variable "screenshot_retention_days" {
   }
 }
 
+variable "screenshot_versioning_enabled" {
+  description = "Enable versioning for screenshot backup protection"
+  type        = bool
+  default     = true
+}
+
+variable "screenshot_archive_days" {
+  description = "Move screenshots to NEARLINE storage after this many days (0 = disabled)"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.screenshot_archive_days >= 0 && var.screenshot_archive_days <= 365
+    error_message = "Screenshot archive days must be between 0 and 365."
+  }
+}
+
 # =============================================================================
 # Cloud Functions Configuration
 # =============================================================================
