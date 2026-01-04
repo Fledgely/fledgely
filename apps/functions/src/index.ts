@@ -269,3 +269,8 @@ export {
   getAccountDeletionStatus,
 } from './callable/requestAccountDeletion'
 export { executeAccountDeletions } from './scheduled/executeAccountDeletions'
+
+// Abuse Reporting (Story 51.5)
+export { submitAbuseReport } from './http/abuseReport'
+export { getAbuseReports } from './callable/admin/getAbuseReports'
+export { updateAbuseReport } from './callable/admin/updateAbuseReport'

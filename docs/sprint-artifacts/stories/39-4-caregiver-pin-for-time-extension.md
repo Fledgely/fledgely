@@ -1,6 +1,6 @@
 # Story 39.4: Caregiver PIN for Time Extension
 
-## Status: ready-for-dev
+## Status: done
 
 ## Story
 
@@ -424,14 +424,47 @@ type CaregiverPinAuditAction =
 
 ### Agent Model Used
 
+claude-opus-4-5-20251101
+
 ### Debug Log References
 
 ### Completion Notes List
 
+- All 8 tasks implemented and tested
+- Task 1: Added caregiverPinConfigSchema, extensionLimitConfigSchema, caregiverExtensionLogSchema to contracts
+- Task 2: Created setCaregiverPin Cloud Function with bcrypt hashing and validation
+- Task 3: Created approveExtensionWithPin Cloud Function with PIN verification and lockout
+- Task 4: Created CaregiverPinEditor component with masked input and confirmation
+- Task 5: Created CaregiverExtensionApproval component with PIN entry and approval flow
+- Task 6: Created CaregiverExtensionNotification child-facing component
+- Task 7: Integrated PIN setup with CaregiverPermissionEditor
+- Task 8: Created CaregiverExtensionAuditView for parent dashboard
+- Total: 323 tests passing for Story 39.4
+
 ### File List
+
+- `packages/shared/src/contracts/index.ts` - Added PIN and extension schemas (modified)
+- `packages/shared/src/contracts/caregiver.test.ts` - Added schema tests (modified)
+- `apps/functions/src/callable/setCaregiverPin.ts` - Cloud function (new)
+- `apps/functions/src/callable/setCaregiverPin.test.ts` - 35 tests (new)
+- `apps/functions/src/callable/approveExtensionWithPin.ts` - Cloud function (new)
+- `apps/functions/src/callable/approveExtensionWithPin.test.ts` - 45 tests (new)
+- `apps/functions/src/index.ts` - Export new functions (modified)
+- `apps/web/src/components/caregiver/CaregiverPinEditor.tsx` - UI component (new)
+- `apps/web/src/components/caregiver/CaregiverPinEditor.test.tsx` - 46 tests (new)
+- `apps/web/src/components/caregiver/CaregiverExtensionApproval.tsx` - UI component (new)
+- `apps/web/src/components/caregiver/CaregiverExtensionApproval.test.tsx` - 23 tests (new)
+- `apps/web/src/components/caregiver/CaregiverPermissionEditor.tsx` - PIN integration (modified)
+- `apps/web/src/components/caregiver/CaregiverPermissionEditor.test.tsx` - 46 tests (modified)
+- `apps/web/src/components/caregiver/CaregiverExtensionLogRow.tsx` - Audit row (new)
+- `apps/web/src/components/caregiver/CaregiverExtensionAuditView.tsx` - Audit view (new)
+- `apps/web/src/components/caregiver/CaregiverExtensionAuditView.test.tsx` - 32 tests (new)
+- `apps/web/src/components/child/CaregiverExtensionNotification.tsx` - Child notification (new)
+- `apps/web/src/components/child/CaregiverExtensionNotification.test.tsx` - 26 tests (new)
 
 ## Change Log
 
-| Date       | Change                        |
-| ---------- | ----------------------------- |
-| 2026-01-03 | Story created (ready-for-dev) |
+| Date       | Change                                |
+| ---------- | ------------------------------------- |
+| 2026-01-03 | Story created (ready-for-dev)         |
+| 2026-01-03 | Story completed with all 8 tasks done |

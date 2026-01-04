@@ -2440,3 +2440,25 @@ export {
   type GetAccountDeletionStatusInput,
   type AccountDeletionResult,
 } from './contracts/accountDeletion'
+
+// Abuse Report exports (Story 51.5)
+export {
+  AbuseReportType,
+  AbuseReportTypeDescriptions,
+  AbuseReportStatus,
+  ABUSE_REPORT_CONFIG,
+  AbuseReportSubmissionSchema,
+  AbuseReportSchema,
+  UpdateAbuseReportInputSchema,
+  generateReferenceNumber,
+  isApproachingSLA,
+  isPastSLA,
+  hoursUntilSLADeadline,
+  type AbuseReportTypeValue,
+  type AbuseReportStatusValue,
+  type AbuseReportSubmission,
+  type AbuseReport,
+  type SubmitAbuseReportResponse,
+  type GetAbuseReportsResponse,
+  type UpdateAbuseReportInput,
+} from './contracts/abuseReport'
