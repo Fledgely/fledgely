@@ -681,8 +681,8 @@ development_status:
   epic-50-retrospective: optional
 
   # Epic 51: Data Export, GDPR & Account Lifecycle
-  epic-51: backlog
-  51-1-data-export-request: backlog
+  epic-51: in-progress # GDPR Data Rights - first story started
+  51-1-data-export-request: done
   51-2-data-deletion-request: backlog
   51-3-child-data-deletion-at-18-inv-005: backlog
   51-4-account-deletion-flow: backlog
