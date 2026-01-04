@@ -4,9 +4,11 @@
  * Data & Privacy Settings Page
  *
  * Story 51.1: Data Export Request - AC1
+ * Story 51.2: Data Deletion Request - AC1
  *
  * Allows users to:
  * - Request and download GDPR data exports
+ * - Request permanent data deletion
  * - View data management options
  */
 
@@ -15,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamilyContext } from '../../../../contexts/FamilyContext'
 import { DataExportCard } from '../../../../components/settings/DataExportCard'
+import { DataDeletionCard } from '../../../../components/settings/DataDeletionCard'
 
 const styles = {
   main: {
@@ -117,6 +120,20 @@ const styles = {
     color: '#6b7280',
     lineHeight: 1.8,
   },
+  sectionDivider: {
+    margin: '32px 0',
+    height: '1px',
+    backgroundColor: '#e5e7eb',
+  },
+  dangerSection: {
+    marginTop: '24px',
+  },
+  dangerTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#dc2626',
+    marginBottom: '16px',
+  },
 }
 
 export default function DataPrivacySettingsPage() {
@@ -197,6 +214,13 @@ export default function DataPrivacySettingsPage() {
                 <li>Agreement records</li>
                 <li>Activity audit logs</li>
               </ul>
+            </div>
+
+            {/* Danger Zone - Data Deletion */}
+            <div style={styles.sectionDivider} />
+            <div style={styles.dangerSection}>
+              <div style={styles.dangerTitle}>Danger Zone</div>
+              <DataDeletionCard familyId={family.id} />
             </div>
           </>
         ) : (

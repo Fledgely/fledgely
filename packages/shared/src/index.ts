@@ -2373,3 +2373,46 @@ export {
   type GetChildNotificationPreferencesInput,
   type UpdateChildNotificationPreferencesInput,
 } from './contracts'
+
+// Data Export exports (Story 51.1)
+export {
+  DataExportStatus,
+  DataExportRequestSchema,
+  ExportManifestSchema,
+  RequestDataExportInputSchema,
+  RequestDataExportResponseSchema,
+  GetExportStatusInputSchema,
+  ExportedDataSchema,
+  DATA_EXPORT_CONFIG,
+  type DataExportRequest,
+  type ExportManifest,
+  type RequestDataExportInput,
+  type RequestDataExportResponse,
+  type GetExportStatusInput,
+  type ExportedData,
+} from './contracts/dataExport'
+
+// Data Deletion exports (Story 51.2)
+export {
+  DataDeletionStatus,
+  DataDeletionRequestSchema,
+  RequestDataDeletionInputSchema,
+  RequestDataDeletionResponseSchema,
+  CancelDataDeletionInputSchema,
+  CancelDataDeletionResponseSchema,
+  GetDeletionStatusInputSchema,
+  DeletionResultSchema,
+  DATA_DELETION_CONFIG,
+  DELETION_DATA_TYPES as GDPR_DELETION_DATA_TYPES,
+  calculateCoolingOffEndDate,
+  isValidConfirmationPhrase,
+  formatCoolingOffRemaining,
+  type DataDeletionRequest,
+  type RequestDataDeletionInput,
+  type RequestDataDeletionResponse,
+  type CancelDataDeletionInput,
+  type CancelDataDeletionResponse,
+  type GetDeletionStatusInput,
+  type DeletionResult as GDPRDeletionResult,
+  type DeletionDataType as GDPRDeletionDataType,
+} from './contracts/dataDeletion'

@@ -253,3 +253,11 @@ export { requestDataExport, getDataExportStatus } from './callable/requestDataEx
 export { onDataExportCreated } from './triggers/onDataExportCreated'
 export { cleanupExpiredExports } from './scheduled/cleanupExpiredExports'
 export { downloadExport } from './http/gdpr'
+
+// GDPR Data Deletion (Story 51.2)
+export {
+  requestDataDeletion,
+  cancelDataDeletion,
+  getDataDeletionStatus,
+} from './callable/requestDataDeletion'
+export { executeDataDeletions } from './scheduled/executeDataDeletions'
