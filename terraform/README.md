@@ -13,7 +13,30 @@ This Terraform module deploys the complete Fledgely infrastructure to Google Clo
 - **Firebase Auth** - Google Sign-In authentication
 - **IAM** - Service accounts with least-privilege permissions
 
-## Quick Start
+## One-Click Deployment
+
+The fastest way to deploy Fledgely:
+
+```bash
+cd terraform
+./scripts/deploy.sh [project_id] [region]
+```
+
+The script will:
+
+1. Check prerequisites (Terraform, gcloud)
+2. Create configuration from inputs
+3. Initialize and plan deployment
+4. Apply infrastructure (~10-15 minutes)
+5. Show next steps for Firebase Auth setup
+
+After deployment, verify with:
+
+```bash
+./scripts/verify.sh
+```
+
+## Manual Quick Start
 
 ```bash
 # 1. Clone the repository
@@ -75,15 +98,20 @@ terraform/
 ├── outputs.tf        # Deployment outputs
 ├── versions.tf       # Provider requirements
 ├── README.md         # This file
+├── scripts/
+│   ├── deploy.sh     # One-click deployment script
+│   └── verify.sh     # Deployment verification script
 ├── docs/
 │   ├── prerequisites.md
 │   ├── cost-estimate.md
+│   ├── firebase-setup.md
 │   └── troubleshooting.md
 └── modules/
     ├── firestore/    # Firestore database + security rules
     ├── storage/      # Cloud Storage bucket + rules
     ├── functions/    # Cloud Functions Gen 2
     ├── cloudrun/     # Cloud Run service
+    ├── firebase/     # Firebase project + auth configuration
     └── iam/          # Service accounts + IAM bindings
 ```
 

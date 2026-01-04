@@ -169,3 +169,15 @@ module "cloudrun" {
     module.functions,
   ]
 }
+
+# Firebase Module - Firebase project and authentication
+module "firebase" {
+  source = "./modules/firebase"
+
+  project_id         = var.project_id
+  authorized_domains = var.authorized_domains
+
+  api_depends_on = google_project_service.required_apis
+
+  depends_on = [google_project_service.required_apis]
+}

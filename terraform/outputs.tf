@@ -109,14 +109,8 @@ output "estimated_monthly_cost" {
 
 output "firebase_config" {
   description = "Firebase configuration for client applications"
-  value = {
-    projectId         = var.project_id
-    storageBucket     = module.storage.bucket_name
-    authDomain        = "${var.project_id}.firebaseapp.com"
-    messagingSenderId = "" # Will need to be obtained from Firebase console
-    appId             = "" # Will need to be obtained from Firebase console
-  }
-  sensitive = false
+  value       = module.firebase.firebase_config
+  sensitive   = true
 }
 
 output "deployment_summary" {
@@ -130,4 +124,112 @@ output "deployment_summary" {
     environment    = var.environment
     estimated_cost = "$30-115/month"
   }
+}
+
+# =============================================================================
+# Next Steps (Story 48-2)
+# =============================================================================
+
+output "next_steps" {
+  description = "Next steps after deployment"
+  value       = <<-EOT
+
+  ============================================
+  Fledgely Deployment Complete!
+  ============================================
+
+  Your infrastructure is now deployed. Follow these steps to complete setup:
+
+  1. CONFIGURE FIREBASE AUTH (Required)
+     ----------------------------------------
+     Visit: https://console.firebase.google.com/project/${var.project_id}/authentication/providers
+
+     - Click 'Get started' (if new project)
+     - Enable 'Google' sign-in provider
+     - Set project support email
+     - Click 'Save'
+
+  2. GET FIREBASE CONFIG (Required for Extension)
+     ----------------------------------------
+     Run: terraform output -json firebase_config
+
+     Copy these values to your extension/app configuration:
+     - apiKey
+     - authDomain
+     - projectId
+     - storageBucket
+     - messagingSenderId
+     - appId
+
+  3. DEPLOY APPLICATION CODE
+     ----------------------------------------
+     # Build and deploy Cloud Functions
+     cd apps/functions
+     npm run deploy
+
+     # Build and deploy web application
+     cd apps/web
+     npm run build
+     # Push to Cloud Run via CI/CD or manual docker push
+
+  4. VERIFY DEPLOYMENT
+     ----------------------------------------
+     Run the verification script:
+     ./scripts/verify.sh
+
+     Or manually check:
+     - Web App: ${module.cloudrun.service_url}
+     - API Health: ${module.functions.functions_url}/health
+     - Firebase Console: https://console.firebase.google.com/project/${var.project_id}
+
+  5. INSTALL CHROME EXTENSION
+     ----------------------------------------
+     - Build extension: cd apps/extension && npm run build
+     - Load unpacked in chrome://extensions
+     - Configure with your Firebase project
+
+  ============================================
+  Useful Links
+  ============================================
+
+  - GCP Console: https://console.cloud.google.com/home/dashboard?project=${var.project_id}
+  - Firebase Console: https://console.firebase.google.com/project/${var.project_id}
+  - Cloud Run: https://console.cloud.google.com/run?project=${var.project_id}
+  - Firestore: https://console.cloud.google.com/firestore?project=${var.project_id}
+  - Cloud Storage: https://console.cloud.google.com/storage?project=${var.project_id}
+  - Billing: https://console.cloud.google.com/billing?project=${var.project_id}
+
+  EOT
+}
+
+# =============================================================================
+# Verification Commands (Story 48-2)
+# =============================================================================
+
+output "verification_commands" {
+  description = "Commands to verify the deployment"
+  value       = <<-EOT
+
+  # Verify Cloud Run is accessible
+  curl -s ${module.cloudrun.service_url}/api/health | jq .
+
+  # Verify Cloud Functions
+  curl -s ${module.functions.functions_url}/health | jq .
+
+  # Check Firestore connection
+  gcloud firestore databases list --project=${var.project_id}
+
+  # Check Storage bucket
+  gcloud storage ls gs://${module.storage.bucket_name}
+
+  # View service accounts
+  gcloud iam service-accounts list --project=${var.project_id} | grep fledgely
+
+  # Check Cloud Run logs
+  gcloud logging read "resource.type=cloud_run_revision" --project=${var.project_id} --limit=10
+
+  # Check Functions logs
+  gcloud logging read "resource.type=cloud_function" --project=${var.project_id} --limit=10
+
+  EOT
 }

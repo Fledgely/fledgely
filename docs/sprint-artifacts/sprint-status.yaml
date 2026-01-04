@@ -647,8 +647,8 @@ development_status:
   # ============================================
 
   # Epic 48: Self-Hosted Terraform Deployment
-  epic-48: backlog
-  48-1-terraform-module-repository: backlog
+  epic-48: in-progress
+  48-1-terraform-module-repository: done
   48-2-one-click-gcp-deployment: backlog
   48-3-custom-domain-configuration: backlog
   48-4-configuration-variables: backlog
