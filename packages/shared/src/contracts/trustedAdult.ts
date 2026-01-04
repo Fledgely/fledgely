@@ -347,5 +347,13 @@ export function getTrustedAdultInvitationMessage(
   return `${parentName} has invited you to be a trusted adult for ${childName} in the ${familyName} family`
 }
 
+/**
+ * Trusted adult notification when access is revoked.
+ * Story 52.6: AC2 - Trusted adult notified on revocation
+ */
+export function getTrustedAdultRevokedMessage(childName: string): string {
+  return `Your access to ${childName}'s shared data has been revoked. You will no longer be able to view their information.`
+}
+
 /** Link to learn about trusted adults */
 export const TRUSTED_ADULT_INFO_LINK = '/help/trusted-adults'

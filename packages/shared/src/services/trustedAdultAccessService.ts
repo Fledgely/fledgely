@@ -375,6 +375,69 @@ export function getLastAccessText(lastAccessAt: Date | null | undefined): string
 }
 
 // ============================================
+// Audit Event Privacy Functions
+// ============================================
+
+/**
+ * Access types that are private to the teen and hidden from parents.
+ * Story 52.6 AC7: Parents cannot see removal activity
+ */
+export const TEEN_PRIVATE_ACCESS_TYPES: TrustedAdultAccessType[] = []
+
+/**
+ * Audit event types that are private to the teen and hidden from parents.
+ * Story 52.6 AC7: Parents cannot see removal activity
+ */
+export const TEEN_PRIVATE_AUDIT_EVENT_TYPES = [
+  'REVOKED_BY_TEEN', // Teen-initiated revocation
+  'trusted_adult_removed', // Teen removed trusted adult
+] as const
+
+/**
+ * Check if an audit event should be hidden from parents.
+ * Story 52.6 AC7: Parents cannot see teen removal activity
+ *
+ * @param eventType - The audit event type
+ * @param revokedByRole - Role of person who revoked (if applicable)
+ * @returns True if event should be hidden from parents
+ */
+export function isAuditEventHiddenFromParents(
+  eventType: string,
+  revokedByRole?: 'parent' | 'teen'
+): boolean {
+  // Hide teen-initiated revocations from parents
+  if (eventType === 'REVOKED_BY_TEEN') {
+    return true
+  }
+
+  // For generic revocation events, check the revoker role
+  if (eventType === 'trusted_adult_removed' && revokedByRole === 'teen') {
+    return true
+  }
+
+  return TEEN_PRIVATE_AUDIT_EVENT_TYPES.includes(
+    eventType as (typeof TEEN_PRIVATE_AUDIT_EVENT_TYPES)[number]
+  )
+}
+
+/**
+ * Filter audit events to remove those that should be hidden from parents.
+ * Story 52.6 AC7: Parents cannot see removal activity
+ *
+ * @param events - Array of audit events
+ * @returns Filtered array with teen-private events removed
+ */
+export function filterAuditEventsForParent<
+  T extends { changeType?: string; actorRole?: string; eventType?: string },
+>(events: T[]): T[] {
+  return events.filter((event) => {
+    const eventType = event.changeType || event.eventType || ''
+    const actorRole = event.actorRole as 'parent' | 'teen' | undefined
+    return !isAuditEventHiddenFromParents(eventType, actorRole)
+  })
+}
+
+// ============================================
 // Export convenience
 // ============================================
 

@@ -42,6 +42,7 @@ import {
   getTrustedAdultPendingApprovalMessage,
   getTrustedAdultApprovedMessage,
   getTrustedAdultRejectedMessage,
+  getTrustedAdultRevokedMessage,
   TRUSTED_ADULT_INFO_LINK,
 } from '@fledgely/shared'
 
@@ -812,6 +813,28 @@ export const revokeTrustedAdultCallable = onCall({ enforceAppCheck: false }, asy
 
   // Log audit event (AC6)
   await logTrustedAdultChangeEvent(familyId, result.auditEvent)
+
+  // Story 52.6: AC2 - Notify trusted adult that access has been revoked
+  if (storedTrustedAdult.userId) {
+    // Get child name for notification
+    const childDoc = await db
+      .collection('families')
+      .doc(familyId)
+      .collection('children')
+      .doc(storedData.childId)
+      .get()
+    const childData = childDoc.data()
+    const childName = childData?.name || childData?.displayName || 'the child'
+
+    // Queue email notification to trusted adult (AC2: Trusted adult notified)
+    await db.collection('pendingEmails').add({
+      type: 'trusted_adult_revoked',
+      to: storedTrustedAdult.email,
+      subject: 'Your Trusted Adult Access Has Been Revoked',
+      message: getTrustedAdultRevokedMessage(childName),
+      createdAt: FieldValue.serverTimestamp(),
+    })
+  }
 
   return {
     success: true,

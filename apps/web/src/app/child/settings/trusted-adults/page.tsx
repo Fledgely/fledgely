@@ -1,15 +1,20 @@
 'use client'
 
 /**
- * Teen Trusted Adults Approval Page - Story 52.4 Task 6
+ * Teen Trusted Adults Page - Story 52.4 Task 6, Story 52.6
  *
- * Page for 16+ teens to approve/reject trusted adults.
+ * Page for 16+ teens to approve/reject and remove trusted adults.
  *
- * AC3: Teen Approval Required
+ * AC3: Teen Approval Required (52.4)
  *   - Shows pending trusted adult approvals for 16+ teens
  *   - Allow approve/reject with confirmation
  *   - Shows explanation of what trusted adults can see
  *   - Hidden from teens under 16 (parent approval only)
+ *
+ * Story 52.6: Trusted Adult Removal
+ *   - Teen can remove trusted adults at any time
+ *   - No explanation required
+ *   - Access revoked immediately
  */
 
 import { useState, useEffect, useCallback } from 'react'
@@ -17,7 +22,10 @@ import { useRouter } from 'next/navigation'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '../../../../lib/firebase'
 import { useChildAuth } from '../../../../contexts/ChildAuthContext'
-import { TrustedAdultApprovalCard } from '../../../../components/trusted-adult'
+import {
+  TrustedAdultApprovalCard,
+  RemoveTrustedAdultModal,
+} from '../../../../components/trusted-adult'
 import { TrustedAdultStatus } from '@fledgely/shared'
 
 interface PendingTrustedAdult {
@@ -218,6 +226,9 @@ export default function ChildTrustedAdultsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [is16Plus, setIs16Plus] = useState(false)
+  const [removeModalOpen, setRemoveModalOpen] = useState(false)
+  const [trustedAdultToRemove, setTrustedAdultToRemove] = useState<PendingTrustedAdult | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const fetchTrustedAdults = useCallback(async () => {
     if (!familyId || !child?.id) {
@@ -358,6 +369,37 @@ export default function ChildTrustedAdultsPage() {
     fetchTrustedAdults()
   }
 
+  const handleRemoveClick = (ta: PendingTrustedAdult) => {
+    setTrustedAdultToRemove(ta)
+    setRemoveModalOpen(true)
+  }
+
+  const handleRemoveConfirm = async () => {
+    if (!trustedAdultToRemove || !familyId) return
+
+    try {
+      const revokeTrustedAdult = httpsCallable(functions, 'revokeTrustedAdultCallable')
+      await revokeTrustedAdult({
+        trustedAdultId: trustedAdultToRemove.id,
+        familyId,
+      })
+      setSuccessMessage(`${trustedAdultToRemove.name} has been removed.`)
+      setRemoveModalOpen(false)
+      setTrustedAdultToRemove(null)
+      fetchTrustedAdults()
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      console.error('Failed to remove trusted adult:', err)
+      setError(err instanceof Error ? err.message : 'Failed to remove trusted adult')
+    }
+  }
+
+  const handleRemoveModalClose = () => {
+    setRemoveModalOpen(false)
+    setTrustedAdultToRemove(null)
+  }
+
   return (
     <main id="main-content" style={styles.main}>
       <header style={styles.header}>
@@ -383,6 +425,23 @@ export default function ChildTrustedAdultsPage() {
             share, just like your parents.
           </p>
         </div>
+
+        {/* Success message */}
+        {successMessage && (
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: '#dcfce7',
+              color: '#166534',
+              borderRadius: '8px',
+              marginBottom: '24px',
+              fontSize: '14px',
+            }}
+            data-testid="success-message"
+          >
+            {successMessage}
+          </div>
+        )}
 
         {/* Error message */}
         {error && (
@@ -437,13 +496,46 @@ export default function ChildTrustedAdultsPage() {
                     <p style={styles.activeCardName}>{ta.name}</p>
                     <p style={styles.activeCardEmail}>{ta.email}</p>
                   </div>
-                  <span style={styles.activeBadge}>Active</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={styles.activeBadge}>Active</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveClick(ta)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minHeight: '36px',
+                        padding: '8px 12px',
+                        backgroundColor: '#fef2f2',
+                        color: '#dc2626',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        border: '1px solid #fca5a5',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                      data-testid={`remove-${ta.id}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
       </div>
+
+      {/* Remove Trusted Adult Modal */}
+      {trustedAdultToRemove && (
+        <RemoveTrustedAdultModal
+          trustedAdult={trustedAdultToRemove}
+          isOpen={removeModalOpen}
+          onClose={handleRemoveModalClose}
+          onConfirm={handleRemoveConfirm}
+        />
+      )}
     </main>
   )
 }

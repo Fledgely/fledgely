@@ -2740,6 +2740,7 @@ export {
   getTrustedAdultApprovedMessage,
   getTrustedAdultRejectedMessage,
   getTrustedAdultInvitationMessage,
+  getTrustedAdultRevokedMessage,
   TRUSTED_ADULT_INFO_LINK,
   type TrustedAdult,
   type TrustedAdultStatusValue,
@@ -2775,7 +2776,7 @@ export {
   type TeenApprovalResult,
 } from './services/trustedAdultService'
 
-// Trusted Adult Access Service - Story 52.5
+// Trusted Adult Access Service - Story 52.5, 52.6
 export {
   validateTrustedAdultAccess,
   findActiveTrustedAdultByUserId,
@@ -2789,6 +2790,11 @@ export {
   getRevokedAccessMessage,
   getLastAccessText,
   generateAccessEventId,
+  // Story 52.6: Audit privacy
+  TEEN_PRIVATE_ACCESS_TYPES,
+  TEEN_PRIVATE_AUDIT_EVENT_TYPES,
+  isAuditEventHiddenFromParents,
+  filterAuditEventsForParent,
   type TrustedAdultAccessResult,
   type SharedDataFilter,
   type TrustedAdultAccessEvent,

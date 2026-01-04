@@ -17,6 +17,8 @@ import {
   getNoDataSharedMessage,
   getRevokedAccessMessage,
   getLastAccessText,
+  isAuditEventHiddenFromParents,
+  filterAuditEventsForParent,
 } from './trustedAdultAccessService'
 import type { TrustedAdult } from '../contracts/trustedAdult'
 import { TrustedAdultStatus } from '../contracts/trustedAdult'
@@ -415,6 +417,58 @@ describe('trustedAdultAccessService', () => {
       const result = getLastAccessText(twoWeeksAgo)
       // Should be a date string, not relative time
       expect(result).not.toContain('ago')
+    })
+  })
+
+  // Story 52.6: Audit Privacy Tests (AC7)
+  describe('isAuditEventHiddenFromParents (AC7)', () => {
+    it('hides REVOKED_BY_TEEN events from parents', () => {
+      expect(isAuditEventHiddenFromParents('REVOKED_BY_TEEN')).toBe(true)
+    })
+
+    it('hides trusted_adult_removed by teen from parents', () => {
+      expect(isAuditEventHiddenFromParents('trusted_adult_removed', 'teen')).toBe(true)
+    })
+
+    it('shows REVOKED_BY_PARENT events to parents', () => {
+      expect(isAuditEventHiddenFromParents('REVOKED_BY_PARENT')).toBe(false)
+    })
+
+    it('shows trusted_adult_removed by parent to parents', () => {
+      expect(isAuditEventHiddenFromParents('trusted_adult_removed', 'parent')).toBe(false)
+    })
+
+    it('shows other events to parents', () => {
+      expect(isAuditEventHiddenFromParents('INVITED')).toBe(false)
+      expect(isAuditEventHiddenFromParents('TEEN_APPROVED')).toBe(false)
+      expect(isAuditEventHiddenFromParents('dashboard_view')).toBe(false)
+    })
+  })
+
+  describe('filterAuditEventsForParent (AC7)', () => {
+    it('filters out teen-initiated revocation events', () => {
+      const events = [
+        { changeType: 'INVITED', actorRole: 'parent' },
+        { changeType: 'REVOKED_BY_TEEN', actorRole: 'teen' },
+        { changeType: 'TEEN_APPROVED', actorRole: 'teen' },
+      ]
+      const filtered = filterAuditEventsForParent(events)
+      expect(filtered).toHaveLength(2)
+      expect(
+        filtered.find((e: { changeType: string }) => e.changeType === 'REVOKED_BY_TEEN')
+      ).toBeUndefined()
+    })
+
+    it('keeps parent-initiated revocation events', () => {
+      const events = [{ changeType: 'REVOKED_BY_PARENT', actorRole: 'parent' }]
+      const filtered = filterAuditEventsForParent(events)
+      expect(filtered).toHaveLength(1)
+    })
+
+    it('returns empty array for all teen-private events', () => {
+      const events = [{ changeType: 'REVOKED_BY_TEEN', actorRole: 'teen' }]
+      const filtered = filterAuditEventsForParent(events)
+      expect(filtered).toHaveLength(0)
     })
   })
 })
