@@ -433,15 +433,36 @@ async function handleSubscriptionDeleted(
   familyId: string,
   _stripeSubscription: Stripe.Subscription
 ): Promise<void> {
-  const subscription = await getSubscription(familyId)
-  if (subscription) {
-    await saveSubscription({
-      ...subscription,
-      status: SubscriptionStatus.EXPIRED,
-      updatedAt: Date.now(),
-    })
+  // When subscription is deleted (payment failed permanently or cancelled),
+  // downgrade to free tier instead of just marking expired
+  await downgradeToFreeTier(familyId)
+  logger.info('Subscription deleted, downgraded to free tier', { familyId })
+}
+
+/**
+ * Downgrade a family to the free tier.
+ * Story 50.8: Payment Failure Handling - AC5
+ * Data preserved, features limited to free tier.
+ */
+export async function downgradeToFreeTier(familyId: string): Promise<void> {
+  const existing = await getSubscription(familyId)
+  const now = Date.now()
+
+  const subscription: Subscription = {
+    familyId,
+    plan: SubscriptionPlan.FREE,
+    status: SubscriptionStatus.FREE,
+    // Preserve Stripe IDs for potential resubscription
+    stripeCustomerId: existing?.stripeCustomerId,
+    currentPeriodStart: now,
+    currentPeriodEnd: now + 365 * 24 * 60 * 60 * 1000, // 1 year
+    cancelAtPeriodEnd: false,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
   }
-  logger.info('Subscription expired', { familyId })
+
+  await saveSubscription(subscription)
+  logger.info('Family downgraded to free tier', { familyId })
 }
 
 async function handleTrialWillEnd(
@@ -545,4 +566,155 @@ export async function canAddMoreDevices(familyId: string, currentCount: number):
 
   const maxDevices = SUBSCRIPTION_PLANS[subscription.plan].features.maxDevices
   return maxDevices === -1 || currentCount < maxDevices
+}
+
+// =============================================================================
+// Organizational Use Prevention (Story 50.7)
+// =============================================================================
+
+/**
+ * Common business email domains that indicate organizational use.
+ */
+const BUSINESS_EMAIL_DOMAINS = [
+  // These are examples - corporate domains would be detected by non-consumer patterns
+  'company.com',
+  'corp.com',
+  'enterprise.com',
+  'school.edu',
+  'k12.us',
+]
+
+/**
+ * Common consumer email domains (allowed).
+ */
+const CONSUMER_EMAIL_DOMAINS = [
+  'gmail.com',
+  'yahoo.com',
+  'hotmail.com',
+  'outlook.com',
+  'icloud.com',
+  'aol.com',
+  'protonmail.com',
+  'mail.com',
+  'live.com',
+  'msn.com',
+]
+
+/**
+ * Threshold for flagging potential organizational use.
+ */
+export const LARGE_ACCOUNT_THRESHOLD = 10
+
+/**
+ * Check if email appears to be from a business domain.
+ */
+export function isBusinessEmail(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+
+  // Consumer domains are always allowed
+  if (CONSUMER_EMAIL_DOMAINS.includes(domain)) return false
+
+  // Check known business patterns
+  if (BUSINESS_EMAIL_DOMAINS.some((d) => domain.includes(d))) return true
+
+  // Check for .edu, .org, .gov domains
+  if (domain.endsWith('.edu') || domain.endsWith('.gov') || domain.endsWith('.k12.us')) {
+    return true
+  }
+
+  // Custom domains (not consumer) might indicate business use
+  // but we don't block - just flag for review
+  return false
+}
+
+/**
+ * Check if account requires family attestation.
+ * Story 50.7: Organizational Use Prevention - AC2
+ */
+export async function requiresAttestation(familyId: string): Promise<boolean> {
+  const familyDoc = await db().collection('families').doc(familyId).get()
+  const familyData = familyDoc.data()
+
+  if (!familyData) return false
+
+  // Check if already attested
+  if (familyData.familyAttestation?.attestedAt) {
+    return false
+  }
+
+  // Count children
+  const childrenCount = familyData.children?.length || 0
+
+  // Large accounts require attestation
+  if (childrenCount >= LARGE_ACCOUNT_THRESHOLD) {
+    return true
+  }
+
+  // Check guardian emails for business domains
+  const guardians = familyData.guardians || []
+  for (const guardianId of guardians) {
+    const userDoc = await db().collection('users').doc(guardianId).get()
+    const email = userDoc.data()?.email
+    if (email && isBusinessEmail(email)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
+ * Record family attestation.
+ * Story 50.7: Organizational Use Prevention - AC2
+ */
+export async function recordAttestation(familyId: string, attestedBy: string): Promise<void> {
+  await db()
+    .collection('families')
+    .doc(familyId)
+    .update({
+      familyAttestation: {
+        attestedAt: Date.now(),
+        attestedBy,
+        statement: 'I confirm this account is for my family, not organizational use',
+      },
+    })
+
+  logger.info('Family attestation recorded', { familyId, attestedBy })
+}
+
+/**
+ * Check account for organizational patterns.
+ * Returns flags if patterns detected.
+ */
+export async function checkOrganizationalPatterns(
+  familyId: string
+): Promise<{ isLargeAccount: boolean; hasBusinessEmail: boolean; requiresReview: boolean }> {
+  const familyDoc = await db().collection('families').doc(familyId).get()
+  const familyData = familyDoc.data()
+
+  if (!familyData) {
+    return { isLargeAccount: false, hasBusinessEmail: false, requiresReview: false }
+  }
+
+  const childrenCount = familyData.children?.length || 0
+  const isLargeAccount = childrenCount >= LARGE_ACCOUNT_THRESHOLD
+
+  // Check guardian emails
+  let hasBusinessEmail = false
+  const guardians = familyData.guardians || []
+  for (const guardianId of guardians) {
+    const userDoc = await db().collection('users').doc(guardianId).get()
+    const email = userDoc.data()?.email
+    if (email && isBusinessEmail(email)) {
+      hasBusinessEmail = true
+      break
+    }
+  }
+
+  return {
+    isLargeAccount,
+    hasBusinessEmail,
+    requiresReview: isLargeAccount || hasBusinessEmail,
+  }
 }

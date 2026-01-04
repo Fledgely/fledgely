@@ -370,6 +370,89 @@ export const checkFeatureAccess = onCall<{
  * Start a free trial for the family.
  * Story 50.2: Trial period
  */
+// =============================================================================
+// Organizational Use Prevention
+// =============================================================================
+
+/**
+ * Check if family requires attestation.
+ * Story 50.7: Organizational Use Prevention
+ */
+export const checkAttestationRequired = onCall(
+  {
+    memory: '256MiB',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be logged in')
+    }
+
+    const userId = request.auth.uid
+
+    // Get user's family
+    const userDoc = await getFirestore().collection('users').doc(userId).get()
+    const familyId = userDoc.data()?.familyId
+
+    if (!familyId) {
+      return { required: false }
+    }
+
+    const required = await subscriptionService.requiresAttestation(familyId)
+    const patterns = await subscriptionService.checkOrganizationalPatterns(familyId)
+
+    return {
+      required,
+      isLargeAccount: patterns.isLargeAccount,
+      hasBusinessEmail: patterns.hasBusinessEmail,
+    }
+  }
+)
+
+/**
+ * Submit family attestation.
+ * Story 50.7: Organizational Use Prevention - AC2
+ */
+export const submitFamilyAttestation = onCall(
+  {
+    memory: '256MiB',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be logged in')
+    }
+
+    const userId = request.auth.uid
+
+    // Get user's family
+    const userDoc = await getFirestore().collection('users').doc(userId).get()
+    const familyId = userDoc.data()?.familyId
+
+    if (!familyId) {
+      throw new HttpsError('not-found', 'No family found')
+    }
+
+    // Check if user is a guardian
+    const familyDoc = await getFirestore().collection('families').doc(familyId).get()
+    const guardians = familyDoc.data()?.guardians || []
+
+    if (!guardians.includes(userId)) {
+      throw new HttpsError('permission-denied', 'Only guardians can submit attestation')
+    }
+
+    await subscriptionService.recordAttestation(familyId, userId)
+
+    logger.info('Family attestation submitted', { userId, familyId })
+
+    return { success: true }
+  }
+)
+
+// =============================================================================
+// Free Trial
+// =============================================================================
+
 export const startFreeTrial = onCall(
   {
     memory: '256MiB',

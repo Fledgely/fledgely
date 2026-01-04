@@ -267,6 +267,8 @@ export {
   reactivateSubscriptionCallable,
   checkFeatureAccess,
   startFreeTrial,
+  checkAttestationRequired,
+  submitFamilyAttestation,
 } from './callable/subscription'
 export { stripeWebhook } from './http/stripeWebhook'
 
