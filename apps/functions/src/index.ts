@@ -286,3 +286,13 @@ export { dismissBreachBanner } from './callable/dismissBreachBanner'
 export { getPrivacyInfo } from './callable/getPrivacyInfo'
 export { getSessionHistory } from './callable/getSessionHistory'
 export { updatePrivacyPreferences } from './callable/updatePrivacyPreferences'
+
+// Right to Rectification (Story 51.8)
+export { updateUserProfile } from './callable/updateUserProfile'
+export { addRecordNote } from './callable/addRecordNote'
+export {
+  submitCorrectionRequest,
+  reviewCorrectionRequest,
+} from './callable/submitCorrectionRequest'
+export { disputeAIContent, resolveAIDispute } from './callable/disputeAIContent'
+export { getProfileChanges } from './callable/getProfileChanges'
