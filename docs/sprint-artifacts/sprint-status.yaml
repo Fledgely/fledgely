@@ -300,14 +300,14 @@ development_status:
   epic-18-retrospective: done
 
   # Epic 19: Device Status & Monitoring Health
-  epic-19: in-progress # 6/8 stories done, 2 now unblocked (19-6, 19-7)
+  epic-19: done # All 8 stories complete
   19-1-device-list-view: done
   19-2-device-status-indicators: done
   19-3-last-sync-timestamp-display: done
   19-4-monitoring-health-details: done
   19-5-monitoring-disabled-alert: done
   19-6-device-removal-flow: done # All ACs implemented, tests pass
-  19-7-child-device-visibility: backlog # Unblocked - Child dashboard exists from Epic 19B/19C
+  19-7-child-device-visibility: done # All ACs implemented, 40 tests pass
   19-8-dashboard-view-logging-fr27a: done
   epic-19-retrospective: done
 

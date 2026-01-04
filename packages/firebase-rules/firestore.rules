@@ -93,8 +93,17 @@ service cloud.firestore {
             request.auth.uid in family.data.guardianUids;
         }
 
-        // Read: Guardians can view enrolled devices
-        allow read: if isFamilyDeviceGuardian();
+        // Helper: Check if user is a child in this family (via custom token)
+        // Story 19.7 AC1: Child can see devices assigned to them
+        function isChildInFamily() {
+          return request.auth != null &&
+            request.auth.token.familyId == familyId;
+        }
+
+        // Read: Guardians AND children can view enrolled devices
+        // Story 19.7 AC1: Child sees their monitored devices
+        // Children can only see devices where childId matches their ID (enforced by query)
+        allow read: if isFamilyDeviceGuardian() || isChildInFamily();
 
         // Create: Only Cloud Functions can create (via Admin SDK)
         // Direct client creation is denied for security

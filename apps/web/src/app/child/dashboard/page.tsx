@@ -24,8 +24,10 @@
  */
 
 import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChildAuthGuard } from '../../../components/child/ChildAuthGuard'
+import { ChildDeviceList } from '../../../components/child/ChildDeviceList'
+import { useChildDevices } from '../../../hooks/useChildDevices'
 import { ChildScreenshotGallery } from '../../../components/child/ChildScreenshotGallery'
 import { ChildScreenshotDetail } from '../../../components/child/ChildScreenshotDetail'
 import { ChildFlagNotificationBanner } from '../../../components/child/ChildFlagNotificationBanner'
@@ -210,9 +212,35 @@ const styles: Record<string, React.CSSProperties> = {
  */
 function DashboardContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { childSession, signOutChild } = useChildAuth()
   const [selectedScreenshot, setSelectedScreenshot] = useState<ChildScreenshot | null>(null)
   const [showFocusModeModal, setShowFocusModeModal] = useState(false)
+
+  // Story 19.7 - Fetch child's monitored devices
+  const {
+    devices: childDevices,
+    loading: devicesLoading,
+    error: devicesError,
+  } = useChildDevices({
+    childId: childSession?.childId || null,
+    familyId: childSession?.familyId || null,
+    enabled: !!childSession?.childId && !!childSession?.familyId,
+  })
+
+  // Story 19.7 - Handle device click for screenshot filtering (AC5)
+  const handleDeviceClick = useCallback(
+    (deviceId: string) => {
+      // Navigate to screenshots filtered by device
+      router.push(`/child/dashboard?deviceId=${deviceId}`)
+      // Scroll to gallery section
+      document.getElementById('screenshot-gallery')?.scrollIntoView({ behavior: 'smooth' })
+    },
+    [router]
+  )
+
+  // Get deviceId filter from URL params (ready for future screenshot filtering)
+  const _deviceIdFilter = searchParams.get('deviceId')
 
   // Fetch screenshots for this child
   const { screenshots, loading, loadingMore, error, hasMore, loadMore } = useChildScreenshots({
@@ -405,6 +433,14 @@ function DashboardContent() {
           </p>
         </div>
 
+        {/* Story 19.7 - My Devices section (AC1-AC6) */}
+        <ChildDeviceList
+          devices={childDevices}
+          loading={devicesLoading}
+          error={devicesError}
+          onDeviceClick={handleDeviceClick}
+        />
+
         {/* Story 33.1 - Focus Mode (AC1, AC3, AC4) */}
         <div style={{ marginBottom: '16px' }}>
           {focusModeActive && focusSession ? (
@@ -533,7 +569,7 @@ function DashboardContent() {
         )}
 
         {/* Screenshot gallery */}
-        <div style={styles.galleryCard}>
+        <div id="screenshot-gallery" style={styles.galleryCard}>
           <ChildScreenshotGallery
             screenshots={screenshots}
             loading={loading}
