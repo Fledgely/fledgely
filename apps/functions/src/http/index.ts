@@ -15,3 +15,6 @@ export { getTimeLimitConfig } from './timeLimits'
 
 // Offline schedule (Story 32.3, 32.4)
 export { getOfflineSchedule, logParentCompliance } from './offline'
+
+// GDPR data export (Story 51.1)
+export { downloadExport } from './gdpr'

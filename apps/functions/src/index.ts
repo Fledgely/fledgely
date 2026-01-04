@@ -247,3 +247,9 @@ export { handleUnsubscribe } from './callable/handleUnsubscribe'
 // Child notification preferences (Story 41.7)
 export { getChildNotificationPreferences } from './callable/getChildNotificationPreferences'
 export { updateChildNotificationPreferences } from './callable/updateChildNotificationPreferences'
+
+// GDPR Data Export (Story 51.1)
+export { requestDataExport, getDataExportStatus } from './callable/requestDataExport'
+export { onDataExportCreated } from './triggers/onDataExportCreated'
+export { cleanupExpiredExports } from './scheduled/cleanupExpiredExports'
+export { downloadExport } from './http/gdpr'

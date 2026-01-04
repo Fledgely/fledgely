@@ -7811,3 +7811,21 @@ export {
   type GetChildNotificationPreferencesInput,
   type UpdateChildNotificationPreferencesInput,
 } from './childNotificationPreferences'
+
+// Story 51.1: Data Export Request (GDPR Article 20)
+export {
+  DataExportStatus,
+  DataExportRequestSchema,
+  ExportManifestSchema,
+  RequestDataExportInputSchema,
+  RequestDataExportResponseSchema,
+  GetExportStatusInputSchema,
+  DATA_EXPORT_CONFIG,
+  ExportedDataSchema,
+  type DataExportRequest,
+  type ExportManifest,
+  type RequestDataExportInput,
+  type RequestDataExportResponse,
+  type GetExportStatusInput,
+  type ExportedData,
+} from './dataExport'

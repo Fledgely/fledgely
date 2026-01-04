@@ -21,3 +21,4 @@ export { sendSafeEscapeNotifications } from './sendSafeEscapeNotifications' // S
 export { hourlyFlagDigest } from './hourlyFlagDigest' // Story 41.2
 export { dailyFlagDigest } from './dailyFlagDigest' // Story 41.2
 export { checkDeviceSyncStatus } from './checkDeviceSyncStatus' // Story 41.4
+export { cleanupExpiredExports } from './cleanupExpiredExports' // Story 51.1
