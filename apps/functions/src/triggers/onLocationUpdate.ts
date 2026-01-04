@@ -1,5 +1,5 @@
 /**
- * onLocationUpdate Trigger - Story 40.4
+ * onLocationUpdate Trigger - Story 40.4, Story 41.8
  *
  * Firestore trigger that fires when a device location is updated.
  * Handles transition notifications and rule application scheduling.
@@ -7,6 +7,7 @@
  * Acceptance Criteria:
  * - AC2: 5-minute Grace Period
  * - AC3: Transition Notification
+ * - Story 41.8 AC1: Suppress notifications during fleeing mode
  */
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
@@ -17,6 +18,7 @@ import {
   calculateGracePeriodMinutes,
   type DeviceLocation,
 } from '@fledgely/shared'
+import { suppressLocationNotification } from '../lib/notifications/fleeingModeSuppressions'
 
 /**
  * Triggered when a device location is updated.
@@ -63,6 +65,31 @@ export const onLocationUpdate = onDocumentWritten(
 
     // Check if notification already sent
     if (transition.notificationSentAt) {
+      return
+    }
+
+    // Story 41.8: Check if fleeing mode is active - suppress location notifications
+    const suppressed = await suppressLocationNotification(familyId, 'location_transition', {
+      childId: afterData.childId,
+      deviceId,
+      transitionId: transitionDoc.id,
+      toZoneId: transition.toZoneId,
+      fromZoneId: transition.fromZoneId,
+    })
+
+    if (suppressed) {
+      // Mark notification as suppressed (not sent, but processed)
+      await transitionDoc.ref.update({
+        notificationSentAt: Timestamp.now(),
+        suppressedByFleeingMode: true,
+      })
+
+      console.log('Location transition notification suppressed by fleeing mode:', {
+        transitionId: transitionDoc.id,
+        familyId,
+        deviceId,
+        childId: afterData.childId,
+      })
       return
     }
 

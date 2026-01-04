@@ -1,5 +1,5 @@
 /**
- * Safe Escape Notification Scheduler - Story 40.3
+ * Safe Escape Notification Scheduler - Story 40.3, Story 41.8
  *
  * Sends notifications to other family members after the 72-hour
  * silent period has passed since Safe Escape was activated.
@@ -9,11 +9,14 @@
  * - Notification only says "Location features paused" - no details
  * - Does NOT reveal who activated or why
  * - Idempotent (safe to retry)
+ *
+ * Story 41.8 AC4: 72-hour expiry notification with neutral wording
  */
 
 import { onSchedule, ScheduledEvent } from 'firebase-functions/v2/scheduler'
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore'
 import { logAdminAction } from '../utils/adminAudit'
+import { logFleeingModeExpiry } from '../lib/safety/fleeingModeAudit'
 import { SAFE_ESCAPE_SILENT_PERIOD_MS } from '@fledgely/shared'
 
 // System agent ID for scheduled tasks
@@ -191,6 +194,9 @@ export const sendSafeEscapeNotifications = onSchedule(
 
           // Mark activation as notification sent
           await markNotificationSent(pending.familyId, pending.activationId)
+
+          // Story 41.8 AC5: Log to safety audit
+          await logFleeingModeExpiry(pending.familyId)
 
           totalActivationsProcessed++
           totalNotificationsSent += sentCount

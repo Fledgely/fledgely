@@ -154,3 +154,11 @@ export type {
   ChildDeliveryLog,
   ChildDeliveryResult,
 } from './childNotificationDelivery'
+
+// Story 41.8: Fleeing mode notification suppressions
+export {
+  shouldSuppressForFleeingMode,
+  suppressLocationNotification,
+  canSendNotification,
+} from './fleeingModeSuppressions'
+export type { SuppressionCheckResult } from './fleeingModeSuppressions'
