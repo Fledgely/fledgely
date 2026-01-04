@@ -109,6 +109,25 @@ output "estimated_monthly_cost" {
 }
 
 # =============================================================================
+# Backup Information
+# =============================================================================
+
+output "backup_bucket_name" {
+  description = "The name of the backup storage bucket"
+  value       = module.backup.backup_bucket_name
+}
+
+output "backup_schedule" {
+  description = "The backup schedule (if enabled)"
+  value       = var.enable_scheduled_backup ? var.backup_schedule : "Disabled"
+}
+
+output "backup_retention_days" {
+  description = "Backup retention period in days"
+  value       = var.backup_retention_days
+}
+
+# =============================================================================
 # Connection Information (for extension/app configuration)
 # =============================================================================
 

@@ -342,3 +342,48 @@ variable "notify_billing_admins" {
   type        = bool
   default     = true
 }
+
+# =============================================================================
+# Backup Configuration
+# =============================================================================
+
+variable "backup_location" {
+  description = "Location for backup storage bucket"
+  type        = string
+  default     = "US"
+}
+
+variable "backup_retention_days" {
+  description = "Number of days to retain backups"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.backup_retention_days >= 1 && var.backup_retention_days <= 365
+    error_message = "Backup retention days must be between 1 and 365"
+  }
+}
+
+variable "enable_scheduled_backup" {
+  description = "Enable scheduled daily Firestore backups"
+  type        = bool
+  default     = false
+}
+
+variable "backup_schedule" {
+  description = "Cron schedule for backups (default: 2 AM UTC)"
+  type        = string
+  default     = "0 2 * * *"
+}
+
+variable "backup_timezone" {
+  description = "Timezone for backup schedule"
+  type        = string
+  default     = "UTC"
+}
+
+variable "enable_backup_notifications" {
+  description = "Enable Pub/Sub notifications for backup events"
+  type        = bool
+  default     = false
+}

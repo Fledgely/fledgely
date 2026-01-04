@@ -254,6 +254,9 @@ export { onDataExportCreated } from './triggers/onDataExportCreated'
 export { cleanupExpiredExports } from './scheduled/cleanupExpiredExports'
 export { downloadExport } from './http/gdpr'
 
+// Firestore Backup (Story 49.1)
+export { backupFirestore, triggerBackup } from './scheduled/firestore-backup'
+
 // GDPR Data Deletion (Story 51.2)
 export {
   requestDataDeletion,

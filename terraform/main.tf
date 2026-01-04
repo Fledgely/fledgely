@@ -194,3 +194,27 @@ module "billing" {
   notification_channels = var.budget_notification_channels
   notify_billing_admins = var.notify_billing_admins
 }
+
+# Backup Module - Automated backups (Optional)
+module "backup" {
+  source = "./modules/backup"
+
+  project_id                = var.project_id
+  region                    = var.region
+  location                  = var.backup_location
+  retention_days            = var.backup_retention_days
+  enable_scheduled_backup   = var.enable_scheduled_backup
+  backup_schedule           = var.backup_schedule
+  backup_timezone           = var.backup_timezone
+  backup_function_url       = var.enable_scheduled_backup ? "${module.functions.functions_url}/backup" : ""
+  backup_service_account    = module.iam.functions_service_account_email
+  scheduler_service_account = module.iam.functions_service_account_email
+  enable_notifications      = var.enable_backup_notifications
+  labels                    = local.common_labels
+
+  depends_on = [
+    google_project_service.required_apis,
+    module.iam,
+    module.functions,
+  ]
+}
