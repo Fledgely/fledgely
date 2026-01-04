@@ -274,3 +274,10 @@ export { executeAccountDeletions } from './scheduled/executeAccountDeletions'
 export { submitAbuseReport } from './http/abuseReport'
 export { getAbuseReports } from './callable/admin/getAbuseReports'
 export { updateAbuseReport } from './callable/admin/updateAbuseReport'
+
+// Breach Notification (Story 51.6)
+export { createBreachIncident } from './callable/admin/createBreachIncident'
+export { updateBreachIncident } from './callable/admin/updateBreachIncident'
+export { getBreachIncidents } from './callable/admin/getBreachIncidents'
+export { getUserBreachNotifications } from './callable/getUserBreachNotifications'
+export { dismissBreachBanner } from './callable/dismissBreachBanner'

@@ -394,6 +394,27 @@
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "submittedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "breachIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "detectedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "breachIncidents",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "detectedAt", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "breachUserNotifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "emailSentAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
