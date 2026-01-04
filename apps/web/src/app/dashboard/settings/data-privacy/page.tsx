@@ -18,6 +18,7 @@ import { useAuth } from '../../../../contexts/AuthContext'
 import { useFamilyContext } from '../../../../contexts/FamilyContext'
 import { DataExportCard } from '../../../../components/settings/DataExportCard'
 import { DataDeletionCard } from '../../../../components/settings/DataDeletionCard'
+import { AccountDeletionCard } from '../../../../components/settings/AccountDeletionCard'
 
 const styles = {
   main: {
@@ -221,6 +222,11 @@ export default function DataPrivacySettingsPage() {
             <div style={styles.dangerSection}>
               <div style={styles.dangerTitle}>Danger Zone</div>
               <DataDeletionCard familyId={family.id} />
+
+              {/* Account Deletion - Story 51.4 */}
+              <div style={{ marginTop: '16px' }}>
+                <AccountDeletionCard familyId={family.id} />
+              </div>
             </div>
           </>
         ) : (

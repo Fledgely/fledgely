@@ -31,3 +31,16 @@ export {
   executeFamilyDeletion,
   _resetForTesting as _resetDeletionForTesting,
 } from './dataDeletionService'
+
+// Account Deletion (Story 51.4)
+export {
+  getAffectedUsers,
+  createAccountDeletionRequest,
+  findActiveAccountDeletion,
+  cancelAccountDeletionRequest,
+  getAccountDeletionRequest,
+  updateAccountDeletionRequest,
+  findAccountDeletionsReadyForProcessing,
+  executeAccountDeletion,
+  _resetForTesting as _resetAccountDeletionForTesting,
+} from './accountDeletionService'

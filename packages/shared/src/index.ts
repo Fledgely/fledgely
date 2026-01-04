@@ -2416,3 +2416,27 @@ export {
   type DeletionResult as GDPRDeletionResult,
   type DeletionDataType as GDPRDeletionDataType,
 } from './contracts/dataDeletion'
+
+// Account Deletion exports (Story 51.4)
+export {
+  AccountDeletionStatus,
+  AffectedUserSchema,
+  AccountDeletionRequestSchema,
+  RequestAccountDeletionInputSchema,
+  RequestAccountDeletionResponseSchema,
+  CancelAccountDeletionInputSchema,
+  CancelAccountDeletionResponseSchema,
+  GetAccountDeletionStatusInputSchema,
+  ACCOUNT_DELETION_CONFIG,
+  AccountDeletionResultSchema,
+  calculateAccountCoolingOffEndDate,
+  isValidAccountConfirmationPhrase,
+  type AffectedUser,
+  type AccountDeletionRequest,
+  type RequestAccountDeletionInput,
+  type RequestAccountDeletionResponse,
+  type CancelAccountDeletionInput,
+  type CancelAccountDeletionResponse,
+  type GetAccountDeletionStatusInput,
+  type AccountDeletionResult,
+} from './contracts/accountDeletion'

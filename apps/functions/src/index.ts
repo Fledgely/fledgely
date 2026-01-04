@@ -261,3 +261,11 @@ export {
   getDataDeletionStatus,
 } from './callable/requestDataDeletion'
 export { executeDataDeletions } from './scheduled/executeDataDeletions'
+
+// GDPR Account Deletion (Story 51.4)
+export {
+  requestAccountDeletion,
+  cancelAccountDeletion,
+  getAccountDeletionStatus,
+} from './callable/requestAccountDeletion'
+export { executeAccountDeletions } from './scheduled/executeAccountDeletions'

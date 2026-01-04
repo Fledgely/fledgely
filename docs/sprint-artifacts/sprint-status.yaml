@@ -681,16 +681,16 @@ development_status:
   epic-50-retrospective: optional
 
   # Epic 51: Data Export, GDPR & Account Lifecycle
-  epic-51: in-progress # GDPR Data Rights - first story started
+  epic-51: in-progress # GDPR Data Rights - Stories 51-1, 51-2 complete
   51-1-data-export-request: done
-  51-2-data-deletion-request: backlog
-  51-3-child-data-deletion-at-18-inv-005: backlog
-  51-4-account-deletion-flow: backlog
+  51-2-data-deletion-request: done
+  51-3-child-data-deletion-at-18-inv-005: done # Covered by Story 38-5
+  51-4-account-deletion-flow: done
   51-5-abuse-reporting: backlog
   51-6-breach-notification: backlog
   51-7-privacy-dashboard: backlog
   51-8-right-to-rectification: backlog
-  epic-51-retrospective: optional
+  epic-51-retrospective: done
 
   # Epic 52: Reverse Mode & Trusted Adults (Age 16 Transition)
   epic-52: backlog
