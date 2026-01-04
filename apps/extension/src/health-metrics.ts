@@ -10,18 +10,19 @@
 
 import { getEventStats } from './event-logger'
 import { getQueueSize as getOfflineQueueSize } from './offline-queue'
-import { isOnline, getOfflineDurationSeconds } from './network-status'
+import { getNetworkStatusString, getOfflineDurationSeconds } from './network-status'
 
 /**
  * Health metrics collected from the device
+ * Story 46.4: Added syncing networkStatus
  */
 export interface DeviceHealthMetrics {
   /** Capture success rate over last 24h (0-100) */
   captureSuccessRate24h: number | null
   /** Number of screenshots pending upload */
   uploadQueueSize: number
-  /** Network connectivity status */
-  networkStatus: 'online' | 'offline'
+  /** Network connectivity status - Story 46.4: Added syncing */
+  networkStatus: 'online' | 'offline' | 'syncing'
   /** Story 46.1: Current offline duration in seconds (0 if online) */
   offlineDurationSeconds: number
   /** Battery level percentage (0-100) */
@@ -102,7 +103,8 @@ export async function collectHealthMetrics(): Promise<DeviceHealthMetrics> {
   const uploadQueueSize = await getQueueSize()
 
   // Story 46.1: Get network status from network-status module
-  const networkStatus = isOnline() ? 'online' : 'offline'
+  // Story 46.4: Updated to use getNetworkStatusString which includes 'syncing' state
+  const networkStatus = getNetworkStatusString()
   const offlineDurationSeconds = getOfflineDurationSeconds()
 
   // Get battery status

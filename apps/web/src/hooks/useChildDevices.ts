@@ -86,6 +86,8 @@ export function useChildDevices({
           const enrolledAt = data.enrolledAt?.toDate?.() || new Date(data.enrolledAt)
           const lastSeen = data.lastSeen?.toDate?.() || new Date(data.lastSeen)
           const lastScreenshotAt = data.lastScreenshotAt?.toDate?.() || null
+          // Story 46.4: Parse offlineSince from Firestore
+          const offlineSince = data.offlineSince?.toDate?.() || null
 
           // Parse healthMetrics from Firestore
           let healthMetrics: DeviceHealthMetrics | undefined
@@ -114,6 +116,7 @@ export function useChildDevices({
             name: data.name || `Device ${doc.id.substring(0, 6)}`,
             lastSeen,
             lastScreenshotAt,
+            offlineSince, // Story 46.4: When device went offline
             status: data.status || 'active',
             metadata: data.metadata || {
               platform: '',

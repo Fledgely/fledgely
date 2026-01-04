@@ -18,11 +18,12 @@ import { getFirestoreDb } from '../lib/firebase'
  * Health metrics from extension
  * Story 19.4: Monitoring Health Details
  * Story 8.8: Added encryptedTrafficPercent
+ * Story 46.4: Added syncing to networkStatus
  */
 export interface DeviceHealthMetrics {
   captureSuccessRate24h: number | null
   uploadQueueSize: number
-  networkStatus: 'online' | 'offline'
+  networkStatus: 'online' | 'offline' | 'syncing' // Story 46.4: Added syncing
   batteryLevel: number | null
   batteryCharging: boolean | null
   appVersion: string
@@ -43,6 +44,7 @@ export type DeviceConsentStatus = 'pending' | 'granted' | 'withdrawn'
  * Story 19.3 Task 2.1: Added lastScreenshotAt field
  * Story 19.4: Added healthMetrics field
  * Story 6.5: Added consent status fields
+ * Story 46.4: Added offlineSince and syncing status
  */
 export interface Device {
   deviceId: string
@@ -53,7 +55,8 @@ export interface Device {
   name: string
   lastSeen: Date
   lastScreenshotAt: Date | null // Story 19.3 AC5: Track last screenshot capture
-  status: 'active' | 'offline' | 'unenrolled'
+  offlineSince: Date | null // Story 46.4: When device went offline
+  status: 'active' | 'offline' | 'syncing' | 'unenrolled' // Story 46.4: Added syncing state
   metadata: {
     platform: string
     userAgent: string
@@ -116,6 +119,8 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
           const lastSeen = data.lastSeen?.toDate?.() || new Date(data.lastSeen)
           // Story 19.3 Task 2.2: Include lastScreenshotAt from Firestore
           const lastScreenshotAt = data.lastScreenshotAt?.toDate?.() || null
+          // Story 46.4: Parse offlineSince from Firestore
+          const offlineSince = data.offlineSince?.toDate?.() || null
 
           // Story 19.4: Parse healthMetrics from Firestore
           // Story 8.8: Added encryptedTrafficPercent
@@ -145,6 +150,7 @@ export function useDevices({ familyId, enabled = true }: UseDevicesOptions): Use
             name: data.name || `Device ${doc.id.substring(0, 6)}`,
             lastSeen,
             lastScreenshotAt, // Story 19.3 AC5
+            offlineSince, // Story 46.4: When device went offline
             status: data.status || 'active',
             metadata: data.metadata || {
               platform: '',
@@ -221,4 +227,28 @@ export function isValidDate(date: Date | null | undefined): boolean {
   if (!date) return false
   const time = date.getTime()
   return !isNaN(time) && time > 0
+}
+
+/**
+ * Story 46.4: Format "Offline since" timestamp for display
+ * Shows time as "2:30 PM" for same-day, "Mon, 2:30 PM" for different day
+ */
+export function formatOfflineSince(date: Date | null | undefined): string {
+  if (!date || !isValidDate(date)) return ''
+
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+
+  const timeStr = date.toLocaleString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+
+  if (isToday) {
+    return timeStr // "2:30 PM"
+  }
+
+  const dayStr = date.toLocaleString('en-US', { weekday: 'short' })
+  return `${dayStr}, ${timeStr}` // "Mon, 2:30 PM"
 }

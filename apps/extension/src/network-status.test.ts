@@ -17,6 +17,10 @@ import {
   clearListeners,
   resetNetworkStatus,
   setNetworkStatus,
+  // Story 46.4: Syncing state functions
+  isSyncing,
+  setSyncingState,
+  getNetworkStatusString,
 } from './network-status'
 
 describe('Network Status Module', () => {
@@ -311,6 +315,78 @@ describe('Network Status Module', () => {
       expect(callback).toHaveBeenNthCalledWith(2, true)
       expect(callback).toHaveBeenNthCalledWith(3, false)
       expect(callback).toHaveBeenNthCalledWith(4, true)
+    })
+  })
+
+  // Story 46.4: Syncing State Tests
+  describe('isSyncing (Story 46.4)', () => {
+    it('should return false by default', () => {
+      expect(isSyncing()).toBe(false)
+    })
+
+    it('should return true when syncing state is set', () => {
+      setSyncingState(true)
+      expect(isSyncing()).toBe(true)
+    })
+
+    it('should return false when syncing state is cleared', () => {
+      setSyncingState(true)
+      setSyncingState(false)
+      expect(isSyncing()).toBe(false)
+    })
+
+    it('should be reset by resetNetworkStatus', () => {
+      setSyncingState(true)
+      resetNetworkStatus()
+      expect(isSyncing()).toBe(false)
+    })
+  })
+
+  describe('setSyncingState (Story 46.4)', () => {
+    it('should set syncing state to true', () => {
+      setSyncingState(true)
+      expect(isSyncing()).toBe(true)
+    })
+
+    it('should set syncing state to false', () => {
+      setSyncingState(true)
+      setSyncingState(false)
+      expect(isSyncing()).toBe(false)
+    })
+  })
+
+  describe('getNetworkStatusString (Story 46.4)', () => {
+    it('should return "online" when online and not syncing', () => {
+      setNetworkStatus(true)
+      setSyncingState(false)
+      expect(getNetworkStatusString()).toBe('online')
+    })
+
+    it('should return "offline" when offline', () => {
+      setNetworkStatus(false)
+      expect(getNetworkStatusString()).toBe('offline')
+    })
+
+    it('should return "syncing" when online and syncing', () => {
+      setNetworkStatus(true)
+      setSyncingState(true)
+      expect(getNetworkStatusString()).toBe('syncing')
+    })
+
+    it('should return "offline" when offline even if syncing flag is set', () => {
+      setNetworkStatus(false)
+      setSyncingState(true)
+      // When offline, syncing doesn't apply - should still be offline
+      expect(getNetworkStatusString()).toBe('offline')
+    })
+
+    it('should return "online" after syncing completes', () => {
+      setNetworkStatus(true)
+      setSyncingState(true)
+      expect(getNetworkStatusString()).toBe('syncing')
+
+      setSyncingState(false)
+      expect(getNetworkStatusString()).toBe('online')
     })
   })
 })

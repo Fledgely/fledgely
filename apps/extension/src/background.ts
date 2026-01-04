@@ -85,6 +85,7 @@ import {
   isOnline,
   onNetworkStatusChange,
   getLastOfflineDuration,
+  setSyncingState, // Story 46.4: Syncing state for health metrics
 } from './network-status'
 // Story 32.3: Family Offline Time Enforcement
 // Story 32.4: Parent Compliance Tracking
@@ -610,6 +611,9 @@ async function processScreenshotQueue(): Promise<void> {
     duration: offlineDuration, // How long device was offline before this sync
   })
 
+  // Story 46.4: Set syncing state for health metrics reporting
+  setSyncingState(true)
+
   // Get state for badge updates
   const { state } = await chrome.storage.local.get('state')
 
@@ -715,6 +719,9 @@ async function processScreenshotQueue(): Promise<void> {
   if (state) {
     await updateErrorBadge(state)
   }
+
+  // Story 46.4: Clear syncing state after queue processing completes
+  setSyncingState(false)
 }
 
 /**

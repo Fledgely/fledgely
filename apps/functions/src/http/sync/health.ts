@@ -20,11 +20,13 @@ const db = getFirestore()
 
 /**
  * Health metrics received from extension
+ * Story 46.4: Added syncing networkStatus and offlineDurationSeconds
  */
 interface DeviceHealthMetrics {
   captureSuccessRate24h: number | null
   uploadQueueSize: number
-  networkStatus: 'online' | 'offline'
+  networkStatus: 'online' | 'offline' | 'syncing' // Story 46.4: Added syncing
+  offlineDurationSeconds?: number // Story 46.1: Duration device has been offline
   batteryLevel: number | null
   batteryCharging: boolean | null
   appVersion: string
@@ -108,6 +110,10 @@ export const syncDeviceHealth = onRequest(
         return
       }
 
+      // Get current device data to check previous state
+      const currentData = deviceDoc.data()
+      const previousNetworkStatus = currentData?.healthMetrics?.networkStatus
+
       // Build update object
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: Record<string, any> = {
@@ -116,6 +122,29 @@ export const syncDeviceHealth = onRequest(
           lastHealthSync: FieldValue.serverTimestamp(),
         },
         lastSeen: FieldValue.serverTimestamp(),
+      }
+
+      // Story 46.4: Track offlineSince timestamp
+      // Set offlineSince when transitioning to offline
+      if (metrics.networkStatus === 'offline' && previousNetworkStatus !== 'offline') {
+        updateData.offlineSince = FieldValue.serverTimestamp()
+      }
+      // Clear offlineSince when coming back online or syncing
+      if (
+        (metrics.networkStatus === 'online' || metrics.networkStatus === 'syncing') &&
+        previousNetworkStatus === 'offline'
+      ) {
+        updateData.offlineSince = null
+      }
+
+      // Story 46.4: Map networkStatus to device status
+      // 'syncing' and 'online' -> 'active', 'offline' -> 'offline'
+      if (metrics.networkStatus === 'syncing') {
+        updateData.status = 'syncing'
+      } else if (metrics.networkStatus === 'online') {
+        updateData.status = 'active'
+      } else if (metrics.networkStatus === 'offline') {
+        updateData.status = 'offline'
       }
 
       // Story 6.5: Include consent status if provided

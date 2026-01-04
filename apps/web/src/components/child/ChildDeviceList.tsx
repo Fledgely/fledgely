@@ -16,9 +16,9 @@
  * - AC6: "Need help?" link visible
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 import type { Device } from '../../hooks/useDevices'
-import { formatLastSeen, isValidDate } from '../../hooks/useDevices'
+import { formatLastSeen, formatOfflineSince, isValidDate } from '../../hooks/useDevices'
 
 export interface ChildDeviceListProps {
   /** List of devices assigned to this child */
@@ -131,6 +131,11 @@ const styles = {
   statusDotOffline: {
     backgroundColor: '#9ca3af',
   },
+  // Story 46.4: Syncing status dot (blue, animated)
+  statusDotSyncing: {
+    backgroundColor: '#3b82f6',
+    animation: 'pulse 1.5s ease-in-out infinite',
+  },
   statusBadge: {
     padding: '4px 10px',
     borderRadius: '9999px',
@@ -152,6 +157,11 @@ const styles = {
   statusBadgeOffline: {
     backgroundColor: '#f3f4f6',
     color: '#6b7280',
+  },
+  // Story 46.4: Syncing status badge (blue)
+  statusBadgeSyncing: {
+    backgroundColor: '#dbeafe',
+    color: '#1e40af',
   },
   chevron: {
     marginLeft: '12px',
@@ -209,14 +219,17 @@ const styles = {
   },
 }
 
-type HealthStatus = 'active' | 'warning' | 'critical' | 'offline'
+// Story 46.4: Added syncing status for transparency with parent view
+type HealthStatus = 'active' | 'warning' | 'critical' | 'offline' | 'syncing'
 
-// Use same status calculation as parent view for transparency (AC3)
+// Use same status calculation as parent view for transparency (AC3, Story 46.4 AC6)
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
 
 function getDeviceHealthStatus(device: Device): HealthStatus {
   if (device.status === 'unenrolled') return 'offline'
+  // Story 46.4: Handle syncing status
+  if (device.status === 'syncing') return 'syncing'
   if (device.status === 'offline') return 'offline'
   if (!isValidDate(device.lastSeen)) return 'critical'
 
@@ -252,12 +265,17 @@ function DevicesHeaderIcon() {
   )
 }
 
+// Story 46.4: Pulse animation keyframes for syncing status
+const PULSE_KEYFRAMES_ID = 'fledgely-pulse-keyframes'
+
 function StatusIndicator({ status }: { status: HealthStatus }) {
+  // Story 46.4: Added syncing label for transparency (AC6)
   const statusLabels: Record<HealthStatus, string> = {
     active: 'Online',
     warning: 'Warning',
     critical: 'Issue',
     offline: 'Offline',
+    syncing: 'Syncing',
   }
 
   const dotStyle = {
@@ -268,7 +286,9 @@ function StatusIndicator({ status }: { status: HealthStatus }) {
         ? styles.statusDotWarning
         : status === 'critical'
           ? styles.statusDotCritical
-          : styles.statusDotOffline),
+          : status === 'syncing'
+            ? styles.statusDotSyncing
+            : styles.statusDotOffline),
   }
 
   const badgeStyle = {
@@ -279,7 +299,9 @@ function StatusIndicator({ status }: { status: HealthStatus }) {
         ? styles.statusBadgeWarning
         : status === 'critical'
           ? styles.statusBadgeCritical
-          : styles.statusBadgeOffline),
+          : status === 'syncing'
+            ? styles.statusBadgeSyncing
+            : styles.statusBadgeOffline),
   }
 
   return (
@@ -296,6 +318,29 @@ export function ChildDeviceList({
   error = null,
   onDeviceClick,
 }: ChildDeviceListProps) {
+  const styleInjectedRef = useRef(false)
+
+  // Story 46.4: Inject pulse animation keyframes on mount
+  useEffect(() => {
+    if (styleInjectedRef.current) return
+    if (typeof document === 'undefined') return
+    if (document.getElementById(PULSE_KEYFRAMES_ID)) {
+      styleInjectedRef.current = true
+      return
+    }
+
+    const style = document.createElement('style')
+    style.id = PULSE_KEYFRAMES_ID
+    style.textContent = `
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(0.9); }
+      }
+    `
+    document.head.appendChild(style)
+    styleInjectedRef.current = true
+  }, [])
+
   // Sort devices: active first, then by name
   const sortedDevices = useMemo(() => {
     return [...devices].sort((a, b) => {
@@ -353,6 +398,21 @@ export function ChildDeviceList({
             const lastCapture = device.lastScreenshotAt
               ? `Last capture: ${formatLastSeen(device.lastScreenshotAt)}`
               : 'No captures yet'
+            // Story 46.4 AC6: Show offline since for transparency with parent view
+            const isOfflineState =
+              healthStatus === 'offline' ||
+              healthStatus === 'warning' ||
+              healthStatus === 'critical'
+            const offlineSinceStr = device.offlineSince
+              ? formatOfflineSince(device.offlineSince)
+              : null
+            // Build meta text with offline since if applicable
+            const metaText =
+              isOfflineState && offlineSinceStr
+                ? `${lastCapture} · Offline since ${offlineSinceStr}`
+                : healthStatus === 'syncing'
+                  ? `${lastCapture} · Syncing...`
+                  : lastCapture
 
             return (
               <div
@@ -379,7 +439,7 @@ export function ChildDeviceList({
                 <DeviceIcon type={device.type} />
                 <div style={styles.deviceInfo}>
                   <h3 style={styles.deviceName}>{device.name}</h3>
-                  <p style={styles.deviceMeta}>{lastCapture}</p>
+                  <p style={styles.deviceMeta}>{metaText}</p>
                 </div>
                 <StatusIndicator status={healthStatus} />
                 <span style={styles.chevron} aria-hidden="true">

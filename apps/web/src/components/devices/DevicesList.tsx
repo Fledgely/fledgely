@@ -23,8 +23,14 @@
  * - AC4 (6.5): Dashboard shows consent pending devices
  */
 
-import { useState, useCallback, useEffect } from 'react'
-import { useDevices, formatLastSeen, isValidDate, type Device } from '../../hooks/useDevices'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  useDevices,
+  formatLastSeen,
+  formatOfflineSince,
+  isValidDate,
+  type Device,
+} from '../../hooks/useDevices'
 import { useChildren, type ChildSummary } from '../../hooks/useChildren'
 import { useAuth } from '../../contexts/AuthContext'
 import {
@@ -117,6 +123,11 @@ const styles = {
       backgroundColor: '#f3f4f6',
       color: '#6b7280',
     },
+    // Story 46.4: Syncing status style
+    syncing: {
+      backgroundColor: '#dbeafe',
+      color: '#1e40af',
+    },
   },
   statusDot: {
     width: '8px',
@@ -135,6 +146,11 @@ const styles = {
   },
   statusDotOffline: {
     backgroundColor: '#9ca3af',
+  },
+  // Story 46.4: Syncing status dot (blue, animated)
+  statusDotSyncing: {
+    backgroundColor: '#3b82f6',
+    animation: 'pulse 1.5s ease-in-out infinite',
   },
   // Story 6.5: Consent pending badge styles
   consentBadge: {
@@ -595,8 +611,9 @@ function OrphanedHeader({ count }: OrphanedHeaderProps) {
 /**
  * Story 19.2: Health status type
  * Task 1: Create Status Calculation Utility
+ * Story 46.4: Added syncing status
  */
-export type HealthStatus = 'active' | 'warning' | 'critical' | 'offline'
+export type HealthStatus = 'active' | 'warning' | 'critical' | 'offline' | 'syncing'
 
 // Story 19.2: Configurable thresholds (in milliseconds)
 const HOUR_MS = 60 * 60 * 1000
@@ -605,14 +622,18 @@ const DAY_MS = 24 * HOUR_MS
 /**
  * Story 19.2: Calculate device health status based on last sync time
  * Story 19.3 Task 1.2: Handle never-synced devices as critical
+ * Story 46.4: Added syncing status handling
  * Task 1.1-1.5: Status calculation utility
  *
  * @param device - The device to check
- * @returns HealthStatus - 'active' | 'warning' | 'critical' | 'offline'
+ * @returns HealthStatus - 'active' | 'warning' | 'critical' | 'offline' | 'syncing'
  */
 export function getDeviceHealthStatus(device: Device): HealthStatus {
   // Task 1.4: Unenrolled devices are always offline
   if (device.status === 'unenrolled') return 'offline'
+
+  // Story 46.4: Syncing status takes precedence
+  if (device.status === 'syncing') return 'syncing'
 
   // Offline status from device takes precedence
   if (device.status === 'offline') return 'offline'
@@ -678,7 +699,9 @@ function StatusBadge({ device, onClick }: StatusBadgeProps) {
         ? styles.statusDotWarning
         : healthStatus === 'critical'
           ? styles.statusDotCritical
-          : styles.statusDotOffline),
+          : healthStatus === 'syncing'
+            ? styles.statusDotSyncing
+            : styles.statusDotOffline),
   }
 
   const labels: Record<HealthStatus, string> = {
@@ -686,6 +709,7 @@ function StatusBadge({ device, onClick }: StatusBadgeProps) {
     warning: 'Warning',
     critical: 'Critical',
     offline: 'Offline',
+    syncing: 'Syncing', // Story 46.4: Syncing label
   }
 
   // Task 4.1-4.4: Make clickable with visual feedback
@@ -702,16 +726,44 @@ function StatusBadge({ device, onClick }: StatusBadgeProps) {
     }
   }
 
+  // Story 46.4: Build enhanced tooltip content
+  const isOfflineStatus =
+    healthStatus === 'offline' || healthStatus === 'warning' || healthStatus === 'critical'
+  const isSyncingStatus = healthStatus === 'syncing'
+  const offlineSinceStr = device.offlineSince ? formatOfflineSince(device.offlineSince) : null
+
   return (
     <div style={styles.tooltipContainer}>
       {/* Task 3.1-3.5: Tooltip on hover */}
       {/* Story 19.3 Task 1.4: Handle never-synced state in tooltip */}
+      {/* Story 46.4: Enhanced tooltip with offline explanation */}
       {showTooltip && (
-        <div style={styles.tooltip} role="tooltip">
-          <div>Last sync: {formatLastSeen(device.lastSeen)}</div>
+        <div style={{ ...styles.tooltip, maxWidth: '280px', whiteSpace: 'normal' }} role="tooltip">
+          <div style={{ marginBottom: isOfflineStatus ? '4px' : '0' }}>
+            Last sync: {formatLastSeen(device.lastSeen)}
+          </div>
           {isValidDate(device.lastSeen) && (
             <div style={{ opacity: 0.8, fontSize: '11px' }}>
               {formatExactTimestamp(device.lastSeen)}
+            </div>
+          )}
+          {/* Story 46.4 AC2: Show Offline since timestamp */}
+          {offlineSinceStr && isOfflineStatus && (
+            <div style={{ marginTop: '4px', fontSize: '11px' }}>
+              Offline since: {offlineSinceStr}
+            </div>
+          )}
+          {/* Story 46.4 AC4: Explanation for offline status */}
+          {isOfflineStatus && (
+            <div style={{ marginTop: '6px', fontSize: '11px', opacity: 0.9, lineHeight: '1.4' }}>
+              This device hasn&apos;t synced recently. Screenshots captured while offline will
+              upload when it reconnects.
+            </div>
+          )}
+          {/* Story 46.4 AC5: Syncing status message */}
+          {isSyncingStatus && (
+            <div style={{ marginTop: '6px', fontSize: '11px', opacity: 0.9 }}>
+              Device is syncing queued screenshots...
             </div>
           )}
           <div style={styles.tooltipArrow} />
@@ -881,6 +933,9 @@ function ResetSecretConfirmModal({ device, onConfirm, onCancel }: ResetSecretCon
   )
 }
 
+// Story 46.4: Pulse animation keyframes for syncing status
+const PULSE_KEYFRAMES_ID = 'fledgely-pulse-keyframes'
+
 export function DevicesList({ familyId }: DevicesListProps) {
   const { devices, loading: devicesLoading, error: devicesError } = useDevices({ familyId })
   const { children, loading: childrenLoading, error: childrenError } = useChildren({ familyId })
@@ -889,6 +944,28 @@ export function DevicesList({ familyId }: DevicesListProps) {
   const [deviceErrors, setDeviceErrors] = useState<Record<string, string>>({})
   const [deviceToRemove, setDeviceToRemove] = useState<Device | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
+  const styleInjectedRef = useRef(false)
+
+  // Story 46.4: Inject pulse animation keyframes on mount
+  useEffect(() => {
+    if (styleInjectedRef.current) return
+    if (typeof document === 'undefined') return
+    if (document.getElementById(PULSE_KEYFRAMES_ID)) {
+      styleInjectedRef.current = true
+      return
+    }
+
+    const style = document.createElement('style')
+    style.id = PULSE_KEYFRAMES_ID
+    style.textContent = `
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(0.9); }
+      }
+    `
+    document.head.appendChild(style)
+    styleInjectedRef.current = true
+  }, [])
 
   // Story 13.2: Emergency code state
   const [deviceForEmergencyCode, setDeviceForEmergencyCode] = useState<Device | null>(null)
@@ -1166,6 +1243,10 @@ export function DevicesList({ familyId }: DevicesListProps) {
 
   const renderDeviceItem = (device: Device) => {
     const healthStatus = getDeviceHealthStatus(device)
+    // Story 46.4: Check if device is in an offline-like state
+    const isOfflineState =
+      healthStatus === 'offline' || healthStatus === 'warning' || healthStatus === 'critical'
+    const offlineSinceStr = device.offlineSince ? formatOfflineSince(device.offlineSince) : null
 
     return (
       <div key={device.deviceId} style={styles.deviceItem}>
@@ -1174,8 +1255,17 @@ export function DevicesList({ familyId }: DevicesListProps) {
           <div style={styles.deviceName}>{device.name}</div>
           <div style={styles.deviceMeta}>
             {device.type === 'chromebook' ? 'Chromebook' : 'Android'} &middot; Last seen{' '}
-            {formatLastSeen(device.lastSeen)} &middot; Screenshot{' '}
-            {formatScreenshotTime(device.lastScreenshotAt)}
+            {formatLastSeen(device.lastSeen)}
+            {/* Story 46.4 AC2: Show Offline since timestamp */}
+            {isOfflineState && offlineSinceStr && <> &middot; Offline since {offlineSinceStr}</>}
+            {/* Story 46.4 AC5: Show syncing status in meta */}
+            {healthStatus === 'syncing' && (
+              <>
+                {' '}
+                &middot; <span style={{ color: '#1e40af' }}>Syncing...</span>
+              </>
+            )}{' '}
+            &middot; Screenshot {formatScreenshotTime(device.lastScreenshotAt)}
           </div>
         </div>
         {/* Story 19.3 Task 3: Warning icon for delayed sync */}

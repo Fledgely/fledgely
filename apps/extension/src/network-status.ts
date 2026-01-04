@@ -18,6 +18,8 @@ let lastOnlineAt: number | null = null
 let offlineSinceAt: number | null = null
 let lastOfflineDuration: number = 0 // Duration of most recent offline period (seconds)
 let statusChangeListeners: Array<(isOnline: boolean) => void> = []
+// Story 46.4: Track syncing state (for when queue is being processed after coming online)
+let isSyncingState = false
 
 /**
  * Check if the device is currently online.
@@ -209,6 +211,7 @@ export function resetNetworkStatus(): void {
   offlineSinceAt = null
   lastOfflineDuration = 0
   statusChangeListeners = []
+  isSyncingState = false // Story 46.4: Reset syncing state
 }
 
 /**
@@ -217,4 +220,34 @@ export function resetNetworkStatus(): void {
  */
 export function setNetworkStatus(isOnline: boolean): void {
   updateNetworkStatus(isOnline)
+}
+
+/**
+ * Story 46.4: Check if device is currently syncing queue
+ * @returns True if syncing, false otherwise
+ */
+export function isSyncing(): boolean {
+  return isSyncingState
+}
+
+/**
+ * Story 46.4: Set the syncing state
+ * Called when processScreenshotQueue starts/ends
+ * @param syncing Whether device is currently syncing
+ */
+export function setSyncingState(syncing: boolean): void {
+  isSyncingState = syncing
+  console.log(`[NetworkStatus] Syncing state: ${syncing ? 'syncing' : 'not syncing'}`)
+}
+
+/**
+ * Story 46.4: Get the network status string for health metrics
+ * Returns 'syncing' if syncing, otherwise 'online' or 'offline'
+ * @returns Network status string
+ */
+export function getNetworkStatusString(): 'online' | 'offline' | 'syncing' {
+  if (isSyncingState && currentOnlineStatus) {
+    return 'syncing'
+  }
+  return currentOnlineStatus ? 'online' : 'offline'
 }
