@@ -526,6 +526,16 @@ describe('childNotificationPreferences', () => {
       expect(result.deliver).toBe(true)
     })
 
+    it('always delivers required device_removed notifications (Story 19.6)', () => {
+      const prefs = createPrefs({ quietHoursEnabled: true })
+      const result = shouldDeliverChildNotification(
+        prefs,
+        CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED,
+        new Date('2024-01-01T23:00:00') // During quiet hours
+      )
+      expect(result.deliver).toBe(true)
+    })
+
     it('does not deliver trust_score_change when disabled', () => {
       const prefs = createPrefs({ trustScoreChangesEnabled: false })
       const result = shouldDeliverChildNotification(
@@ -587,6 +597,10 @@ describe('childNotificationPreferences', () => {
 
     it('returns true for agreement_change', () => {
       expect(isRequiredChildNotificationType(CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE)).toBe(true)
+    })
+
+    it('returns true for device_removed (Story 19.6)', () => {
+      expect(isRequiredChildNotificationType(CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED)).toBe(true)
     })
 
     it('returns false for trust_score_change', () => {
@@ -657,6 +671,7 @@ describe('childNotificationPreferences', () => {
     it('has correct notification type values', () => {
       expect(CHILD_NOTIFICATION_TYPES.TIME_LIMIT_WARNING).toBe('time_limit_warning')
       expect(CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE).toBe('agreement_change')
+      expect(CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED).toBe('device_removed')
       expect(CHILD_NOTIFICATION_TYPES.TRUST_SCORE_CHANGE).toBe('trust_score_change')
       expect(CHILD_NOTIFICATION_TYPES.WEEKLY_SUMMARY).toBe('weekly_summary')
     })
@@ -672,7 +687,8 @@ describe('childNotificationPreferences', () => {
         CHILD_NOTIFICATION_TYPES.TIME_LIMIT_WARNING
       )
       expect(REQUIRED_CHILD_NOTIFICATION_TYPES).toContain(CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE)
-      expect(REQUIRED_CHILD_NOTIFICATION_TYPES).toHaveLength(2)
+      expect(REQUIRED_CHILD_NOTIFICATION_TYPES).toContain(CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED)
+      expect(REQUIRED_CHILD_NOTIFICATION_TYPES).toHaveLength(3)
 
       expect(OPTIONAL_CHILD_NOTIFICATION_TYPES).toContain(
         CHILD_NOTIFICATION_TYPES.TRUST_SCORE_CHANGE

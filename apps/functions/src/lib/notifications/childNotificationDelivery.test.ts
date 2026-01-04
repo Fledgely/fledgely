@@ -54,8 +54,8 @@ vi.mock('./childNotificationPreferencesService', () => ({
 // Mock @fledgely/shared
 vi.mock('@fledgely/shared', () => ({
   shouldDeliverChildNotification: vi.fn((prefs, type) => {
-    // Time limit warning and agreement change are always delivered
-    if (type === 'time_limit_warning' || type === 'agreement_change') {
+    // Time limit warning, agreement change, and device removed are always delivered (required)
+    if (type === 'time_limit_warning' || type === 'agreement_change' || type === 'device_removed') {
       return { deliver: true }
     }
     // Trust score change - check if enabled
@@ -79,6 +79,7 @@ vi.mock('@fledgely/shared', () => ({
   CHILD_NOTIFICATION_TYPES: {
     TIME_LIMIT_WARNING: 'time_limit_warning',
     AGREEMENT_CHANGE: 'agreement_change',
+    DEVICE_REMOVED: 'device_removed',
     TRUST_SCORE_CHANGE: 'trust_score_change',
     WEEKLY_SUMMARY: 'weekly_summary',
   },
@@ -91,6 +92,7 @@ import {
   sendAgreementChangeToChild,
   sendTrustScoreChangeToChild,
   sendWeeklySummaryToChild,
+  sendDeviceRemovedToChild,
   _resetDbForTesting,
   _resetFcmForTesting,
 } from './childNotificationDelivery'
@@ -366,6 +368,58 @@ describe('childNotificationDelivery', () => {
 
       expect(result.delivered).toBe(false)
       expect(result.reason).toBe('weekly_summary_disabled')
+    })
+  })
+
+  // Story 19.6: Device Removal Flow - AC6
+  describe('sendDeviceRemovedToChild', () => {
+    it('sends device removed notification', async () => {
+      const result = await sendDeviceRemovedToChild(
+        'child-123',
+        'family-456',
+        'Chromebook Classroom'
+      )
+
+      expect(result.delivered).toBe(true)
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notification: expect.objectContaining({
+            title: 'Device Removed',
+            body: 'Chromebook Classroom removed from fledgely',
+          }),
+          data: expect.objectContaining({
+            notificationType: 'device_removed',
+            childId: 'child-123',
+            familyId: 'family-456',
+            deviceName: 'Chromebook Classroom',
+          }),
+        })
+      )
+    })
+
+    it('delivers even during quiet hours (required notification)', async () => {
+      mockGetChildNotificationPreferences.mockResolvedValue({
+        ...mockPreferences,
+        quietHoursEnabled: true,
+      })
+
+      const result = await sendDeviceRemovedToChild('child-123', 'family-456', 'My Tablet')
+
+      // Required notification should still be delivered during quiet hours
+      expect(result.delivered).toBe(true)
+      expect(mockSend).toHaveBeenCalled()
+    })
+
+    it('handles missing FCM token gracefully', async () => {
+      mockGet.mockResolvedValue({
+        exists: false,
+        data: () => null,
+      })
+
+      const result = await sendDeviceRemovedToChild('child-123', 'family-456', 'My Device')
+
+      expect(result.delivered).toBe(false)
+      expect(result.reason).toBe('no_fcm_token')
     })
   })
 })

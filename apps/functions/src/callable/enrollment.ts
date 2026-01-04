@@ -34,6 +34,7 @@ import { z } from 'zod'
 import { verifyAuth } from '../shared/auth'
 import * as logger from 'firebase-functions/logger'
 import * as crypto from 'crypto'
+import { sendDeviceRemovedToChild } from '../lib/notifications/childNotificationDelivery'
 
 /** Request expiry time in milliseconds (10 minutes) */
 const REQUEST_EXPIRY_MS = 10 * 60 * 1000
@@ -910,6 +911,28 @@ export const removeDevice = onCall<
     performedBy: user.uid,
     timestamp: FieldValue.serverTimestamp(),
   })
+
+  // 7. Story 19.6 AC6: Notify child of device removal
+  if (deviceData.childId) {
+    try {
+      await sendDeviceRemovedToChild(
+        deviceData.childId,
+        familyId,
+        deviceData.name || `Device ${deviceId.slice(0, 8)}`
+      )
+      logger.info('Child notified of device removal', {
+        childId: deviceData.childId,
+        deviceId,
+      })
+    } catch (error) {
+      // Don't fail removal if notification fails - just log warning
+      logger.warn('Failed to notify child of device removal', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        childId: deviceData.childId,
+        deviceId,
+      })
+    }
+  }
 
   logger.info('Device removed', {
     deviceId,

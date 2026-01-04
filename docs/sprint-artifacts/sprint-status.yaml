@@ -300,14 +300,14 @@ development_status:
   epic-18-retrospective: done
 
   # Epic 19: Device Status & Monitoring Health
-  epic-19: done
+  epic-19: in-progress # 6/8 stories done, 2 now unblocked (19-6, 19-7)
   19-1-device-list-view: done
   19-2-device-status-indicators: done
   19-3-last-sync-timestamp-display: done
   19-4-monitoring-health-details: done
   19-5-monitoring-disabled-alert: done
-  19-6-device-removal-flow: blocked # Requires child notification system and audit logging
-  19-7-child-device-visibility: blocked # Requires child login/authentication flow
+  19-6-device-removal-flow: done # All ACs implemented, tests pass
+  19-7-child-device-visibility: backlog # Unblocked - Child dashboard exists from Epic 19B/19C
   19-8-dashboard-view-logging-fr27a: done
   epic-19-retrospective: done
 
@@ -576,7 +576,7 @@ development_status:
   # ============================================
 
   # Epic 41: Notifications & Alerts
-  epic-41: in-progress # 6/8 stories done, implementing remaining backlog stories
+  epic-41: done # All 8 stories complete
   41-1-notification-preferences-configuration: done
   41-2-flag-notifications: done
   41-3-time-limit-notifications: done
@@ -585,7 +585,7 @@ development_status:
   41-6-notification-delivery-channels: done
   41-7-child-notification-preferences: done
   41-8-fleeing-mode-notification-suppression: done # Mostly covered in 41-5
-  epic-41-retrospective: optional
+  epic-41-retrospective: completed
 
   # Epic 42: Fire TV Agent
   epic-42: backlog

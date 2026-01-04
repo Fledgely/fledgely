@@ -36,6 +36,8 @@ export const CHILD_NOTIFICATION_TYPES = {
   TIME_LIMIT_WARNING: 'time_limit_warning',
   /** Required: Agreement changes - cannot be disabled */
   AGREEMENT_CHANGE: 'agreement_change',
+  /** Required: Device removed - cannot be disabled (Story 19.6) */
+  DEVICE_REMOVED: 'device_removed',
   /** Optional: Trust score changes */
   TRUST_SCORE_CHANGE: 'trust_score_change',
   /** Optional: Weekly summary */
@@ -49,6 +51,7 @@ export type ChildNotificationPreferenceType =
 export const REQUIRED_CHILD_NOTIFICATION_TYPES: ChildNotificationPreferenceType[] = [
   CHILD_NOTIFICATION_TYPES.TIME_LIMIT_WARNING,
   CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE,
+  CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED, // Story 19.6 - always notify child of device removal
 ]
 
 /** Optional notification types that can be toggled */

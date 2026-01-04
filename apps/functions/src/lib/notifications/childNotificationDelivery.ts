@@ -107,7 +107,8 @@ export async function shouldDeliverToChild(
     // On error, deliver required notifications, skip optional
     const isRequired =
       notificationType === CHILD_NOTIFICATION_TYPES.TIME_LIMIT_WARNING ||
-      notificationType === CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE
+      notificationType === CHILD_NOTIFICATION_TYPES.AGREEMENT_CHANGE ||
+      notificationType === CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED // Story 19.6
     return {
       deliver: isRequired,
       reason: isRequired ? undefined : 'preferences_error',
@@ -450,6 +451,38 @@ export async function sendWeeklySummaryToChild(
     childId,
     familyId,
     CHILD_NOTIFICATION_TYPES.WEEKLY_SUMMARY,
+    content
+  )
+}
+
+/**
+ * Send device removed notification to child.
+ * Story 19.6: Device Removal Flow - AC6
+ *
+ * This is a REQUIRED notification (cannot be disabled) and bypasses quiet hours.
+ * Notifies child when a device is removed from monitoring.
+ *
+ * @param childId - Child ID
+ * @param familyId - Family ID
+ * @param deviceName - Name of the removed device
+ */
+export async function sendDeviceRemovedToChild(
+  childId: string,
+  familyId: string,
+  deviceName: string
+): Promise<ChildDeliveryResult> {
+  const content: ChildNotificationContent = {
+    title: 'Device Removed',
+    body: `${deviceName} removed from fledgely`,
+    data: {
+      deviceName,
+    },
+  }
+
+  return deliverNotificationToChild(
+    childId,
+    familyId,
+    CHILD_NOTIFICATION_TYPES.DEVICE_REMOVED,
     content
   )
 }

@@ -141,6 +141,7 @@ export {
 } from './childNotificationPreferencesService'
 
 // Story 41.7: Child notification delivery
+// Story 19.6: Added sendDeviceRemovedToChild
 export {
   shouldDeliverToChild,
   deliverNotificationToChild,
@@ -148,6 +149,7 @@ export {
   sendAgreementChangeToChild,
   sendTrustScoreChangeToChild,
   sendWeeklySummaryToChild,
+  sendDeviceRemovedToChild,
 } from './childNotificationDelivery'
 export type {
   ChildNotificationContent,
